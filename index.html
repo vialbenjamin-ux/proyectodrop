@@ -596,6 +596,13 @@
     .calc-big{ font-size:26px }
     .admin-user-row{ flex-wrap:wrap; gap:6px }
     .card-summary-info{ gap:5px }
+    /* Reportes mobile */
+    .reporte-kpis{ grid-template-columns:1fr 1fr !important; gap:10px !important }
+    #reporte-total-orders,#reporte-total-products{ font-size:26px !important }
+    #reporte-total-revenue{ font-size:22px !important }
+    .reporte-scroll{ overflow-x:auto; -webkit-overflow-scrolling:touch }
+    .reporte-scroll table{ min-width:520px }
+    #section-reportes th,#section-reportes td{ padding:8px 12px !important; font-size:11px !important }
     .card-title{ font-size:13px }
   }
 
@@ -858,7 +865,7 @@
       </div>
 
       <!-- KPIs -->
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:24px">
+      <div class="reporte-kpis" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:24px">
         <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:18px 20px">
           <div style="font-size:10px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">Órdenes hoy</div>
           <div id="reporte-total-orders" style="font-family:'Syne',sans-serif;font-weight:800;font-size:32px;color:var(--accent)">—</div>
@@ -879,7 +886,7 @@
           <div style="font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted)">Por fuente UTM</div>
         </div>
         <div id="reporte-by-source-loading" style="padding:24px;text-align:center;color:var(--muted2);font-size:12px">Cargando...</div>
-        <table id="reporte-by-source-table" style="display:none;width:100%;border-collapse:collapse">
+        <div class="reporte-scroll"><table id="reporte-by-source-table" style="display:none;width:100%;border-collapse:collapse">
           <thead>
             <tr style="border-bottom:1px solid var(--border);background:var(--surface2)">
               <th style="text-align:left;padding:10px 20px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">FUENTE</th>
@@ -889,7 +896,7 @@
             </tr>
           </thead>
           <tbody id="reporte-source-rows"></tbody>
-        </table>
+        </table></div>
         <div id="reporte-error" style="display:none;padding:24px 20px;color:var(--peach);font-size:12px"></div>
       </div>
 
@@ -899,7 +906,7 @@
           <div style="font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted)">Productos vendidos hoy</div>
         </div>
         <div id="reporte-detail-loading" style="padding:24px;text-align:center;color:var(--muted2);font-size:12px">Cargando...</div>
-        <table id="reporte-detail-table" style="display:none;width:100%;border-collapse:collapse">
+        <div class="reporte-scroll"><table id="reporte-detail-table" style="display:none;width:100%;border-collapse:collapse">
           <thead>
             <tr id="reporte-product-headers" style="border-bottom:1px solid var(--border);background:var(--surface2)">
               <th style="text-align:left;padding:10px 20px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">PRODUCTO</th>
@@ -909,7 +916,7 @@
             </tr>
           </thead>
           <tbody id="reporte-detail-rows"></tbody>
-        </table>
+        </table></div>
       </div>
 
       <!-- Tabla rango de fechas -->
@@ -917,7 +924,7 @@
         <div style="padding:14px 20px;border-bottom:1px solid var(--border)">
           <div style="font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted)">Ventas por día</div>
         </div>
-        <table id="reporte-range-table" style="width:100%;border-collapse:collapse">
+        <div class="reporte-scroll"><table id="reporte-range-table" style="width:100%;border-collapse:collapse">
           <thead>
             <tr style="border-bottom:1px solid var(--border);background:var(--surface2)">
               <th style="text-align:left;padding:10px 20px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">FECHA</th>
@@ -931,7 +938,7 @@
           </thead>
           <tbody id="reporte-range-rows"></tbody>
           <tfoot id="reporte-range-totals"></tfoot>
-        </table>
+        </table></div>
       </div>
 
 
