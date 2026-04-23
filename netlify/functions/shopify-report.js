@@ -143,13 +143,22 @@ exports.handler = async function (event) {
 
   const products = Object.values(byProduct).sort((a, b) => b.qty - a.qty);
 
-
-  // Debug: muestra los primeros 5 pedidos con sus campos de tracking
-  const debugSample = allOrders.slice(0, 5).map(o => ({
+  // Debug: fuentes unicas en todos los pedidos de hoy
+  const allSources = {};
+  allOrders.forEach(o => {
+    const sn = o.source_name || '(null)';
+    const hasLanding = o.landing_site ? 'si' : 'no';
+    const key = sn + '|landing:' + hasLanding;
+    allSources[key] = (allSources[key] || 0) + 1;
+  });
+  const debugSample = allOrders.slice(0, 3).map(o => ({
     id: o.id,
     source_name: o.source_name,
-    landing_site: o.landing_site,
-    referring_site: o.referring_site,
+    landing_site: (o.landing_site || '').substring(0, 120),
+    referring_site: (o.referring_site || '').substring(0, 120),
+    detected: extractUtm(o)
+  }));
+
     detected: extractUtm(o)
   }));
 
@@ -164,6 +173,7 @@ exports.handler = async function (event) {
       totalRevenue,
       bySource,
       products,
+      allSources,
       debugSample,
       updatedAt: new Date().toISOString()
     })
