@@ -61,11 +61,12 @@ exports.handler = async function () {
         if (src) return src.toLowerCase();
       } catch (_) {}
     }
-    const sn = (order.source_name || '').toLowerCase();
-    if (sn && sn !== 'web') return sn;
+    // source_name conocidos de Shopify (ignorar números de teléfono y otros IDs)
+    const sn = (order.source_name || '').toLowerCase().trim();
+    const KNOWN = ['facebook', 'instagram', 'tiktok', 'google', 'pinterest', 'twitter', 'email', 'sms', 'pos'];
+    if (KNOWN.includes(sn)) return sn;
     return 'directo';
   }
-
   function getRefundedQty(order, lineItemId) {
     if (!order.refunds) return 0;
     let refunded = 0;
