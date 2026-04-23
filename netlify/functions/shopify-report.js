@@ -143,6 +143,16 @@ exports.handler = async function (event) {
 
   const products = Object.values(byProduct).sort((a, b) => b.qty - a.qty);
 
+
+  // Debug: muestra los primeros 5 pedidos con sus campos de tracking
+  const debugSample = allOrders.slice(0, 5).map(o => ({
+    id: o.id,
+    source_name: o.source_name,
+    landing_site: o.landing_site,
+    referring_site: o.referring_site,
+    detected: extractUtm(o)
+  }));
+
   return {
     statusCode: 200,
     headers: { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' },
@@ -154,6 +164,7 @@ exports.handler = async function (event) {
       totalRevenue,
       bySource,
       products,
+      debugSample,
       updatedAt: new Date().toISOString()
     })
   };

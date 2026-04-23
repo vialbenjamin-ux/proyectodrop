@@ -3506,7 +3506,7 @@ function calJumpTo(dateKey){
 initApp();
 
 // ── REPORTES SHOPIFY ──────────────────────────────────────────────
-let reporteInterval = null;
+
 
 async function fetchShopifyReport() {
   document.getElementById('reporte-last-update').textContent = 'Actualizando...';
@@ -3602,8 +3602,8 @@ function initReportes() {
   document.getElementById('reporte-fecha').textContent =
     '📅 ' + d.toLocaleDateString('es-CL', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
   fetchShopifyReport();
-  if (reporteInterval) clearInterval(reporteInterval);
-  reporteInterval = setInterval(fetchShopifyReport, 120000); // cada 2 minutos
+
+
 }
 </script>
 </body>
