@@ -843,7 +843,10 @@
           <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:22px;color:var(--text)">📊 Reporte del Día</div>
           <div id="reporte-fecha" style="font-size:11px;color:var(--muted);margin-top:2px;letter-spacing:.5px"></div>
         </div>
-        <div style="display:flex;align-items:center;gap:10px">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <input type="date" id="reporte-date-picker" onchange="fetchShopifyReport()"
+            style="background:var(--surface);border:1.5px solid var(--border);color:var(--text);padding:6px 12px;border-radius:20px;font-size:11px;font-family:'DM Mono',monospace;outline:none;cursor:pointer"
+            onfocus="this.style.borderColor='var(--teal)'" onblur="this.style.borderColor='var(--border)'">
           <span id="reporte-last-update" style="font-size:10px;color:var(--muted2);letter-spacing:.3px"></span>
           <button onclick="fetchShopifyReport()" style="background:var(--teal);color:#fff;border:none;border-radius:20px;padding:7px 16px;font-size:11px;letter-spacing:.5px">↻ Actualizar</button>
         </div>
@@ -893,7 +896,7 @@
         <div id="reporte-detail-loading" style="padding:24px;text-align:center;color:var(--muted2);font-size:12px">Cargando...</div>
         <table id="reporte-detail-table" style="display:none;width:100%;border-collapse:collapse">
           <thead>
-            <tr style="border-bottom:1px solid var(--border);background:var(--surface2)">
+            <tr id="reporte-product-headers" style="border-bottom:1px solid var(--border);background:var(--surface2)">
               <th style="text-align:left;padding:10px 20px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">PRODUCTO</th>
               <th style="text-align:right;padding:10px 20px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">PEDIDOS</th>
               <th style="text-align:right;padding:10px 20px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">UNIDADES</th>
@@ -3507,15 +3510,16 @@ let reporteInterval = null;
 
 async function fetchShopifyReport() {
   document.getElementById('reporte-last-update').textContent = 'Actualizando...';
-  ['reporte-by-source-loading','reporte-detail-loading'].forEach(id => {
-    document.getElementById(id).style.display = 'block';
-  });
-  ['reporte-by-source-table','reporte-detail-table','reporte-error'].forEach(id => {
-    document.getElementById(id).style.display = 'none';
-  });
+  ['reporte-by-source-loading','reporte-detail-loading'].forEach(id =>
+    document.getElementById(id).style.display = 'block');
+  ['reporte-by-source-table','reporte-detail-table','reporte-error'].forEach(id =>
+    document.getElementById(id).style.display = 'none');
+
+  const picker = document.getElementById('reporte-date-picker');
+  const dateParam = picker && picker.value ? `?date=${picker.value}` : '';
 
   try {
-    const res = await fetch('/.netlify/functions/shopify-report');
+    const res = await fetch('/.netlify/functions/shopify-report' + dateParam);
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Error desconocido');
 
@@ -3526,28 +3530,45 @@ async function fetchShopifyReport() {
       '$' + Math.round(data.totalRevenue).toLocaleString('es-CL');
     document.getElementById('reporte-fecha').textContent = '📅 ' + data.date;
 
-    // Tabla por fuente UTM
-    const sourceRows = Object.entries(data.bySource).sort((a,b) => b[1].products - a[1].products);
-    document.getElementById('reporte-source-rows').innerHTML = sourceRows.map(([source, s], i) => `
+    // Tabla fuente UTM
+    const sourceRows = Object.entries(data.bySource).sort((a,b) => b[1].orders - a[1].orders);
+    document.getElementById('reporte-source-rows').innerHTML = sourceRows.map(([src, s], i) => `
       <tr style="border-bottom:1px solid var(--border);${i%2?'background:var(--surface2)':''}">
-        <td style="padding:11px 20px;font-size:12px;color:var(--text);font-weight:600">${source}</td>
-        <td style="padding:11px 20px;font-size:12px;color:var(--muted);text-align:right">${s.orders}</td>
-        <td style="padding:11px 20px;font-size:12px;color:var(--accent);text-align:right;font-weight:700">${s.products}</td>
-        <td style="padding:11px 20px;font-size:12px;color:var(--text);text-align:right">$${Math.round(s.revenue).toLocaleString('es-CL')}</td>
+        <td style="padding:10px 20px;font-size:12px;color:var(--text);font-weight:600">${src}</td>
+        <td style="padding:10px 20px;font-size:12px;color:var(--muted);text-align:right">${s.orders}</td>
+        <td style="padding:10px 20px;font-size:12px;color:var(--accent);text-align:right;font-weight:700">${s.products}</td>
+        <td style="padding:10px 20px;font-size:12px;color:var(--text);text-align:right">$${Math.round(s.revenue).toLocaleString('es-CL')}</td>
       </tr>`).join('');
     document.getElementById('reporte-by-source-loading').style.display = 'none';
     document.getElementById('reporte-by-source-table').style.display = 'table';
 
-    // Tabla productos estilo Shopify
+    // Detectar fuentes activas para columnas dinámicas
+    const activeSources = ['meta','tiktok','directo'].filter(s => data.bySource[s]);
+    const sourceColors = { meta: 'var(--accent)', tiktok: 'var(--peach)', directo: 'var(--muted)' };
+
+    // Actualizar encabezados de la tabla de productos
+    const thRow = document.getElementById('reporte-product-headers');
+    if (thRow) {
+      thRow.innerHTML = `
+        <th style="text-align:left;padding:10px 20px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">PRODUCTO</th>
+        <th style="text-align:right;padding:10px 20px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">PEDIDOS</th>
+        <th style="text-align:right;padding:10px 16px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">UNIDADES</th>
+        <th style="text-align:right;padding:10px 16px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">VENTAS NETAS</th>
+        ${activeSources.map(s => `<th style="text-align:right;padding:10px 14px;font-size:10px;letter-spacing:1px;color:${sourceColors[s]||'var(--muted)'};font-weight:600;text-transform:uppercase">${s}</th>`).join('')}
+      `;
+    }
+
+    // Tabla productos
     const products = data.products || [];
     document.getElementById('reporte-detail-rows').innerHTML = products.map((p, i) => `
       <tr style="border-bottom:1px solid var(--border);${i%2?'background:var(--surface2)':''}">
-        <td style="padding:11px 20px;font-size:12px;color:var(--text);font-weight:500;max-width:280px">
-          ${p.product}${p.variant ? `<span style="color:var(--muted);font-size:10px;margin-left:6px">${p.variant}</span>` : ''}
+        <td style="padding:10px 20px;font-size:12px;color:var(--text);font-weight:500">
+          ${p.product}${p.variant?`<span style="color:var(--muted);font-size:10px;margin-left:6px">${p.variant}</span>`:''}
         </td>
-        <td style="padding:11px 20px;font-size:12px;color:var(--muted);text-align:right">${p.orders}</td>
-        <td style="padding:11px 20px;font-size:12px;color:var(--accent);text-align:right;font-weight:700">${p.qty}</td>
-        <td style="padding:11px 20px;font-size:12px;color:var(--text);text-align:right">$${Math.round(p.revenue).toLocaleString('es-CL')}</td>
+        <td style="padding:10px 20px;font-size:12px;color:var(--muted);text-align:right">${p.orders}</td>
+        <td style="padding:10px 16px;font-size:12px;color:var(--accent);text-align:right;font-weight:700">${p.qty}</td>
+        <td style="padding:10px 16px;font-size:12px;color:var(--text);text-align:right">$${Math.round(p.revenue).toLocaleString('es-CL')}</td>
+        ${activeSources.map(s => `<td style="padding:10px 14px;font-size:12px;color:${sourceColors[s]||'var(--muted)'};text-align:right;font-weight:${(p.bySource[s]||0)>0?'700':'400'}">${p.bySource[s]||'—'}</td>`).join('')}
       </tr>`).join('');
     document.getElementById('reporte-detail-loading').style.display = 'none';
     document.getElementById('reporte-detail-table').style.display = 'table';
