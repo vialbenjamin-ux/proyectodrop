@@ -77,6 +77,9 @@ exports.handler = async function (event) {
           if (['google', 'cpc', 'adwords'].includes(s)) return 'google';
           return s;
         }
+        if (url.searchParams.get('fbclid')) return 'meta';
+        if (url.searchParams.get('ttclid')) return 'tiktok';
+        if (url.searchParams.get('gclid')) return 'google';
       } catch (_) {}
     }
     const sn = (order.source_name || '').toLowerCase().trim();
