@@ -3530,23 +3530,28 @@ async function fetchShopifyReport() {
       '$' + Math.round(data.totalRevenue).toLocaleString('es-CL');
     document.getElementById('reporte-fecha').textContent = '📅 ' + data.date;
 
-    // Tabla fuente UTM — 3 filas fijas siempre visibles
-    const FIXED_SOURCES = [
-      { key: 'meta',    label: 'Meta (Facebook / Instagram)', color: 'var(--accent)' },
-      { key: 'tiktok',  label: 'TikTok',                      color: 'var(--peach)'  },
-      { key: 'directo', label: 'Directo / Sin UTM',            color: 'var(--muted)'  },
+    // Tabla fuente UTM - 3 filas fijas
+    var srcHtml = '';
+    var srcDefs = [
+      {key:'meta',    label:'Meta (Facebook / Instagram)', color:'var(--accent)'},
+      {key:'tiktok',  label:'TikTok',                      color:'var(--peach)'},
+      {key:'directo', label:'Directo / Sin UTM',            color:'var(--muted)'}
     ];
-    document.getElementById('reporte-source-rows').innerHTML = FIXED_SOURCES.map((def, i) => {
-      const s = data.bySource[def.key] || { orders: 0, products: 0, revenue: 0 };
-      return `<tr style="border-bottom:1px solid var(--border);${i%2?'background:var(--surface2)':''}">
-        <td style="padding:10px 20px;font-size:12px;color:${def.color};font-weight:700">${def.label}</td>
-        <td style="padding:10px 20px;font-size:12px;color:var(--muted);text-align:right">${s.orders}</td>
-        <td style="padding:10px 20px;font-size:12px;color:var(--accent);text-align:right;font-weight:700">${s.products}</td>
-        <td style="padding:10px 20px;font-size:12px;color:var(--text);text-align:right">$${Math.round(s.revenue).toLocaleString('es-CL')}</td>
-      </tr>`;
-    }).join('');
+    for (var si = 0; si < srcDefs.length; si++) {
+      var def = srcDefs[si];
+      var sv = (data.bySource && data.bySource[def.key]) || {orders:0, products:0, revenue:0};
+      var bg = si % 2 ? 'background:var(--surface2)' : '';
+      srcHtml += '<tr style="border-bottom:1px solid var(--border);' + bg + '">';
+      srcHtml += '<td style="padding:10px 20px;font-size:12px;color:' + def.color + ';font-weight:700">' + def.label + '</td>';
+      srcHtml += '<td style="padding:10px 20px;font-size:12px;color:var(--muted);text-align:right">' + sv.orders + '</td>';
+      srcHtml += '<td style="padding:10px 20px;font-size:12px;color:var(--accent);text-align:right;font-weight:700">' + sv.products + '</td>';
+      srcHtml += '<td style="padding:10px 20px;font-size:12px;color:var(--text);text-align:right">$' + Math.round(sv.revenue).toLocaleString('es-CL') + '</td>';
+      srcHtml += '</tr>';
+    }
+    document.getElementById('reporte-source-rows').innerHTML = srcHtml;
     document.getElementById('reporte-by-source-loading').style.display = 'none';
     document.getElementById('reporte-by-source-table').style.display = 'table';
+
 
     // Columnas de productos: siempre las 3 fuentes fijas
     const activeSources = ['meta','tiktok','directo'];
