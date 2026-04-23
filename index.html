@@ -1264,7 +1264,7 @@ function openMobileMenu(){
   const isAdm = currentUser===ADMIN_USER;
   links.innerHTML = ALL_SECTIONS.map(s=>{
     if(!isAdm && !perms.includes(s.id)) return '';
-    const icons = {productos:'📦',videos:'🎬',prompts:'✨',proveedores:'🏭',calculadora:'🧮',pendientes:'📋',archivo:'📁',calendario:'📅'};
+    const icons = {productos:'📦',videos:'🎬',prompts:'✨',proveedores:'🏭',calculadora:'🧮',pendientes:'📋',archivo:'📁',calendario:'📅',reportes:'📊'};
     const activeSection = document.querySelector('.section.active');
     const activeId = activeSection ? activeSection.id.replace('section-','') : '';
     return `<button class="mobile-tab${activeId===s.id?' active':''}" onclick="closeMobileMenu();switchSection('${s.id}')">
@@ -3056,6 +3056,7 @@ const ALL_SECTIONS = [
   {id:'proveedores', label:'Proveedores'},
   {id:'calculadora', label:'Calculadora'},
   {id:'pendientes',  label:'Pendientes'},
+  {id:'reportes',    label:'Reportes'},
   {id:'archivo',     label:'Archivo'},
 ];
 
