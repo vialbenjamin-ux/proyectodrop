@@ -40,7 +40,7 @@ exports.handler = async function (event) {
   let pageUrl = 'https://' + domain + '/admin/api/2024-10/orders.json?status=any'
     + '&created_at_min=' + todayStartUTC.toISOString()
     + (todayEndUTC ? '&created_at_max=' + todayEndUTC.toISOString() : '')
-    + '&limit=250&fields=id,line_items,landing_site,referring_site,source_name,cancelled_at,financial_status,refunds,created_at,current_subtotal_price,note_attributes,tags';
+    + '&limit=250&fields=id,line_items,landing_site,referring_site,source_name,cancelled_at,financial_status,refunds,created_at,current_subtotal_price,note_attributes';
 
   while (pageUrl) {
     let response;
@@ -65,6 +65,18 @@ exports.handler = async function (event) {
   }
 
   function extractUtm(order) {
+    // Releasit COD Form guarda los UTMs en note_attributes
+    const attrs = order.note_attributes || [];
+    const utmAttr = attrs.find(a => a.name && a.name.toLowerCase() === 'utm source');
+    if (utmAttr && utmAttr.value) {
+      const s = utmAttr.value.toLowerCase().trim();
+      if (['facebook', 'instagram', 'fb', 'meta'].includes(s)) return 'meta';
+      if (s === 'tiktok') return 'tiktok';
+      if (['google', 'cpc', 'adwords'].includes(s)) return 'google';
+      return s;
+    }
+
+    // Fallback: buscar en landing_site / referring_site (utm_source, fbclid, ttclid)
     for (const field of [order.landing_site, order.referring_site]) {
       if (!field) continue;
       try {
@@ -82,6 +94,7 @@ exports.handler = async function (event) {
         if (url.searchParams.get('gclid')) return 'google';
       } catch (_) {}
     }
+
     const sn = (order.source_name || '').toLowerCase().trim();
     if (['facebook', 'instagram', 'fb', 'meta'].includes(sn)) return 'meta';
     if (sn === 'tiktok') return 'tiktok';
@@ -106,12 +119,10 @@ exports.handler = async function (event) {
     if (!bySource[src]) bySource[src] = { orders: 0, products: 0, revenue: 0 };
     bySource[src].orders += 1;
 
-    // Revenue neto de Shopify: descuentos + devoluciones ya descontadas, sin impuestos
     const orderRevenue = parseFloat(order.current_subtotal_price || 0);
     bySource[src].revenue += orderRevenue;
     totalRevenue += orderRevenue;
 
-    // Gross por orden para distribuir revenue proporcionalmente a cada producto
     const orderGross = (order.line_items || []).reduce(
       (s, li) => s + parseFloat(li.price || 0) * (li.quantity || 0), 0
     );
@@ -122,7 +133,6 @@ exports.handler = async function (event) {
       const netQty = origQty - refundedQty;
       if (netQty <= 0) continue;
 
-      // Parte proporcional del revenue neto del pedido para este producto
       const itemGross = parseFloat(item.price || 0) * origQty;
       const revenue = orderGross > 0 ? (itemGross / orderGross) * orderRevenue * (netQty / origQty) : 0;
 
@@ -143,35 +153,16 @@ exports.handler = async function (event) {
 
   const products = Object.values(byProduct).sort((a, b) => b.qty - a.qty);
 
-  // Debug: fuentes unicas en todos los pedidos de hoy
-  const allSources = {};
-  allOrders.forEach(o => {
-    const sn = o.source_name || '(null)';
-    const hasLanding = o.landing_site ? 'si' : 'no';
-    const key = sn + '|landing:' + hasLanding;
-    allSources[key] = (allSources[key] || 0) + 1;
-  });
-  const debugSample = allOrders.slice(0, 3).map(o => ({
-    id: o.id,
-    source_name: o.source_name,
-    note_attributes: o.note_attributes,
-    tags: o.tags,
-    detected: extractUtm(o)
-  }));
-
   return {
     statusCode: 200,
     headers: { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' },
     body: JSON.stringify({
       date: dateLabel,
-      offsetHours,
       totalOrders: allOrders.length,
       totalProducts,
       totalRevenue,
       bySource,
       products,
-      allSources,
-      debugSample,
       updatedAt: new Date().toISOString()
     })
   };
