@@ -24,7 +24,7 @@ exports.handler = async function () {
 
   // Obtener todos los pedidos del día (con paginación)
   let allOrders = [];
-  let pageUrl = `https://${domain}/admin/api/2024-10/orders.json?status=any&created_at_min=${todayStartUTC.toISOString()}&limit=250&fields=id,line_items,landing_site,cancelled_at,created_at`;
+  let pageUrl = `https://${domain}/admin/api/2024-10/orders.json?status=any&created_at_min=${todayStartUTC.toISOString()}&limit=250&fields=id,line_items,landing_site,cancelled_at,financial_status,created_at`;
 
   while (pageUrl) {
     let response;
@@ -49,7 +49,7 @@ exports.handler = async function () {
     }
 
     const data = await response.json();
-    const orders = (data.orders || []).filter(o => !o.cancelled_at);
+    const orders = (data.orders || []).filter(o => !o.cancelled_at && o.financial_status !== "voided");
     allOrders = allOrders.concat(orders);
 
     const linkHeader = response.headers.get('Link') || '';
