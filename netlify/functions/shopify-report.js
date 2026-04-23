@@ -10,7 +10,6 @@ exports.handler = async function (event) {
     };
   }
 
-  // Determina el offset UTC de Santiago dinamicamente (maneja DST automaticamente)
   function getSantiagoOffsetHours(date) {
     const utcStr = date.toLocaleString('en-US', { timeZone: 'UTC' });
     const santiStr = date.toLocaleString('en-US', { timeZone: 'America/Santiago' });
@@ -41,7 +40,7 @@ exports.handler = async function (event) {
   let pageUrl = 'https://' + domain + '/admin/api/2024-10/orders.json?status=any'
     + '&created_at_min=' + todayStartUTC.toISOString()
     + (todayEndUTC ? '&created_at_max=' + todayEndUTC.toISOString() : '')
-    + '&limit=250&fields=id,line_items,landing_site,referring_site,source_name,cancelled_at,financial_status,refunds,created_at';
+    + '&limit=250&fields=id,line_items,landing_site,referring_site,source_name,cancelled_at,financial_status,refunds,created_at,current_subtotal_price';
 
   while (pageUrl) {
     let response;
@@ -104,16 +103,25 @@ exports.handler = async function (event) {
     if (!bySource[src]) bySource[src] = { orders: 0, products: 0, revenue: 0 };
     bySource[src].orders += 1;
 
+    // Revenue neto de Shopify: descuentos + devoluciones ya descontadas, sin impuestos
+    const orderRevenue = parseFloat(order.current_subtotal_price || 0);
+    bySource[src].revenue += orderRevenue;
+    totalRevenue += orderRevenue;
+
+    // Gross por orden para distribuir revenue proporcionalmente a cada producto
+    const orderGross = (order.line_items || []).reduce(
+      (s, li) => s + parseFloat(li.price || 0) * (li.quantity || 0), 0
+    );
+
     for (const item of order.line_items || []) {
       const origQty = item.quantity || 0;
       const refundedQty = getRefundedQty(order, item.id);
       const netQty = origQty - refundedQty;
       if (netQty <= 0) continue;
 
-      const unitPrice = parseFloat(item.price || 0);
-      const totalDiscount = parseFloat(item.total_discount || 0);
-      const unitDiscount = origQty > 0 ? totalDiscount / origQty : 0;
-      const revenue = (unitPrice - unitDiscount) * netQty;
+      // Parte proporcional del revenue neto del pedido para este producto
+      const itemGross = parseFloat(item.price || 0) * origQty;
+      const revenue = orderGross > 0 ? (itemGross / orderGross) * orderRevenue * (netQty / origQty) : 0;
 
       const name = item.title || 'Sin nombre';
       const variant = (item.variant_title && item.variant_title !== 'Default Title') ? item.variant_title : '';
@@ -126,9 +134,7 @@ exports.handler = async function (event) {
       byProduct[key].bySource[src] = (byProduct[key].bySource[src] || 0) + 1;
 
       bySource[src].products += netQty;
-      bySource[src].revenue += revenue;
       totalProducts += netQty;
-      totalRevenue += revenue;
     }
   }
 
