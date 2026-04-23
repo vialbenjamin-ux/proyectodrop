@@ -159,9 +159,6 @@ exports.handler = async function (event) {
     detected: extractUtm(o)
   }));
 
-    detected: extractUtm(o)
-  }));
-
   return {
     statusCode: 200,
     headers: { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' },
