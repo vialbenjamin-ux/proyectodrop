@@ -16,56 +16,11 @@ exports.handler = async function (event) {
     return (new Date(utcStr) - new Date(santiStr)) / 3600000;
   }
 
-  const now = new Date();
-  const offsetHours = getSantiagoOffsetHours(now);
-
-  let targetDate = (event.queryStringParameters || {}).date;
-  let todayStartUTC, todayEndUTC, dateLabel;
-
-  if (targetDate && /^\d{4}-\d{2}-\d{2}$/.test(targetDate)) {
-    const refDate = new Date(targetDate + 'T12:00:00Z');
-    const off = getSantiagoOffsetHours(refDate);
-    todayStartUTC = new Date(targetDate + 'T' + String(off).padStart(2, '0') + ':00:00Z');
-    todayEndUTC = new Date(todayStartUTC.getTime() + 24 * 3600000);
-    dateLabel = targetDate;
-  } else {
-    const santiStr = now.toLocaleString('en-CA', { timeZone: 'America/Santiago' });
-    const santiDate = santiStr.split(',')[0].trim();
-    dateLabel = santiDate;
-    todayStartUTC = new Date(santiDate + 'T' + String(offsetHours).padStart(2, '0') + ':00:00Z');
-    todayEndUTC = null;
-  }
-
-  let allOrders = [];
-  let pageUrl = 'https://' + domain + '/admin/api/2024-10/orders.json?status=any'
-    + '&created_at_min=' + todayStartUTC.toISOString()
-    + (todayEndUTC ? '&created_at_max=' + todayEndUTC.toISOString() : '')
-    + '&limit=250&fields=id,line_items,landing_site,referring_site,source_name,cancelled_at,financial_status,refunds,created_at,current_subtotal_price,note_attributes';
-
-  while (pageUrl) {
-    let response;
-    try {
-      response = await fetch(pageUrl, {
-        headers: { 'X-Shopify-Access-Token': token, 'Content-Type': 'application/json' }
-      });
-    } catch (err) {
-      return { statusCode: 502, headers: { 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify({ error: err.message }) };
-    }
-    if (!response.ok) {
-      return { statusCode: response.status, headers: { 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify({ error: 'Shopify API error' }) };
-    }
-    const data = await response.json();
-    const filtered = (data.orders || []).filter(o =>
-      !o.cancelled_at && o.financial_status !== 'voided'
-    );
-    allOrders = allOrders.concat(filtered);
-    const linkHeader = response.headers.get('Link') || '';
-    const nextMatch = linkHeader.match(/<([^>]+)>;\s*rel="next"/);
-    pageUrl = nextMatch ? nextMatch[1] : null;
+  function getSantiagoDate(isoString) {
+    return new Date(isoString).toLocaleDateString('en-CA', { timeZone: 'America/Santiago' });
   }
 
   function extractUtm(order) {
-    // Releasit COD Form guarda los UTMs en note_attributes
     const attrs = order.note_attributes || [];
     const utmAttr = attrs.find(a => a.name && a.name.toLowerCase() === 'utm source');
     if (utmAttr && utmAttr.value) {
@@ -75,8 +30,6 @@ exports.handler = async function (event) {
       if (['google', 'cpc', 'adwords'].includes(s)) return 'google';
       return s;
     }
-
-    // Fallback: buscar en landing_site / referring_site (utm_source, fbclid, ttclid)
     for (const field of [order.landing_site, order.referring_site]) {
       if (!field) continue;
       try {
@@ -91,10 +44,8 @@ exports.handler = async function (event) {
         }
         if (url.searchParams.get('fbclid')) return 'meta';
         if (url.searchParams.get('ttclid')) return 'tiktok';
-        if (url.searchParams.get('gclid')) return 'google';
       } catch (_) {}
     }
-
     const sn = (order.source_name || '').toLowerCase().trim();
     if (['facebook', 'instagram', 'fb', 'meta'].includes(sn)) return 'meta';
     if (sn === 'tiktok') return 'tiktok';
@@ -110,58 +61,184 @@ exports.handler = async function (event) {
     return qty;
   }
 
-  const bySource = {};
-  const byProduct = {};
-  let totalProducts = 0, totalRevenue = 0;
+  function processOrders(orders, includeProducts) {
+    const bySource = {};
+    const byProduct = {};
+    let totalProducts = 0, totalRevenue = 0;
 
-  for (const order of allOrders) {
-    const src = extractUtm(order);
-    if (!bySource[src]) bySource[src] = { orders: 0, products: 0, revenue: 0 };
-    bySource[src].orders += 1;
+    for (const order of orders) {
+      const src = extractUtm(order);
+      if (!bySource[src]) bySource[src] = { orders: 0, products: 0, revenue: 0 };
+      bySource[src].orders += 1;
 
-    const orderRevenue = parseFloat(order.current_subtotal_price || 0);
-    bySource[src].revenue += orderRevenue;
-    totalRevenue += orderRevenue;
+      const orderGross = (order.line_items || []).reduce((sum, item) => {
+        const refQty = getRefundedQty(order, item.id);
+        const netQty = (item.quantity || 0) - refQty;
+        return sum + (netQty > 0 ? parseFloat(item.price || 0) * netQty : 0);
+      }, 0);
+      const orderRevenue = parseFloat(order.current_subtotal_price || 0);
 
-    const orderGross = (order.line_items || []).reduce(
-      (s, li) => s + parseFloat(li.price || 0) * (li.quantity || 0), 0
-    );
+      for (const item of order.line_items || []) {
+        const origQty = item.quantity || 0;
+        const refundedQty = getRefundedQty(order, item.id);
+        const netQty = origQty - refundedQty;
+        if (netQty <= 0) continue;
 
-    for (const item of order.line_items || []) {
-      const origQty = item.quantity || 0;
-      const refundedQty = getRefundedQty(order, item.id);
-      const netQty = origQty - refundedQty;
-      if (netQty <= 0) continue;
+        const itemGross = parseFloat(item.price || 0) * netQty;
+        const revenue = orderGross > 0 ? (itemGross / orderGross) * orderRevenue : 0;
 
-      const itemGross = parseFloat(item.price || 0) * origQty;
-      const revenue = orderGross > 0 ? (itemGross / orderGross) * orderRevenue * (netQty / origQty) : 0;
+        bySource[src].products += netQty;
+        bySource[src].revenue += revenue;
+        totalProducts += netQty;
+        totalRevenue += revenue;
 
-      const name = item.title || 'Sin nombre';
-      const variant = (item.variant_title && item.variant_title !== 'Default Title') ? item.variant_title : '';
-      const key = name + (variant ? '__' + variant : '');
-
-      if (!byProduct[key]) byProduct[key] = { product: name, variant, orders: 0, qty: 0, revenue: 0, bySource: {} };
-      byProduct[key].orders += 1;
-      byProduct[key].qty += netQty;
-      byProduct[key].revenue += revenue;
-      byProduct[key].bySource[src] = (byProduct[key].bySource[src] || 0) + 1;
-
-      bySource[src].products += netQty;
-      totalProducts += netQty;
+        if (includeProducts) {
+          const name = item.title || 'Sin nombre';
+          const variant = (item.variant_title && item.variant_title !== 'Default Title') ? item.variant_title : '';
+          const key = name + (variant ? '__' + variant : '');
+          if (!byProduct[key]) byProduct[key] = { product: name, variant, orders: 0, qty: 0, revenue: 0, bySource: {} };
+          byProduct[key].orders += 1;
+          byProduct[key].qty += netQty;
+          byProduct[key].revenue += revenue;
+          byProduct[key].bySource[src] = (byProduct[key].bySource[src] || 0) + 1;
+        }
+      }
     }
+
+    return { bySource, byProduct, totalProducts, totalRevenue };
   }
 
-  const products = Object.values(byProduct).sort((a, b) => b.qty - a.qty);
+  const FIELDS = 'id,line_items,landing_site,referring_site,source_name,cancelled_at,financial_status,refunds,created_at,current_subtotal_price,note_attributes';
+
+  function buildUrl(startUTC, endUTC) {
+    return 'https://' + domain + '/admin/api/2024-10/orders.json?status=any'
+      + '&created_at_min=' + startUTC.toISOString()
+      + (endUTC ? '&created_at_max=' + endUTC.toISOString() : '')
+      + '&limit=250&fields=' + FIELDS;
+  }
+
+  async function fetchAllOrders(startUrl) {
+    let allOrders = [];
+    let pageUrl = startUrl;
+    while (pageUrl) {
+      let response;
+      try {
+        response = await fetch(pageUrl, {
+          headers: { 'X-Shopify-Access-Token': token, 'Content-Type': 'application/json' }
+        });
+      } catch (err) {
+        throw new Error(err.message);
+      }
+      if (!response.ok) throw new Error('Shopify API error ' + response.status);
+      const data = await response.json();
+      const filtered = (data.orders || []).filter(o =>
+        !o.cancelled_at && o.financial_status !== 'voided'
+      );
+      allOrders = allOrders.concat(filtered);
+      const linkHeader = response.headers.get('Link') || '';
+      const nextMatch = linkHeader.match(/<([^>]+)>;\s*rel="next"/);
+      pageUrl = nextMatch ? nextMatch[1] : null;
+    }
+    return allOrders;
+  }
+
+  const now = new Date();
+  const qs = event.queryStringParameters || {};
+
+  const dateFrom = qs.date_from;
+  const dateTo   = qs.date_to;
+  const isRange  = dateFrom && dateTo && dateFrom !== dateTo
+    && /^\d{4}-\d{2}-\d{2}$/.test(dateFrom) && /^\d{4}-\d{2}-\d{2}$/.test(dateTo);
+
+  if (isRange) {
+    const offFrom    = getSantiagoOffsetHours(new Date(dateFrom + 'T12:00:00Z'));
+    const rangeStart = new Date(dateFrom + 'T' + String(offFrom).padStart(2, '0') + ':00:00Z');
+    const offTo      = getSantiagoOffsetHours(new Date(dateTo + 'T12:00:00Z'));
+    const rangeEnd   = new Date(
+      new Date(dateTo + 'T' + String(offTo).padStart(2, '00') + ':00:00Z').getTime() + 24 * 3600000
+    );
+
+    let allOrders;
+    try {
+      allOrders = await fetchAllOrders(buildUrl(rangeStart, rangeEnd));
+    } catch (err) {
+      return { statusCode: 502, headers: { 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify({ error: err.message }) };
+    }
+
+    const dayMap = {};
+    for (const order of allOrders) {
+      const d = getSantiagoDate(order.created_at);
+      if (!dayMap[d]) dayMap[d] = [];
+      dayMap[d].push(order);
+    }
+
+    const dates = Object.keys(dayMap).sort();
+    const totals = { totalOrders: 0, totalProducts: 0, totalRevenue: 0, bySource: {} };
+    const days = dates.map(function(date) {
+      const dayOrders = dayMap[date];
+      const result = processOrders(dayOrders, false);
+      const bySource = result.bySource;
+      const totalProducts = result.totalProducts;
+      const totalRevenue = result.totalRevenue;
+      totals.totalOrders   += dayOrders.length;
+      totals.totalProducts += totalProducts;
+      totals.totalRevenue  += totalRevenue;
+      for (const src of Object.keys(bySource)) {
+        const sv = bySource[src];
+        if (!totals.bySource[src]) totals.bySource[src] = { orders: 0, products: 0, revenue: 0 };
+        totals.bySource[src].orders   += sv.orders;
+        totals.bySource[src].products += sv.products;
+        totals.bySource[src].revenue  += sv.revenue;
+      }
+      return { date, totalOrders: dayOrders.length, totalProducts, totalRevenue, bySource };
+    });
+
+    return {
+      statusCode: 200,
+      headers: { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode: 'range', dateFrom, dateTo, days, totals, updatedAt: new Date().toISOString() })
+    };
+  }
+
+  // Single-day mode
+  const offsetHours = getSantiagoOffsetHours(now);
+  let targetDate = qs.date;
+  let todayStartUTC, todayEndUTC, dateLabel;
+
+  if (targetDate && /^\d{4}-\d{2}-\d{2}$/.test(targetDate)) {
+    const refDate = new Date(targetDate + 'T12:00:00Z');
+    const off = getSantiagoOffsetHours(refDate);
+    todayStartUTC = new Date(targetDate + 'T' + String(off).padStart(2, '0') + ':00:00Z');
+    todayEndUTC   = new Date(todayStartUTC.getTime() + 24 * 3600000);
+    dateLabel = targetDate;
+  } else {
+    const santiStr  = now.toLocaleString('en-CA', { timeZone: 'America/Santiago' });
+    const santiDate = santiStr.split(',')[0].trim();
+    dateLabel     = santiDate;
+    todayStartUTC = new Date(santiDate + 'T' + String(offsetHours).padStart(2, '0') + ':00:00Z');
+    todayEndUTC   = null;
+  }
+
+  let allOrders;
+  try {
+    allOrders = await fetchAllOrders(buildUrl(todayStartUTC, todayEndUTC));
+  } catch (err) {
+    return { statusCode: 502, headers: { 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify({ error: err.message }) };
+  }
+
+  const proc = processOrders(allOrders, true);
+  const products = Object.values(proc.byProduct).sort(function(a, b) { return b.qty - a.qty; });
 
   return {
     statusCode: 200,
     headers: { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' },
     body: JSON.stringify({
       date: dateLabel,
+      offsetHours,
       totalOrders: allOrders.length,
-      totalProducts,
-      totalRevenue,
-      bySource,
+      totalProducts: proc.totalProducts,
+      totalRevenue: proc.totalRevenue,
+      bySource: proc.bySource,
       products,
       updatedAt: new Date().toISOString()
     })

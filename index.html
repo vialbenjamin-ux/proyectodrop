@@ -844,7 +844,12 @@
           <div id="reporte-fecha" style="font-size:11px;color:var(--muted);margin-top:2px;letter-spacing:.5px"></div>
         </div>
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-          <input type="date" id="reporte-date-picker" onchange="fetchShopifyReport()"
+          <span style="font-size:10px;color:var(--muted);letter-spacing:.5px">Desde</span>
+          <input type="date" id="reporte-date-from"
+            style="background:var(--surface);border:1.5px solid var(--border);color:var(--text);padding:6px 12px;border-radius:20px;font-size:11px;font-family:'DM Mono',monospace;outline:none;cursor:pointer"
+            onfocus="this.style.borderColor='var(--teal)'" onblur="this.style.borderColor='var(--border)'">
+          <span style="font-size:10px;color:var(--muted);letter-spacing:.5px">Hasta</span>
+          <input type="date" id="reporte-date-to"
             style="background:var(--surface);border:1.5px solid var(--border);color:var(--text);padding:6px 12px;border-radius:20px;font-size:11px;font-family:'DM Mono',monospace;outline:none;cursor:pointer"
             onfocus="this.style.borderColor='var(--teal)'" onblur="this.style.borderColor='var(--border)'">
           <span id="reporte-last-update" style="font-size:10px;color:var(--muted2);letter-spacing:.3px"></span>
@@ -906,6 +911,29 @@
           <tbody id="reporte-detail-rows"></tbody>
         </table>
       </div>
+
+      <!-- Tabla rango de fechas -->
+      <div id="reporte-range-section" style="display:none;background:var(--surface);border:1.5px solid var(--border);border-radius:14px;overflow:hidden;margin-top:14px">
+        <div style="padding:14px 20px;border-bottom:1px solid var(--border)">
+          <div style="font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted)">Ventas por día</div>
+        </div>
+        <table id="reporte-range-table" style="width:100%;border-collapse:collapse">
+          <thead>
+            <tr style="border-bottom:1px solid var(--border);background:var(--surface2)">
+              <th style="text-align:left;padding:10px 20px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">FECHA</th>
+              <th style="text-align:right;padding:10px 14px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">ÓRDENES</th>
+              <th style="text-align:right;padding:10px 14px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">UNIDADES</th>
+              <th style="text-align:right;padding:10px 14px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">VENTAS NETAS</th>
+              <th style="text-align:right;padding:10px 12px;font-size:10px;letter-spacing:1px;color:var(--accent);font-weight:600">META</th>
+              <th style="text-align:right;padding:10px 12px;font-size:10px;letter-spacing:1px;color:var(--peach);font-weight:600">TIKTOK</th>
+              <th style="text-align:right;padding:10px 12px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">DIRECTO</th>
+            </tr>
+          </thead>
+          <tbody id="reporte-range-rows"></tbody>
+          <tfoot id="reporte-range-totals"></tfoot>
+        </table>
+      </div>
+
 
     </div>
   </div>
@@ -3510,87 +3538,146 @@ initApp();
 
 async function fetchShopifyReport() {
   document.getElementById('reporte-last-update').textContent = 'Actualizando...';
-  ['reporte-by-source-loading','reporte-detail-loading'].forEach(id =>
-    document.getElementById(id).style.display = 'block');
-  ['reporte-by-source-table','reporte-detail-table','reporte-error'].forEach(id =>
-    document.getElementById(id).style.display = 'none');
 
-  const picker = document.getElementById('reporte-date-picker');
-  const dateParam = picker && picker.value ? `?date=${picker.value}` : '';
+  var dateFrom = document.getElementById('reporte-date-from').value;
+  var dateTo   = document.getElementById('reporte-date-to').value;
+  var isRange  = dateFrom && dateTo && dateFrom !== dateTo;
+
+  document.getElementById('reporte-range-section').style.display = 'none';
+  ['reporte-by-source-loading','reporte-detail-loading'].forEach(function(id) {
+    document.getElementById(id).style.display = 'block';
+  });
+  ['reporte-by-source-table','reporte-detail-table','reporte-error'].forEach(function(id) {
+    document.getElementById(id).style.display = 'none';
+  });
+
+  var params = '';
+  if (isRange) {
+    params = '?date_from=' + dateFrom + '&date_to=' + dateTo;
+  } else if (dateFrom) {
+    params = '?date=' + dateFrom;
+  }
 
   try {
-    const res = await fetch('/.netlify/functions/shopify-report' + dateParam);
-    const data = await res.json();
+    var res = await fetch('/.netlify/functions/shopify-report' + params);
+    var data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Error desconocido');
 
-    // KPIs
-    document.getElementById('reporte-total-orders').textContent = data.totalOrders;
-    document.getElementById('reporte-total-products').textContent = data.totalProducts;
-    document.getElementById('reporte-total-revenue').textContent =
-      '$' + Math.round(data.totalRevenue).toLocaleString('es-CL');
-    document.getElementById('reporte-fecha').textContent = '📅 ' + data.date;
+    if (data.mode === 'range') {
+      ['reporte-by-source-loading','reporte-detail-loading'].forEach(function(id) {
+        document.getElementById(id).style.display = 'none';
+      });
+      document.getElementById('reporte-total-orders').textContent = data.totals.totalOrders;
+      document.getElementById('reporte-total-products').textContent = data.totals.totalProducts;
+      document.getElementById('reporte-total-revenue').textContent =
+        '$' + Math.round(data.totals.totalRevenue).toLocaleString('es-CL');
+      document.getElementById('reporte-fecha').textContent = '📅 ' + dateFrom + ' → ' + dateTo;
 
-    // Tabla fuente UTM - 3 filas fijas
-    var srcHtml = '';
-    var srcDefs = [
-      {key:'meta',    label:'Meta (Facebook / Instagram)', color:'var(--accent)'},
-      {key:'tiktok',  label:'TikTok',                      color:'var(--peach)'},
-      {key:'directo', label:'Directo / Sin UTM',            color:'var(--muted)'}
-    ];
-    for (var si = 0; si < srcDefs.length; si++) {
-      var def = srcDefs[si];
-      var sv = (data.bySource && data.bySource[def.key]) || {orders:0, products:0, revenue:0};
-      var bg = si % 2 ? 'background:var(--surface2)' : '';
-      srcHtml += '<tr style="border-bottom:1px solid var(--border);' + bg + '">';
-      srcHtml += '<td style="padding:10px 20px;font-size:12px;color:' + def.color + ';font-weight:700">' + def.label + '</td>';
-      srcHtml += '<td style="padding:10px 20px;font-size:12px;color:var(--muted);text-align:right">' + sv.orders + '</td>';
-      srcHtml += '<td style="padding:10px 20px;font-size:12px;color:var(--accent);text-align:right;font-weight:700">' + sv.products + '</td>';
-      srcHtml += '<td style="padding:10px 20px;font-size:12px;color:var(--text);text-align:right">$' + Math.round(sv.revenue).toLocaleString('es-CL') + '</td>';
-      srcHtml += '</tr>';
+      var rHtml = '';
+      data.days.forEach(function(d, i) {
+        var bg = i % 2 ? 'background:var(--surface2)' : '';
+        var meta    = (d.bySource.meta    && d.bySource.meta.orders)    || 0;
+        var tiktok  = (d.bySource.tiktok  && d.bySource.tiktok.orders)  || 0;
+        var directo = (d.bySource.directo  && d.bySource.directo.orders) || 0;
+        var fDate = new Date(d.date + 'T12:00:00Z').toLocaleDateString('es-CL',
+          {weekday:'short', day:'numeric', month:'short'});
+        rHtml += '<tr style="border-bottom:1px solid var(--border);' + bg + '">';
+        rHtml += '<td style="padding:10px 20px;font-size:12px;color:var(--text);font-weight:600">' + fDate + '</td>';
+        rHtml += '<td style="padding:10px 14px;font-size:12px;color:var(--muted);text-align:right">' + d.totalOrders + '</td>';
+        rHtml += '<td style="padding:10px 14px;font-size:12px;color:var(--accent);text-align:right;font-weight:700">' + d.totalProducts + '</td>';
+        rHtml += '<td style="padding:10px 14px;font-size:12px;color:var(--text);text-align:right">$' + Math.round(d.totalRevenue).toLocaleString('es-CL') + '</td>';
+        rHtml += '<td style="padding:10px 12px;font-size:12px;color:var(--accent);text-align:right;font-weight:' + (meta > 0 ? '700' : '400') + '">' + (meta || '—') + '</td>';
+        rHtml += '<td style="padding:10px 12px;font-size:12px;color:var(--peach);text-align:right;font-weight:' + (tiktok > 0 ? '700' : '400') + '">' + (tiktok || '—') + '</td>';
+        rHtml += '<td style="padding:10px 12px;font-size:12px;color:var(--muted);text-align:right">' + (directo || '—') + '</td>';
+        rHtml += '</tr>';
+      });
+      document.getElementById('reporte-range-rows').innerHTML = rHtml;
+
+      var t = data.totals;
+      var tMeta    = (t.bySource.meta    && t.bySource.meta.orders)    || 0;
+      var tTiktok  = (t.bySource.tiktok  && t.bySource.tiktok.orders)  || 0;
+      var tDirecto = (t.bySource.directo  && t.bySource.directo.orders) || 0;
+      document.getElementById('reporte-range-totals').innerHTML =
+        '<tr style="border-top:2px solid var(--border);background:var(--surface2)">' +
+        '<td style="padding:10px 20px;font-size:11px;color:var(--muted);font-weight:700;letter-spacing:.5px">TOTAL</td>' +
+        '<td style="padding:10px 14px;font-size:12px;font-weight:700;text-align:right">' + t.totalOrders + '</td>' +
+        '<td style="padding:10px 14px;font-size:12px;color:var(--accent);font-weight:700;text-align:right">' + t.totalProducts + '</td>' +
+        '<td style="padding:10px 14px;font-size:12px;font-weight:700;text-align:right">$' + Math.round(t.totalRevenue).toLocaleString('es-CL') + '</td>' +
+        '<td style="padding:10px 12px;font-size:12px;color:var(--accent);font-weight:700;text-align:right">' + (tMeta || '—') + '</td>' +
+        '<td style="padding:10px 12px;font-size:12px;color:var(--peach);font-weight:700;text-align:right">' + (tTiktok || '—') + '</td>' +
+        '<td style="padding:10px 12px;font-size:12px;color:var(--muted);font-weight:700;text-align:right">' + (tDirecto || '—') + '</td>' +
+        '</tr>';
+
+      document.getElementById('reporte-range-section').style.display = 'block';
+
+    } else {
+      document.getElementById('reporte-total-orders').textContent = data.totalOrders;
+      document.getElementById('reporte-total-products').textContent = data.totalProducts;
+      document.getElementById('reporte-total-revenue').textContent =
+        '$' + Math.round(data.totalRevenue).toLocaleString('es-CL');
+      document.getElementById('reporte-fecha').textContent = '📅 ' + data.date;
+
+      var srcHtml = '';
+      var srcDefs = [
+        {key:'meta',    label:'Meta (Facebook / Instagram)', color:'var(--accent)'},
+        {key:'tiktok',  label:'TikTok',                      color:'var(--peach)'},
+        {key:'directo', label:'Directo / Sin UTM',            color:'var(--muted)'}
+      ];
+      for (var si = 0; si < srcDefs.length; si++) {
+        var def = srcDefs[si];
+        var sv = (data.bySource && data.bySource[def.key]) || {orders:0, products:0, revenue:0};
+        var bg = si % 2 ? 'background:var(--surface2)' : '';
+        srcHtml += '<tr style="border-bottom:1px solid var(--border);' + bg + '">';
+        srcHtml += '<td style="padding:10px 20px;font-size:12px;color:' + def.color + ';font-weight:700">' + def.label + '</td>';
+        srcHtml += '<td style="padding:10px 20px;font-size:12px;color:var(--muted);text-align:right">' + sv.orders + '</td>';
+        srcHtml += '<td style="padding:10px 20px;font-size:12px;color:var(--accent);text-align:right;font-weight:700">' + sv.products + '</td>';
+        srcHtml += '<td style="padding:10px 20px;font-size:12px;color:var(--text);text-align:right">$' + Math.round(sv.revenue).toLocaleString('es-CL') + '</td>';
+        srcHtml += '</tr>';
+      }
+      document.getElementById('reporte-source-rows').innerHTML = srcHtml;
+      document.getElementById('reporte-by-source-loading').style.display = 'none';
+      document.getElementById('reporte-by-source-table').style.display = 'table';
+
+      var activeSources = ['meta','tiktok','directo'];
+      var sourceColors = { meta: 'var(--accent)', tiktok: 'var(--peach)', directo: 'var(--muted)' };
+      var thRow = document.getElementById('reporte-product-headers');
+      if (thRow) {
+        thRow.innerHTML =
+          '<th style="text-align:left;padding:10px 20px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">PRODUCTO</th>' +
+          '<th style="text-align:right;padding:10px 20px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">PEDIDOS</th>' +
+          '<th style="text-align:right;padding:10px 16px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">UNIDADES</th>' +
+          '<th style="text-align:right;padding:10px 16px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">VENTAS NETAS</th>' +
+          activeSources.map(function(s) {
+            return '<th style="text-align:right;padding:10px 14px;font-size:10px;letter-spacing:1px;color:' + (sourceColors[s]||'var(--muted)') + ';font-weight:600;text-transform:uppercase">' + s + '</th>';
+          }).join('');
+      }
+      var products = data.products || [];
+      document.getElementById('reporte-detail-rows').innerHTML = products.map(function(p, i) {
+        var bg = i % 2 ? 'background:var(--surface2)' : '';
+        var variantHtml = p.variant ? '<span style="color:var(--muted);font-size:10px;margin-left:6px">' + p.variant + '</span>' : '';
+        var colsHtml = activeSources.map(function(s) {
+          var val = p.bySource[s] || 0;
+          return '<td style="padding:10px 14px;font-size:12px;color:' + (sourceColors[s]||'var(--muted)') + ';text-align:right;font-weight:' + (val > 0 ? '700' : '400') + '">' + (val || '—') + '</td>';
+        }).join('');
+        return '<tr style="border-bottom:1px solid var(--border);' + bg + '">' +
+          '<td style="padding:10px 20px;font-size:12px;color:var(--text);font-weight:500">' + p.product + variantHtml + '</td>' +
+          '<td style="padding:10px 20px;font-size:12px;color:var(--muted);text-align:right">' + p.orders + '</td>' +
+          '<td style="padding:10px 16px;font-size:12px;color:var(--accent);text-align:right;font-weight:700">' + p.qty + '</td>' +
+          '<td style="padding:10px 16px;font-size:12px;color:var(--text);text-align:right">$' + Math.round(p.revenue).toLocaleString('es-CL') + '</td>' +
+          colsHtml + '</tr>';
+      }).join('');
+      document.getElementById('reporte-detail-loading').style.display = 'none';
+      document.getElementById('reporte-detail-table').style.display = 'table';
     }
-    document.getElementById('reporte-source-rows').innerHTML = srcHtml;
-    document.getElementById('reporte-by-source-loading').style.display = 'none';
-    document.getElementById('reporte-by-source-table').style.display = 'table';
 
-
-    // Columnas de productos: siempre las 3 fuentes fijas
-    const activeSources = ['meta','tiktok','directo'];
-    const sourceColors = { meta: 'var(--accent)', tiktok: 'var(--peach)', directo: 'var(--muted)' };
-
-    // Actualizar encabezados de la tabla de productos
-    const thRow = document.getElementById('reporte-product-headers');
-    if (thRow) {
-      thRow.innerHTML = `
-        <th style="text-align:left;padding:10px 20px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">PRODUCTO</th>
-        <th style="text-align:right;padding:10px 20px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">PEDIDOS</th>
-        <th style="text-align:right;padding:10px 16px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">UNIDADES</th>
-        <th style="text-align:right;padding:10px 16px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">VENTAS NETAS</th>
-        ${activeSources.map(s => `<th style="text-align:right;padding:10px 14px;font-size:10px;letter-spacing:1px;color:${sourceColors[s]||'var(--muted)'};font-weight:600;text-transform:uppercase">${s}</th>`).join('')}
-      `;
-    }
-
-    // Tabla productos
-    const products = data.products || [];
-    document.getElementById('reporte-detail-rows').innerHTML = products.map((p, i) => `
-      <tr style="border-bottom:1px solid var(--border);${i%2?'background:var(--surface2)':''}">
-        <td style="padding:10px 20px;font-size:12px;color:var(--text);font-weight:500">
-          ${p.product}${p.variant?`<span style="color:var(--muted);font-size:10px;margin-left:6px">${p.variant}</span>`:''}
-        </td>
-        <td style="padding:10px 20px;font-size:12px;color:var(--muted);text-align:right">${p.orders}</td>
-        <td style="padding:10px 16px;font-size:12px;color:var(--accent);text-align:right;font-weight:700">${p.qty}</td>
-        <td style="padding:10px 16px;font-size:12px;color:var(--text);text-align:right">$${Math.round(p.revenue).toLocaleString('es-CL')}</td>
-        ${activeSources.map(s => `<td style="padding:10px 14px;font-size:12px;color:${sourceColors[s]||'var(--muted)'};text-align:right;font-weight:${(p.bySource[s]||0)>0?'700':'400'}">${p.bySource[s]||'—'}</td>`).join('')}
-      </tr>`).join('');
-    document.getElementById('reporte-detail-loading').style.display = 'none';
-    document.getElementById('reporte-detail-table').style.display = 'table';
-
-    const now = new Date();
+    var now = new Date();
     document.getElementById('reporte-last-update').textContent =
       'Actualizado ' + now.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
 
   } catch (err) {
-    ['reporte-by-source-loading','reporte-detail-loading'].forEach(id =>
-      document.getElementById(id).style.display = 'none');
+    ['reporte-by-source-loading','reporte-detail-loading'].forEach(function(id) {
+      document.getElementById(id).style.display = 'none';
+    });
     document.getElementById('reporte-error').style.display = 'block';
     document.getElementById('reporte-error').textContent = '⚠️ ' + err.message;
     document.getElementById('reporte-last-update').textContent = 'Error al actualizar';
@@ -3598,12 +3685,12 @@ async function fetchShopifyReport() {
 }
 
 function initReportes() {
-  const d = new Date();
+  var today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Santiago' });
+  document.getElementById('reporte-date-from').value = today;
+  document.getElementById('reporte-date-to').value = today;
   document.getElementById('reporte-fecha').textContent =
-    '📅 ' + d.toLocaleDateString('es-CL', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    '📅 ' + new Date().toLocaleDateString('es-CL', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
   fetchShopifyReport();
-
-
 }
 </script>
 </body>
