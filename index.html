@@ -861,18 +861,18 @@
         </div>
       </div>
 
-      <!-- Tabla por fuente UTM -->
-      <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:14px;overflow:hidden">
-        <div style="padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+      <!-- Tabla resumen por fuente UTM -->
+      <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:14px">
+        <div style="padding:14px 20px;border-bottom:1px solid var(--border)">
           <div style="font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted)">Por fuente UTM</div>
         </div>
-        <div id="reporte-by-source-loading" style="padding:32px;text-align:center;color:var(--muted2);font-size:12px">Cargando...</div>
+        <div id="reporte-by-source-loading" style="padding:24px;text-align:center;color:var(--muted2);font-size:12px">Cargando...</div>
         <table id="reporte-by-source-table" style="display:none;width:100%;border-collapse:collapse">
           <thead>
             <tr style="border-bottom:1px solid var(--border)">
               <th style="text-align:left;padding:10px 20px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">FUENTE</th>
               <th style="text-align:right;padding:10px 20px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">ÓRDENES</th>
-              <th style="text-align:right;padding:10px 20px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">PRODUCTOS</th>
+              <th style="text-align:right;padding:10px 20px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">UNIDADES</th>
             </tr>
           </thead>
           <tbody id="reporte-source-rows"></tbody>
@@ -880,19 +880,18 @@
         <div id="reporte-error" style="display:none;padding:24px 20px;color:var(--peach);font-size:12px"></div>
       </div>
 
-      <!-- Tabla detalle producto + UTM -->
-      <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:14px;overflow:hidden;margin-top:14px">
+      <!-- Tabla productos vendidos hoy -->
+      <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:14px;overflow:hidden">
         <div style="padding:14px 20px;border-bottom:1px solid var(--border)">
-          <div style="font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted)">Detalle por producto y fuente</div>
+          <div style="font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted)">Productos vendidos hoy</div>
         </div>
-        <div id="reporte-detail-loading" style="padding:32px;text-align:center;color:var(--muted2);font-size:12px">Cargando...</div>
+        <div id="reporte-detail-loading" style="padding:24px;text-align:center;color:var(--muted2);font-size:12px">Cargando...</div>
         <table id="reporte-detail-table" style="display:none;width:100%;border-collapse:collapse">
           <thead>
             <tr style="border-bottom:1px solid var(--border)">
               <th style="text-align:left;padding:10px 20px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">PRODUCTO</th>
               <th style="text-align:left;padding:10px 16px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">VARIANTE</th>
-              <th style="text-align:left;padding:10px 16px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">FUENTE UTM</th>
-              <th style="text-align:right;padding:10px 20px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">CANT.</th>
+              <th style="text-align:right;padding:10px 20px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">UNIDADES</th>
             </tr>
           </thead>
           <tbody id="reporte-detail-rows"></tbody>
@@ -3511,7 +3510,6 @@ async function fetchShopifyReport() {
   try {
     const res = await fetch('/.netlify/functions/shopify-report');
     const data = await res.json();
-
     if (!res.ok) throw new Error(data.error || 'Error desconocido');
 
     // KPIs
@@ -3520,31 +3518,24 @@ async function fetchShopifyReport() {
     document.getElementById('reporte-fecha').textContent = '📅 ' + data.date;
 
     // Tabla por fuente UTM
-    const rows = Object.entries(data.bySource)
-      .sort((a, b) => b[1].products - a[1].products);
-
+    const rows = Object.entries(data.bySource).sort((a, b) => b[1].products - a[1].products);
     document.getElementById('reporte-source-rows').innerHTML = rows.map(([source, stats], i) => `
-      <tr style="border-bottom:1px solid var(--border);${i % 2 === 0 ? '' : 'background:var(--surface2)'}">
-        <td style="padding:11px 20px;font-size:12px;color:var(--text);font-weight:500">${source}</td>
-        <td style="padding:11px 20px;font-size:12px;color:var(--muted);text-align:right">${stats.orders}</td>
-        <td style="padding:11px 20px;font-size:12px;color:var(--accent);text-align:right;font-weight:700">${stats.products}</td>
-      </tr>
-    `).join('');
-
+      <tr style="border-bottom:1px solid var(--border);${i % 2 ? 'background:var(--surface2)' : ''}">
+        <td style="padding:10px 20px;font-size:12px;color:var(--text);font-weight:500">${source}</td>
+        <td style="padding:10px 20px;font-size:12px;color:var(--muted);text-align:right">${stats.orders}</td>
+        <td style="padding:10px 20px;font-size:13px;color:var(--accent);text-align:right;font-weight:700">${stats.products}</td>
+      </tr>`).join('');
     document.getElementById('reporte-by-source-loading').style.display = 'none';
     document.getElementById('reporte-by-source-table').style.display = 'table';
 
-    // Tabla detalle producto + UTM
-    const details = data.details || [];
-    document.getElementById('reporte-detail-rows').innerHTML = details.map((d, i) => `
-      <tr style="border-bottom:1px solid var(--border);${i % 2 === 0 ? '' : 'background:var(--surface2)'}">
-        <td style="padding:10px 20px;font-size:12px;color:var(--text);font-weight:500;max-width:200px">${d.product}</td>
-        <td style="padding:10px 16px;font-size:11px;color:var(--muted)">${d.variant || '—'}</td>
-        <td style="padding:10px 16px;font-size:11px;color:var(--teal);font-weight:500">${d.source}</td>
-        <td style="padding:10px 20px;font-size:13px;color:var(--accent);text-align:right;font-weight:700">${d.qty}</td>
-      </tr>
-    `).join('');
-
+    // Tabla productos vendidos
+    const products = data.products || [];
+    document.getElementById('reporte-detail-rows').innerHTML = products.map((p, i) => `
+      <tr style="border-bottom:1px solid var(--border);${i % 2 ? 'background:var(--surface2)' : ''}">
+        <td style="padding:10px 20px;font-size:12px;color:var(--text);font-weight:500">${p.product}</td>
+        <td style="padding:10px 16px;font-size:11px;color:var(--muted)">${p.variant || '—'}</td>
+        <td style="padding:10px 20px;font-size:14px;color:var(--teal);text-align:right;font-weight:700">${p.qty}</td>
+      </tr>`).join('');
     document.getElementById('reporte-detail-loading').style.display = 'none';
     document.getElementById('reporte-detail-table').style.display = 'table';
 
