@@ -40,7 +40,7 @@ exports.handler = async function (event) {
   let pageUrl = 'https://' + domain + '/admin/api/2024-10/orders.json?status=any'
     + '&created_at_min=' + todayStartUTC.toISOString()
     + (todayEndUTC ? '&created_at_max=' + todayEndUTC.toISOString() : '')
-    + '&limit=250&fields=id,line_items,landing_site,referring_site,source_name,cancelled_at,financial_status,refunds,created_at,current_subtotal_price';
+    + '&limit=250&fields=id,line_items,landing_site,referring_site,source_name,cancelled_at,financial_status,refunds,created_at,current_subtotal_price,note_attributes,tags';
 
   while (pageUrl) {
     let response;
@@ -154,8 +154,8 @@ exports.handler = async function (event) {
   const debugSample = allOrders.slice(0, 3).map(o => ({
     id: o.id,
     source_name: o.source_name,
-    landing_site: (o.landing_site || '').substring(0, 120),
-    referring_site: (o.referring_site || '').substring(0, 120),
+    note_attributes: o.note_attributes,
+    tags: o.tags,
     detected: extractUtm(o)
   }));
 
