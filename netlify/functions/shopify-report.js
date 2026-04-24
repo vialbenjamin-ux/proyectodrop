@@ -142,6 +142,10 @@ exports.handler = async function (event) {
     return allOrders;
   }
 
+  function sumRevenue(orders) {
+    return orders.reduce((s, o) => s + parseFloat(o.current_subtotal_price || 0), 0);
+  }
+
   const now = new Date();
   const qs = event.queryStringParameters || {};
 
@@ -155,7 +159,7 @@ exports.handler = async function (event) {
     const rangeStart = new Date(dateFrom + 'T' + String(offFrom).padStart(2, '0') + ':00:00Z');
     const offTo      = getSantiagoOffsetHours(new Date(dateTo + 'T12:00:00Z'));
     const rangeEnd   = new Date(
-      new Date(dateTo + 'T' + String(offTo).padStart(2, '00') + ':00:00Z').getTime() + 24 * 3600000
+      new Date(dateTo + 'T' + String(offTo).padStart(2, '0') + ':00:00Z').getTime() + 24 * 3600000
     );
 
     let allOrders;
@@ -229,6 +233,23 @@ exports.handler = async function (event) {
   const proc = processOrders(allOrders, true);
   const products = Object.values(proc.byProduct).sort(function(a, b) { return b.qty - a.qty; });
 
+  // Comparación con el día anterior a la misma hora
+  const yesterdayStartUTC = new Date(todayStartUTC.getTime() - 24 * 3600000);
+  const yesterdayEndUTC   = todayEndUTC
+    ? new Date(todayEndUTC.getTime() - 24 * 3600000)
+    : new Date(now.getTime() - 24 * 3600000);
+
+  let previousDay = null;
+  try {
+    const yOrders = await fetchAllOrders(buildUrl(yesterdayStartUTC, yesterdayEndUTC));
+    previousDay = {
+      totalOrders: yOrders.length,
+      totalRevenue: sumRevenue(yOrders)
+    };
+  } catch (_) {
+    previousDay = null;
+  }
+
   return {
     statusCode: 200,
     headers: { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' },
@@ -240,6 +261,7 @@ exports.handler = async function (event) {
       totalRevenue: proc.totalRevenue,
       bySource: proc.bySource,
       products,
+      previousDay,
       updatedAt: new Date().toISOString()
     })
   };

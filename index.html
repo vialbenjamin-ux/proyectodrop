@@ -869,6 +869,7 @@
         <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:18px 20px">
           <div style="font-size:10px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">Órdenes hoy</div>
           <div id="reporte-total-orders" style="font-family:'Syne',sans-serif;font-weight:800;font-size:32px;color:var(--accent)">—</div>
+          <div id="reporte-total-orders-delta" style="font-size:11px;font-family:'DM Mono',monospace;margin-top:4px;letter-spacing:.3px;min-height:14px"></div>
         </div>
         <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:18px 20px">
           <div style="font-size:10px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">Unidades vendidas</div>
@@ -877,6 +878,7 @@
         <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:18px 20px">
           <div style="font-size:10px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">Ventas netas</div>
           <div id="reporte-total-revenue" style="font-family:'Syne',sans-serif;font-weight:800;font-size:26px;color:var(--accent)">—</div>
+          <div id="reporte-total-revenue-delta" style="font-size:11px;font-family:'DM Mono',monospace;margin-top:4px;letter-spacing:.3px;min-height:14px"></div>
         </div>
       </div>
 
@@ -896,6 +898,7 @@
             </tr>
           </thead>
           <tbody id="reporte-source-rows"></tbody>
+          <tfoot id="reporte-source-totals"></tfoot>
         </table></div>
         <div id="reporte-error" style="display:none;padding:24px 20px;color:var(--peach);font-size:12px"></div>
       </div>
@@ -916,6 +919,7 @@
             </tr>
           </thead>
           <tbody id="reporte-detail-rows"></tbody>
+          <tfoot id="reporte-detail-totals"></tfoot>
         </table></div>
       </div>
 
@@ -3544,6 +3548,16 @@ initApp();
 // ── REPORTES SHOPIFY ──────────────────────────────────────────────
 
 
+function setReporteDelta(id, current, previous) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  if (previous === null || previous === undefined || previous === 0) { el.textContent = ''; return; }
+  var pct = ((current - previous) / previous) * 100;
+  var sign = pct >= 0 ? '+' : '';
+  el.style.color = pct >= 0 ? '#16a34a' : '#dc2626';
+  el.textContent = sign + pct.toFixed(1) + '% vs ayer';
+}
+
 async function fetchShopifyReport() {
   document.getElementById('reporte-last-update').textContent = 'Actualizando...';
 
@@ -3552,6 +3566,12 @@ async function fetchShopifyReport() {
   var isRange  = dateFrom && dateTo && dateFrom !== dateTo;
 
   document.getElementById('reporte-range-section').style.display = 'none';
+  ['reporte-total-orders-delta','reporte-total-revenue-delta'].forEach(function(id) {
+    var el = document.getElementById(id); if (el) el.textContent = '';
+  });
+  ['reporte-source-totals','reporte-detail-totals'].forEach(function(id) {
+    var el = document.getElementById(id); if (el) el.innerHTML = '';
+  });
   ['reporte-by-source-loading','reporte-detail-loading'].forEach(function(id) {
     document.getElementById(id).style.display = 'block';
   });
@@ -3624,6 +3644,8 @@ async function fetchShopifyReport() {
       document.getElementById('reporte-total-revenue').textContent =
         '$' + Math.round(data.totalRevenue).toLocaleString('es-CL');
       document.getElementById('reporte-fecha').textContent = '📅 ' + data.date;
+      setReporteDelta('reporte-total-orders-delta', data.totalOrders, data.previousDay && data.previousDay.totalOrders);
+      setReporteDelta('reporte-total-revenue-delta', data.totalRevenue, data.previousDay && data.previousDay.totalRevenue);
 
       var srcHtml = '';
       var srcDefs = [
@@ -3643,6 +3665,18 @@ async function fetchShopifyReport() {
         srcHtml += '</tr>';
       }
       document.getElementById('reporte-source-rows').innerHTML = srcHtml;
+      var sT_o = 0, sT_p = 0, sT_r = 0;
+      for (var sti = 0; sti < srcDefs.length; sti++) {
+        var stv = (data.bySource && data.bySource[srcDefs[sti].key]) || {orders:0, products:0, revenue:0};
+        sT_o += stv.orders; sT_p += stv.products; sT_r += stv.revenue;
+      }
+      document.getElementById('reporte-source-totals').innerHTML =
+        '<tr style="border-top:2px solid var(--border);background:var(--surface2)">' +
+        '<td style="padding:10px 20px;font-size:11px;color:var(--muted);font-weight:700;letter-spacing:.5px">TOTAL</td>' +
+        '<td style="padding:10px 20px;font-size:12px;font-weight:700;text-align:right">' + sT_o + '</td>' +
+        '<td style="padding:10px 20px;font-size:12px;color:var(--accent);font-weight:700;text-align:right">' + sT_p + '</td>' +
+        '<td style="padding:10px 20px;font-size:12px;font-weight:700;text-align:right">$' + Math.round(sT_r).toLocaleString('es-CL') + '</td>' +
+        '</tr>';
       document.getElementById('reporte-by-source-loading').style.display = 'none';
       document.getElementById('reporte-by-source-table').style.display = 'table';
 
@@ -3674,6 +3708,28 @@ async function fetchShopifyReport() {
           '<td style="padding:10px 16px;font-size:12px;color:var(--text);text-align:right">$' + Math.round(p.revenue).toLocaleString('es-CL') + '</td>' +
           colsHtml + '</tr>';
       }).join('');
+      var dT_ped = 0, dT_uni = 0, dT_rev = 0, dT_src = {};
+      for (var dpi = 0; dpi < products.length; dpi++) {
+        var dpp = products[dpi];
+        dT_ped += dpp.orders || 0;
+        dT_uni += dpp.qty || 0;
+        dT_rev += dpp.revenue || 0;
+        for (var dsi = 0; dsi < activeSources.length; dsi++) {
+          var dsk = activeSources[dsi];
+          dT_src[dsk] = (dT_src[dsk] || 0) + ((dpp.bySource && dpp.bySource[dsk]) || 0);
+        }
+      }
+      var dSrcCols = activeSources.map(function(s) {
+        var v = dT_src[s] || 0;
+        return '<td style="padding:10px 14px;font-size:12px;color:' + (sourceColors[s]||'var(--muted)') + ';font-weight:700;text-align:right">' + (v || '—') + '</td>';
+      }).join('');
+      document.getElementById('reporte-detail-totals').innerHTML =
+        '<tr style="border-top:2px solid var(--border);background:var(--surface2)">' +
+        '<td style="padding:10px 20px;font-size:11px;color:var(--muted);font-weight:700;letter-spacing:.5px">TOTAL</td>' +
+        '<td style="padding:10px 20px;font-size:12px;font-weight:700;text-align:right">' + dT_ped + '</td>' +
+        '<td style="padding:10px 16px;font-size:12px;color:var(--accent);font-weight:700;text-align:right">' + dT_uni + '</td>' +
+        '<td style="padding:10px 16px;font-size:12px;font-weight:700;text-align:right">$' + Math.round(dT_rev).toLocaleString('es-CL') + '</td>' +
+        dSrcCols + '</tr>';
       document.getElementById('reporte-detail-loading').style.display = 'none';
       document.getElementById('reporte-detail-table').style.display = 'table';
     }
