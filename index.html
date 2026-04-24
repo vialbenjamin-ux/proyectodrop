@@ -389,6 +389,13 @@
   .bk-step-hint.success{color:var(--accent);font-style:normal;font-weight:500}
   .bk-step-hint.warn{color:var(--peach);font-style:normal}
 
+  /* BK IA SELECTOR — toggle de destino (Claude / Gemini / ChatGPT) */
+  .bk-ia-selector{display:flex;align-items:center;gap:6px;margin:2px 0 4px}
+  .bk-ia-label{font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-right:4px}
+  .bk-ia-btn{background:var(--surface);border:1.5px solid var(--border);color:var(--muted);border-radius:18px;padding:4px 12px;font-size:11px;cursor:pointer;font-family:'DM Mono',monospace;transition:all .15s}
+  .bk-ia-btn:hover{border-color:var(--border2);color:var(--text)}
+  .bk-ia-btn.active{background:var(--accent);color:#fff;border-color:var(--accent);font-weight:600;box-shadow:0 2px 6px rgba(91,168,130,.3)}
+
   /* BK PROMPTS HERO — panel destacado arriba de la sección Prompts */
   .bk-prompts-hero{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin-top:18px;margin-bottom:28px}
   .bk-prompt-card{background:var(--surface);border:1.5px solid var(--border);border-radius:18px;padding:20px 20px 18px;display:flex;flex-direction:column;gap:10px;box-shadow:0 2px 10px rgba(0,0,0,.04);position:relative;overflow:hidden;transition:all .2s}
@@ -864,19 +871,25 @@
           <div class="bk-vars-title">🎯 FLUJO MASTER → IMÁGENES + COPYS</div>
           <button class="bk-vars-clear" onclick="clearBkVars()">🔄 Limpiar todo</button>
         </div>
+        <div class="bk-ia-selector">
+          <span class="bk-ia-label">IA destino:</span>
+          <button class="bk-ia-btn" data-ia="claude" onclick="setBkIa('claude')">Claude</button>
+          <button class="bk-ia-btn" data-ia="gemini" onclick="setBkIa('gemini')">Gemini</button>
+          <button class="bk-ia-btn" data-ia="chatgpt" onclick="setBkIa('chatgpt')">ChatGPT</button>
+        </div>
 
         <!-- PASO 1 -->
         <div class="bk-step">
           <div class="bk-step-label"><span class="bk-step-num">1</span> Pegá el link o descripción del producto</div>
           <textarea id="bkv-producto" class="bk-step-input" placeholder="https://ejemplo.com/producto  ·  o una descripción corta" oninput="saveBkVars()"></textarea>
-          <button class="bk-step-btn primary" id="bk-btn-ejecutar" onclick="ejecutarMaster()">▶ Ejecutar Master en Gemini</button>
-          <div class="bk-step-hint">Copia el Master Prompt con tu link adentro y abre Gemini en una pestaña nueva. Pegás ahí y volvés con la respuesta.</div>
+          <button class="bk-step-btn primary" id="bk-btn-ejecutar" onclick="ejecutarMaster()">▶ Ejecutar Master</button>
+          <div class="bk-step-hint">Copia el Master Prompt con tu link adentro y abre la IA elegida en una pestaña nueva. Pegás ahí y volvés con la respuesta.</div>
         </div>
 
         <!-- PASO 2 -->
         <div class="bk-step">
-          <div class="bk-step-label"><span class="bk-step-num">2</span> Pegá la respuesta del Master <span class="bk-optional">(la salida completa que te dio Gemini)</span></div>
-          <textarea id="bkv-respuesta" class="bk-step-input" placeholder="Pegá acá toda la respuesta de Gemini: la tabla de ángulos, los beneficios, los testimonios, etc." style="min-height:120px"></textarea>
+          <div class="bk-step-label"><span class="bk-step-num">2</span> Pegá la respuesta del Master <span class="bk-optional">(la salida completa que te dio la IA)</span></div>
+          <textarea id="bkv-respuesta" class="bk-step-input" placeholder="Pegá acá toda la respuesta: la tabla de ángulos, los beneficios, los testimonios, etc." style="min-height:120px"></textarea>
           <button class="bk-step-btn" id="bk-btn-extraer" onclick="extraerDatosMaster()">📥 Extraer datos</button>
           <div id="bk-extract-result" class="bk-step-hint"></div>
         </div>
@@ -917,7 +930,8 @@
           </div>
           <div class="bk-prompt-card-desc">Genera el prompt de imagen e-commerce 1:1 listo para Gemini o ChatGPT, con descuento, hook y escena aspiracional.</div>
           <div class="bk-prompt-card-actions">
-            <button class="bk-prompt-copy-big" id="bk-copy-imagenes" onclick="copyBkPrompt('imagenes')">📋 Copiar prompt</button>
+            <button class="bk-prompt-copy-big" id="bk-copy-imagenes" onclick="ejecutarBkPrompt('imagenes')">▶ Ejecutar</button>
+            <button class="bk-prompt-view-btn" onclick="copyBkPrompt('imagenes')" title="Solo copiar sin abrir">📋</button>
             <button class="bk-prompt-view-btn" onclick="toggleBkPrompt('imagenes')">Ver</button>
           </div>
           <div class="bk-prompt-full" id="bk-full-imagenes"></div>
@@ -949,7 +963,8 @@
           </div>
           <div class="bk-prompt-card-desc">3 textos PAS, 3 títulos, 3 descripciones y 5 textos TikTok. Con emojis, urgencia y framework de conversión.</div>
           <div class="bk-prompt-card-actions">
-            <button class="bk-prompt-copy-big" id="bk-copy-copys" onclick="copyBkPrompt('copys')">📋 Copiar prompt</button>
+            <button class="bk-prompt-copy-big" id="bk-copy-copys" onclick="ejecutarBkPrompt('copys')">▶ Ejecutar</button>
+            <button class="bk-prompt-view-btn" onclick="copyBkPrompt('copys')" title="Solo copiar sin abrir">📋</button>
             <button class="bk-prompt-view-btn" onclick="toggleBkPrompt('copys')">Ver</button>
           </div>
           <div class="bk-prompt-full" id="bk-full-copys"></div>
@@ -2679,6 +2694,25 @@ Los textos cortos de TikTok deben ser disruptivos, directos y sin clichés`
 
 const BK_VARS_KEY = 'bkdrop_bk_prompt_vars';
 const BK_VAR_FIELDS = ['producto','angulo','descuento','problema','beneficio'];
+const BK_IA_KEY = 'bkdrop_bk_ia_target';
+const BK_IA_URLS = { claude:'https://claude.ai/new', gemini:'https://gemini.google.com/app', chatgpt:'https://chatgpt.com/' };
+const BK_IA_NAMES = { claude:'Claude', gemini:'Gemini', chatgpt:'ChatGPT' };
+
+function getBkIa(){ return localStorage.getItem(BK_IA_KEY) || 'claude'; }
+function setBkIa(ia){
+  if(!BK_IA_URLS[ia]) return;
+  localStorage.setItem(BK_IA_KEY, ia);
+  updateBkIaUi();
+}
+function updateBkIaUi(){
+  const ia = getBkIa();
+  const name = BK_IA_NAMES[ia];
+  document.querySelectorAll('.bk-ia-btn').forEach(b=>{
+    b.classList.toggle('active', b.dataset.ia === ia);
+  });
+  const master = document.getElementById('bk-btn-ejecutar');
+  if(master && !master.classList.contains('done')) master.textContent = '▶ Ejecutar Master en '+name;
+}
 
 function getBkVars(){
   const v = {};
@@ -2696,13 +2730,15 @@ function saveBkVars(){
 function loadBkVars(){
   try{
     const raw = localStorage.getItem(BK_VARS_KEY);
-    if(!raw) return;
-    const v = JSON.parse(raw) || {};
-    BK_VAR_FIELDS.forEach(f=>{
-      const el = document.getElementById('bkv-'+f);
-      if(el && v[f]) el.value = v[f];
-    });
+    if(raw){
+      const v = JSON.parse(raw) || {};
+      BK_VAR_FIELDS.forEach(f=>{
+        const el = document.getElementById('bkv-'+f);
+        if(el && v[f]) el.value = v[f];
+      });
+    }
   }catch(e){}
+  updateBkIaUi();
 }
 
 function clearBkVars(){
@@ -2762,24 +2798,41 @@ function toggleBkPrompt(key){
 function ejecutarMaster(){
   const v = getBkVars();
   if(!v.producto){
-    const hint = document.getElementById('bk-extract-result');
     const step1Hint = document.querySelector('.bk-step .bk-step-hint');
     if(step1Hint){ step1Hint.textContent='⚠️ Pegá primero el link o descripción del producto arriba.'; step1Hint.classList.add('warn'); }
     const el = document.getElementById('bkv-producto');
     if(el) el.focus();
     return;
   }
+  const ia = getBkIa();
+  const iaName = BK_IA_NAMES[ia];
   const text = fillBkPrompt('master');
   navigator.clipboard.writeText(text).then(()=>{
-    window.open('https://gemini.google.com/app', '_blank');
+    window.open(BK_IA_URLS[ia], '_blank');
     const btn = document.getElementById('bk-btn-ejecutar');
     if(btn){
-      btn.textContent='✓ Copiado + Gemini abierto — pegá ahí y volvé';
+      btn.textContent='✓ Copiado + '+iaName+' abierto — pegá ahí y volvé';
       btn.classList.add('done');
-      setTimeout(()=>{ btn.textContent='▶ Ejecutar Master en Gemini'; btn.classList.remove('done'); }, 6000);
+      setTimeout(()=>{ btn.textContent='▶ Ejecutar Master en '+BK_IA_NAMES[getBkIa()]; btn.classList.remove('done'); }, 6000);
     }
     const resp = document.getElementById('bkv-respuesta');
     if(resp) setTimeout(()=>resp.scrollIntoView({behavior:'smooth',block:'center'}), 400);
+  });
+}
+
+function ejecutarBkPrompt(key){
+  const text = fillBkPrompt(key);
+  if(!text) return;
+  const ia = getBkIa();
+  const iaName = BK_IA_NAMES[ia];
+  navigator.clipboard.writeText(text).then(()=>{
+    window.open(BK_IA_URLS[ia], '_blank');
+    const btn = document.getElementById('bk-copy-'+key);
+    if(btn){
+      btn.textContent = '✓ '+iaName+' abierto';
+      btn.classList.add('copied');
+      setTimeout(()=>{ btn.textContent = '▶ Ejecutar'; btn.classList.remove('copied'); }, 2500);
+    }
   });
 }
 
