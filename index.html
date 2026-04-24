@@ -372,6 +372,23 @@
   .bk-var-hint{font-size:10px;color:var(--muted2);margin-top:2px;font-style:italic}
   @media(max-width:560px){.bk-vars-grid{grid-template-columns:1fr}}
 
+  /* BK FLUJO MASTER — pasos guiados */
+  .bk-step{padding:14px 0;border-top:1px dashed rgba(91,168,130,.25)}
+  .bk-step:first-of-type{border-top:none;padding-top:4px}
+  .bk-step-label{display:flex;align-items:center;gap:10px;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text);font-weight:600;margin-bottom:10px}
+  .bk-step-num{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:var(--accent);color:#fff;font-family:'Syne',sans-serif;font-weight:800;font-size:12px;flex-shrink:0}
+  .bk-optional{font-size:10px;text-transform:none;letter-spacing:.3px;color:var(--muted);font-weight:400;margin-left:auto}
+  .bk-step-input{background:var(--surface);border:1.5px solid var(--border);color:var(--text);padding:10px 14px;border-radius:12px;font-size:12px;font-family:'DM Mono',monospace;width:100%;resize:vertical;min-height:60px;line-height:1.5}
+  .bk-step-input:focus{border-color:var(--accent);outline:none}
+  .bk-step-btn{margin-top:10px;background:var(--surface);border:1.5px solid var(--border);color:var(--text);border-radius:22px;padding:10px 20px;font-size:12px;font-weight:600;cursor:pointer;font-family:'DM Mono',monospace;letter-spacing:.3px;transition:all .15s}
+  .bk-step-btn:hover{border-color:var(--accent);color:var(--accent)}
+  .bk-step-btn.primary{background:var(--accent);color:#fff;border-color:var(--accent);box-shadow:0 3px 10px rgba(91,168,130,.3)}
+  .bk-step-btn.primary:hover{filter:brightness(1.08);color:#fff}
+  .bk-step-btn.done{background:var(--green) !important;color:#fff !important;border-color:var(--green) !important}
+  .bk-step-hint{font-size:10px;color:var(--muted);margin-top:8px;font-style:italic;line-height:1.5}
+  .bk-step-hint.success{color:var(--accent);font-style:normal;font-weight:500}
+  .bk-step-hint.warn{color:var(--peach);font-style:normal}
+
   /* BK PROMPTS HERO — panel destacado arriba de la sección Prompts */
   .bk-prompts-hero{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin-top:18px;margin-bottom:28px}
   .bk-prompt-card{background:var(--surface);border:1.5px solid var(--border);border-radius:18px;padding:20px 20px 18px;display:flex;flex-direction:column;gap:10px;box-shadow:0 2px 10px rgba(0,0,0,.04);position:relative;overflow:hidden;transition:all .2s}
@@ -841,33 +858,49 @@
         </div>
       </div>
 
-      <!-- VARIABLES DEL PRODUCTO -->
+      <!-- FLUJO MASTER — guiado en 3 pasos -->
       <div class="bk-vars-panel">
         <div class="bk-vars-head">
-          <div class="bk-vars-title">🎯 DATOS DEL PRODUCTO</div>
-          <button class="bk-vars-clear" onclick="clearBkVars()">🔄 Limpiar</button>
+          <div class="bk-vars-title">🎯 FLUJO MASTER → IMÁGENES + COPYS</div>
+          <button class="bk-vars-clear" onclick="clearBkVars()">🔄 Limpiar todo</button>
         </div>
-        <div class="bk-vars-sub">Se guardan en este navegador y se insertan al copiar cada prompt. Los campos vacíos dejan el placeholder original.</div>
-        <div class="bk-vars-grid">
-          <div class="bk-var-field full">
-            <label>Producto (link o descripción)</label>
-            <textarea id="bkv-producto" placeholder="Ej: link de AliExpress, nombre del producto, o descripción corta..." oninput="saveBkVars()"></textarea>
-          </div>
-          <div class="bk-var-field">
-            <label>Ángulo de venta</label>
-            <input id="bkv-angulo" placeholder="Ej: Madres con dolor de espalda" oninput="saveBkVars()">
-          </div>
-          <div class="bk-var-field">
-            <label>Descuento (%)</label>
-            <input id="bkv-descuento" type="number" min="0" max="99" placeholder="45" oninput="saveBkVars()">
-          </div>
-          <div class="bk-var-field">
-            <label>Problema (pregunta hook)</label>
-            <input id="bkv-problema" placeholder="¿Te duele la espalda al dormir?" oninput="saveBkVars()">
-          </div>
-          <div class="bk-var-field">
-            <label>Beneficio principal</label>
-            <input id="bkv-beneficio" placeholder="Duerme sin dolor toda la noche" oninput="saveBkVars()">
+
+        <!-- PASO 1 -->
+        <div class="bk-step">
+          <div class="bk-step-label"><span class="bk-step-num">1</span> Pegá el link o descripción del producto</div>
+          <textarea id="bkv-producto" class="bk-step-input" placeholder="https://ejemplo.com/producto  ·  o una descripción corta" oninput="saveBkVars()"></textarea>
+          <button class="bk-step-btn primary" id="bk-btn-ejecutar" onclick="ejecutarMaster()">▶ Ejecutar Master en Gemini</button>
+          <div class="bk-step-hint">Copia el Master Prompt con tu link adentro y abre Gemini en una pestaña nueva. Pegás ahí y volvés con la respuesta.</div>
+        </div>
+
+        <!-- PASO 2 -->
+        <div class="bk-step">
+          <div class="bk-step-label"><span class="bk-step-num">2</span> Pegá la respuesta del Master <span class="bk-optional">(la salida completa que te dio Gemini)</span></div>
+          <textarea id="bkv-respuesta" class="bk-step-input" placeholder="Pegá acá toda la respuesta de Gemini: la tabla de ángulos, los beneficios, los testimonios, etc." style="min-height:120px"></textarea>
+          <button class="bk-step-btn" id="bk-btn-extraer" onclick="extraerDatosMaster()">📥 Extraer datos</button>
+          <div id="bk-extract-result" class="bk-step-hint"></div>
+        </div>
+
+        <!-- PASO 3 -->
+        <div class="bk-step">
+          <div class="bk-step-label"><span class="bk-step-num">3</span> Datos para Imágenes + Copys <span class="bk-optional">(se completan solos — editá si hace falta)</span></div>
+          <div class="bk-vars-grid">
+            <div class="bk-var-field full">
+              <label>Ángulo de venta</label>
+              <input id="bkv-angulo" placeholder="Ej: Madres con dolor de espalda" oninput="saveBkVars()">
+            </div>
+            <div class="bk-var-field">
+              <label>Problema (pregunta hook)</label>
+              <input id="bkv-problema" placeholder="¿Te duele la espalda al dormir?" oninput="saveBkVars()">
+            </div>
+            <div class="bk-var-field">
+              <label>Beneficio principal</label>
+              <input id="bkv-beneficio" placeholder="Duerme sin dolor toda la noche" oninput="saveBkVars()">
+            </div>
+            <div class="bk-var-field full">
+              <label>Descuento (%) <span style="color:var(--muted2);font-size:9px;letter-spacing:.3px;text-transform:none">— manual, no viene del Master</span></label>
+              <input id="bkv-descuento" type="number" min="0" max="99" placeholder="45" oninput="saveBkVars()">
+            </div>
           </div>
         </div>
       </div>
@@ -2723,6 +2756,114 @@ function toggleBkPrompt(key){
   else {
     box.textContent = fillBkPrompt(key);
     box.classList.add('open');
+  }
+}
+
+function ejecutarMaster(){
+  const v = getBkVars();
+  if(!v.producto){
+    const hint = document.getElementById('bk-extract-result');
+    const step1Hint = document.querySelector('.bk-step .bk-step-hint');
+    if(step1Hint){ step1Hint.textContent='⚠️ Pegá primero el link o descripción del producto arriba.'; step1Hint.classList.add('warn'); }
+    const el = document.getElementById('bkv-producto');
+    if(el) el.focus();
+    return;
+  }
+  const text = fillBkPrompt('master');
+  navigator.clipboard.writeText(text).then(()=>{
+    window.open('https://gemini.google.com/app', '_blank');
+    const btn = document.getElementById('bk-btn-ejecutar');
+    if(btn){
+      btn.textContent='✓ Copiado + Gemini abierto — pegá ahí y volvé';
+      btn.classList.add('done');
+      setTimeout(()=>{ btn.textContent='▶ Ejecutar Master en Gemini'; btn.classList.remove('done'); }, 6000);
+    }
+    const resp = document.getElementById('bkv-respuesta');
+    if(resp) setTimeout(()=>resp.scrollIntoView({behavior:'smooth',block:'center'}), 400);
+  });
+}
+
+function extraerDatosMaster(){
+  const el = document.getElementById('bkv-respuesta');
+  const text = el ? (el.value||'').trim() : '';
+  const res = document.getElementById('bk-extract-result');
+  res.classList.remove('success','warn');
+  if(!text){
+    res.textContent = '⚠️ Pegá primero la respuesta completa que te dio Gemini.';
+    res.classList.add('warn');
+    return;
+  }
+
+  const found = [];
+
+  // 1) Parsear tabla de ángulos: buscar header con "Ángulo" y "Nicho"
+  const lines = text.split('\n');
+  let headerIdx = -1;
+  for(let i=0; i<lines.length; i++){
+    const l = lines[i];
+    if(l.includes('|') && /Ángulo/i.test(l) && /Nicho/i.test(l)){
+      headerIdx = i;
+      break;
+    }
+  }
+  let angulo='', problema='';
+  if(headerIdx >= 0){
+    for(let i = headerIdx + 1; i < Math.min(headerIdx + 6, lines.length); i++){
+      const line = lines[i];
+      if(!line.includes('|')) continue;
+      if(/^[\s|\-:]+$/.test(line)) continue; // separador markdown
+      const cols = line.split('|').map(c=>c.trim()).filter(c=>c.length);
+      if(cols.length >= 3){
+        // cols[0]=Ángulo, cols[1]=Nicho, cols[2]=Problema
+        angulo = cols[1] || cols[0] || '';
+        problema = cols[2] || '';
+        break;
+      }
+    }
+  }
+
+  if(angulo){
+    const elA = document.getElementById('bkv-angulo');
+    if(elA){ elA.value = angulo; found.push('ángulo'); }
+  }
+  if(problema){
+    let prob = problema.replace(/^\*\*|\*\*$/g,'').trim();
+    if(!prob.startsWith('¿')) prob = '¿' + prob.charAt(0).toUpperCase() + prob.slice(1);
+    if(!/[?]\s*$/.test(prob)) prob = prob.replace(/[\.\,\;\s]+$/,'') + '?';
+    const elP = document.getElementById('bkv-problema');
+    if(elP){ elP.value = prob; found.push('problema'); }
+  }
+
+  // 2) Extraer primer beneficio clave
+  const benefIdx = text.search(/BENEFICIOS\s*CLAVE/i);
+  if(benefIdx >= 0){
+    const after = text.substring(benefIdx);
+    const benefLines = after.split('\n');
+    const sectionMarkers = /^[🔴🟥🟦🟨🟧🟪🟩🟫📌⚠📦]/u;
+    const emojiStart = /^[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}]/u;
+    for(let i=1; i<Math.min(30, benefLines.length); i++){
+      let line = benefLines[i].trim();
+      if(!line) continue;
+      if(sectionMarkers.test(line)) continue;
+      if(emojiStart.test(line)){
+        line = line.replace(/^[-*•]\s*/,'').replace(/\*\*/g,'').trim();
+        const elB = document.getElementById('bkv-beneficio');
+        if(elB){ elB.value = line; found.push('beneficio'); }
+        break;
+      }
+    }
+  }
+
+  saveBkVars();
+
+  if(found.length){
+    res.textContent = '✓ Rellené: ' + found.join(', ') + '. Revisá los campos del paso 3 y copiá Imágenes/Copys cuando estés listo.';
+    res.classList.add('success');
+    const btn = document.getElementById('bk-btn-extraer');
+    if(btn){ btn.textContent='✓ Datos extraídos'; btn.classList.add('done'); setTimeout(()=>{ btn.textContent='📥 Extraer datos'; btn.classList.remove('done'); }, 3000); }
+  } else {
+    res.textContent = '⚠️ No encontré la tabla de ángulos ni los beneficios. Verificá que hayas pegado la respuesta completa de Gemini.';
+    res.classList.add('warn');
   }
 }
 
