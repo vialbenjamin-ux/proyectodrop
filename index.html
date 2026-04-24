@@ -426,6 +426,25 @@
   .bk-prompt-view-btn:hover{border-color:var(--border2);color:var(--text)}
   .bk-prompt-full{display:none;margin-top:10px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;font-size:11px;line-height:1.6;color:var(--text);white-space:pre-wrap;max-height:260px;overflow-y:auto}
   .bk-prompt-full.open{display:block}
+
+  /* Output de Gemini en las cards */
+  .bk-prompt-output{display:none;margin-top:10px;background:#FFFEF7;border:1.5px solid var(--yellow);border-radius:12px;padding:0;font-size:11px;line-height:1.6;color:var(--text);overflow:hidden}
+  .bk-prompt-output.open{display:block}
+  .bk-prompt-output-head{display:flex;align-items:center;gap:8px;padding:9px 12px;background:var(--yellow-soft);border-bottom:1px solid var(--yellow)}
+  .bk-prompt-output-label{font-size:10px;letter-spacing:1px;text-transform:uppercase;color:#A6862A;font-weight:600;flex:1}
+  .bk-prompt-output-copy{background:var(--yellow);color:#6B5818;border:none;border-radius:14px;padding:4px 12px;font-size:10px;cursor:pointer;font-family:'DM Mono',monospace;font-weight:600}
+  .bk-prompt-output-copy.copied{background:var(--green);color:#fff}
+  .bk-prompt-output-close{background:none;border:none;color:#A6862A;cursor:pointer;font-size:13px;padding:2px 4px;line-height:1}
+  .bk-prompt-output-body{padding:12px 14px;white-space:pre-wrap;max-height:360px;overflow-y:auto}
+  .bk-prompt-output.loading .bk-prompt-output-body{text-align:center;color:var(--muted);font-style:italic;padding:24px 14px}
+  .bk-prompt-output.error{border-color:var(--red);background:var(--red-soft)}
+  .bk-prompt-output.error .bk-prompt-output-head{background:var(--red-soft);border-bottom-color:var(--red)}
+  .bk-prompt-output.error .bk-prompt-output-label{color:#9B4A4A}
+  .bk-prompt-output.error .bk-prompt-output-close{color:#9B4A4A}
+
+  /* Spinner simple */
+  .bk-spinner{display:inline-block;width:12px;height:12px;border:2px solid currentColor;border-top-color:transparent;border-radius:50%;animation:bk-spin .7s linear infinite;vertical-align:middle;margin-right:6px}
+  @keyframes bk-spin{to{transform:rotate(360deg)}}
   .bk-prompts-sub{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin:28px 0 10px;border-top:1px solid var(--border);padding-top:18px}
 
   .admin-perms{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;padding:10px 12px;background:var(--surface2);border-radius:10px;border:1px solid var(--border)}
@@ -935,6 +954,14 @@
             <button class="bk-prompt-view-btn" onclick="toggleBkPrompt('imagenes')">Ver</button>
           </div>
           <div class="bk-prompt-full" id="bk-full-imagenes"></div>
+          <div class="bk-prompt-output" id="bk-output-imagenes">
+            <div class="bk-prompt-output-head">
+              <span class="bk-prompt-output-label" id="bk-output-label-imagenes">Respuesta de Gemini</span>
+              <button class="bk-prompt-output-copy" id="bk-output-copy-imagenes" onclick="copyBkOutput('imagenes')">📋 Copiar</button>
+              <button class="bk-prompt-output-close" onclick="closeBkOutput('imagenes')" title="Cerrar">✕</button>
+            </div>
+            <div class="bk-prompt-output-body" id="bk-output-body-imagenes"></div>
+          </div>
         </div>
 
         <div class="bk-prompt-card tone-master">
@@ -968,6 +995,14 @@
             <button class="bk-prompt-view-btn" onclick="toggleBkPrompt('copys')">Ver</button>
           </div>
           <div class="bk-prompt-full" id="bk-full-copys"></div>
+          <div class="bk-prompt-output" id="bk-output-copys">
+            <div class="bk-prompt-output-head">
+              <span class="bk-prompt-output-label" id="bk-output-label-copys">Respuesta de Gemini</span>
+              <button class="bk-prompt-output-copy" id="bk-output-copy-copys" onclick="copyBkOutput('copys')">📋 Copiar</button>
+              <button class="bk-prompt-output-close" onclick="closeBkOutput('copys')" title="Cerrar">✕</button>
+            </div>
+            <div class="bk-prompt-output-body" id="bk-output-body-copys"></div>
+          </div>
         </div>
       </div>
 
@@ -2698,7 +2733,7 @@ const BK_IA_KEY = 'bkdrop_bk_ia_target';
 const BK_IA_URLS = { claude:'https://claude.ai/new', gemini:'https://gemini.google.com/app', chatgpt:'https://chatgpt.com/' };
 const BK_IA_NAMES = { claude:'Claude', gemini:'Gemini', chatgpt:'ChatGPT' };
 
-function getBkIa(){ return localStorage.getItem(BK_IA_KEY) || 'claude'; }
+function getBkIa(){ return localStorage.getItem(BK_IA_KEY) || 'gemini'; }
 function setBkIa(ia){
   if(!BK_IA_URLS[ia]) return;
   localStorage.setItem(BK_IA_KEY, ia);
@@ -2795,6 +2830,17 @@ function toggleBkPrompt(key){
   }
 }
 
+async function callGeminiProxy(prompt){
+  const resp = await fetch('/.netlify/functions/gemini-proxy', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ prompt })
+  });
+  const data = await resp.json().catch(()=>({error:'Respuesta inválida del servidor'}));
+  if(!resp.ok) throw new Error(data.error || ('Error '+resp.status));
+  return data.text || '';
+}
+
 function ejecutarMaster(){
   const v = getBkVars();
   if(!v.producto){
@@ -2807,6 +2853,12 @@ function ejecutarMaster(){
   const ia = getBkIa();
   const iaName = BK_IA_NAMES[ia];
   const text = fillBkPrompt('master');
+
+  if(ia === 'gemini'){
+    ejecutarMasterApi(text);
+    return;
+  }
+  // Claude / ChatGPT: flujo manual (copiar + abrir pestaña)
   navigator.clipboard.writeText(text).then(()=>{
     window.open(BK_IA_URLS[ia], '_blank');
     const btn = document.getElementById('bk-btn-ejecutar');
@@ -2820,11 +2872,41 @@ function ejecutarMaster(){
   });
 }
 
+async function ejecutarMasterApi(prompt){
+  const btn = document.getElementById('bk-btn-ejecutar');
+  const respEl = document.getElementById('bkv-respuesta');
+  const res = document.getElementById('bk-extract-result');
+  const origLabel = btn ? btn.textContent : '';
+  if(btn){ btn.innerHTML = '<span class="bk-spinner"></span>Generando con Gemini…'; btn.disabled = true; }
+  if(res){ res.classList.remove('success','warn'); res.textContent = ''; }
+  try{
+    const text = await callGeminiProxy(prompt);
+    if(respEl){
+      respEl.value = text;
+      respEl.scrollIntoView({behavior:'smooth',block:'center'});
+    }
+    extraerDatosMaster();
+    if(btn){ btn.textContent = '✓ Master generado'; btn.classList.add('done'); }
+  } catch(err){
+    if(res){ res.textContent = '⚠️ Error con Gemini: '+err.message; res.classList.add('warn'); }
+    if(btn){ btn.textContent = '⚠️ Error — reintentá'; }
+  } finally {
+    if(btn){ btn.disabled = false; }
+    setTimeout(()=>{ if(btn){ btn.textContent = '▶ Ejecutar Master en '+BK_IA_NAMES[getBkIa()]; btn.classList.remove('done'); } }, 5000);
+  }
+}
+
 function ejecutarBkPrompt(key){
   const text = fillBkPrompt(key);
   if(!text) return;
   const ia = getBkIa();
   const iaName = BK_IA_NAMES[ia];
+
+  if(ia === 'gemini'){
+    ejecutarBkPromptApi(key, text);
+    return;
+  }
+  // Claude / ChatGPT: flujo manual
   navigator.clipboard.writeText(text).then(()=>{
     window.open(BK_IA_URLS[ia], '_blank');
     const btn = document.getElementById('bk-copy-'+key);
@@ -2834,6 +2916,46 @@ function ejecutarBkPrompt(key){
       setTimeout(()=>{ btn.textContent = '▶ Ejecutar'; btn.classList.remove('copied'); }, 2500);
     }
   });
+}
+
+async function ejecutarBkPromptApi(key, prompt){
+  const btn = document.getElementById('bk-copy-'+key);
+  const box = document.getElementById('bk-output-'+key);
+  const body = document.getElementById('bk-output-body-'+key);
+  const label = document.getElementById('bk-output-label-'+key);
+  if(btn){ btn.innerHTML = '<span class="bk-spinner"></span>Generando…'; btn.disabled = true; }
+  if(box){ box.classList.add('open','loading'); box.classList.remove('error'); }
+  if(body){ body.textContent = 'Esperando respuesta de Gemini...'; }
+  if(label){ label.textContent = 'Respuesta de Gemini'; }
+  try{
+    const text = await callGeminiProxy(prompt);
+    if(body){ body.textContent = text; }
+    if(box){ box.classList.remove('loading'); box.scrollIntoView({behavior:'smooth',block:'center'}); }
+    if(btn){ btn.textContent = '✓ Generado'; btn.classList.add('copied'); }
+  } catch(err){
+    if(box){ box.classList.remove('loading'); box.classList.add('error'); }
+    if(label){ label.textContent = 'Error'; }
+    if(body){ body.textContent = '⚠️ '+err.message; }
+    if(btn){ btn.textContent = '⚠️ Error'; }
+  } finally {
+    if(btn){ btn.disabled = false; }
+    setTimeout(()=>{ if(btn){ btn.textContent = '▶ Ejecutar'; btn.classList.remove('copied'); } }, 4000);
+  }
+}
+
+function copyBkOutput(key){
+  const body = document.getElementById('bk-output-body-'+key);
+  if(!body) return;
+  const text = body.textContent || '';
+  navigator.clipboard.writeText(text).then(()=>{
+    const btn = document.getElementById('bk-output-copy-'+key);
+    if(btn){ btn.textContent = '✓ Copiado'; btn.classList.add('copied'); setTimeout(()=>{ btn.textContent = '📋 Copiar'; btn.classList.remove('copied'); }, 1800); }
+  });
+}
+
+function closeBkOutput(key){
+  const box = document.getElementById('bk-output-'+key);
+  if(box) box.classList.remove('open');
 }
 
 function extraerDatosMaster(){
