@@ -355,6 +355,55 @@
   .prompt-add-form input:focus,.prompt-add-form textarea:focus{border-color:var(--yellow)}
   .prompt-add-form textarea{resize:vertical;min-height:90px;line-height:1.5}
 
+  /* BK PROMPTS — panel de variables del producto */
+  .bk-vars-panel{background:linear-gradient(135deg,var(--accent-soft),#F7F4F0);border:1.5px solid var(--accent);border-radius:16px;padding:18px 20px;margin-top:18px;margin-bottom:6px;box-shadow:0 2px 12px rgba(91,168,130,.1)}
+  .bk-vars-head{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+  .bk-vars-title{font-family:'Syne',sans-serif;font-weight:800;font-size:14px;color:var(--accent);letter-spacing:.5px;flex:1}
+  .bk-vars-sub{font-size:10px;color:var(--muted);letter-spacing:.3px;margin-top:-10px;margin-bottom:12px}
+  .bk-vars-clear{background:none;border:1.5px solid var(--border);color:var(--muted);border-radius:20px;padding:5px 14px;font-size:11px;cursor:pointer;font-family:'DM Mono',monospace}
+  .bk-vars-clear:hover{border-color:var(--red);color:var(--red)}
+  .bk-vars-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .bk-var-field{display:flex;flex-direction:column;gap:4px}
+  .bk-var-field.full{grid-column:1/-1}
+  .bk-var-field label{font-size:10px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;font-weight:500}
+  .bk-var-field input,.bk-var-field textarea{background:var(--surface);border:1.5px solid var(--border);color:var(--text);padding:8px 12px;border-radius:10px;font-size:12px;font-family:'DM Mono',monospace;width:100%}
+  .bk-var-field input:focus,.bk-var-field textarea:focus{border-color:var(--accent);outline:none}
+  .bk-var-field textarea{resize:vertical;min-height:56px;line-height:1.5}
+  .bk-var-hint{font-size:10px;color:var(--muted2);margin-top:2px;font-style:italic}
+  @media(max-width:560px){.bk-vars-grid{grid-template-columns:1fr}}
+
+  /* BK PROMPTS HERO — panel destacado arriba de la sección Prompts */
+  .bk-prompts-hero{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin-top:18px;margin-bottom:28px}
+  .bk-prompt-card{background:var(--surface);border:1.5px solid var(--border);border-radius:18px;padding:20px 20px 18px;display:flex;flex-direction:column;gap:10px;box-shadow:0 2px 10px rgba(0,0,0,.04);position:relative;overflow:hidden;transition:all .2s}
+  .bk-prompt-card:hover{transform:translateY(-2px);box-shadow:0 6px 22px rgba(0,0,0,.08)}
+  .bk-prompt-card::before{content:'';position:absolute;top:0;left:0;right:0;height:4px;border-radius:18px 18px 0 0}
+  .bk-prompt-card.tone-imagenes{border-color:#E7D4F5}
+  .bk-prompt-card.tone-imagenes::before{background:#B07CDB}
+  .bk-prompt-card.tone-imagenes .bk-prompt-card-icon{background:#F5EAFB;border-color:#B07CDB;color:#8B5FB5}
+  .bk-prompt-card.tone-imagenes .bk-prompt-copy-big{background:#B07CDB}
+  .bk-prompt-card.tone-master{border-color:#F7D9CE}
+  .bk-prompt-card.tone-master::before{background:#F0907A}
+  .bk-prompt-card.tone-master .bk-prompt-card-icon{background:var(--peach-soft);border-color:#F0907A;color:#C4674F}
+  .bk-prompt-card.tone-master .bk-prompt-copy-big{background:#F0907A}
+  .bk-prompt-card.tone-copys{border-color:#F6E2AA}
+  .bk-prompt-card.tone-copys::before{background:var(--yellow)}
+  .bk-prompt-card.tone-copys .bk-prompt-card-icon{background:var(--yellow-soft);border-color:var(--yellow);color:#A6862A}
+  .bk-prompt-card.tone-copys .bk-prompt-copy-big{background:#D9A82E;color:#fff}
+  .bk-prompt-card-head{display:flex;align-items:center;gap:12px}
+  .bk-prompt-card-icon{width:44px;height:44px;border-radius:12px;border:1.5px solid;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+  .bk-prompt-card-title{font-family:'Syne',sans-serif;font-weight:800;font-size:15px;color:var(--text);letter-spacing:.3px;line-height:1.2}
+  .bk-prompt-card-tag{font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-top:2px}
+  .bk-prompt-card-desc{font-size:11px;color:var(--muted);line-height:1.6;min-height:34px}
+  .bk-prompt-card-actions{display:flex;gap:8px;margin-top:2px}
+  .bk-prompt-copy-big{flex:1;color:#fff;border:none;border-radius:20px;padding:10px 16px;font-size:12px;font-weight:600;cursor:pointer;font-family:'DM Mono',monospace;letter-spacing:.3px;box-shadow:0 2px 8px rgba(0,0,0,.08);transition:all .15s}
+  .bk-prompt-copy-big:hover{filter:brightness(1.08)}
+  .bk-prompt-copy-big.copied{background:var(--green) !important}
+  .bk-prompt-view-btn{background:var(--surface2);border:1.5px solid var(--border);color:var(--muted);border-radius:20px;padding:10px 14px;font-size:11px;cursor:pointer;font-family:'DM Mono',monospace;white-space:nowrap}
+  .bk-prompt-view-btn:hover{border-color:var(--border2);color:var(--text)}
+  .bk-prompt-full{display:none;margin-top:10px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;font-size:11px;line-height:1.6;color:var(--text);white-space:pre-wrap;max-height:260px;overflow-y:auto}
+  .bk-prompt-full.open{display:block}
+  .bk-prompts-sub{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin:28px 0 10px;border-top:1px solid var(--border);padding-top:18px}
+
   .admin-perms{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;padding:10px 12px;background:var(--surface2);border-radius:10px;border:1px solid var(--border)}
   .admin-perm-item{display:flex;align-items:center;gap:5px;cursor:pointer;user-select:none}
   .admin-perm-item input[type=checkbox]{width:14px;height:14px;accent-color:var(--accent);cursor:pointer}
@@ -784,14 +833,98 @@
   </div>
 
   <div id="section-prompts" class="section">
-    <div style="max-width:700px">
+    <div style="max-width:980px">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:10px">
         <div>
-          <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:20px;color:var(--text);margin-bottom:3px">Prompts BK</div>
-          <div style="font-size:11px;color:var(--muted)">Prompts listos para copiar y usar</div>
+          <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:22px;color:var(--text);margin-bottom:3px">Prompts BK DROP</div>
+          <div style="font-size:11px;color:var(--muted)">Los prompts que usás a diario, listos para copiar y pegar en Gemini o ChatGPT</div>
         </div>
       </div>
-      <!-- Nueva temática -->
+
+      <!-- VARIABLES DEL PRODUCTO -->
+      <div class="bk-vars-panel">
+        <div class="bk-vars-head">
+          <div class="bk-vars-title">🎯 DATOS DEL PRODUCTO</div>
+          <button class="bk-vars-clear" onclick="clearBkVars()">🔄 Limpiar</button>
+        </div>
+        <div class="bk-vars-sub">Se guardan en este navegador y se insertan al copiar cada prompt. Los campos vacíos dejan el placeholder original.</div>
+        <div class="bk-vars-grid">
+          <div class="bk-var-field full">
+            <label>Producto (link o descripción)</label>
+            <textarea id="bkv-producto" placeholder="Ej: link de AliExpress, nombre del producto, o descripción corta..." oninput="saveBkVars()"></textarea>
+          </div>
+          <div class="bk-var-field">
+            <label>Ángulo de venta</label>
+            <input id="bkv-angulo" placeholder="Ej: Madres con dolor de espalda" oninput="saveBkVars()">
+          </div>
+          <div class="bk-var-field">
+            <label>Descuento (%)</label>
+            <input id="bkv-descuento" type="number" min="0" max="99" placeholder="45" oninput="saveBkVars()">
+          </div>
+          <div class="bk-var-field">
+            <label>Problema (pregunta hook)</label>
+            <input id="bkv-problema" placeholder="¿Te duele la espalda al dormir?" oninput="saveBkVars()">
+          </div>
+          <div class="bk-var-field">
+            <label>Beneficio principal</label>
+            <input id="bkv-beneficio" placeholder="Duerme sin dolor toda la noche" oninput="saveBkVars()">
+          </div>
+        </div>
+      </div>
+
+      <!-- PANEL DESTACADO -->
+      <div class="bk-prompts-hero">
+        <div class="bk-prompt-card tone-imagenes">
+          <div class="bk-prompt-card-head">
+            <div class="bk-prompt-card-icon">🖼️</div>
+            <div>
+              <div class="bk-prompt-card-tag">Creativo visual</div>
+              <div class="bk-prompt-card-title">Imágenes Prompt</div>
+            </div>
+          </div>
+          <div class="bk-prompt-card-desc">Genera el prompt de imagen e-commerce 1:1 listo para Gemini o ChatGPT, con descuento, hook y escena aspiracional.</div>
+          <div class="bk-prompt-card-actions">
+            <button class="bk-prompt-copy-big" id="bk-copy-imagenes" onclick="copyBkPrompt('imagenes')">📋 Copiar prompt</button>
+            <button class="bk-prompt-view-btn" onclick="toggleBkPrompt('imagenes')">Ver</button>
+          </div>
+          <div class="bk-prompt-full" id="bk-full-imagenes"></div>
+        </div>
+
+        <div class="bk-prompt-card tone-master">
+          <div class="bk-prompt-card-head">
+            <div class="bk-prompt-card-icon">📦</div>
+            <div>
+              <div class="bk-prompt-card-tag">Landing completa</div>
+              <div class="bk-prompt-card-title">Master Prompt</div>
+            </div>
+          </div>
+          <div class="bk-prompt-card-desc">Estructura completa para landing de alta conversión: ángulos, nombres, beneficios, testimonios, bullets y FAQ.</div>
+          <div class="bk-prompt-card-actions">
+            <button class="bk-prompt-copy-big" id="bk-copy-master" onclick="copyBkPrompt('master')">📋 Copiar prompt</button>
+            <button class="bk-prompt-view-btn" onclick="toggleBkPrompt('master')">Ver</button>
+          </div>
+          <div class="bk-prompt-full" id="bk-full-master"></div>
+        </div>
+
+        <div class="bk-prompt-card tone-copys">
+          <div class="bk-prompt-card-head">
+            <div class="bk-prompt-card-icon">✍️</div>
+            <div>
+              <div class="bk-prompt-card-tag">Ads Meta / TikTok</div>
+              <div class="bk-prompt-card-title">Copys Ads</div>
+            </div>
+          </div>
+          <div class="bk-prompt-card-desc">3 textos PAS, 3 títulos, 3 descripciones y 5 textos TikTok. Con emojis, urgencia y framework de conversión.</div>
+          <div class="bk-prompt-card-actions">
+            <button class="bk-prompt-copy-big" id="bk-copy-copys" onclick="copyBkPrompt('copys')">📋 Copiar prompt</button>
+            <button class="bk-prompt-view-btn" onclick="toggleBkPrompt('copys')">Ver</button>
+          </div>
+          <div class="bk-prompt-full" id="bk-full-copys"></div>
+        </div>
+      </div>
+
+      <!-- OTROS PROMPTS (sistema de temáticas) -->
+      <div class="bk-prompts-sub">Otros prompts</div>
       <div class="new-tematica-form" id="p-new-tema-bar" style="margin-top:14px">
         <input id="p-new-tema" placeholder="Nueva temática (ej: Copy, Imágenes, Videos...)">
         <button class="new-tematica-btn" onclick="addPromptTema()">+ Temática</button>
@@ -1300,7 +1433,7 @@ function switchSection(s, silent){
   if(tab && !silent){ document.querySelectorAll('.tab-btn').forEach(e=>e.classList.remove('active')); tab.classList.add('active'); }
   if(s==='videos') renderVideos();
   if(s==='calendario') renderCalendar();
-  if(s==='prompts') renderPrompts();
+  if(s==='prompts'){ renderPrompts(); loadBkVars(); }
   if(s==='reportes') initReportes();
 }
 
@@ -2367,6 +2500,230 @@ function copyPrompt(id, ti){
     const btn = document.getElementById('copybtn-'+id);
     if(btn){ btn.textContent='✓ Copiado'; btn.classList.add('copied'); setTimeout(()=>{ btn.textContent='📋 Copiar'; btn.classList.remove('copied'); },2000); }
   });
+}
+
+// ── BK PROMPTS (panel destacado) ──────────────────────────────────────────────
+const BK_PROMPTS = {
+  imagenes: `PROMPT IMAGEN E-COMMERCE UNIVERSAL
+Cuando te dé un producto y un ángulo de venta, genera SOLO el 🖼️ PROMPT IMAGEN E-COMMERCE con esta estructura exacta:
+Formato: Fotografía publicitaria, calidad premium 8K, formato cuadrado 1:1, optimizada para Meta Ads y TikTok Ads.
+Primer plano: Producto perfectamente enfocado, iluminación de estudio con sombras suaves y reflejos realistas. Materiales reales respetados (plástico, metal, tela, etc.).
+Fondo: Escena aspiracional ligeramente desenfocada con persona del público objetivo (35-60 años) usando o interactuando con el producto. Expresión de satisfacción, alivio o confianza. Atmósfera hogareña, cálida y creíble — nunca exagerada.
+Textos gráficos sobre la imagen:
+🔥 [DESCUENTO]% OFF — esquina superior derecha
+Título bold máximo 5 palabras: "[PROBLEMA DEL CLIENTE EN PREGUNTA]"
+Subtítulo máximo 6 palabras debajo: "[BENEFICIO PRINCIPAL. Directo y poderoso.]"
+Cinta central: ¡OFERTA ESPECIAL!
+Estilo visual: Fotografía cinematográfica, luz cálida y profesional, profundidad de campo, fondo ligeramente desenfocado, colores acordes al producto, tipografía bold de alto contraste, estética premium ultra realista 8K, composición que detiene el scroll.
+REGLAS FIJAS:
+
+Sin lista lateral de beneficios con ✔
+Título máximo 5 palabras
+Subtítulo máximo 6 palabras
+🔥 descuento SIEMPRE en esquina superior derecha
+Escena natural y creíble, nunca exagerada
+Persona del público objetivo alineada al ángulo de venta
+Responder SOLO con el prompt, nada más`,
+
+  master: `📦 MASTER PROMPT PARA CREAR LANDING PAGE DE E-COMMERCE
+Actúa como experto en marketing digital, copywriting para e-commerce y performance ads (Meta Ads y TikTok Ads).
+Analiza la siguiente landing page o descripción de producto entre corchetes [ ] y genera una estructura completa de contenido optimizado para una landing page de alta conversión, siguiendo exactamente este formato:
+
+🔴 1. ÁNGULOS DE VENTA
+Crea una tabla con 5 ángulos de venta.
+Reglas:
+
+El primer ángulo debe ser el principal, identificado en la landing o descripción.
+Los otros 4 deben ser nuevos ángulos creados por ti, dirigidos a distintos tipos de clientes o beneficios.
+
+La tabla debe incluir las siguientes columnas:
+| Ángulo | Nicho | Problema | Objeciones | Comprador potencial | Usuario |
+Donde:
+
+Ángulo: explicación simple del enfoque de venta
+Nicho: máximo 4 palabras
+Problema: dolor principal que resuelve
+Objeciones: dudas del cliente antes de comprar
+Comprador potencial: edad, género, intereses
+Usuario: quién usará el producto
+
+
+🟥 2. NOMBRES VENDEDORES DEL PRODUCTO
+Genera 5 nombres comerciales del producto siguiendo la estructura:
+[Qué es] – [Función Principal] – [Promesa de Valor]
+Reglas:
+
+Máximo 70 caracteres
+Aptos para Meta Ads y TikTok Ads
+Claros, simples y orientados a beneficios
+
+
+🟦 3. BENEFICIOS CLAVE
+Genera solo 3 beneficios clave.
+Formato:
+
+Cada beneficio debe iniciar con emoji
+Máximo 7 palabras por línea
+Enfocados en resultado práctico o emocional
+Pensados para e-commerce y anuncios
+
+
+🟨 4. TESTIMONIOS DE CLIENTES (BREVES)
+Genera 3 testimonios cortos.
+Reglas:
+
+Deben sonar reales y creíbles
+Estilo natural y directo
+Enfocados en la experiencia del usuario
+Incluir nombre ficticio y ciudad
+
+
+🟧 5. BULLETS PARA LANDING PAGE
+Genera 3 bloques principales de contenido para la landing page.
+Estructura:
+1️⃣ Título en negrita – pregunta o característica (máx 9 palabras)
+Debajo escribir máximo 1 línea de solución clara y directa.
+2️⃣ Título en negrita – pregunta o característica (máx 9 palabras)
+Debajo escribir máximo 1 línea de solución clara y directa.
+3️⃣ Título en negrita – pregunta o característica (máx 9 palabras)
+Debajo escribir máximo 1 línea de solución clara y directa.
+
+🟪 6. TESTIMONIOS DE CLIENTES (EXTENSOS)
+Genera 3 testimonios largos.
+Formato obligatorio:
+
+"Título emocional de la experiencia"
+Texto testimonial que incluya:
+
+Nombre ficticio y ciudad
+Situación antes / después
+Que se sienta real y creíble
+Mínimo el doble de extensión de un testimonio común
+
+
+
+📌 9. PREGUNTAS FRECUENTES (FAQ)
+Genera 6-8 preguntas frecuentes.
+Reglas:
+
+Incluir emoji al inicio de cada pregunta
+Lenguaje empático y claro
+Deben resolver objeciones antes de comprar
+Reforzar beneficios y reducir fricción de compra
+La última pregunta siempre debe ser sobre el método de pago
+
+
+⚠️ REGLAS GENERALES
+Todo el contenido debe:
+
+Estar optimizado para e-commerce
+Ser compatible con Meta Ads y TikTok Ads
+Usar lenguaje claro, vendedor y creíble
+Evitar promesas exageradas que puedan bloquear anuncios
+Adaptarse al país y mercado del producto analizado
+NO incluir el punto 7 (frases para imagen) ni el punto 8 (guía de imagen)
+
+
+📦 PRODUCTO A ANALIZAR
+[PEGAR AQUÍ EL LINK O DESCRIPCIÓN DEL PRODUCTO]`,
+
+  copys: `Eres un experto en Meta Ads y TikTok Ads con más de 10 años de experiencia en e-commerce y dropshipping. A partir de ahora, cada vez que te comparta información de un producto, analízalo automáticamente y genera:
+3 textos principales (máximo 125 caracteres, framework PAS, ideales para el feed)
+3 títulos llamativos (máximo 40 caracteres, con gancho inmediato)
+3 descripciones de producto sin hablar de oferta (máximo 30 caracteres, complementan el título)
+5 textos cortos para TikTok Ads (máximo 6-7 palabras cada uno)
+Reglas estrictas:
+
+Cada una de las 9 líneas principales debe comenzar obligatoriamente con un emoji relacionado al beneficio
+Nunca menciones el nombre propio del producto. Enfócate en el problema que resuelve y la transformación que genera
+Usa el framework PAS (Problema → Agitación → Solución) en los textos principales
+Incluye al menos un disparador de urgencia o escasez por set
+Tono: persuasivo, directo, conversacional, orientado a conversión
+Evita palabras genéricas como "calidad", "increíble" o "mejor"
+Nunca uses las mismas frases o estructuras en distintos productos
+Los textos cortos de TikTok deben ser disruptivos, directos y sin clichés`
+};
+
+const BK_VARS_KEY = 'bkdrop_bk_prompt_vars';
+const BK_VAR_FIELDS = ['producto','angulo','descuento','problema','beneficio'];
+
+function getBkVars(){
+  const v = {};
+  BK_VAR_FIELDS.forEach(f=>{
+    const el = document.getElementById('bkv-'+f);
+    v[f] = el ? (el.value||'').trim() : '';
+  });
+  return v;
+}
+
+function saveBkVars(){
+  try{ localStorage.setItem(BK_VARS_KEY, JSON.stringify(getBkVars())); }catch(e){}
+}
+
+function loadBkVars(){
+  try{
+    const raw = localStorage.getItem(BK_VARS_KEY);
+    if(!raw) return;
+    const v = JSON.parse(raw) || {};
+    BK_VAR_FIELDS.forEach(f=>{
+      const el = document.getElementById('bkv-'+f);
+      if(el && v[f]) el.value = v[f];
+    });
+  }catch(e){}
+}
+
+function clearBkVars(){
+  BK_VAR_FIELDS.forEach(f=>{ const el=document.getElementById('bkv-'+f); if(el) el.value=''; });
+  saveBkVars();
+  ['imagenes','master','copys'].forEach(k=>{
+    const box = document.getElementById('bk-full-'+k);
+    if(box){ box.classList.remove('open'); box.textContent=''; }
+  });
+}
+
+function fillBkPrompt(key){
+  const v = getBkVars();
+  let text = BK_PROMPTS[key] || '';
+
+  if(key === 'imagenes'){
+    if(v.descuento)  text = text.replace('[DESCUENTO]', v.descuento);
+    if(v.problema)   text = text.replace('[PROBLEMA DEL CLIENTE EN PREGUNTA]', v.problema);
+    if(v.beneficio)  text = text.replace('[BENEFICIO PRINCIPAL. Directo y poderoso.]', v.beneficio);
+    const extras = [];
+    if(v.producto) extras.push('PRODUCTO: '+v.producto);
+    if(v.angulo)   extras.push('ÁNGULO DE VENTA: '+v.angulo);
+    if(extras.length) text += '\n\n'+extras.join('\n');
+  }
+  else if(key === 'master'){
+    if(v.producto) text = text.replace('[PEGAR AQUÍ EL LINK O DESCRIPCIÓN DEL PRODUCTO]', v.producto);
+  }
+  else if(key === 'copys'){
+    const extras = [];
+    if(v.producto) extras.push('PRODUCTO: '+v.producto);
+    if(v.angulo)   extras.push('ÁNGULO DE VENTA: '+v.angulo);
+    if(extras.length) text += '\n\n'+extras.join('\n');
+  }
+  return text;
+}
+
+function copyBkPrompt(key){
+  const text = fillBkPrompt(key);
+  if(!text) return;
+  navigator.clipboard.writeText(text).then(()=>{
+    const btn = document.getElementById('bk-copy-'+key);
+    if(btn){ btn.textContent='✓ Copiado'; btn.classList.add('copied'); setTimeout(()=>{ btn.textContent='📋 Copiar prompt'; btn.classList.remove('copied'); },1800); }
+  });
+}
+
+function toggleBkPrompt(key){
+  const box = document.getElementById('bk-full-'+key);
+  if(!box) return;
+  const isOpen = box.classList.contains('open');
+  if(isOpen){ box.classList.remove('open'); }
+  else {
+    box.textContent = fillBkPrompt(key);
+    box.classList.add('open');
+  }
 }
 
 function toggleStage(prodId, stageId){
