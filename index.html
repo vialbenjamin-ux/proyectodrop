@@ -3708,10 +3708,9 @@ async function fetchShopifyReport() {
           '<td style="padding:10px 16px;font-size:12px;color:var(--text);text-align:right">$' + Math.round(p.revenue).toLocaleString('es-CL') + '</td>' +
           colsHtml + '</tr>';
       }).join('');
-      var dT_ped = 0, dT_uni = 0, dT_rev = 0, dT_src = {};
+      var dT_uni = 0, dT_rev = 0, dT_src = {};
       for (var dpi = 0; dpi < products.length; dpi++) {
         var dpp = products[dpi];
-        dT_ped += dpp.orders || 0;
         dT_uni += dpp.qty || 0;
         dT_rev += dpp.revenue || 0;
         for (var dsi = 0; dsi < activeSources.length; dsi++) {
@@ -3726,7 +3725,7 @@ async function fetchShopifyReport() {
       document.getElementById('reporte-detail-totals').innerHTML =
         '<tr style="border-top:2px solid var(--border);background:var(--surface2)">' +
         '<td style="padding:10px 20px;font-size:11px;color:var(--muted);font-weight:700;letter-spacing:.5px">TOTAL</td>' +
-        '<td style="padding:10px 20px;font-size:12px;font-weight:700;text-align:right">' + dT_ped + '</td>' +
+        '<td style="padding:10px 20px;font-size:12px;font-weight:700;text-align:right">' + data.totalOrders + '</td>' +
         '<td style="padding:10px 16px;font-size:12px;color:var(--accent);font-weight:700;text-align:right">' + dT_uni + '</td>' +
         '<td style="padding:10px 16px;font-size:12px;font-weight:700;text-align:right">$' + Math.round(dT_rev).toLocaleString('es-CL') + '</td>' +
         dSrcCols + '</tr>';

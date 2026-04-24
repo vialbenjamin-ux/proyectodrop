@@ -206,6 +206,7 @@ exports.handler = async function (event) {
 
   // Single-day mode
   const offsetHours = getSantiagoOffsetHours(now);
+  const santiDateToday = now.toLocaleString('en-CA', { timeZone: 'America/Santiago' }).split(',')[0].trim();
   let targetDate = qs.date;
   let todayStartUTC, todayEndUTC, dateLabel;
 
@@ -213,13 +214,14 @@ exports.handler = async function (event) {
     const refDate = new Date(targetDate + 'T12:00:00Z');
     const off = getSantiagoOffsetHours(refDate);
     todayStartUTC = new Date(targetDate + 'T' + String(off).padStart(2, '0') + ':00:00Z');
-    todayEndUTC   = new Date(todayStartUTC.getTime() + 24 * 3600000);
+    // Si la fecha seleccionada es hoy en Santiago, ventana abierta (modo vivo)
+    todayEndUTC = (targetDate === santiDateToday)
+      ? null
+      : new Date(todayStartUTC.getTime() + 24 * 3600000);
     dateLabel = targetDate;
   } else {
-    const santiStr  = now.toLocaleString('en-CA', { timeZone: 'America/Santiago' });
-    const santiDate = santiStr.split(',')[0].trim();
-    dateLabel     = santiDate;
-    todayStartUTC = new Date(santiDate + 'T' + String(offsetHours).padStart(2, '0') + ':00:00Z');
+    dateLabel     = santiDateToday;
+    todayStartUTC = new Date(santiDateToday + 'T' + String(offsetHours).padStart(2, '0') + ':00:00Z');
     todayEndUTC   = null;
   }
 
