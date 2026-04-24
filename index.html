@@ -3708,26 +3708,16 @@ async function fetchShopifyReport() {
           '<td style="padding:10px 16px;font-size:12px;color:var(--text);text-align:right">$' + Math.round(p.revenue).toLocaleString('es-CL') + '</td>' +
           colsHtml + '</tr>';
       }).join('');
-      var dT_uni = 0, dT_rev = 0, dT_src = {};
-      for (var dpi = 0; dpi < products.length; dpi++) {
-        var dpp = products[dpi];
-        dT_uni += dpp.qty || 0;
-        dT_rev += dpp.revenue || 0;
-        for (var dsi = 0; dsi < activeSources.length; dsi++) {
-          var dsk = activeSources[dsi];
-          dT_src[dsk] = (dT_src[dsk] || 0) + ((dpp.bySource && dpp.bySource[dsk]) || 0);
-        }
-      }
       var dSrcCols = activeSources.map(function(s) {
-        var v = dT_src[s] || 0;
+        var v = (data.bySource && data.bySource[s] && data.bySource[s].orders) || 0;
         return '<td style="padding:10px 14px;font-size:12px;color:' + (sourceColors[s]||'var(--muted)') + ';font-weight:700;text-align:right">' + (v || '—') + '</td>';
       }).join('');
       document.getElementById('reporte-detail-totals').innerHTML =
         '<tr style="border-top:2px solid var(--border);background:var(--surface2)">' +
         '<td style="padding:10px 20px;font-size:11px;color:var(--muted);font-weight:700;letter-spacing:.5px">TOTAL</td>' +
         '<td style="padding:10px 20px;font-size:12px;font-weight:700;text-align:right">' + data.totalOrders + '</td>' +
-        '<td style="padding:10px 16px;font-size:12px;color:var(--accent);font-weight:700;text-align:right">' + dT_uni + '</td>' +
-        '<td style="padding:10px 16px;font-size:12px;font-weight:700;text-align:right">$' + Math.round(dT_rev).toLocaleString('es-CL') + '</td>' +
+        '<td style="padding:10px 16px;font-size:12px;color:var(--accent);font-weight:700;text-align:right">' + data.totalProducts + '</td>' +
+        '<td style="padding:10px 16px;font-size:12px;font-weight:700;text-align:right">$' + Math.round(data.totalRevenue).toLocaleString('es-CL') + '</td>' +
         dSrcCols + '</tr>';
       document.getElementById('reporte-detail-loading').style.display = 'none';
       document.getElementById('reporte-detail-table').style.display = 'table';
