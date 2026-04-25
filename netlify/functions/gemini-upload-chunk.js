@@ -1,12 +1,15 @@
-// Reenvía un chunk del video al endpoint de upload resumable de Gemini.
+// Reenvía un upload completo (1 sola pieza, finalize) a Gemini File API.
 // Endpoint: POST /.netlify/functions/gemini-upload-chunk
-// Body JSON: { uploadUrl, offset, chunkBase64, finalize }
-// Responde: { ok: true } para chunks intermedios, o el fileMeta de Google
-//   ({ file: { name, uri, state, ... } }) cuando finalize=true.
+// Headers requeridos:
+//   - Content-Type: application/octet-stream
+//   - X-BK-Upload-Url: el uploadUrl que devolvió gemini-upload-init
+// Body: los bytes del archivo (raw, no JSON, no base64)
+// Responde: el fileMeta de Google { file: { name, uri, state, ... } }
 //
-// Por qué este proxy: algunos navegadores/redes bloquean uploads
-// cross-origin a googleapis.com. Mandando el archivo a esta function
-// (mismo origen) y desde acá a Google, evitamos cualquier bloqueo.
+// Único path soportado: 1-shot upload con finalize. Para archivos
+// más grandes que ~5.5MB esta function no sirve (límite de body de
+// Netlify es 6MB). En ese caso el frontend debe fallback a upload
+// directo a Google desde el navegador.
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') {
@@ -16,51 +19,55 @@ exports.handler = async (event) => {
     return respond(405, { error: 'Method not allowed' });
   }
 
-  let body;
-  try { body = JSON.parse(event.body || '{}'); }
-  catch { return respond(400, { error: 'JSON inválido' }); }
+  const headers = lowercaseHeaders(event.headers || {});
+  const uploadUrl = headers['x-bk-upload-url'];
+  if (!uploadUrl) {
+    return respond(400, { error: 'Falta header X-BK-Upload-Url' });
+  }
 
-  const { uploadUrl, offset, chunkBase64, finalize } = body;
-  if (!uploadUrl) return respond(400, { error: 'Falta uploadUrl' });
-  if (typeof offset !== 'number') return respond(400, { error: 'Falta offset (number)' });
-  if (!chunkBase64) return respond(400, { error: 'Falta chunkBase64' });
+  // Netlify pasa el body como base64 cuando isBase64Encoded=true
+  const buf = event.isBase64Encoded
+    ? Buffer.from(event.body || '', 'base64')
+    : Buffer.from(event.body || '', 'binary');
 
-  const chunkBuf = Buffer.from(chunkBase64, 'base64');
+  if (!buf.length) {
+    return respond(400, { error: 'Body vacío' });
+  }
 
   try {
     const resp = await fetch(uploadUrl, {
       method: 'POST',
       headers: {
-        'X-Goog-Upload-Offset': String(offset),
-        'X-Goog-Upload-Command': finalize ? 'upload, finalize' : 'upload',
-        'Content-Length': String(chunkBuf.length),
+        'X-Goog-Upload-Offset': '0',
+        'X-Goog-Upload-Command': 'upload, finalize',
+        'Content-Length': String(buf.length),
       },
-      body: chunkBuf,
+      body: buf,
     });
 
     if (!resp.ok) {
       const errText = await resp.text();
-      return respond(resp.status, { error: 'Google rechazó chunk @offset=' + offset + ': ' + errText.slice(0, 300) });
+      return respond(resp.status, { error: 'Google rechazó upload: ' + errText.slice(0, 400) });
     }
 
-    if (finalize) {
-      // Última pieza: Google responde con el fileMeta completo
-      const data = await resp.json();
-      return respond(200, data);
-    } else {
-      // Chunk intermedio: response vacía con status OK
-      return respond(200, { ok: true });
-    }
+    const data = await resp.json();
+    return respond(200, data);
   } catch (err) {
-    return respond(500, { error: err.message || 'Error reenviando chunk' });
+    return respond(500, { error: err.message || 'Error reenviando upload' });
   }
 };
+
+function lowercaseHeaders(obj) {
+  const r = {};
+  for (const k in obj) r[k.toLowerCase()] = obj[k];
+  return r;
+}
 
 function corsHeaders() {
   return {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Headers': 'Content-Type, X-BK-Upload-Url',
   };
 }
 

@@ -3359,48 +3359,68 @@ async function ejecutarBkVideo(key){
     const uploadUrl = initData.uploadUrl;
     if(!uploadUrl) throw new Error('Paso 1 (init upload): el servidor no devolvió URL');
 
-    // 2) Upload del archivo en chunks de 4MB a través del proxy Netlify
-    // (no directo a Google porque algunos navegadores/redes bloquean
-    // uploads cross-origin a googleapis.com). El proxy reenvía cada
-    // chunk con los headers correctos del protocolo resumable.
+    // 2) Upload del archivo a Gemini File API.
+    // Decisión por tamaño:
+    //  · ≤ 5MB raw  → 1 sola request al proxy de Netlify (mismo origen,
+    //                  evita cualquier bloqueo cross-origin del navegador).
+    //  · > 5MB raw  → upload directo a Google desde el navegador con un
+    //                  Blob de tipo neutral (application/octet-stream) para
+    //                  evitar preflight estricto por video/mp4. Si esto
+    //                  falla, mostramos un error claro pidiendo comprimir.
     if(body){ body.textContent = `Subiendo ${(file.size/1024/1024).toFixed(1)}MB…`; }
+    const PROXY_LIMIT = 5 * 1024 * 1024; // 5MB raw cabe holgado en body de 6MB de Netlify
     let uploadData = null;
-    const CHUNK_SIZE = 4 * 1024 * 1024; // 4MB → ~5.3MB en base64, debajo del límite 6MB de Netlify
-    let chunkOffset = 0;
     try {
-      while (chunkOffset < file.size) {
-        const end = Math.min(chunkOffset + CHUNK_SIZE, file.size);
-        const isLast = end >= file.size;
-        const chunk = file.slice(chunkOffset, end);
-        const chunkBase64 = await blobToBase64(chunk);
-
-        const chunkResp = await fetch('/.netlify/functions/gemini-upload-chunk', {
+      if (file.size <= PROXY_LIMIT) {
+        // Ruta proxy: bytes raw via Netlify Function
+        const resp = await fetch('/.netlify/functions/gemini-upload-chunk', {
           method: 'POST',
-          headers: {'Content-Type':'application/json'},
-          body: JSON.stringify({
-            uploadUrl,
-            offset: chunkOffset,
-            chunkBase64,
-            finalize: isLast
-          })
+          headers: {
+            'Content-Type':'application/octet-stream',
+            'X-BK-Upload-Url': uploadUrl
+          },
+          body: file
         });
-        const chunkData = await chunkResp.json().catch(()=>({error:'Respuesta inválida'}));
-        if (!chunkResp.ok) {
-          throw new Error(chunkData.error || 'HTTP '+chunkResp.status);
-        }
-        if (isLast) {
-          uploadData = chunkData;
-        }
-        chunkOffset = end;
-        if (body) {
-          const pct = Math.round((chunkOffset/file.size)*100);
-          body.textContent = `Subiendo ${(file.size/1024/1024).toFixed(1)}MB… ${pct}%`;
-        }
+        const data = await resp.json().catch(()=>({error:'Respuesta inválida del proxy'}));
+        if (!resp.ok) throw new Error(data.error || 'HTTP '+resp.status);
+        uploadData = data;
+      } else {
+        // Ruta directa: XHR a Google con Blob de tipo neutral
+        if(body){ body.textContent = `Subiendo ${(file.size/1024/1024).toFixed(1)}MB directo a Google…`; }
+        const arrayBuf = await file.arrayBuffer();
+        const neutralBlob = new Blob([arrayBuf], { type: 'application/octet-stream' });
+        uploadData = await new Promise((resolve, reject)=>{
+          const xhr = new XMLHttpRequest();
+          xhr.open('POST', uploadUrl, true);
+          xhr.setRequestHeader('X-Goog-Upload-Offset', '0');
+          xhr.setRequestHeader('X-Goog-Upload-Command', 'upload, finalize');
+          xhr.upload.onprogress = (e)=>{
+            if(e.lengthComputable && body){
+              const pct = Math.round((e.loaded/e.total)*100);
+              body.textContent = `Subiendo ${(file.size/1024/1024).toFixed(1)}MB directo a Google… ${pct}%`;
+            }
+          };
+          xhr.onload = ()=>{
+            if(xhr.status >= 200 && xhr.status < 300){
+              try { resolve(JSON.parse(xhr.responseText)); }
+              catch(e){ reject(new Error('Respuesta no es JSON: '+xhr.responseText.slice(0,200))); }
+            } else {
+              reject(new Error('HTTP '+xhr.status+': '+xhr.responseText.slice(0,200)));
+            }
+          };
+          xhr.onerror = ()=>{
+            const detalle = `status=${xhr.status||'?'}, body="${(xhr.responseText||'').slice(0,200)}"`;
+            reject(new Error('El navegador o la red bloqueó la subida directa a Google. Probá con un video más chico (≤5MB) o desactivá ad-blockers para este sitio. Detalle: '+detalle));
+          };
+          xhr.ontimeout = ()=>reject(new Error('Tiempo de espera agotado'));
+          xhr.onabort = ()=>reject(new Error('Upload cancelado'));
+          xhr.send(neutralBlob);
+        });
       }
     } catch (uploadErr) {
       throw new Error('Paso 2 (subida): '+uploadErr.message);
     }
-    if (!uploadData) throw new Error('Paso 2: no se recibió respuesta final del upload');
+    if (!uploadData) throw new Error('Paso 2: no se recibió respuesta del upload');
     const fileMeta = uploadData.file || uploadData;
     let fileName = fileMeta.name;
     let fileUri = fileMeta.uri;
