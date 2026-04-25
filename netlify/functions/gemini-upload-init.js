@@ -58,9 +58,19 @@ exports.handler = async (event) => {
       return respond(resp.status, { error: 'Init upload falló: ' + text.slice(0, 300) });
     }
 
-    const uploadUrl = resp.headers.get('x-goog-upload-url');
+    let uploadUrl = resp.headers.get('x-goog-upload-url');
     if (!uploadUrl) {
       return respond(502, { error: 'Google no devolvió X-Goog-Upload-URL' });
+    }
+
+    // Stripear la API key del URL antes de devolverla al frontend.
+    // El upload_id en la URL es suficiente como autenticación de la sesión de upload.
+    try {
+      const u = new URL(uploadUrl);
+      u.searchParams.delete('key');
+      uploadUrl = u.toString();
+    } catch (e) {
+      // Si el URL no parsea por algún motivo raro, la dejamos como vino.
     }
 
     return respond(200, { uploadUrl });
