@@ -911,7 +911,7 @@
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:10px">
         <div>
           <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:22px;color:var(--text);margin-bottom:3px">Prompts BK DROP</div>
-          <div style="font-size:11px;color:var(--muted)">Los prompts que usás a diario, listos para copiar y pegar en Gemini o ChatGPT</div>
+          <div style="font-size:11px;color:var(--muted)">Los prompts que usas a diario, listos para copiar y pegar en Gemini o ChatGPT</div>
         </div>
       </div>
 
@@ -930,16 +930,16 @@
 
         <!-- PASO 1 -->
         <div class="bk-step">
-          <div class="bk-step-label"><span class="bk-step-num">1</span> Pegá el link o descripción del producto</div>
+          <div class="bk-step-label"><span class="bk-step-num">1</span> Pega el link o descripción del producto</div>
           <textarea id="bkv-producto" class="bk-step-input" placeholder="https://ejemplo.com/producto  ·  o una descripción corta" oninput="saveBkVars()"></textarea>
           <button class="bk-step-btn primary" id="bk-btn-ejecutar" onclick="ejecutarMaster()">▶ Ejecutar Master</button>
-          <div class="bk-step-hint">Copia el Master Prompt con tu link adentro y abre la IA elegida en una pestaña nueva. Pegás ahí y volvés con la respuesta.</div>
+          <div class="bk-step-hint">Copia el Master Prompt con tu link adentro y abre la IA elegida en una pestaña nueva. Pegas ahí y vuelves con la respuesta.</div>
         </div>
 
         <!-- PASO 2 -->
         <div class="bk-step">
-          <div class="bk-step-label"><span class="bk-step-num">2</span> Pegá la respuesta del Master <span class="bk-optional">(la salida completa que te dio la IA)</span></div>
-          <textarea id="bkv-respuesta" class="bk-step-input" placeholder="Pegá acá toda la respuesta: la tabla de ángulos, los beneficios, los testimonios, etc." style="min-height:120px"></textarea>
+          <div class="bk-step-label"><span class="bk-step-num">2</span> Pega la respuesta del Master <span class="bk-optional">(la salida completa que te dio la IA)</span></div>
+          <textarea id="bkv-respuesta" class="bk-step-input" placeholder="Pega acá toda la respuesta: la tabla de ángulos, los beneficios, los testimonios, etc." style="min-height:120px"></textarea>
           <button class="bk-step-btn" id="bk-btn-extraer" onclick="extraerDatosMaster()">📥 Extraer datos</button>
           <div id="bk-extract-result" class="bk-step-hint"></div>
         </div>
@@ -3156,7 +3156,7 @@ function ejecutarMaster(){
   const v = getBkVars();
   if(!v.producto){
     const step1Hint = document.querySelector('.bk-step .bk-step-hint');
-    if(step1Hint){ step1Hint.textContent='⚠️ Pegá primero el link o descripción del producto arriba.'; step1Hint.classList.add('warn'); }
+    if(step1Hint){ step1Hint.textContent='⚠️ Pega primero el link o descripción del producto arriba.'; step1Hint.classList.add('warn'); }
     const el = document.getElementById('bkv-producto');
     if(el) el.focus();
     return;
@@ -3174,7 +3174,7 @@ function ejecutarMaster(){
     window.open(BK_IA_URLS[ia], '_blank');
     const btn = document.getElementById('bk-btn-ejecutar');
     if(btn){
-      btn.textContent='✓ Copiado + '+iaName+' abierto — pegá ahí y volvé';
+      btn.textContent='✓ Copiado + '+iaName+' abierto — pega ahí y volvé';
       btn.classList.add('done');
       setTimeout(()=>{ btn.textContent='▶ Ejecutar Master en '+BK_IA_NAMES[getBkIa()]; btn.classList.remove('done'); }, 6000);
     }
@@ -3312,7 +3312,7 @@ async function ejecutarBkVideo(key){
     if(btn){ btn.textContent = '⚠️ Error'; btn.disabled = false; }
   };
 
-  if(!file){ showError('Elegí un video MP4 antes de ejecutar.'); return; }
+  if(!file){ showError('Elige un video MP4 antes de ejecutar.'); return; }
 
   const MAX = 15 * 1024 * 1024;
   if(file.size > MAX){
@@ -3371,8 +3371,11 @@ async function ejecutarBkVideo(key){
             reject(new Error('HTTP '+xhr.status+': '+xhr.responseText.slice(0,200)));
           }
         };
-        xhr.onerror = ()=>reject(new Error('Network error (XHR onerror) — probá con video más chico o revisá conexión'));
-        xhr.ontimeout = ()=>reject(new Error('Timeout durante upload'));
+        xhr.onerror = ()=>{
+          const info = `status=${xhr.status||'?'}, statusText="${xhr.statusText||'?'}", body="${(xhr.responseText||'').slice(0,300)}"`;
+          reject(new Error('Conexión interrumpida durante upload. Detalle: '+info));
+        };
+        xhr.ontimeout = ()=>reject(new Error('Tiempo de espera agotado durante upload'));
         xhr.onabort = ()=>reject(new Error('Upload cancelado'));
         xhr.send(file);
       });
@@ -3550,7 +3553,7 @@ async function renderTtsPanel(key, locText, voz){
   outputBox.appendChild(panel);
 
   const detectedEl = document.getElementById('bk-tts-detected-'+key);
-  detectedEl.textContent = describirVoz(voz) || 'no detectada — elegí manualmente';
+  detectedEl.textContent = describirVoz(voz) || 'no detectada — elige manualmente';
 
   let voices;
   try{
@@ -3596,7 +3599,7 @@ async function generateTts(key, locText){
   const dl = document.getElementById('bk-tts-download-'+key);
   const voiceId = sel ? sel.value : '';
   if(!voiceId){
-    alert('Elegí una voz primero.');
+    alert('Elige una voz primero.');
     return;
   }
   // Quitar errores previos
@@ -3644,7 +3647,7 @@ function extraerDatosMaster(){
   const res = document.getElementById('bk-extract-result');
   res.classList.remove('success','warn');
   if(!text){
-    res.textContent = '⚠️ Pegá primero la respuesta completa que te dio Gemini.';
+    res.textContent = '⚠️ Pega primero la respuesta completa que te dio Gemini.';
     res.classList.add('warn');
     return;
   }
@@ -3712,7 +3715,7 @@ function extraerDatosMaster(){
   saveBkVars();
 
   if(found.length){
-    res.textContent = '✓ Rellené: ' + found.join(', ') + '. Revisá los campos del paso 3 y copiá Imágenes/Copys cuando estés listo.';
+    res.textContent = '✓ Rellené: ' + found.join(', ') + '. Revisa los campos del paso 3 y copia Imágenes/Copys cuando estés listo.';
     res.classList.add('success');
     const btn = document.getElementById('bk-btn-extraer');
     if(btn){ btn.textContent='✓ Datos extraídos'; btn.classList.add('done'); setTimeout(()=>{ btn.textContent='📥 Extraer datos'; btn.classList.remove('done'); }, 3000); }

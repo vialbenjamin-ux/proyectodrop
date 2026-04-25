@@ -8,7 +8,7 @@ App de gestión de dropshipping en producción en https://bkdrop.netlify.app/. E
 
 Esta guía asume que vas a deployar **tu propia copia** de la app. NO uses las API keys / cuentas del autor original (Benjamin Vial). Específicamente:
 
-- **Firebase:** tenés que crear **tu propio proyecto** en console.firebase.google.com y reemplazar el `firebaseConfig` en `index.html` línea ~1420. Si dejás el del autor, vas a estar **leyendo y escribiendo en SU base de datos**, lo cual rompe todo (tu app y la del autor) y es éticamente incorrecto.
+- **Firebase:** tienes que crear **tu propio proyecto** en console.firebase.google.com y reemplazar el `firebaseConfig` en `index.html` línea ~1420. Si dejas el del autor, vas a estar **leyendo y escribiendo en SU base de datos**, lo cual rompe todo (tu app y la del autor) y es éticamente incorrecto.
 - **Shopify, Gemini, ElevenLabs:** las API keys del autor viven en variables de entorno del Netlify del autor, **no están en el repo**. Cuando deployes tu propia copia en tu Netlify, las env vars empiezan vacías. Tenés que generar las tuyas con tus cuentas y cargarlas en TU Netlify (paso 5.4).
 - **Si necesitás permisos pagos** (ej: ElevenLabs Starter $5/mes), pagás con tu tarjeta.
 
@@ -68,7 +68,7 @@ Para recrear la app desde cero, necesitás cuentas en estos servicios. Todos tie
 | **GitHub** | Repo del código | Gratis | github.com |
 | **Netlify** | Hosting + deploy + Functions | Gratis (100GB bandwidth, 125k function invocations/mes) | netlify.com |
 | **Firebase** | Persistencia (Firestore) | Gratis (Spark plan: 50k reads/día, 20k writes/día) | console.firebase.google.com |
-| **Shopify** | Tienda — opcional, solo si querés la sección Reportes | Pago según plan | partners.shopify.com |
+| **Shopify** | Tienda — opcional, solo si quieres la sección Reportes | Pago según plan | partners.shopify.com |
 | **Google AI Studio (Gemini)** | API de IA para prompts y análisis de video | Gratis (1500 req/día, 15 req/min) | aistudio.google.com |
 | **ElevenLabs** | TTS para generar voz en off | Free tier 10k chars/mes, plan pago $5/mes | elevenlabs.io |
 
@@ -125,8 +125,8 @@ cd tu-app
      }
    }
    ```
-   ⚠️ Estas reglas son permisivas (cualquier persona con la URL del sitio puede leer/escribir). Si querés restringir a usuarios autenticados, hay que configurar Firebase Auth y cambiar las rules.
-4. Project Settings (engranaje) → "Your apps" → ícono `</>` (web) → registrá la app → copiá el objeto `firebaseConfig`.
+   ⚠️ Estas reglas son permisivas (cualquier persona con la URL del sitio puede leer/escribir). Si quieres restringir a usuarios autenticados, hay que configurar Firebase Auth y cambiar las rules.
+4. Project Settings (engranaje) → "Your apps" → ícono `</>` (web) → registra la app → copia el objeto `firebaseConfig`.
 5. En `index.html` buscá `firebase.initializeApp({...})` (línea ~1420) y reemplazá los valores por los tuyos:
    ```js
    firebase.initializeApp({
@@ -163,7 +163,7 @@ Site → Site settings → Environment variables → "Add a variable":
 | `GEMINI_API_KEY` | https://aistudio.google.com/apikey → "Create API key" | Sección Prompts (todas las cards de IA) |
 | `ELEVENLABS_API_KEY` | https://elevenlabs.io/app/settings/api-keys → "Create new" | TTS de voz en off |
 
-Si no vas a usar Shopify, podés omitir esas dos vars (la sección Reportes mostrará error pero el resto funciona). Lo mismo con Gemini/ElevenLabs si no vas a usar el panel de prompts.
+Si no vas a usar Shopify, puedes omitir esas dos vars (la sección Reportes mostrará error pero el resto funciona). Lo mismo con Gemini/ElevenLabs si no vas a usar el panel de prompts.
 
 ### 5.5 — Workflow diario
 
@@ -319,8 +319,8 @@ Esta es la parte más compleja del proyecto. Si Benjamin quiere copiarla, esto e
 
 Toggle Claude / Gemini / ChatGPT (default Gemini).
 
-- **Si seleccionás Gemini:** los botones "▶ Ejecutar" llaman a `gemini-proxy` y reciben la respuesta automáticamente.
-- **Si seleccionás Claude o ChatGPT:** flujo manual — copia el prompt al clipboard y abre la web de la IA en pestaña nueva. Pegás manualmente.
+- **Si seleccionas Gemini:** los botones "▶ Ejecutar" llaman a `gemini-proxy` y reciben la respuesta automáticamente.
+- **Si seleccionas Claude o ChatGPT:** flujo manual — copia el prompt al clipboard y abre la web de la IA en pestaña nueva. Pegas manualmente.
 
 Esto es porque ni Claude ni ChatGPT tienen forma práctica de auto-enviar prompts vía URL/API gratis.
 
@@ -377,30 +377,30 @@ Click en **🔊 Generar audio** → llama a `elevenlabs-tts` → recibe MP3 base
 
 ### Agregar una nueva sección (ej: "Inventario")
 
-1. En `index.html`, agregá un botón de tab:
+1. En `index.html`, agrega un botón de tab:
    ```html
    <button class="tab-btn" data-section="inventario" onclick="switchSection('inventario')">📦 Inventario</button>
    ```
-2. Más abajo, agregá la div de la sección:
+2. Más abajo, agrega la div de la sección:
    ```html
    <div id="section-inventario" class="section">
      <!-- contenido -->
    </div>
    ```
-3. Agregá la sección al array `SECTIONS` (búscalo en el JS) si querés que aparezca en el menú móvil.
-4. En `switchSection()` agregá `if(s==='inventario') renderInventario();` si necesita render dinámico.
-5. Si necesita persistencia, agregá al state inicial: `let state = {..., inventario: []}` y a las funciones `_firebaseReady.load/save`.
+3. Agrega la sección al array `SECTIONS` (búscalo en el JS) si quieres que aparezca en el menú móvil.
+4. En `switchSection()` agrega `if(s==='inventario') renderInventario();` si necesita render dinámico.
+5. Si necesita persistencia, agrega al state inicial: `let state = {..., inventario: []}` y a las funciones `_firebaseReady.load/save`.
 
 ### Agregar un nuevo prompt en el panel BK DROP
 
-1. En `BK_PROMPTS` (objeto JS, línea ~2700) agregá una key nueva con tu prompt como template literal.
-2. En el HTML, copiá la estructura de una card existente (`bk-prompt-card`) cambiando el id, tone y handlers.
+1. En `BK_PROMPTS` (objeto JS, línea ~2700) agrega una key nueva con tu prompt como template literal.
+2. En el HTML, copia la estructura de una card existente (`bk-prompt-card`) cambiando el id, tone y handlers.
 3. Si necesita variables del producto, edita `fillBkPrompt()` para inyectarlas en el texto antes del envío.
 
 ### Agregar una nueva integración con API externa
 
 1. Creá `netlify/functions/mi-servicio.js` siguiendo el patrón de los existentes (CORS headers, manejo de errores).
-2. Agregá la API key como env var en Netlify: `npx netlify-cli env:set MI_SERVICIO_KEY "valor" --context production`.
+2. Agrega la API key como env var en Netlify: `npx netlify-cli env:set MI_SERVICIO_KEY "valor" --context production`.
 3. En el frontend, llamala con `fetch('/.netlify/functions/mi-servicio', ...)`.
 
 ---
@@ -442,7 +442,7 @@ npx netlify-cli api restoreSiteDeploy --data='{"site_id":"TU_SITE_ID","deploy_id
 | Gemini API | 50-200 prompts/día | $0 (free tier de 1500/día) |
 | ElevenLabs | 10-30 locuciones/mes (~10 min audio) | $0 (free tier 10k chars) o $5/mes Starter |
 
-**Total típico para una tienda activa: ~$5/mes** (solo si usás ElevenLabs intensivamente). Sin TTS y sin Shopify, todo gratis.
+**Total típico para una tienda activa: ~$5/mes** (solo si usas ElevenLabs intensivamente). Sin TTS y sin Shopify, todo gratis.
 
 ---
 
@@ -461,4 +461,4 @@ npx netlify-cli api restoreSiteDeploy --data='{"site_id":"TU_SITE_ID","deploy_id
 Repo: https://github.com/vialbenjamin-ux/proyectodrop
 App live: https://bkdrop.netlify.app/
 
-Si tenés dudas técnicas concretas, abrí un issue en GitHub con el log del error y la URL de la página donde pasó.
+Si tienes dudas técnicas concretas, abre un issue en GitHub con el log del error y la URL de la página donde pasó.
