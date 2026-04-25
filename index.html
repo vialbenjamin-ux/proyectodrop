@@ -3347,25 +3347,38 @@ async function ejecutarBkVideo(key){
     if(!uploadUrl) throw new Error('Paso 1 (init upload): el servidor no devolvió URL');
 
     // 2) Upload directo a Google con la URL temporal (no pasa por Netlify)
+    // Usamos XMLHttpRequest en vez de fetch para uploads grandes — más
+    // confiable y permite tracking de progreso real
     if(body){ body.textContent = `Subiendo ${(file.size/1024/1024).toFixed(1)}MB a Google…`; }
-    let uploadResp;
+    let uploadData;
     try {
-      uploadResp = await fetch(uploadUrl, {
-        method: 'POST',
-        headers: {
-          'X-Goog-Upload-Offset': '0',
-          'X-Goog-Upload-Command': 'upload, finalize'
-        },
-        body: file
+      uploadData = await new Promise((resolve, reject)=>{
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', uploadUrl, true);
+        xhr.setRequestHeader('X-Goog-Upload-Offset', '0');
+        xhr.setRequestHeader('X-Goog-Upload-Command', 'upload, finalize');
+        xhr.upload.onprogress = (e)=>{
+          if(e.lengthComputable && body){
+            const pct = Math.round((e.loaded/e.total)*100);
+            body.textContent = `Subiendo ${(file.size/1024/1024).toFixed(1)}MB a Google… ${pct}%`;
+          }
+        };
+        xhr.onload = ()=>{
+          if(xhr.status >= 200 && xhr.status < 300){
+            try { resolve(JSON.parse(xhr.responseText)); }
+            catch(e){ reject(new Error('Respuesta no es JSON: '+xhr.responseText.slice(0,200))); }
+          } else {
+            reject(new Error('HTTP '+xhr.status+': '+xhr.responseText.slice(0,200)));
+          }
+        };
+        xhr.onerror = ()=>reject(new Error('Network error (XHR onerror) — probá con video más chico o revisá conexión'));
+        xhr.ontimeout = ()=>reject(new Error('Timeout durante upload'));
+        xhr.onabort = ()=>reject(new Error('Upload cancelado'));
+        xhr.send(file);
       });
-    } catch(netErr){
-      throw new Error('Paso 2 (subida a Google): conexión fallida. '+netErr.message+'. Revisá tu internet o probá con un video más chico.');
+    } catch(uploadErr){
+      throw new Error('Paso 2 (subida a Google): '+uploadErr.message);
     }
-    if(!uploadResp.ok){
-      const errText = await uploadResp.text().catch(()=>'');
-      throw new Error('Paso 2 (subida a Google): HTTP '+uploadResp.status+' '+errText.slice(0,200));
-    }
-    const uploadData = await uploadResp.json().catch(()=>({}));
     const fileMeta = uploadData.file || uploadData;
     let fileName = fileMeta.name;
     let fileUri = fileMeta.uri;
