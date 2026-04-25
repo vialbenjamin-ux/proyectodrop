@@ -467,6 +467,10 @@
   .bk-prompt-output-copy.copied{background:var(--green);color:#fff}
   .bk-prompt-output-close{background:none;border:none;color:#A6862A;cursor:pointer;font-size:13px;padding:2px 4px;line-height:1}
   .bk-prompt-output-body{padding:12px 14px;white-space:pre-wrap;max-height:360px;overflow-y:auto}
+  .bk-prompt-output-body.editable{cursor:text;outline:none;transition:background .15s}
+  .bk-prompt-output-body.editable:hover{background:#FFFEF7}
+  .bk-prompt-output-body.editable:focus{background:#FFFEF0;box-shadow:inset 0 0 0 2px var(--yellow)}
+  .bk-edit-hint{font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:#A6862A;font-weight:600;padding:6px 14px 0;background:var(--yellow-soft)}
   .bk-prompt-output.loading .bk-prompt-output-body{text-align:center;color:var(--muted);font-style:italic;padding:24px 14px}
   .bk-prompt-output.error{border-color:var(--red);background:var(--red-soft)}
   .bk-prompt-output.error .bk-prompt-output-head{background:var(--red-soft);border-bottom-color:var(--red)}
@@ -3853,6 +3857,21 @@ async function renderTtsPanel(key, locText, voz){
   // Quitar panel previo si existe
   const prev = outputBox.querySelector('.bk-tts-panel');
   if(prev) prev.remove();
+  const prevHint = outputBox.querySelector('.bk-edit-hint');
+  if(prevHint) prevHint.remove();
+
+  // Hacer editable el body de la locución para que el usuario pueda corregir
+  const bodyEl = document.getElementById('bk-output-body-'+key);
+  if(bodyEl){
+    bodyEl.contentEditable = 'true';
+    bodyEl.spellcheck = false;
+    bodyEl.classList.add('editable');
+    // Insertar el hint visual antes del body editable
+    const hint = document.createElement('div');
+    hint.className = 'bk-edit-hint';
+    hint.textContent = '✏️ Editable — corrige el texto y luego genera el audio';
+    bodyEl.parentNode.insertBefore(hint, bodyEl);
+  }
 
   const panel = document.createElement('div');
   panel.className = 'bk-tts-panel';
@@ -3907,15 +3926,22 @@ async function renderTtsPanel(key, locText, voz){
   if(sugerida) sel.value = sugerida.id;
 
   const btn = document.getElementById('bk-tts-btn-'+key);
-  btn.onclick = ()=>generateTts(key, locText);
+  btn.onclick = ()=>generateTts(key);
 }
 
-async function generateTts(key, locText){
+async function generateTts(key){
   const sel = document.getElementById('bk-tts-select-'+key);
   const btn = document.getElementById('bk-tts-btn-'+key);
   const wrap = document.getElementById('bk-tts-audio-wrap-'+key);
   const audio = document.getElementById('bk-tts-audio-'+key);
   const dl = document.getElementById('bk-tts-download-'+key);
+  // Leer el texto editado en vivo desde el DOM
+  const bodyEl = document.getElementById('bk-output-body-'+key);
+  const locText = bodyEl ? (bodyEl.textContent || '').trim() : '';
+  if(!locText){
+    alert('No hay texto para convertir a audio.');
+    return;
+  }
   const voiceId = sel ? sel.value : '';
   if(!voiceId){
     alert('Elige una voz primero.');
