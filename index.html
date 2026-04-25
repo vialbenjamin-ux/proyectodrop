@@ -3327,36 +3327,45 @@ async function ejecutarBkVideo(key){
 
   try{
     // 1) Iniciar upload — proxy llama a Gemini con la API key y devuelve URL temporal de upload
-    const initResp = await fetch('/.netlify/functions/gemini-upload-init', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({
-        mimeType: file.type || 'video/mp4',
-        sizeBytes: file.size,
-        displayName: file.name
-      })
-    });
-    const initData = await initResp.json().catch(()=>({error:'Respuesta inválida'}));
-    if(!initResp.ok) throw new Error(initData.error || 'Falló inicio de upload');
+    let initResp;
+    try {
+      initResp = await fetch('/.netlify/functions/gemini-upload-init', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({
+          mimeType: file.type || 'video/mp4',
+          sizeBytes: file.size,
+          displayName: file.name
+        })
+      });
+    } catch(netErr){
+      throw new Error('Paso 1 (init upload): no se pudo contactar al servidor. '+netErr.message);
+    }
+    const initData = await initResp.json().catch(()=>({error:'Respuesta inválida del init'}));
+    if(!initResp.ok) throw new Error('Paso 1 (init upload): '+(initData.error || 'HTTP '+initResp.status));
     const uploadUrl = initData.uploadUrl;
-    if(!uploadUrl) throw new Error('Sin URL de upload');
+    if(!uploadUrl) throw new Error('Paso 1 (init upload): el servidor no devolvió URL');
 
     // 2) Upload directo a Google con la URL temporal (no pasa por Netlify)
     if(body){ body.textContent = `Subiendo ${(file.size/1024/1024).toFixed(1)}MB a Google…`; }
-    const uploadResp = await fetch(uploadUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Length': String(file.size),
-        'X-Goog-Upload-Offset': '0',
-        'X-Goog-Upload-Command': 'upload, finalize'
-      },
-      body: file
-    });
+    let uploadResp;
+    try {
+      uploadResp = await fetch(uploadUrl, {
+        method: 'POST',
+        headers: {
+          'X-Goog-Upload-Offset': '0',
+          'X-Goog-Upload-Command': 'upload, finalize'
+        },
+        body: file
+      });
+    } catch(netErr){
+      throw new Error('Paso 2 (subida a Google): conexión fallida. '+netErr.message+'. Revisá tu internet o probá con un video más chico.');
+    }
     if(!uploadResp.ok){
       const errText = await uploadResp.text().catch(()=>'');
-      throw new Error('Falló subida a Google: '+uploadResp.status+' '+errText.slice(0,150));
+      throw new Error('Paso 2 (subida a Google): HTTP '+uploadResp.status+' '+errText.slice(0,200));
     }
-    const uploadData = await uploadResp.json();
+    const uploadData = await uploadResp.json().catch(()=>({}));
     const fileMeta = uploadData.file || uploadData;
     let fileName = fileMeta.name;
     let fileUri = fileMeta.uri;
@@ -3369,22 +3378,32 @@ async function ejecutarBkVideo(key){
     let attempts = 0;
     while(state === 'PROCESSING' && attempts < 30){
       await new Promise(r=>setTimeout(r, 2000));
-      const statusResp = await fetch('/.netlify/functions/gemini-file-status?name='+encodeURIComponent(fileName));
-      const statusData = await statusResp.json().catch(()=>({error:'Respuesta inválida'}));
-      if(!statusResp.ok) throw new Error(statusData.error || 'Falló consulta de estado');
+      let statusResp;
+      try {
+        statusResp = await fetch('/.netlify/functions/gemini-file-status?name='+encodeURIComponent(fileName));
+      } catch(netErr){
+        throw new Error('Paso 3 (esperando procesamiento): conexión fallida. '+netErr.message);
+      }
+      const statusData = await statusResp.json().catch(()=>({error:'Respuesta inválida del status'}));
+      if(!statusResp.ok) throw new Error('Paso 3 (estado): '+(statusData.error || 'HTTP '+statusResp.status));
       state = statusData.state;
       if(statusData.uri) fileUri = statusData.uri;
       attempts++;
     }
-    if(state === 'FAILED') throw new Error('Google rechazó el video durante el procesamiento.');
-    if(state !== 'ACTIVE') throw new Error('Tiempo agotado esperando procesamiento (state='+state+')');
-    if(!fileUri) throw new Error('Sin URI del archivo procesado');
+    if(state === 'FAILED') throw new Error('Paso 3: Google rechazó el video durante el procesamiento.');
+    if(state !== 'ACTIVE') throw new Error('Paso 3: tiempo agotado esperando procesamiento (state='+state+')');
+    if(!fileUri) throw new Error('Paso 3: sin URI del archivo procesado');
 
     // 4) Ejecutar el prompt con el video
     if(btn){ btn.innerHTML = '<span class="bk-spinner"></span>Analizando…'; }
     if(body){ body.textContent = 'Analizando con Gemini (puede tardar 20-40s)…'; }
     const promptText = fillBkPrompt(key);
-    const text = await callGeminiProxyVideo(promptText, fileUri, file.type || 'video/mp4');
+    let text;
+    try {
+      text = await callGeminiProxyVideo(promptText, fileUri, file.type || 'video/mp4');
+    } catch(execErr){
+      throw new Error('Paso 4 (análisis): '+execErr.message);
+    }
 
     // Si es transcripción, parseamos y montamos panel TTS
     if(key === 'transcripcion'){
