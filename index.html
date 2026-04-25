@@ -3271,6 +3271,19 @@ function closeBkOutput(key){
 
 // ── BK PROMPTS — análisis de video con upload directo a Gemini File API ──────
 
+function blobToBase64(blob){
+  return new Promise((resolve, reject)=>{
+    const r = new FileReader();
+    r.onload = ()=>{
+      const result = r.result || '';
+      const idx = result.indexOf(',');
+      resolve(idx >= 0 ? result.slice(idx+1) : result);
+    };
+    r.onerror = ()=>reject(new Error('No se pudo leer el archivo'));
+    r.readAsDataURL(blob);
+  });
+}
+
 function updateBkVideoLabel(key){
   const inp = document.getElementById('bkv-file-'+key);
   const lbl = document.getElementById('bk-video-label-'+key);
@@ -3346,42 +3359,48 @@ async function ejecutarBkVideo(key){
     const uploadUrl = initData.uploadUrl;
     if(!uploadUrl) throw new Error('Paso 1 (init upload): el servidor no devolvió URL');
 
-    // 2) Upload directo a Google con la URL temporal (no pasa por Netlify)
-    // Usamos XMLHttpRequest en vez de fetch para uploads grandes — más
-    // confiable y permite tracking de progreso real
-    if(body){ body.textContent = `Subiendo ${(file.size/1024/1024).toFixed(1)}MB a Google…`; }
-    let uploadData;
+    // 2) Upload del archivo en chunks de 4MB a través del proxy Netlify
+    // (no directo a Google porque algunos navegadores/redes bloquean
+    // uploads cross-origin a googleapis.com). El proxy reenvía cada
+    // chunk con los headers correctos del protocolo resumable.
+    if(body){ body.textContent = `Subiendo ${(file.size/1024/1024).toFixed(1)}MB…`; }
+    let uploadData = null;
+    const CHUNK_SIZE = 4 * 1024 * 1024; // 4MB → ~5.3MB en base64, debajo del límite 6MB de Netlify
+    let chunkOffset = 0;
     try {
-      uploadData = await new Promise((resolve, reject)=>{
-        const xhr = new XMLHttpRequest();
-        xhr.open('POST', uploadUrl, true);
-        xhr.setRequestHeader('X-Goog-Upload-Offset', '0');
-        xhr.setRequestHeader('X-Goog-Upload-Command', 'upload, finalize');
-        xhr.upload.onprogress = (e)=>{
-          if(e.lengthComputable && body){
-            const pct = Math.round((e.loaded/e.total)*100);
-            body.textContent = `Subiendo ${(file.size/1024/1024).toFixed(1)}MB a Google… ${pct}%`;
-          }
-        };
-        xhr.onload = ()=>{
-          if(xhr.status >= 200 && xhr.status < 300){
-            try { resolve(JSON.parse(xhr.responseText)); }
-            catch(e){ reject(new Error('Respuesta no es JSON: '+xhr.responseText.slice(0,200))); }
-          } else {
-            reject(new Error('HTTP '+xhr.status+': '+xhr.responseText.slice(0,200)));
-          }
-        };
-        xhr.onerror = ()=>{
-          const info = `status=${xhr.status||'?'}, statusText="${xhr.statusText||'?'}", body="${(xhr.responseText||'').slice(0,300)}"`;
-          reject(new Error('Conexión interrumpida durante upload. Detalle: '+info));
-        };
-        xhr.ontimeout = ()=>reject(new Error('Tiempo de espera agotado durante upload'));
-        xhr.onabort = ()=>reject(new Error('Upload cancelado'));
-        xhr.send(file);
-      });
-    } catch(uploadErr){
-      throw new Error('Paso 2 (subida a Google): '+uploadErr.message);
+      while (chunkOffset < file.size) {
+        const end = Math.min(chunkOffset + CHUNK_SIZE, file.size);
+        const isLast = end >= file.size;
+        const chunk = file.slice(chunkOffset, end);
+        const chunkBase64 = await blobToBase64(chunk);
+
+        const chunkResp = await fetch('/.netlify/functions/gemini-upload-chunk', {
+          method: 'POST',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({
+            uploadUrl,
+            offset: chunkOffset,
+            chunkBase64,
+            finalize: isLast
+          })
+        });
+        const chunkData = await chunkResp.json().catch(()=>({error:'Respuesta inválida'}));
+        if (!chunkResp.ok) {
+          throw new Error(chunkData.error || 'HTTP '+chunkResp.status);
+        }
+        if (isLast) {
+          uploadData = chunkData;
+        }
+        chunkOffset = end;
+        if (body) {
+          const pct = Math.round((chunkOffset/file.size)*100);
+          body.textContent = `Subiendo ${(file.size/1024/1024).toFixed(1)}MB… ${pct}%`;
+        }
+      }
+    } catch (uploadErr) {
+      throw new Error('Paso 2 (subida): '+uploadErr.message);
     }
+    if (!uploadData) throw new Error('Paso 2: no se recibió respuesta final del upload');
     const fileMeta = uploadData.file || uploadData;
     let fileName = fileMeta.name;
     let fileUri = fileMeta.uri;
