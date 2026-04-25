@@ -422,6 +422,23 @@
   .bk-prompt-card.tone-analisis .bk-prompt-card-icon{background:var(--green-soft);border-color:#5BA882;color:#3A6B4F}
   .bk-prompt-card.tone-analisis .bk-prompt-copy-big{background:#5BA882;color:#fff}
 
+  /* Panel TTS (ElevenLabs) — aparece dentro del output de la card Transcripción */
+  .bk-tts-panel{margin-top:12px;background:var(--surface);border:1.5px solid var(--teal);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:10px}
+  .bk-tts-detected{font-size:11px;color:var(--text);background:var(--teal-soft);border:1px solid var(--teal);border-radius:8px;padding:6px 10px;display:flex;align-items:center;gap:6px}
+  .bk-tts-detected b{font-weight:600;color:#3A8B82}
+  .bk-tts-controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .bk-tts-voice-select{flex:1;min-width:200px;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px 10px;border-radius:10px;font-size:11px;font-family:'DM Mono',monospace}
+  .bk-tts-voice-select:focus{border-color:var(--teal);outline:none}
+  .bk-tts-generate-btn{background:var(--teal);color:#fff;border:none;border-radius:18px;padding:8px 18px;font-size:11px;font-weight:600;cursor:pointer;font-family:'DM Mono',monospace;letter-spacing:.3px;white-space:nowrap;transition:filter .15s}
+  .bk-tts-generate-btn:hover{filter:brightness(1.08)}
+  .bk-tts-generate-btn:disabled{opacity:.6;cursor:wait}
+  .bk-tts-audio-wrap{display:none;flex-direction:column;gap:6px;margin-top:2px}
+  .bk-tts-audio-wrap.open{display:flex}
+  .bk-tts-audio{width:100%}
+  .bk-tts-download{font-size:11px;color:var(--teal);text-decoration:none;font-family:'DM Mono',monospace;align-self:flex-start;padding:4px 0}
+  .bk-tts-download:hover{text-decoration:underline}
+  .bk-tts-error{font-size:11px;color:var(--red);background:var(--red-soft);border:1px solid var(--red);border-radius:8px;padding:6px 10px;font-style:italic}
+
   /* Input file para video — input oculto + label clickeable */
   .bk-video-input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
   .bk-video-label{display:block;width:100%;text-align:center;padding:11px 12px;border:1.5px dashed var(--border2);border-radius:11px;font-size:11px;color:var(--muted);cursor:pointer;background:var(--surface2);transition:all .15s;margin-top:4px}
@@ -2803,11 +2820,22 @@ Requisitos:
 
 No incluyas marcas de tiempo, segundajes ni timestamps.
 No agregues acotaciones, descripciones de escena ni indicaciones técnicas.
-Entrega únicamente el texto limpio de la locución traducida, en un solo bloque corrido, listo para grabar como voz en off.
+Entrega el texto limpio de la locución traducida, en un solo bloque corrido, listo para grabar como voz en off.
 Mantén el tono, el ritmo y la intención del original.
 Usa español neutro (sin modismos regionales).
 
-Devuelve solo el texto final traducido, sin encabezados ni explicaciones.`,
+FORMATO DE RESPUESTA EXACTO (sin agregar nada antes ni después de los bloques):
+
+[LOCUCIÓN]
+{texto traducido limpio acá, en un solo bloque corrido}
+[/LOCUCIÓN]
+
+[VOZ_ORIGINAL]
+genero: masculino|femenino|neutro
+edad: joven|adulto|mayor
+tono: una o dos palabras (firme, cálido, energético, conversacional, autoritario, persuasivo, serio, juguetón)
+ritmo: rápido|medio|lento
+[/VOZ_ORIGINAL]`,
 
   analisis: `Quiero que actúes como un Creative Strategist Senior especializado en anuncios de video para Meta Ads y TikTok Ads, con experiencia real en dropshipping, ecommerce, hooks de alto rendimiento, estructura de anuncios, guiones de conversión y análisis creativo.
 Tu trabajo NO es resumir el video ni dar una opinión general.
@@ -3358,16 +3386,224 @@ async function ejecutarBkVideo(key){
     const promptText = fillBkPrompt(key);
     const text = await callGeminiProxyVideo(promptText, fileUri, file.type || 'video/mp4');
 
-    if(body){ body.textContent = text || '(respuesta vacía)'; }
-    if(label){ label.textContent = 'Respuesta de Gemini'; }
-    if(box){ box.classList.remove('loading'); box.scrollIntoView({behavior:'smooth',block:'center'}); }
-    if(btn){ btn.textContent = '✓ Listo'; btn.classList.add('copied'); }
+    // Si es transcripción, parseamos y montamos panel TTS
+    if(key === 'transcripcion'){
+      const parsed = parseTranscriptionResponse(text);
+      if(body){ body.textContent = parsed.locucion || text; }
+      if(label){ label.textContent = 'Locución traducida'; }
+      if(box){ box.classList.remove('loading'); box.scrollIntoView({behavior:'smooth',block:'center'}); }
+      if(btn){ btn.textContent = '✓ Listo'; btn.classList.add('copied'); }
+      // Montar panel TTS si hay caracterización (o aunque no haya, dejar selector libre)
+      renderTtsPanel('transcripcion', parsed.locucion || text, parsed.voz);
+    } else {
+      if(body){ body.textContent = text || '(respuesta vacía)'; }
+      if(label){ label.textContent = 'Respuesta de Gemini'; }
+      if(box){ box.classList.remove('loading'); box.scrollIntoView({behavior:'smooth',block:'center'}); }
+      if(btn){ btn.textContent = '✓ Listo'; btn.classList.add('copied'); }
+    }
   } catch(err){
     showError(err.message || 'Error desconocido');
   } finally {
     if(btn){ btn.disabled = false; }
     setTimeout(()=>{ if(btn){ btn.textContent = '▶ Ejecutar'; btn.classList.remove('copied'); } }, 4500);
   }
+}
+
+// ── BK PROMPTS — TTS con ElevenLabs ──────────────────────────────────────────
+
+let _bkElevenVoices = null; // cache en memoria
+let _bkElevenVoicesPromise = null;
+
+async function loadElevenVoices(){
+  if(_bkElevenVoices) return _bkElevenVoices;
+  if(_bkElevenVoicesPromise) return _bkElevenVoicesPromise;
+  _bkElevenVoicesPromise = (async ()=>{
+    try{
+      const resp = await fetch('/.netlify/functions/elevenlabs-voices');
+      const data = await resp.json();
+      if(!resp.ok) throw new Error(data.error || 'Error cargando voces');
+      _bkElevenVoices = data.voices || [];
+      return _bkElevenVoices;
+    } catch(err){
+      _bkElevenVoicesPromise = null;
+      throw err;
+    }
+  })();
+  return _bkElevenVoicesPromise;
+}
+
+function parseTranscriptionResponse(text){
+  const out = { locucion: '', voz: null };
+  if(!text) return out;
+  const locM = text.match(/\[LOCUCIÓN\]([\s\S]*?)\[\/LOCUCIÓN\]/i)
+    || text.match(/\[LOCUCION\]([\s\S]*?)\[\/LOCUCION\]/i);
+  const vozM = text.match(/\[VOZ_ORIGINAL\]([\s\S]*?)\[\/VOZ_ORIGINAL\]/i);
+  if(locM){
+    out.locucion = locM[1].trim();
+  } else {
+    out.locucion = text.trim();
+  }
+  if(vozM){
+    const block = vozM[1];
+    const get = (re)=>{ const m = block.match(re); return m ? m[1].trim().toLowerCase() : ''; };
+    out.voz = {
+      genero: get(/genero\s*:\s*([^\n]+)/i),
+      edad:   get(/edad\s*:\s*([^\n]+)/i),
+      tono:   get(/tono\s*:\s*([^\n]+)/i),
+      ritmo:  get(/ritmo\s*:\s*([^\n]+)/i),
+    };
+  }
+  return out;
+}
+
+function pickElevenVoice(voz, voices){
+  if(!voices || !voices.length) return null;
+  const TONO_TO_USECASE = {
+    'firme':'advertisement','autoritario':'advertisement','persuasivo':'advertisement','publicitario':'advertisement',
+    'serio':'narrative_story','dramático':'narrative_story','dramatico':'narrative_story','grave':'narrative_story','profundo':'narrative_story',
+    'cálido':'conversational','calido':'conversational','cercano':'conversational','amigable':'conversational','conversacional':'conversational','natural':'conversational',
+    'energético':'social_media','energetico':'social_media','joven':'social_media','fresco':'social_media','juguetón':'social_media','jugueton':'social_media',
+    'educativo':'informative_educational','informativo':'informative_educational',
+  };
+  const targetGender = (voz && voz.genero) ? voz.genero : '';
+  const tono = (voz && voz.tono) ? voz.tono.toLowerCase() : '';
+  let targetUseCase = '';
+  for(const k in TONO_TO_USECASE){ if(tono.includes(k)){ targetUseCase = TONO_TO_USECASE[k]; break; } }
+
+  const score = (v)=>{
+    let s = 0;
+    if(targetGender){
+      if(v.gender === targetGender) s += 50;
+      else if(v.gender === 'neutral') s += 10;
+      else s -= 30; // descarte parcial del género opuesto
+    }
+    if(targetUseCase && v.use_case === targetUseCase) s += 30;
+    if(v.accent === 'latin american') s += 8; // preferir neutro latam
+    if(v.accent === 'chilean') s += 4;
+    if(v.category === 'professional') s += 2;
+    return s;
+  };
+  const sorted = [...voices].sort((a,b)=>score(b)-score(a));
+  return sorted[0] || null;
+}
+
+function describirVoz(voz){
+  if(!voz) return '';
+  const partes = [voz.genero, voz.edad, voz.tono, voz.ritmo].filter(Boolean);
+  return partes.join(' · ');
+}
+
+async function renderTtsPanel(key, locText, voz){
+  const outputBox = document.getElementById('bk-output-'+key);
+  if(!outputBox) return;
+  // Quitar panel previo si existe
+  const prev = outputBox.querySelector('.bk-tts-panel');
+  if(prev) prev.remove();
+
+  const panel = document.createElement('div');
+  panel.className = 'bk-tts-panel';
+  panel.innerHTML = `
+    <div class="bk-tts-detected">🎙️ <span>Voz original detectada:</span> <b id="bk-tts-detected-${key}">cargando…</b></div>
+    <div class="bk-tts-controls">
+      <select class="bk-tts-voice-select" id="bk-tts-select-${key}">
+        <option value="">Cargando voces…</option>
+      </select>
+      <button class="bk-tts-generate-btn" id="bk-tts-btn-${key}">🔊 Generar audio</button>
+    </div>
+    <div class="bk-tts-audio-wrap" id="bk-tts-audio-wrap-${key}">
+      <audio class="bk-tts-audio" id="bk-tts-audio-${key}" controls></audio>
+      <a class="bk-tts-download" id="bk-tts-download-${key}" download="locucion.mp3">⬇ Descargar MP3</a>
+    </div>
+  `;
+  outputBox.appendChild(panel);
+
+  const detectedEl = document.getElementById('bk-tts-detected-'+key);
+  detectedEl.textContent = describirVoz(voz) || 'no detectada — elegí manualmente';
+
+  let voices;
+  try{
+    voices = await loadElevenVoices();
+  } catch(err){
+    const sel = document.getElementById('bk-tts-select-'+key);
+    sel.innerHTML = '<option value="">Error cargando voces</option>';
+    const errDiv = document.createElement('div');
+    errDiv.className = 'bk-tts-error';
+    errDiv.textContent = '⚠️ '+err.message;
+    panel.appendChild(errDiv);
+    return;
+  }
+
+  const sel = document.getElementById('bk-tts-select-'+key);
+  const sugerida = pickElevenVoice(voz, voices);
+  // Ordenar: la sugerida primero, luego mismo género, luego el resto
+  const ordered = [...voices].sort((a,b)=>{
+    if(sugerida && a.id === sugerida.id) return -1;
+    if(sugerida && b.id === sugerida.id) return 1;
+    if(voz && voz.genero){
+      if(a.gender === voz.genero && b.gender !== voz.genero) return -1;
+      if(b.gender === voz.genero && a.gender !== voz.genero) return 1;
+    }
+    return a.name.localeCompare(b.name);
+  });
+  sel.innerHTML = ordered.map(v=>{
+    const meta = [v.gender, v.accent, v.use_case].filter(Boolean).join(' · ');
+    const star = (sugerida && v.id === sugerida.id) ? '⭐ ' : '';
+    return `<option value="${v.id}">${star}${escapeHtml(v.name)} — ${escapeHtml(meta)}</option>`;
+  }).join('');
+  if(sugerida) sel.value = sugerida.id;
+
+  const btn = document.getElementById('bk-tts-btn-'+key);
+  btn.onclick = ()=>generateTts(key, locText);
+}
+
+async function generateTts(key, locText){
+  const sel = document.getElementById('bk-tts-select-'+key);
+  const btn = document.getElementById('bk-tts-btn-'+key);
+  const wrap = document.getElementById('bk-tts-audio-wrap-'+key);
+  const audio = document.getElementById('bk-tts-audio-'+key);
+  const dl = document.getElementById('bk-tts-download-'+key);
+  const voiceId = sel ? sel.value : '';
+  if(!voiceId){
+    alert('Elegí una voz primero.');
+    return;
+  }
+  // Quitar errores previos
+  const panel = sel ? sel.closest('.bk-tts-panel') : null;
+  if(panel){ const err = panel.querySelector('.bk-tts-error'); if(err) err.remove(); }
+
+  const origLabel = btn.textContent;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="bk-spinner"></span>Generando audio…';
+  try{
+    const resp = await fetch('/.netlify/functions/elevenlabs-tts', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ text: locText, voiceId })
+    });
+    const data = await resp.json();
+    if(!resp.ok) throw new Error(data.error || 'Error generando audio');
+    const src = 'data:'+(data.mimeType||'audio/mpeg')+';base64,'+data.audioBase64;
+    audio.src = src;
+    dl.href = src;
+    wrap.classList.add('open');
+    btn.textContent = '✓ Audio generado';
+    setTimeout(()=>audio.play().catch(()=>{}), 200);
+  } catch(err){
+    if(panel){
+      const errDiv = document.createElement('div');
+      errDiv.className = 'bk-tts-error';
+      errDiv.textContent = '⚠️ '+err.message;
+      panel.appendChild(errDiv);
+    }
+    btn.textContent = '⚠️ Error';
+  } finally {
+    btn.disabled = false;
+    setTimeout(()=>{ btn.innerHTML = '🔊 Generar audio'; }, 4000);
+  }
+}
+
+function escapeHtml(s){
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 function extraerDatosMaster(){
