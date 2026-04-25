@@ -3368,7 +3368,7 @@ async function ejecutarBkVideo(key){
     //                  evitar preflight estricto por video/mp4. Si esto
     //                  falla, mostramos un error claro pidiendo comprimir.
     if(body){ body.textContent = `Subiendo ${(file.size/1024/1024).toFixed(1)}MB…`; }
-    const PROXY_LIMIT = 5 * 1024 * 1024; // 5MB raw cabe holgado en body de 6MB de Netlify
+    const PROXY_LIMIT = 5.5 * 1024 * 1024; // 5.5MB raw — cabe en body de 6MB de Netlify
     let uploadData = null;
     try {
       if (file.size <= PROXY_LIMIT) {
@@ -3409,8 +3409,7 @@ async function ejecutarBkVideo(key){
             }
           };
           xhr.onerror = ()=>{
-            const detalle = `status=${xhr.status||'?'}, body="${(xhr.responseText||'').slice(0,200)}"`;
-            reject(new Error('El navegador o la red bloqueó la subida directa a Google. Probá con un video más chico (≤5MB) o desactivá ad-blockers para este sitio. Detalle: '+detalle));
+            reject(new Error('Tu navegador o red bloquea subidas directas a Google (extensión, ad-blocker o ISP). Comprime el video a 5 MB o menos en https://www.freeconvert.com/video-compressor y vuelve a intentar.'));
           };
           xhr.ontimeout = ()=>reject(new Error('Tiempo de espera agotado'));
           xhr.onabort = ()=>reject(new Error('Upload cancelado'));
