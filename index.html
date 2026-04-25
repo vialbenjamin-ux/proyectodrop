@@ -413,6 +413,20 @@
   .bk-prompt-card.tone-copys::before{background:var(--yellow)}
   .bk-prompt-card.tone-copys .bk-prompt-card-icon{background:var(--yellow-soft);border-color:var(--yellow);color:#A6862A}
   .bk-prompt-card.tone-copys .bk-prompt-copy-big{background:#D9A82E;color:#fff}
+  .bk-prompt-card.tone-transcripcion{border-color:#C5EAE5}
+  .bk-prompt-card.tone-transcripcion::before{background:var(--teal)}
+  .bk-prompt-card.tone-transcripcion .bk-prompt-card-icon{background:var(--teal-soft);border-color:var(--teal);color:#3A8B82}
+  .bk-prompt-card.tone-transcripcion .bk-prompt-copy-big{background:var(--teal);color:#fff}
+  .bk-prompt-card.tone-analisis{border-color:#C5E5D2}
+  .bk-prompt-card.tone-analisis::before{background:#5BA882}
+  .bk-prompt-card.tone-analisis .bk-prompt-card-icon{background:var(--green-soft);border-color:#5BA882;color:#3A6B4F}
+  .bk-prompt-card.tone-analisis .bk-prompt-copy-big{background:#5BA882;color:#fff}
+
+  /* Input file para video — input oculto + label clickeable */
+  .bk-video-input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+  .bk-video-label{display:block;width:100%;text-align:center;padding:11px 12px;border:1.5px dashed var(--border2);border-radius:11px;font-size:11px;color:var(--muted);cursor:pointer;background:var(--surface2);transition:all .15s;margin-top:4px}
+  .bk-video-label:hover{border-color:var(--accent);color:var(--accent)}
+  .bk-video-label.has-file{border-style:solid;border-color:var(--accent);color:var(--accent);background:var(--accent-soft);font-weight:500}
   .bk-prompt-card-head{display:flex;align-items:center;gap:12px}
   .bk-prompt-card-icon{width:44px;height:44px;border-radius:12px;border:1.5px solid;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
   .bk-prompt-card-title{font-family:'Syne',sans-serif;font-weight:800;font-size:15px;color:var(--text);letter-spacing:.3px;line-height:1.2}
@@ -1002,6 +1016,64 @@
               <button class="bk-prompt-output-close" onclick="closeBkOutput('copys')" title="Cerrar">✕</button>
             </div>
             <div class="bk-prompt-output-body" id="bk-output-body-copys"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ANÁLISIS DE VIDEO -->
+      <div class="bk-prompts-sub">🎬 Análisis de video</div>
+      <div class="bk-prompts-hero">
+        <div class="bk-prompt-card tone-transcripcion">
+          <div class="bk-prompt-card-head">
+            <div class="bk-prompt-card-icon">🎙️</div>
+            <div>
+              <div class="bk-prompt-card-tag">Voz en off</div>
+              <div class="bk-prompt-card-title">Transcripción VO</div>
+            </div>
+          </div>
+          <div class="bk-prompt-card-desc">Transcribe la locución del video y traduce a español neutro latinoamericano. Listo para grabar como voz en off.</div>
+          <input type="file" accept="video/*" id="bkv-file-transcripcion" class="bk-video-input" onchange="updateBkVideoLabel('transcripcion')">
+          <label for="bkv-file-transcripcion" class="bk-video-label" id="bk-video-label-transcripcion">📁 Elegir video MP4 (≤15MB)</label>
+          <div class="bk-prompt-card-actions">
+            <button class="bk-prompt-copy-big" id="bk-copy-transcripcion" onclick="ejecutarBkVideo('transcripcion')">▶ Ejecutar</button>
+            <button class="bk-prompt-view-btn" onclick="copyBkPrompt('transcripcion')" title="Solo copiar el prompt">📋</button>
+            <button class="bk-prompt-view-btn" onclick="toggleBkPrompt('transcripcion')">Ver</button>
+          </div>
+          <div class="bk-prompt-full" id="bk-full-transcripcion"></div>
+          <div class="bk-prompt-output" id="bk-output-transcripcion">
+            <div class="bk-prompt-output-head">
+              <span class="bk-prompt-output-label" id="bk-output-label-transcripcion">Respuesta de Gemini</span>
+              <button class="bk-prompt-output-copy" id="bk-output-copy-transcripcion" onclick="copyBkOutput('transcripcion')">📋 Copiar</button>
+              <button class="bk-prompt-output-close" onclick="closeBkOutput('transcripcion')" title="Cerrar">✕</button>
+            </div>
+            <div class="bk-prompt-output-body" id="bk-output-body-transcripcion"></div>
+          </div>
+        </div>
+
+        <div class="bk-prompt-card tone-analisis">
+          <div class="bk-prompt-card-head">
+            <div class="bk-prompt-card-icon">🎬</div>
+            <div>
+              <div class="bk-prompt-card-tag">Creative strategist</div>
+              <div class="bk-prompt-card-title">Análisis Estratégico</div>
+            </div>
+          </div>
+          <div class="bk-prompt-card-desc">Ingeniería inversa del anuncio: hook, framework, copy, conversión + 5 nuevas voces en off testables.</div>
+          <input type="file" accept="video/*" id="bkv-file-analisis" class="bk-video-input" onchange="updateBkVideoLabel('analisis')">
+          <label for="bkv-file-analisis" class="bk-video-label" id="bk-video-label-analisis">📁 Elegir video MP4 (≤15MB)</label>
+          <div class="bk-prompt-card-actions">
+            <button class="bk-prompt-copy-big" id="bk-copy-analisis" onclick="ejecutarBkVideo('analisis')">▶ Ejecutar</button>
+            <button class="bk-prompt-view-btn" onclick="copyBkPrompt('analisis')" title="Solo copiar el prompt">📋</button>
+            <button class="bk-prompt-view-btn" onclick="toggleBkPrompt('analisis')">Ver</button>
+          </div>
+          <div class="bk-prompt-full" id="bk-full-analisis"></div>
+          <div class="bk-prompt-output" id="bk-output-analisis">
+            <div class="bk-prompt-output-head">
+              <span class="bk-prompt-output-label" id="bk-output-label-analisis">Respuesta de Gemini</span>
+              <button class="bk-prompt-output-copy" id="bk-output-copy-analisis" onclick="copyBkOutput('analisis')">📋 Copiar</button>
+              <button class="bk-prompt-output-close" onclick="closeBkOutput('analisis')" title="Cerrar">✕</button>
+            </div>
+            <div class="bk-prompt-output-body" id="bk-output-body-analisis"></div>
           </div>
         </div>
       </div>
@@ -2724,7 +2796,218 @@ Incluye al menos un disparador de urgencia o escasez por set
 Tono: persuasivo, directo, conversacional, orientado a conversión
 Evita palabras genéricas como "calidad", "increíble" o "mejor"
 Nunca uses las mismas frases o estructuras en distintos productos
-Los textos cortos de TikTok deben ser disruptivos, directos y sin clichés`
+Los textos cortos de TikTok deben ser disruptivos, directos y sin clichés`,
+
+  transcripcion: `Transcribe la locución del video adjunto y tradúcela al español neutro latinoamericano, respetando palabra por palabra el contenido original.
+Requisitos:
+
+No incluyas marcas de tiempo, segundajes ni timestamps.
+No agregues acotaciones, descripciones de escena ni indicaciones técnicas.
+Entrega únicamente el texto limpio de la locución traducida, en un solo bloque corrido, listo para grabar como voz en off.
+Mantén el tono, el ritmo y la intención del original.
+Usa español neutro (sin modismos regionales).
+
+Devuelve solo el texto final traducido, sin encabezados ni explicaciones.`,
+
+  analisis: `Quiero que actúes como un Creative Strategist Senior especializado en anuncios de video para Meta Ads y TikTok Ads, con experiencia real en dropshipping, ecommerce, hooks de alto rendimiento, estructura de anuncios, guiones de conversión y análisis creativo.
+Tu trabajo NO es resumir el video ni dar una opinión general.
+Tu trabajo es desglosar quirúrgicamente la estructura del anuncio, parte por parte, para poder replicar su lógica persuasiva, detectar su arquitectura de conversión y luego generar nuevas voces en off originales siguiendo la misma estructura.
+
+OBJETIVO PRINCIPAL
+Analiza el video que te entregaré como si fueras al mismo tiempo:
+• Editor de anuncios
+• Copywriter senior
+• Media buyer
+• Creative strategist
+• Guionista de performance
+Debes identificar:
+• Cómo está construido el anuncio
+• Qué intenta lograr cada parte
+• Qué framework está usando
+• Qué gatillos persuasivos aparecen
+• Qué patrón narrativo lo hace funcionar
+• Qué elementos se pueden reutilizar para crear guiones similares, no copias
+• Cómo convertir esa estructura en nuevas voces en off testables
+
+IMPORTANTE
+No quiero un análisis superficial ni una simple descripción escena por escena.
+Quiero una ingeniería inversa publicitaria completa.
+No quiero "comentarios sobre el video".
+Quiero un desarme estratégico del anuncio para poder:
+• replicarlo
+• adaptarlo
+• testear nuevas versiones
+• generar nuevos guiones con la misma lógica
+
+REGLA DE PRIORIDAD CRÍTICA
+La sección 9 (Reconstrucción de voz en off basada en la misma estructura) es obligatoria, crítica y no opcional.
+El análisis NO se considera completo si no incluye esa sección.
+No puedes omitirla bajo ninguna circunstancia.
+Si el video no tiene voz clara, debes inferir igualmente la lógica verbal y reconstruirla según la estructura detectada.
+
+REGLA DE VALIDACIÓN OBLIGATORIA
+Antes de finalizar tu respuesta, debes verificar explícitamente que:
+• Generaste exactamente 5 nuevas voces en off completas
+• Todas siguen la misma estructura lógica detectada
+• Todas mantienen una duración equivalente a la original
+• Todas respetan el mismo orden persuasivo
+• Ninguna parece una copia superficial del anuncio original
+Si alguna de estas condiciones no se cumple, debes reescribir la sección 9 antes de entregar la respuesta.
+
+INSTRUCCIONES DE ANÁLISIS
+
+1) IDENTIFICACIÓN GENERAL DEL VIDEO
+Primero, analiza el anuncio a nivel macro y responde:
+A. Diagnóstico general
+1. ¿Cuál es el objetivo principal del anuncio? Elige el dominante: Scroll stop, Generar curiosidad, Educar, Demostrar, Convencer, Convertir.
+2. ¿Cuál es el ángulo principal de venta? (Problema/dolor, Resultado deseado, Ahorro de tiempo, Ahorro de dinero, Comodidad, Seguridad, Apariencia, Oferta, Curiosidad, Prueba social, Mecanismo único)
+3. ¿Cuál es el mecanismo emocional dominante del video? (Frustración, Alivio, Miedo a seguir igual, Curiosidad, Sorpresa, Deseo, Aspiración, Identificación, Urgencia)
+4. ¿Qué tipo de anuncio parece ser? (UGC, Testimonial, Demo, Problema/Solución, Historia personal, Unboxing, Before/After, Respuesta a comentario, Comparativo, Oferta directa, Educación)
+5. ¿Qué tan agresivo o sutil es comercialmente? (Muy orgánico, Orgánico con intención de venta, Híbrido, Comercial evidente, Muy comercial)
+
+2) IDENTIFICACIÓN DE LA ESTRUCTURA DEL ANUNCIO
+Detecta qué framework narrativo está usando el video. Elige uno principal y, si aplica, uno secundario:
+PAS (Hook → Problema → Agravación → Producto → Alternativas fallidas → Beneficio → Prueba social → CTA)
+DEMO (Hook → Problema → Solución común fallida → Producto → Características → Demostración → Resultado → CTA)
+MECANISMO ÚNICO (Hook → Polarización → Mecanismo único → Producto → Beneficios → Prueba social → CTA)
+EDUCACIÓN (Hook → Insight/dato → Polarización → Producto → Beneficios → Resultados → CTA)
+HISTORIA PERSONAL (Hook → Situación inicial → Frustración → Descubrimiento → Prueba → Resultado → CTA)
+RESPUESTA A COMENTARIO (Hook/comentario → Objeción → Respuesta → Demostración → Beneficio → CTA)
+Si no encaja perfectamente en uno, crea un framework híbrido y nómbralo.
+
+3) DESGLOSE ESTRUCTURAL BLOQUE POR BLOQUE (LO MÁS IMPORTANTE)
+Divide el video en bloques narrativos reales, no solo por escenas. Cada bloque debe representar una función estratégica. Para cada bloque, analiza:
+1. Nombre del bloque
+2. Tiempo aproximado
+3. Qué ocurre en ese bloque
+4. Objetivo psicológico del bloque
+5. Qué técnica persuasiva usa
+6. Qué dice o comunica exactamente esa parte
+7. Qué hace que esta parte funcione
+8. Cómo se podría replicar en otro producto
+
+4) ANÁLISIS DEL HOOK (PRIMEROS 1–3 SEGUNDOS)
+Identifica:
+1. Texto exacto o idea central del hook
+2. Tipo de hook (Sensacionalista, Anti-promesa, Tiempo, Mejor producto, Prueba social, Oferta, Estadístico, Pregunta al dolor, Controversia, Rutina, Empatía, Historia que impacta)
+3. Mecanismo verbal del hook (Etiqueta, Pregunta de Sí, Sí → Entonces, Declaración directa, Curiosidad abierta, Shock/contraste)
+4. Análisis no verbal del hook (Contraste, Semejanza, Escena)
+5. Por qué este hook puede detener el scroll
+6. Cómo replicarlo en otros anuncios sin copiarlo
+7. 3 variaciones nuevas del hook manteniendo la misma lógica
+
+5) ANÁLISIS DE LA VOZ EN OFF / COPY DEL VIDEO
+Evalúa:
+1. Tono de comunicación
+2. Tipo de lenguaje
+3. Patrón de escritura
+4. Qué objeciones intenta derribar
+5. Qué beneficios comunica realmente (funcional, emocional, percibido)
+6. Qué frases o ideas son estructuralmente potentes
+
+6) ANÁLISIS VISUAL DEL ANUNCIO
+Detecta:
+1. Tipo de edición
+2. Patrón visual dominante
+3. Qué recursos visuales usa para retener
+4. Qué escenas son obligatorias si quisiera recrearlo
+5. Qué escenas son decorativas o reemplazables
+
+7) MAPA DE CONVERSIÓN DEL VIDEO
+Responde:
+1. ¿Qué hace el video para lograr que alguien avance mentalmente desde "No me importa" → "Esto me representa" → "Esto podría servirme" → "Esto se ve creíble" → "Lo quiero"?
+2. ¿En qué parte capta atención, califica audiencia, hace sentir el problema, introduce la solución, justifica la compra y cierra?
+3. ¿Dónde están sus puntos fuertes?
+4. ¿Dónde podría perder retención o conversión?
+
+8) EXTRACCIÓN DE PLANTILLA REUTILIZABLE
+A. Estructura base replicable: reescribe el anuncio como una plantilla genérica.
+B. Fórmula de guion: tipo [Hook] → [Problema] → [Agravación] → [Producto] → [Demostración] → [Beneficio] → [Validación] → [CTA].
+C. Principios clave que hacen funcionar esta estructura (5 a 10 concretos).
+
+9) RECONSTRUCCIÓN DE VOZ EN OFF BASADA EN LA MISMA ESTRUCTURA (OBLIGATORIO)
+Reconstruye su lógica persuasiva en nuevas voces en off originales, manteniendo la misma arquitectura de conversión, sin copiar frases ni sonar derivado.
+Esta sección es OBLIGATORIA. Debes entregar exactamente 5 voces en off completas, utilizables y listas para testear.
+
+OBJETIVO: Generar nuevas voces en off que mantengan la misma secuencia estratégica, conserven el ritmo persuasivo, repliquen el tipo de tensión, avance y cierre, se sientan nuevas y frescas, y puedan utilizarse como anuncios reales.
+
+REGLA CENTRAL: No copiar el texto original. Conservar: lógica del hook, orden de persuasión, función de cada bloque, patrón emocional, progresión del deseo o alivio, estilo de cierre. Cambiar: wording, redacción, tono superficial, ejemplos, frases, entradas y transiciones.
+
+REGLA DE CONTINUIDAD ESTRUCTURAL (OBLIGATORIA): Las nuevas voces en off deben seguir exactamente el mismo orden lógico de bloques detectado. No cambiar el orden, no saltarte bloques, no fusionar bloques clave, no introducir estructura nueva.
+
+REGLA DE DURACIÓN Y EQUIVALENCIA REAL (OBLIGATORIA): Estima la duración de la voz en off original usando ritmo de 2.5 a 3 palabras por segundo. Calcula:
+1. Duración estimada de la voz original (en segundos)
+2. Cantidad estimada de palabras de la voz original
+3. Rango objetivo permitido para las nuevas voces (±10% máximo)
+Antes de entregar las voces, indica: duración estimada, palabras estimadas, rango permitido, palabras de cada nueva voz. Si una se sale del rango, ajustarla.
+
+PASO 1 — EXTRAER EL "ESQUELETO DE VOZ" DEL VIDEO
+Extrae: tipo de entrada verbal, patrón de desarrollo, tipo de progresión emocional, nivel de intensidad del copy, ritmo verbal, tipo de CTA.
+
+PASO 2 — CONVERTIR EL ANUNCIO EN UNA "PLANTILLA DE VOZ"
+Entrega: qué función cumple cada línea o bloque, qué debería decirse en esa parte (sin copiar), qué emoción debe transmitir cada bloque.
+
+PASO 3 — GENERAR EXACTAMENTE 5 NUEVAS VOCES EN OFF SIGUIENDO ESA MISMA ESTRUCTURA
+Cada voz debe: mantener la misma lógica estructural, tener un hook distinto, usar redacción diferente, sonar natural y creíble, no sentirse repetida, no parecer paráfrasis del original, mantener lenguaje simple y oral, estar optimizada para Meta/TikTok Ads, terminar con CTA.
+Para cada una entrega: 1) Nombre del concepto, 2) Tipo de hook usado, 3) Mecanismo verbal del hook, 4) Framework base, 5) Cantidad de palabras, 6) Voz en off completa, 7) Qué conserva del original, 8) Qué cambia para que se sienta nueva.
+
+PASO 4 — GENERAR VERSIONES MÁS TESTEABLES
+A. 5 hooks alternativos (misma lógica del hook original).
+B. 5 CTAs alternativos (mismo estilo de cierre).
+C. 3 aperturas más agresivas (para testear CTR).
+D. 3 versiones más orgánicas (para testear ads que parezcan menos comerciales).
+
+PASO 5 — IDENTIFICAR EL "ADN REUTILIZABLE" DEL GUION
+Sección "ADN DEL GUION": qué hace que esta estructura funcione, qué parte del orden no conviene alterar, qué parte sí puede testearse libremente, qué parte genera más impacto en retención, qué parte genera más impacto en conversión.
+
+REGLAS DE ESCRITURA PARA LAS NUEVAS VOCES EN OFF
+• Español neutro chileno, natural y creíble
+• Frases cortas y ritmo hablado
+• No sonar a infomercial, no exagerar beneficios, no usar claims absolutos, no usar promesas irreales, no usar lenguaje médico no verificable, no sonar robótico, no explicar de más
+• Cada voz termina con CTA con acción clara + urgencia o escasez si aplica
+
+FORMATO DE ENTREGA OBLIGATORIO PARA ESTA SECCIÓN
+1. Esqueleto de voz del anuncio original
+2. Diagnóstico de duración y equivalencia
+3. Plantilla verbal reusable
+4. 5 nuevas voces en off completas
+5. Hooks alternativos
+6. CTAs alternativos
+7. Versiones más agresivas
+8. Versiones más orgánicas
+9. ADN del guion
+10. Validación final de cumplimiento
+
+VALIDACIÓN FINAL DE CUMPLIMIENTO (OBLIGATORIA)
+Al final de la sección 9 incluí un mini checklist confirmando: misma estructura lógica, duración equivalente, exactamente 5 voces completas, no se copiaron frases literales, lógica persuasiva conservada. Si alguno no se cumple, corregir antes de entregar.
+
+FORMATO DE ENTREGA FINAL (OBLIGATORIO)
+Entrega en este orden exacto:
+1. Resumen ejecutivo
+2. Framework detectado
+3. Desglose bloque por bloque
+4. Análisis del hook
+5. Análisis del copy / voz en off
+6. Análisis visual
+7. Mapa de conversión
+8. Plantilla estructural replicable
+9. Reconstrucción de voz en off (OBLIGATORIO)
+10. Qué copiar de este video y qué no
+La respuesta se considera incompleta si falta el punto 9.
+
+REGLAS IMPORTANTES
+• No hagas un análisis genérico
+• No describas el video superficialmente
+• No te quedes en "qué pasa"; explica por qué funciona
+• No opines como espectador; analiza como creative strategist
+• Si el video tiene partes débiles, dilo con honestidad
+• Si el anuncio mezcla varios frameworks, identifícalo
+• Si el video usa recursos visuales o persuasivos implícitos, también detéctalos
+• Si no puedes escuchar con claridad una frase, infiere su función estratégica igual
+
+EXTRA — Sección "QUÉ COPIAR DE ESTE VIDEO Y QUÉ NO":
+Sí conviene replicar: estructura, tipo de hook, secuencia narrativa, tipo de demostración, orden de persuasión.
+No conviene copiar literalmente: frases exactas, visuales exactos, claims específicos, estilo demasiado parecido, elementos que harían que se vea como plagio.`
 };
 
 const BK_VARS_KEY = 'bkdrop_bk_prompt_vars';
@@ -2956,6 +3239,135 @@ function copyBkOutput(key){
 function closeBkOutput(key){
   const box = document.getElementById('bk-output-'+key);
   if(box) box.classList.remove('open');
+}
+
+// ── BK PROMPTS — análisis de video con upload directo a Gemini File API ──────
+
+function updateBkVideoLabel(key){
+  const inp = document.getElementById('bkv-file-'+key);
+  const lbl = document.getElementById('bk-video-label-'+key);
+  if(!inp || !lbl) return;
+  const f = inp.files && inp.files[0];
+  if(f){
+    const mb = (f.size / 1024 / 1024).toFixed(1);
+    lbl.textContent = `🎬 ${f.name} (${mb} MB)`;
+    lbl.classList.add('has-file');
+  } else {
+    lbl.textContent = '📁 Elegir video MP4 (≤15MB)';
+    lbl.classList.remove('has-file');
+  }
+}
+
+async function callGeminiProxyVideo(prompt, fileUri, mimeType){
+  const resp = await fetch('/.netlify/functions/gemini-proxy', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ prompt, fileUri, mimeType })
+  });
+  const data = await resp.json().catch(()=>({error:'Respuesta inválida del proxy'}));
+  if(!resp.ok) throw new Error(data.error || ('Error '+resp.status));
+  return data.text || '';
+}
+
+async function ejecutarBkVideo(key){
+  const inp   = document.getElementById('bkv-file-'+key);
+  const file  = inp && inp.files && inp.files[0];
+  const btn   = document.getElementById('bk-copy-'+key);
+  const box   = document.getElementById('bk-output-'+key);
+  const body  = document.getElementById('bk-output-body-'+key);
+  const label = document.getElementById('bk-output-label-'+key);
+
+  const showError = (msg)=>{
+    if(box){ box.classList.add('open','error'); box.classList.remove('loading'); }
+    if(label){ label.textContent = 'Error'; }
+    if(body){ body.textContent = '⚠️ '+msg; }
+    if(btn){ btn.textContent = '⚠️ Error'; btn.disabled = false; }
+  };
+
+  if(!file){ showError('Elegí un video MP4 antes de ejecutar.'); return; }
+
+  const MAX = 15 * 1024 * 1024;
+  if(file.size > MAX){
+    showError(`El video pesa ${(file.size/1024/1024).toFixed(1)}MB. Máximo 15MB.`);
+    return;
+  }
+
+  if(box){ box.classList.add('open','loading'); box.classList.remove('error'); }
+  if(label){ label.textContent = 'Subiendo'; }
+  if(body){ body.textContent = 'Iniciando subida del video…'; }
+  if(btn){ btn.innerHTML = '<span class="bk-spinner"></span>Subiendo…'; btn.disabled = true; }
+
+  try{
+    // 1) Iniciar upload — proxy llama a Gemini con la API key y devuelve URL temporal de upload
+    const initResp = await fetch('/.netlify/functions/gemini-upload-init', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        mimeType: file.type || 'video/mp4',
+        sizeBytes: file.size,
+        displayName: file.name
+      })
+    });
+    const initData = await initResp.json().catch(()=>({error:'Respuesta inválida'}));
+    if(!initResp.ok) throw new Error(initData.error || 'Falló inicio de upload');
+    const uploadUrl = initData.uploadUrl;
+    if(!uploadUrl) throw new Error('Sin URL de upload');
+
+    // 2) Upload directo a Google con la URL temporal (no pasa por Netlify)
+    if(body){ body.textContent = `Subiendo ${(file.size/1024/1024).toFixed(1)}MB a Google…`; }
+    const uploadResp = await fetch(uploadUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Length': String(file.size),
+        'X-Goog-Upload-Offset': '0',
+        'X-Goog-Upload-Command': 'upload, finalize'
+      },
+      body: file
+    });
+    if(!uploadResp.ok){
+      const errText = await uploadResp.text().catch(()=>'');
+      throw new Error('Falló subida a Google: '+uploadResp.status+' '+errText.slice(0,150));
+    }
+    const uploadData = await uploadResp.json();
+    const fileMeta = uploadData.file || uploadData;
+    let fileName = fileMeta.name;
+    let fileUri = fileMeta.uri;
+    let state = fileMeta.state || 'PROCESSING';
+    if(!fileName){ throw new Error('Google no devolvió nombre del archivo'); }
+
+    // 3) Esperar que Google termine de procesar (poll cada 2s, máx 60s)
+    if(btn){ btn.innerHTML = '<span class="bk-spinner"></span>Procesando…'; }
+    if(body){ body.textContent = 'Google procesando el video (10-30s)…'; }
+    let attempts = 0;
+    while(state === 'PROCESSING' && attempts < 30){
+      await new Promise(r=>setTimeout(r, 2000));
+      const statusResp = await fetch('/.netlify/functions/gemini-file-status?name='+encodeURIComponent(fileName));
+      const statusData = await statusResp.json().catch(()=>({error:'Respuesta inválida'}));
+      if(!statusResp.ok) throw new Error(statusData.error || 'Falló consulta de estado');
+      state = statusData.state;
+      if(statusData.uri) fileUri = statusData.uri;
+      attempts++;
+    }
+    if(state === 'FAILED') throw new Error('Google rechazó el video durante el procesamiento.');
+    if(state !== 'ACTIVE') throw new Error('Tiempo agotado esperando procesamiento (state='+state+')');
+    if(!fileUri) throw new Error('Sin URI del archivo procesado');
+
+    // 4) Ejecutar el prompt con el video
+    if(btn){ btn.innerHTML = '<span class="bk-spinner"></span>Analizando…'; }
+    if(body){ body.textContent = 'Analizando con Gemini (puede tardar 20-40s)…'; }
+    const promptText = fillBkPrompt(key);
+    const text = await callGeminiProxyVideo(promptText, fileUri, file.type || 'video/mp4');
+
+    if(body){ body.textContent = text || '(respuesta vacía)'; }
+    if(label){ label.textContent = 'Respuesta de Gemini'; }
+    if(box){ box.classList.remove('loading'); box.scrollIntoView({behavior:'smooth',block:'center'}); }
+    if(btn){ btn.textContent = '✓ Listo'; btn.classList.add('copied'); }
+  } catch(err){
+    showError(err.message || 'Error desconocido');
+  } finally {
+    if(btn){ btn.disabled = false; }
+    setTimeout(()=>{ if(btn){ btn.textContent = '▶ Ejecutar'; btn.classList.remove('copied'); } }, 4500);
+  }
 }
 
 function extraerDatosMaster(){

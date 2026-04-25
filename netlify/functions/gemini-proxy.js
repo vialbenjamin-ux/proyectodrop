@@ -30,15 +30,24 @@ exports.handler = async (event) => {
   const model = body.model || 'gemini-2.5-flash';
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${apiKey}`;
 
+  // Si viene un archivo subido a Gemini File API, lo incluimos como parte multimodal
+  const parts = [];
+  if (body.fileUri && body.mimeType) {
+    parts.push({ fileData: { mimeType: body.mimeType, fileUri: body.fileUri } });
+  }
+  parts.push({ text: prompt });
+
+  const maxOutputTokens = body.fileUri ? 16384 : 8192;
+
   try {
     const resp = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
+        contents: [{ parts }],
         generationConfig: {
           temperature: 0.7,
-          maxOutputTokens: 8192,
+          maxOutputTokens,
         },
       }),
     });
