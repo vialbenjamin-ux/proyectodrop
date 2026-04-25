@@ -3170,6 +3170,7 @@ async function callGeminiProxyStream(payload, onChunk){
   const decoder = new TextDecoder();
   let buffer = '';
   let fullText = '';
+  let serverError = null;
   while(true){
     const { done, value } = await reader.read();
     if(done) break;
@@ -3183,6 +3184,10 @@ async function callGeminiProxyStream(payload, onChunk){
       if(!json || json === '[DONE]') continue;
       try {
         const obj = JSON.parse(json);
+        if(obj && obj.error){
+          serverError = obj.error;
+          continue;
+        }
         const text = obj?.candidates?.[0]?.content?.parts?.[0]?.text;
         if(text){
           fullText += text;
@@ -3191,6 +3196,7 @@ async function callGeminiProxyStream(payload, onChunk){
       } catch {}
     }
   }
+  if(serverError && !fullText) throw new Error(serverError);
   return fullText;
 }
 
