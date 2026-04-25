@@ -3358,89 +3358,90 @@ function blobToBase64(blob){
   });
 }
 
-// Extrae solo el audio de un video y devuelve un Blob webm/opus.
-// Útil para transcripción: Gemini solo necesita oír, no ver, y el
-// audio puro pesa 5-10x menos que el video re-codificado y mantiene
-// la voz nítida sin pérdida que rompa la transcripción.
+// Extrae el audio de un video usando decodeAudioData (sin reproducir
+// el video, sin MediaRecorder) y produce un WAV mono a 16kHz.
+// Gemini soporta audio/wav nativamente. Es la forma más robusta y
+// determinística de extraer audio en el navegador.
 async function extraerAudioDeVideo(file, onProgress){
-  const url = URL.createObjectURL(file);
-  const video = document.createElement('video');
-  video.src = url;
-  video.muted = true;
-  video.playsInline = true;
-  video.style.display = 'none';
-  document.body.appendChild(video);
+  if(onProgress) onProgress(0.05);
+  const arrayBuffer = await file.arrayBuffer();
+  if(onProgress) onProgress(0.2);
 
-  let cleaned = false;
-  const cleanup = ()=>{
-    if(cleaned) return;
-    cleaned = true;
-    if(video.parentNode) video.parentNode.removeChild(video);
-    URL.revokeObjectURL(url);
-  };
-
+  const Ctx = window.AudioContext || window.webkitAudioContext;
+  const decodeCtx = new Ctx();
+  let decoded;
   try {
-    await new Promise((res, rej)=>{
-      video.onloadedmetadata = res;
-      video.onerror = ()=>rej(new Error('Formato de video no soportado'));
+    // decodeAudioData acepta una callback en algunos browsers viejos, promesa en otros
+    decoded = await new Promise((res, rej)=>{
+      const p = decodeCtx.decodeAudioData(arrayBuffer.slice(0), res, rej);
+      if(p && typeof p.then === 'function'){ p.then(res, rej); }
     });
-
-    const Ctx = window.AudioContext || window.webkitAudioContext;
-    const audioCtx = new Ctx();
-    const source = audioCtx.createMediaElementSource(video);
-    const dest = audioCtx.createMediaStreamDestination();
-    // Conectamos a un gain a 0 + audioCtx.destination para forzar que
-    // el browser decodifique audio (sin esto, Chrome no decodifica audio
-    // cuando el <video> está muteado, devolviendo audio en silencio).
-    const silencer = audioCtx.createGain();
-    silencer.gain.setValueAtTime(0, audioCtx.currentTime);
-    source.connect(silencer);
-    silencer.connect(audioCtx.destination);
-    // También conectamos al MediaStreamDestination para capturar
-    source.connect(dest);
-
-    let mimeType = 'audio/webm;codecs=opus';
-    if(!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'audio/webm';
-    if(!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'audio/ogg;codecs=opus';
-    if(!MediaRecorder.isTypeSupported(mimeType)) throw new Error('Tu navegador no soporta extracción de audio webm/ogg');
-
-    const recorder = new MediaRecorder(dest.stream, {
-      mimeType,
-      audioBitsPerSecond: 128000  // 128 kbps — voz clara
-    });
-
-    const chunks = [];
-    recorder.ondataavailable = (e)=>{ if(e.data.size > 0) chunks.push(e.data); };
-
-    const recorderDone = new Promise((res, rej)=>{
-      recorder.onstop = res;
-      recorder.onerror = (e)=>rej(new Error('Error grabando audio: '+(e.error && e.error.message || 'desconocido')));
-    });
-
-    recorder.start();
-    try { await video.play(); }
-    catch(playErr){ throw new Error('El navegador bloqueó la reproducción: '+playErr.message); }
-
-    let stopped = false;
-    const tick = ()=>{
-      if(stopped || video.ended || video.paused) return;
-      if(onProgress && video.duration > 0) onProgress(Math.min(1, video.currentTime/video.duration));
-      requestAnimationFrame(tick);
-    };
-    tick();
-
-    await new Promise(res=>{ video.onended = res; });
-    stopped = true;
-    recorder.stop();
-    await recorderDone;
-
-    await audioCtx.close().catch(()=>{});
-    cleanup();
-    return new Blob(chunks, { type: mimeType.split(';')[0] });
-  } catch(err){
-    cleanup();
-    throw err;
+  } catch(decErr){
+    await decodeCtx.close().catch(()=>{});
+    throw new Error('No se pudo decodificar el audio del video. Formato no soportado.');
   }
+  if(onProgress) onProgress(0.5);
+
+  // Resamplear a mono 16kHz con OfflineAudioContext
+  const targetSampleRate = 16000;
+  const targetChannels = 1;
+  const targetLength = Math.ceil(decoded.duration * targetSampleRate);
+  const offline = new OfflineAudioContext(targetChannels, targetLength, targetSampleRate);
+  const src = offline.createBufferSource();
+  src.buffer = decoded;
+  src.connect(offline.destination);
+  src.start(0);
+  const rendered = await offline.startRendering();
+  if(onProgress) onProgress(0.85);
+
+  await decodeCtx.close().catch(()=>{});
+
+  // Encode AudioBuffer → WAV PCM 16-bit
+  const wavBlob = audioBufferToWavBlob(rendered);
+  if(onProgress) onProgress(1);
+  return wavBlob;
+}
+
+function audioBufferToWavBlob(audioBuffer){
+  const numChannels = audioBuffer.numberOfChannels;
+  const sampleRate  = audioBuffer.sampleRate;
+  const length      = audioBuffer.length;
+  const bytesPerSample = 2;
+  const blockAlign  = numChannels * bytesPerSample;
+  const byteRate    = sampleRate * blockAlign;
+  const dataSize    = length * blockAlign;
+
+  const buffer = new ArrayBuffer(44 + dataSize);
+  const view   = new DataView(buffer);
+  const wstr = (off, s)=>{ for(let i=0;i<s.length;i++) view.setUint8(off+i, s.charCodeAt(i)); };
+
+  wstr(0,  'RIFF');
+  view.setUint32(4, 36 + dataSize, true);
+  wstr(8,  'WAVE');
+  wstr(12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);              // PCM
+  view.setUint16(22, numChannels, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, byteRate, true);
+  view.setUint16(32, blockAlign, true);
+  view.setUint16(34, 16, true);             // 16-bit
+  wstr(36, 'data');
+  view.setUint32(40, dataSize, true);
+
+  // Interleave channels and write 16-bit PCM
+  const channels = [];
+  for(let c=0; c<numChannels; c++) channels.push(audioBuffer.getChannelData(c));
+  let offset = 44;
+  for(let i=0; i<length; i++){
+    for(let c=0; c<numChannels; c++){
+      let s = Math.max(-1, Math.min(1, channels[c][i]));
+      s = s < 0 ? s * 0x8000 : s * 0x7FFF;
+      view.setInt16(offset, s | 0, true);
+      offset += 2;
+    }
+  }
+  return new Blob([buffer], { type: 'audio/wav' });
 }
 
 // Comprime un video en el navegador a baja resolución + bitrate.
