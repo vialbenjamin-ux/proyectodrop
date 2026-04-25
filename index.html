@@ -3358,6 +3358,84 @@ function blobToBase64(blob){
   });
 }
 
+// Extrae solo el audio de un video y devuelve un Blob webm/opus.
+// Útil para transcripción: Gemini solo necesita oír, no ver, y el
+// audio puro pesa 5-10x menos que el video re-codificado y mantiene
+// la voz nítida sin pérdida que rompa la transcripción.
+async function extraerAudioDeVideo(file, onProgress){
+  const url = URL.createObjectURL(file);
+  const video = document.createElement('video');
+  video.src = url;
+  video.muted = true;
+  video.playsInline = true;
+  video.style.display = 'none';
+  document.body.appendChild(video);
+
+  let cleaned = false;
+  const cleanup = ()=>{
+    if(cleaned) return;
+    cleaned = true;
+    if(video.parentNode) video.parentNode.removeChild(video);
+    URL.revokeObjectURL(url);
+  };
+
+  try {
+    await new Promise((res, rej)=>{
+      video.onloadedmetadata = res;
+      video.onerror = ()=>rej(new Error('Formato de video no soportado'));
+    });
+
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    const audioCtx = new Ctx();
+    const source = audioCtx.createMediaElementSource(video);
+    const dest = audioCtx.createMediaStreamDestination();
+    source.connect(dest);
+    // No conectamos a audioCtx.destination → no se reproduce en parlantes
+
+    let mimeType = 'audio/webm;codecs=opus';
+    if(!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'audio/webm';
+    if(!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'audio/ogg;codecs=opus';
+    if(!MediaRecorder.isTypeSupported(mimeType)) throw new Error('Tu navegador no soporta extracción de audio webm/ogg');
+
+    const recorder = new MediaRecorder(dest.stream, {
+      mimeType,
+      audioBitsPerSecond: 128000  // 128 kbps — voz clara
+    });
+
+    const chunks = [];
+    recorder.ondataavailable = (e)=>{ if(e.data.size > 0) chunks.push(e.data); };
+
+    const recorderDone = new Promise((res, rej)=>{
+      recorder.onstop = res;
+      recorder.onerror = (e)=>rej(new Error('Error grabando audio: '+(e.error && e.error.message || 'desconocido')));
+    });
+
+    recorder.start();
+    try { await video.play(); }
+    catch(playErr){ throw new Error('El navegador bloqueó la reproducción: '+playErr.message); }
+
+    let stopped = false;
+    const tick = ()=>{
+      if(stopped || video.ended || video.paused) return;
+      if(onProgress && video.duration > 0) onProgress(Math.min(1, video.currentTime/video.duration));
+      requestAnimationFrame(tick);
+    };
+    tick();
+
+    await new Promise(res=>{ video.onended = res; });
+    stopped = true;
+    recorder.stop();
+    await recorderDone;
+
+    await audioCtx.close().catch(()=>{});
+    cleanup();
+    return new Blob(chunks, { type: mimeType.split(';')[0] });
+  } catch(err){
+    cleanup();
+    throw err;
+  }
+}
+
 // Comprime un video en el navegador a baja resolución + bitrate.
 // Útil cuando el archivo original es muy grande para subir.
 // Usa MediaRecorder + canvas + Web Audio. No requiere librerías externas.
@@ -3418,7 +3496,7 @@ async function comprimirVideoEnNavegador(file, onProgress){
     const recorder = new MediaRecorder(canvasStream, {
       mimeType,
       videoBitsPerSecond: 500000,
-      audioBitsPerSecond: 64000
+      audioBitsPerSecond: 96000  // 96 kbps audio — mantiene voz inteligible
     });
 
     const chunks = [];
@@ -3503,29 +3581,53 @@ async function ejecutarBkVideo(key){
   if(body){ body.textContent = 'Iniciando…'; }
   if(btn){ btn.innerHTML = '<span class="bk-spinner"></span>Procesando…'; btn.disabled = true; }
 
-  // Compresión automática si el archivo es muy grande para subir vía proxy.
-  // Reduce resolución a 640px ancho, 15fps, ~500kbps. Ratios típicos: 5-10x.
+  // Pre-procesamiento del archivo según el prompt:
+  //  · Transcripción VO → extraemos SOLO audio (Gemini no necesita ver, y
+  //    el audio puro mantiene la voz nítida y pesa muy poco).
+  //  · Análisis Estratégico → comprimimos video con audio (necesita ver
+  //    escenas + escuchar voz; bitrate audio 96 kbps para no perder palabras).
   let uploadFile = file;
   let uploadMime = file.type || 'video/mp4';
-  const COMPRESS_THRESHOLD = 4.5 * 1024 * 1024;
-  if(file.size > COMPRESS_THRESHOLD){
-    if(body){ body.textContent = `Comprimiendo ${(file.size/1024/1024).toFixed(1)}MB en el navegador…`; }
-    if(btn){ btn.innerHTML = '<span class="bk-spinner"></span>Comprimiendo…'; }
+  const PROXY_LIMIT = 5.5 * 1024 * 1024;
+
+  if(key === 'transcripcion'){
+    // Siempre extraer solo audio, sin importar el tamaño del video original
+    if(body){ body.textContent = `Extrayendo audio de ${(file.size/1024/1024).toFixed(1)}MB…`; }
+    if(btn){ btn.innerHTML = '<span class="bk-spinner"></span>Extrayendo audio…'; }
     try {
-      const compressedBlob = await comprimirVideoEnNavegador(file, (pct)=>{
-        if(body){ body.textContent = `Comprimiendo… ${Math.round(pct*100)}%`; }
+      const audioBlob = await extraerAudioDeVideo(file, (pct)=>{
+        if(body){ body.textContent = `Extrayendo audio… ${Math.round(pct*100)}%`; }
       });
-      uploadFile = compressedBlob;
-      uploadMime = 'video/webm';
-      if(body){ body.textContent = `${(file.size/1024/1024).toFixed(1)}MB → ${(compressedBlob.size/1024/1024).toFixed(1)}MB. Iniciando subida…`; }
-    } catch(compErr){
-      showError('No se pudo comprimir el video: '+compErr.message+'. Prueba con un video más corto o en formato MP4 H.264 estándar.');
+      uploadFile = audioBlob;
+      uploadMime = audioBlob.type || 'audio/webm';
+      if(body){ body.textContent = `Audio extraído: ${(audioBlob.size/1024).toFixed(0)}KB. Iniciando subida…`; }
+    } catch(audErr){
+      showError('No se pudo extraer audio: '+audErr.message);
       return;
     }
-    if(uploadFile.size > 5.5 * 1024 * 1024){
-      showError(`Aun comprimido el video pesa ${(uploadFile.size/1024/1024).toFixed(1)}MB. El video original es muy largo. Prueba con uno más corto.`);
-      return;
+  } else {
+    // Análisis Estratégico u otros prompts con video: comprimir si es grande
+    const COMPRESS_THRESHOLD = 4.5 * 1024 * 1024;
+    if(file.size > COMPRESS_THRESHOLD){
+      if(body){ body.textContent = `Comprimiendo ${(file.size/1024/1024).toFixed(1)}MB en el navegador…`; }
+      if(btn){ btn.innerHTML = '<span class="bk-spinner"></span>Comprimiendo…'; }
+      try {
+        const compressedBlob = await comprimirVideoEnNavegador(file, (pct)=>{
+          if(body){ body.textContent = `Comprimiendo… ${Math.round(pct*100)}%`; }
+        });
+        uploadFile = compressedBlob;
+        uploadMime = 'video/webm';
+        if(body){ body.textContent = `${(file.size/1024/1024).toFixed(1)}MB → ${(compressedBlob.size/1024/1024).toFixed(1)}MB. Iniciando subida…`; }
+      } catch(compErr){
+        showError('No se pudo comprimir el video: '+compErr.message+'. Prueba con un video más corto o en formato MP4 H.264 estándar.');
+        return;
+      }
     }
+  }
+
+  if(uploadFile.size > PROXY_LIMIT){
+    showError(`El archivo procesado pesa ${(uploadFile.size/1024/1024).toFixed(1)}MB (máximo ${PROXY_LIMIT/1024/1024}MB). Usa un video más corto.`);
+    return;
   }
 
   try{
