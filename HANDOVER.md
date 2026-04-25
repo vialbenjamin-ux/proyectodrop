@@ -4,6 +4,18 @@ App de gestión de dropshipping en producción en https://bkdrop.netlify.app/. E
 
 ---
 
+## ⚠️ ANTES DE EMPEZAR — usa tus propias API keys
+
+Esta guía asume que vas a deployar **tu propia copia** de la app. NO uses las API keys / cuentas del autor original (Benjamin Vial). Específicamente:
+
+- **Firebase:** tenés que crear **tu propio proyecto** en console.firebase.google.com y reemplazar el `firebaseConfig` en `index.html` línea ~1420. Si dejás el del autor, vas a estar **leyendo y escribiendo en SU base de datos**, lo cual rompe todo (tu app y la del autor) y es éticamente incorrecto.
+- **Shopify, Gemini, ElevenLabs:** las API keys del autor viven en variables de entorno del Netlify del autor, **no están en el repo**. Cuando deployes tu propia copia en tu Netlify, las env vars empiezan vacías. Tenés que generar las tuyas con tus cuentas y cargarlas en TU Netlify (paso 5.4).
+- **Si necesitás permisos pagos** (ej: ElevenLabs Starter $5/mes), pagás con tu tarjeta.
+
+El paso 5.2 (Firebase) y 5.4 (env vars) son los críticos. No los saltees.
+
+---
+
 ## 1. Qué es BKDROP
 
 App web (en español) para administrar el día a día de un negocio de dropshipping. Tiene 9 secciones:
@@ -138,7 +150,9 @@ cd tu-app
 
 ### 5.4 — Configurar variables de entorno en Netlify
 
-Las API keys de servicios externos **no van en el repo**. Las cargás como env vars en Netlify:
+⚠️ Las API keys de servicios externos **no van en el repo** y **no se heredan del autor**. Cada quien genera las suyas con sus propias cuentas y las carga en SU Netlify.
+
+Las cargás como env vars en TU Netlify:
 
 Site → Site settings → Environment variables → "Add a variable":
 
