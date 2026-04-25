@@ -38,7 +38,11 @@ export default async (request) => {
   }
   parts.push({ text: prompt });
 
-  const maxOutputTokens = body.fileUri ? 16384 : 8192;
+  // Tope de tokens en output — solo aplica si Gemini quiere generar tanto.
+  // El Análisis Estratégico de video necesita ~30-50k tokens (10 secciones
+  // + 5 voces en off completas + hooks/CTAs alternativos + ADN). Subimos al
+  // máximo soportado por gemini-2.5-flash para evitar truncamiento.
+  const maxOutputTokens = body.fileUri ? 65536 : 8192;
   const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse&key=${apiKey}`;
   const geminiBody = JSON.stringify({
     contents: [{ parts }],
