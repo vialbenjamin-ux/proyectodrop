@@ -3141,15 +3141,73 @@ function toggleBkPrompt(key){
   }
 }
 
-async function callGeminiProxy(prompt){
+async function callGeminiProxy(prompt, onChunk){
+  return callGeminiProxyStream({ prompt }, onChunk);
+}
+
+async function callGeminiProxyStream(payload, onChunk){
   const resp = await fetch('/.netlify/functions/gemini-proxy', {
     method: 'POST',
     headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ prompt })
+    body: JSON.stringify(payload)
   });
-  const data = await resp.json().catch(()=>({error:'Respuesta inválida del servidor'}));
-  if(!resp.ok) throw new Error(data.error || ('Error '+resp.status));
-  return data.text || '';
+  if(!resp.ok){
+    let errMsg = 'HTTP '+resp.status;
+    try {
+      const errData = await resp.json();
+      if(errData.error) errMsg = errData.error;
+    } catch {
+      try { errMsg = (await resp.text()).slice(0, 300) || errMsg; } catch {}
+    }
+    throw new Error(errMsg);
+  }
+  if(!resp.body || !resp.body.getReader){
+    // Fallback si por alguna razón no hay stream — leer todo el body
+    const txt = await resp.text();
+    return parseSseAccumulated(txt);
+  }
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let fullText = '';
+  while(true){
+    const { done, value } = await reader.read();
+    if(done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let nlIdx;
+    while((nlIdx = buffer.indexOf('\n')) >= 0){
+      const line = buffer.slice(0, nlIdx).trim();
+      buffer = buffer.slice(nlIdx + 1);
+      if(!line || !line.startsWith('data:')) continue;
+      const json = line.slice(5).trim();
+      if(!json || json === '[DONE]') continue;
+      try {
+        const obj = JSON.parse(json);
+        const text = obj?.candidates?.[0]?.content?.parts?.[0]?.text;
+        if(text){
+          fullText += text;
+          if(onChunk) onChunk(fullText);
+        }
+      } catch {}
+    }
+  }
+  return fullText;
+}
+
+function parseSseAccumulated(raw){
+  let out = '';
+  for(const line of raw.split('\n')){
+    const t = line.trim();
+    if(!t.startsWith('data:')) continue;
+    const json = t.slice(5).trim();
+    if(!json || json === '[DONE]') continue;
+    try {
+      const obj = JSON.parse(json);
+      const text = obj?.candidates?.[0]?.content?.parts?.[0]?.text;
+      if(text) out += text;
+    } catch {}
+  }
+  return out;
 }
 
 function ejecutarMaster(){
@@ -3239,8 +3297,18 @@ async function ejecutarBkPromptApi(key, prompt){
   if(body){ body.textContent = 'Esperando respuesta de Gemini...'; }
   if(label){ label.textContent = 'Respuesta de Gemini'; }
   try{
-    const text = await callGeminiProxy(prompt);
-    if(body){ body.textContent = text; }
+    let firstChunk = true;
+    const text = await callGeminiProxy(prompt, (partial)=>{
+      if(body){
+        if(firstChunk){
+          body.textContent = '';
+          if(box) box.classList.remove('loading');
+          firstChunk = false;
+        }
+        body.textContent = partial;
+      }
+    });
+    if(body && !text){ body.textContent = '(respuesta vacía)'; }
     if(box){ box.classList.remove('loading'); box.scrollIntoView({behavior:'smooth',block:'center'}); }
     if(btn){ btn.textContent = '✓ Generado'; btn.classList.add('copied'); }
   } catch(err){
@@ -3397,15 +3465,8 @@ function updateBkVideoLabel(key){
   }
 }
 
-async function callGeminiProxyVideo(prompt, fileUri, mimeType){
-  const resp = await fetch('/.netlify/functions/gemini-proxy', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ prompt, fileUri, mimeType })
-  });
-  const data = await resp.json().catch(()=>({error:'Respuesta inválida del proxy'}));
-  if(!resp.ok) throw new Error(data.error || ('Error '+resp.status));
-  return data.text || '';
+async function callGeminiProxyVideo(prompt, fileUri, mimeType, onChunk){
+  return callGeminiProxyStream({ prompt, fileUri, mimeType }, onChunk);
 }
 
 async function ejecutarBkVideo(key){
@@ -3542,7 +3603,18 @@ async function ejecutarBkVideo(key){
     const promptText = fillBkPrompt(key);
     let text;
     try {
-      text = await callGeminiProxyVideo(promptText, fileUri, uploadMime);
+      // Mostrar la respuesta apareciendo en vivo a medida que Gemini la genera
+      let firstChunk = true;
+      text = await callGeminiProxyVideo(promptText, fileUri, uploadMime, (partial)=>{
+        if(body){
+          if(firstChunk){
+            body.textContent = '';
+            if(box) box.classList.remove('loading');
+            firstChunk = false;
+          }
+          body.textContent = partial;
+        }
+      });
     } catch(execErr){
       throw new Error('Paso 4 (análisis): '+execErr.message);
     }
