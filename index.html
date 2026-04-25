@@ -471,6 +471,16 @@
   .bk-prompt-output-body.editable:hover{background:#FFFEF7}
   .bk-prompt-output-body.editable:focus{background:#FFFEF0;box-shadow:inset 0 0 0 2px var(--yellow)}
   .bk-edit-hint{font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:#A6862A;font-weight:600;padding:6px 14px 0;background:var(--yellow-soft)}
+
+  /* Panel "rate limit alcanzado" — countdown amigable */
+  .bk-rate-limit{display:flex;flex-direction:column;align-items:center;gap:10px;padding:16px;text-align:center}
+  .bk-rate-limit-icon{font-size:28px}
+  .bk-rate-limit-title{font-family:'Syne',sans-serif;font-weight:800;font-size:14px;color:var(--text)}
+  .bk-rate-limit-sub{font-size:11px;color:var(--muted);line-height:1.5;max-width:340px}
+  .bk-rate-limit-countdown{font-family:'Syne',sans-serif;font-weight:800;font-size:32px;color:var(--accent);letter-spacing:.5px;margin:4px 0}
+  .bk-rate-limit-countdown small{font-size:14px;color:var(--muted);font-weight:400;margin-left:4px}
+  .bk-rate-limit-retry{background:var(--accent);color:#fff;border:none;border-radius:22px;padding:9px 22px;font-size:12px;font-weight:600;cursor:pointer;font-family:'DM Mono',monospace;letter-spacing:.3px;box-shadow:0 2px 8px rgba(91,168,130,.3)}
+  .bk-rate-limit-retry:hover{filter:brightness(1.08)}
   .bk-prompt-output.loading .bk-prompt-output-body{text-align:center;color:var(--muted);font-style:italic;padding:24px 14px}
   .bk-prompt-output.error{border-color:var(--red);background:var(--red-soft)}
   .bk-prompt-output.error .bk-prompt-output-head{background:var(--red-soft);border-bottom-color:var(--red)}
@@ -3149,6 +3159,68 @@ async function callGeminiProxy(prompt, onChunk){
   return callGeminiProxyStream({ prompt }, onChunk);
 }
 
+// Detecta si un error es de rate limit y devuelve los segundos de espera.
+// Retorna null si no es rate limit.
+function parseRateLimitSeconds(errMsg){
+  if(!errMsg) return null;
+  const lower = errMsg.toLowerCase();
+  if(!/exceeded your current quota|quota exceeded|resource_exhausted|rate.?limit|429|retry in/i.test(lower)) return null;
+  const m = errMsg.match(/retry in\s+([\d.]+)/i);
+  return m ? Math.max(1, Math.ceil(parseFloat(m[1]))) : 60;
+}
+
+// Renderiza el panel de "espera por rate limit" dentro de la card de salida
+// con countdown + botón de reintento manual. retryFn se llama al llegar a 0
+// o al hacer click en el botón.
+function showRateLimitPanel({ box, body, label, btn, btnLabel, seconds, retryFn }){
+  if(box){
+    box.classList.add('open');
+    box.classList.remove('error', 'loading');
+  }
+  if(label){ label.textContent = 'Cuota momentánea agotada'; }
+  if(body){
+    body.innerHTML = `
+      <div class="bk-rate-limit">
+        <div class="bk-rate-limit-icon">⏳</div>
+        <div class="bk-rate-limit-title">Gemini se quedó sin requests por minuto</div>
+        <div class="bk-rate-limit-sub">El plan gratuito permite 20 análisis por minuto. Reintenta automáticamente cuando termine la cuenta regresiva o haz click en el botón para reintentar antes.</div>
+        <div class="bk-rate-limit-countdown"><span id="bk-rl-secs">${seconds}</span><small>s</small></div>
+        <button class="bk-rate-limit-retry" id="bk-rl-retry">▶ Reintentar ahora</button>
+      </div>
+    `;
+  }
+  if(btn){
+    btn.disabled = true;
+    if(btnLabel){ btn.textContent = btnLabel; }
+  }
+
+  let s = seconds;
+  let cancelled = false;
+  const tick = setInterval(()=>{
+    if(cancelled) return;
+    s -= 1;
+    const el = document.getElementById('bk-rl-secs');
+    if(el) el.textContent = String(Math.max(0, s));
+    if(s <= 0){
+      clearInterval(tick);
+      cancelled = true;
+      if(btn){ btn.disabled = false; }
+      try { retryFn(); } catch(e){ console.error(e); }
+    }
+  }, 1000);
+
+  const retryBtn = document.getElementById('bk-rl-retry');
+  if(retryBtn){
+    retryBtn.onclick = ()=>{
+      if(cancelled) return;
+      cancelled = true;
+      clearInterval(tick);
+      if(btn){ btn.disabled = false; }
+      try { retryFn(); } catch(e){ console.error(e); }
+    };
+  }
+}
+
 async function callGeminiProxyStream(payload, onChunk){
   const resp = await fetch('/.netlify/functions/gemini-proxy', {
     method: 'POST',
@@ -3255,7 +3327,6 @@ async function ejecutarMasterApi(prompt){
   const btn = document.getElementById('bk-btn-ejecutar');
   const respEl = document.getElementById('bkv-respuesta');
   const res = document.getElementById('bk-extract-result');
-  const origLabel = btn ? btn.textContent : '';
   if(btn){ btn.innerHTML = '<span class="bk-spinner"></span>Generando con Gemini…'; btn.disabled = true; }
   if(res){ res.classList.remove('success','warn'); res.textContent = ''; }
   try{
@@ -3267,10 +3338,30 @@ async function ejecutarMasterApi(prompt){
     extraerDatosMaster();
     if(btn){ btn.textContent = '✓ Master generado'; btn.classList.add('done'); }
   } catch(err){
+    const rlSecs = parseRateLimitSeconds(err.message);
+    if(rlSecs){
+      if(res){
+        res.classList.remove('success');
+        res.classList.add('warn');
+        res.innerHTML = `⏳ Gemini sin cuota por minuto. Reintenta automático en <b id="bk-rl-secs">${rlSecs}</b>s — <a href="#" id="bk-rl-retry" style="color:var(--accent);font-weight:600">reintentar ahora</a>`;
+      }
+      if(btn){ btn.disabled = true; btn.textContent = '⏳ Esperando…'; }
+      let s = rlSecs;
+      let cancelled = false;
+      const tick = setInterval(()=>{
+        if(cancelled) return;
+        s -= 1;
+        const el = document.getElementById('bk-rl-secs'); if(el) el.textContent = String(Math.max(0,s));
+        if(s <= 0){ clearInterval(tick); cancelled = true; ejecutarMasterApi(prompt); }
+      }, 1000);
+      const link = document.getElementById('bk-rl-retry');
+      if(link) link.onclick = (e)=>{ e.preventDefault(); if(cancelled) return; cancelled = true; clearInterval(tick); ejecutarMasterApi(prompt); };
+      return;
+    }
     if(res){ res.textContent = '⚠️ Error con Gemini: '+err.message; res.classList.add('warn'); }
-    if(btn){ btn.textContent = '⚠️ Error — reintentá'; }
+    if(btn){ btn.textContent = '⚠️ Error — reintenta'; }
   } finally {
-    if(btn){ btn.disabled = false; }
+    if(btn && !btn.disabled){ btn.disabled = false; }
     setTimeout(()=>{ if(btn){ btn.textContent = '▶ Ejecutar Master en '+BK_IA_NAMES[getBkIa()]; btn.classList.remove('done'); } }, 5000);
   }
 }
@@ -3322,13 +3413,24 @@ async function ejecutarBkPromptApi(key, prompt){
     if(box){ box.classList.remove('loading'); box.scrollIntoView({behavior:'smooth',block:'center'}); }
     if(btn){ btn.textContent = '✓ Generado'; btn.classList.add('copied'); }
   } catch(err){
+    const rlSecs = parseRateLimitSeconds(err.message);
+    if(rlSecs){
+      showRateLimitPanel({
+        box, body, label, btn,
+        btnLabel: '⏳ Esperando…',
+        seconds: rlSecs,
+        retryFn: ()=>ejecutarBkPromptApi(key, prompt)
+      });
+      return;
+    }
     if(box){ box.classList.remove('loading'); box.classList.add('error'); }
     if(label){ label.textContent = 'Error'; }
     if(body){ body.textContent = '⚠️ '+err.message; }
     if(btn){ btn.textContent = '⚠️ Error'; }
   } finally {
-    if(btn){ btn.disabled = false; }
-    setTimeout(()=>{ if(btn){ btn.textContent = '▶ Ejecutar'; btn.classList.remove('copied'); } }, 4000);
+    const btnEl = document.getElementById('bk-copy-'+key);
+    if(btnEl && !btnEl.disabled){ btnEl.disabled = false; }
+    setTimeout(()=>{ const b=document.getElementById('bk-copy-'+key); if(b && !b.disabled){ b.textContent = '▶ Ejecutar'; b.classList.remove('copied'); } }, 4000);
   }
 }
 
@@ -3760,10 +3862,21 @@ async function ejecutarBkVideo(key){
       if(btn){ btn.textContent = '✓ Listo'; btn.classList.add('copied'); }
     }
   } catch(err){
+    const rlSecs = parseRateLimitSeconds(err.message);
+    if(rlSecs){
+      showRateLimitPanel({
+        box, body, label, btn,
+        btnLabel: '⏳ Esperando…',
+        seconds: rlSecs,
+        retryFn: ()=>ejecutarBkVideo(key)
+      });
+      return;
+    }
     showError(err.message || 'Error desconocido');
   } finally {
-    if(btn){ btn.disabled = false; }
-    setTimeout(()=>{ if(btn){ btn.textContent = '▶ Ejecutar'; btn.classList.remove('copied'); } }, 4500);
+    const btnEl = document.getElementById('bk-copy-'+key);
+    if(btnEl && !btnEl.disabled){ btnEl.disabled = false; }
+    setTimeout(()=>{ const b=document.getElementById('bk-copy-'+key); if(b && !b.disabled){ b.textContent = '▶ Ejecutar'; b.classList.remove('copied'); } }, 4500);
   }
 }
 
