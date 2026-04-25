@@ -3389,8 +3389,15 @@ async function extraerAudioDeVideo(file, onProgress){
     const audioCtx = new Ctx();
     const source = audioCtx.createMediaElementSource(video);
     const dest = audioCtx.createMediaStreamDestination();
+    // Conectamos a un gain a 0 + audioCtx.destination para forzar que
+    // el browser decodifique audio (sin esto, Chrome no decodifica audio
+    // cuando el <video> está muteado, devolviendo audio en silencio).
+    const silencer = audioCtx.createGain();
+    silencer.gain.setValueAtTime(0, audioCtx.currentTime);
+    source.connect(silencer);
+    silencer.connect(audioCtx.destination);
+    // También conectamos al MediaStreamDestination para capturar
     source.connect(dest);
-    // No conectamos a audioCtx.destination → no se reproduce en parlantes
 
     let mimeType = 'audio/webm;codecs=opus';
     if(!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'audio/webm';
@@ -3480,8 +3487,13 @@ async function comprimirVideoEnNavegador(file, onProgress){
       audioCtx = new Ctx();
       const source = audioCtx.createMediaElementSource(video);
       const dest = audioCtx.createMediaStreamDestination();
+      // Mismo workaround: conectar a destination con gain 0 fuerza
+      // a Chrome a decodificar el audio cuando el <video> está muteado.
+      const silencer = audioCtx.createGain();
+      silencer.gain.setValueAtTime(0, audioCtx.currentTime);
+      source.connect(silencer);
+      silencer.connect(audioCtx.destination);
       source.connect(dest);
-      // Importante: NO conectar a audioCtx.destination para que no se reproduzca
       dest.stream.getAudioTracks().forEach(t=>canvasStream.addTrack(t));
     } catch(audioErr){
       // Si el navegador no permite extraer audio, seguimos con video silencioso
