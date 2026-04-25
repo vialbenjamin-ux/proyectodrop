@@ -1050,7 +1050,7 @@
           </div>
           <div class="bk-prompt-card-desc">Transcribe la locución del video y traduce a español neutro latinoamericano. Listo para grabar como voz en off.</div>
           <input type="file" accept="video/*" id="bkv-file-transcripcion" class="bk-video-input" onchange="updateBkVideoLabel('transcripcion')">
-          <label for="bkv-file-transcripcion" class="bk-video-label" id="bk-video-label-transcripcion">📁 Elegir video MP4 (≤15MB)</label>
+          <label for="bkv-file-transcripcion" class="bk-video-label" id="bk-video-label-transcripcion">📁 Elegir video MP4 (≤50MB, se comprime solo)</label>
           <div class="bk-prompt-card-actions">
             <button class="bk-prompt-copy-big" id="bk-copy-transcripcion" onclick="ejecutarBkVideo('transcripcion')">▶ Ejecutar</button>
             <button class="bk-prompt-view-btn" onclick="copyBkPrompt('transcripcion')" title="Solo copiar el prompt">📋</button>
@@ -1077,7 +1077,7 @@
           </div>
           <div class="bk-prompt-card-desc">Ingeniería inversa del anuncio: hook, framework, copy, conversión + 5 nuevas voces en off testables.</div>
           <input type="file" accept="video/*" id="bkv-file-analisis" class="bk-video-input" onchange="updateBkVideoLabel('analisis')">
-          <label for="bkv-file-analisis" class="bk-video-label" id="bk-video-label-analisis">📁 Elegir video MP4 (≤15MB)</label>
+          <label for="bkv-file-analisis" class="bk-video-label" id="bk-video-label-analisis">📁 Elegir video MP4 (≤50MB, se comprime solo)</label>
           <div class="bk-prompt-card-actions">
             <button class="bk-prompt-copy-big" id="bk-copy-analisis" onclick="ejecutarBkVideo('analisis')">▶ Ejecutar</button>
             <button class="bk-prompt-view-btn" onclick="copyBkPrompt('analisis')" title="Solo copiar el prompt">📋</button>
@@ -3284,6 +3284,104 @@ function blobToBase64(blob){
   });
 }
 
+// Comprime un video en el navegador a baja resolución + bitrate.
+// Útil cuando el archivo original es muy grande para subir.
+// Usa MediaRecorder + canvas + Web Audio. No requiere librerías externas.
+async function comprimirVideoEnNavegador(file, onProgress){
+  const url = URL.createObjectURL(file);
+  const video = document.createElement('video');
+  video.src = url;
+  video.muted = true;
+  video.playsInline = true;
+  video.style.display = 'none';
+  document.body.appendChild(video);
+
+  let cleaned = false;
+  const cleanup = ()=>{
+    if(cleaned) return;
+    cleaned = true;
+    if(video.parentNode) video.parentNode.removeChild(video);
+    URL.revokeObjectURL(url);
+  };
+
+  try {
+    await new Promise((res, rej)=>{
+      video.onloadedmetadata = res;
+      video.onerror = ()=>rej(new Error('Formato de video no soportado por el navegador'));
+    });
+
+    // Reducir resolución manteniendo aspect ratio
+    const MAX_W = 640;
+    const ratio = Math.min(1, MAX_W / video.videoWidth);
+    const w = Math.max(2, Math.floor(video.videoWidth * ratio));
+    const h = Math.max(2, Math.floor(video.videoHeight * ratio));
+
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    const canvasStream = canvas.captureStream(15); // 15 fps
+
+    // Extraer audio del video con Web Audio API y agregarlo al stream
+    let audioCtx = null;
+    try {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      audioCtx = new Ctx();
+      const source = audioCtx.createMediaElementSource(video);
+      const dest = audioCtx.createMediaStreamDestination();
+      source.connect(dest);
+      // Importante: NO conectar a audioCtx.destination para que no se reproduzca
+      dest.stream.getAudioTracks().forEach(t=>canvasStream.addTrack(t));
+    } catch(audioErr){
+      // Si el navegador no permite extraer audio, seguimos con video silencioso
+    }
+
+    // Buscar el mejor codec disponible
+    let mimeType = 'video/webm;codecs=vp9,opus';
+    if(!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'video/webm;codecs=vp8,opus';
+    if(!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'video/webm';
+    if(!MediaRecorder.isTypeSupported(mimeType)) throw new Error('Tu navegador no soporta MediaRecorder con webm');
+
+    const recorder = new MediaRecorder(canvasStream, {
+      mimeType,
+      videoBitsPerSecond: 500000,
+      audioBitsPerSecond: 64000
+    });
+
+    const chunks = [];
+    recorder.ondataavailable = (e)=>{ if(e.data.size > 0) chunks.push(e.data); };
+
+    const recorderDone = new Promise((res, rej)=>{
+      recorder.onstop = res;
+      recorder.onerror = (e)=>rej(new Error('Error en MediaRecorder: '+(e.error && e.error.message || 'desconocido')));
+    });
+
+    recorder.start();
+    try { await video.play(); }
+    catch(playErr){ throw new Error('El navegador bloqueó la reproducción para grabar: '+playErr.message); }
+
+    let stopped = false;
+    const draw = ()=>{
+      if(stopped || video.ended || video.paused) return;
+      ctx.drawImage(video, 0, 0, w, h);
+      if(onProgress && video.duration > 0) onProgress(Math.min(1, video.currentTime/video.duration));
+      requestAnimationFrame(draw);
+    };
+    draw();
+
+    await new Promise(res=>{ video.onended = res; });
+    stopped = true;
+    recorder.stop();
+    await recorderDone;
+
+    if(audioCtx) await audioCtx.close().catch(()=>{});
+    cleanup();
+    return new Blob(chunks, { type: 'video/webm' });
+  } catch(err){
+    cleanup();
+    throw err;
+  }
+}
+
 function updateBkVideoLabel(key){
   const inp = document.getElementById('bkv-file-'+key);
   const lbl = document.getElementById('bk-video-label-'+key);
@@ -3294,7 +3392,7 @@ function updateBkVideoLabel(key){
     lbl.textContent = `🎬 ${f.name} (${mb} MB)`;
     lbl.classList.add('has-file');
   } else {
-    lbl.textContent = '📁 Elegir video MP4 (≤15MB)';
+    lbl.textContent = '📁 Elegir video MP4 (≤50MB, se comprime solo)';
     lbl.classList.remove('has-file');
   }
 }
@@ -3327,16 +3425,41 @@ async function ejecutarBkVideo(key){
 
   if(!file){ showError('Elige un video MP4 antes de ejecutar.'); return; }
 
-  const MAX = 15 * 1024 * 1024;
+  const MAX = 50 * 1024 * 1024; // permitimos hasta 50MB porque se comprime en el navegador
   if(file.size > MAX){
-    showError(`El video pesa ${(file.size/1024/1024).toFixed(1)}MB. Máximo 15MB.`);
+    showError(`El video pesa ${(file.size/1024/1024).toFixed(1)}MB. Máximo 50MB.`);
     return;
   }
 
   if(box){ box.classList.add('open','loading'); box.classList.remove('error'); }
-  if(label){ label.textContent = 'Subiendo'; }
-  if(body){ body.textContent = 'Iniciando subida del video…'; }
-  if(btn){ btn.innerHTML = '<span class="bk-spinner"></span>Subiendo…'; btn.disabled = true; }
+  if(label){ label.textContent = 'Procesando'; }
+  if(body){ body.textContent = 'Iniciando…'; }
+  if(btn){ btn.innerHTML = '<span class="bk-spinner"></span>Procesando…'; btn.disabled = true; }
+
+  // Compresión automática si el archivo es muy grande para subir vía proxy.
+  // Reduce resolución a 640px ancho, 15fps, ~500kbps. Ratios típicos: 5-10x.
+  let uploadFile = file;
+  let uploadMime = file.type || 'video/mp4';
+  const COMPRESS_THRESHOLD = 4.5 * 1024 * 1024;
+  if(file.size > COMPRESS_THRESHOLD){
+    if(body){ body.textContent = `Comprimiendo ${(file.size/1024/1024).toFixed(1)}MB en el navegador…`; }
+    if(btn){ btn.innerHTML = '<span class="bk-spinner"></span>Comprimiendo…'; }
+    try {
+      const compressedBlob = await comprimirVideoEnNavegador(file, (pct)=>{
+        if(body){ body.textContent = `Comprimiendo… ${Math.round(pct*100)}%`; }
+      });
+      uploadFile = compressedBlob;
+      uploadMime = 'video/webm';
+      if(body){ body.textContent = `${(file.size/1024/1024).toFixed(1)}MB → ${(compressedBlob.size/1024/1024).toFixed(1)}MB. Iniciando subida…`; }
+    } catch(compErr){
+      showError('No se pudo comprimir el video: '+compErr.message+'. Prueba con un video más corto o en formato MP4 H.264 estándar.');
+      return;
+    }
+    if(uploadFile.size > 5.5 * 1024 * 1024){
+      showError(`Aun comprimido el video pesa ${(uploadFile.size/1024/1024).toFixed(1)}MB. El video original es muy largo. Prueba con uno más corto.`);
+      return;
+    }
+  }
 
   try{
     // 1) Iniciar upload — proxy llama a Gemini con la API key y devuelve URL temporal de upload
@@ -3346,8 +3469,8 @@ async function ejecutarBkVideo(key){
         method: 'POST',
         headers: {'Content-Type':'application/json'},
         body: JSON.stringify({
-          mimeType: file.type || 'video/mp4',
-          sizeBytes: file.size,
+          mimeType: uploadMime,
+          sizeBytes: uploadFile.size,
           displayName: file.name
         })
       });
@@ -3367,55 +3490,20 @@ async function ejecutarBkVideo(key){
     //                  Blob de tipo neutral (application/octet-stream) para
     //                  evitar preflight estricto por video/mp4. Si esto
     //                  falla, mostramos un error claro pidiendo comprimir.
-    if(body){ body.textContent = `Subiendo ${(file.size/1024/1024).toFixed(1)}MB…`; }
-    const PROXY_LIMIT = 5.5 * 1024 * 1024; // 5.5MB raw — cabe en body de 6MB de Netlify
+    if(body){ body.textContent = `Subiendo ${(uploadFile.size/1024/1024).toFixed(1)}MB…`; }
     let uploadData = null;
     try {
-      if (file.size <= PROXY_LIMIT) {
-        // Ruta proxy: bytes raw via Netlify Function
-        const resp = await fetch('/.netlify/functions/gemini-upload-chunk', {
-          method: 'POST',
-          headers: {
-            'Content-Type':'application/octet-stream',
-            'X-BK-Upload-Url': uploadUrl
-          },
-          body: file
-        });
-        const data = await resp.json().catch(()=>({error:'Respuesta inválida del proxy'}));
-        if (!resp.ok) throw new Error(data.error || 'HTTP '+resp.status);
-        uploadData = data;
-      } else {
-        // Ruta directa: XHR a Google con Blob de tipo neutral
-        if(body){ body.textContent = `Subiendo ${(file.size/1024/1024).toFixed(1)}MB directo a Google…`; }
-        const arrayBuf = await file.arrayBuffer();
-        const neutralBlob = new Blob([arrayBuf], { type: 'application/octet-stream' });
-        uploadData = await new Promise((resolve, reject)=>{
-          const xhr = new XMLHttpRequest();
-          xhr.open('POST', uploadUrl, true);
-          xhr.setRequestHeader('X-Goog-Upload-Offset', '0');
-          xhr.setRequestHeader('X-Goog-Upload-Command', 'upload, finalize');
-          xhr.upload.onprogress = (e)=>{
-            if(e.lengthComputable && body){
-              const pct = Math.round((e.loaded/e.total)*100);
-              body.textContent = `Subiendo ${(file.size/1024/1024).toFixed(1)}MB directo a Google… ${pct}%`;
-            }
-          };
-          xhr.onload = ()=>{
-            if(xhr.status >= 200 && xhr.status < 300){
-              try { resolve(JSON.parse(xhr.responseText)); }
-              catch(e){ reject(new Error('Respuesta no es JSON: '+xhr.responseText.slice(0,200))); }
-            } else {
-              reject(new Error('HTTP '+xhr.status+': '+xhr.responseText.slice(0,200)));
-            }
-          };
-          xhr.onerror = ()=>{
-            reject(new Error('Tu navegador o red bloquea subidas directas a Google (extensión, ad-blocker o ISP). Comprime el video a 5 MB o menos en https://www.freeconvert.com/video-compressor y vuelve a intentar.'));
-          };
-          xhr.ontimeout = ()=>reject(new Error('Tiempo de espera agotado'));
-          xhr.onabort = ()=>reject(new Error('Upload cancelado'));
-          xhr.send(neutralBlob);
-        });
-      }
+      const resp = await fetch('/.netlify/functions/gemini-upload-chunk', {
+        method: 'POST',
+        headers: {
+          'Content-Type':'application/octet-stream',
+          'X-BK-Upload-Url': uploadUrl
+        },
+        body: uploadFile
+      });
+      const data = await resp.json().catch(()=>({error:'Respuesta inválida del proxy'}));
+      if (!resp.ok) throw new Error(data.error || 'HTTP '+resp.status);
+      uploadData = data;
     } catch (uploadErr) {
       throw new Error('Paso 2 (subida): '+uploadErr.message);
     }
@@ -3454,7 +3542,7 @@ async function ejecutarBkVideo(key){
     const promptText = fillBkPrompt(key);
     let text;
     try {
-      text = await callGeminiProxyVideo(promptText, fileUri, file.type || 'video/mp4');
+      text = await callGeminiProxyVideo(promptText, fileUri, uploadMime);
     } catch(execErr){
       throw new Error('Paso 4 (análisis): '+execErr.message);
     }
