@@ -743,6 +743,32 @@
     .card-title{ font-size:13px }
   }
 
+  /* Sub-tabs en Reportes (Shopify / Meta Ads) */
+  .report-subtabs{display:flex;gap:4px;margin-bottom:24px;border-bottom:1.5px solid var(--border)}
+  .report-subtab{background:none;border:none;border-bottom:2px solid transparent;padding:10px 18px;font-size:12px;color:var(--muted);cursor:pointer;font-family:'DM Mono',monospace;letter-spacing:.8px;margin-bottom:-1.5px;transition:all .15s}
+  .report-subtab:hover{color:var(--text)}
+  .report-subtab.active{border-bottom-color:var(--accent);color:var(--accent);font-weight:600}
+
+  /* KPIs Meta Ads */
+  .meta-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:24px}
+  .meta-kpi{background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:14px 18px}
+  .meta-kpi-label{font-size:9px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px}
+  .meta-kpi-val{font-family:'Syne',sans-serif;font-weight:800;font-size:22px;color:var(--text);line-height:1.1}
+
+  /* Tabla Meta */
+  #meta-table tbody tr{border-bottom:1px solid var(--border);transition:background .15s}
+  #meta-table tbody tr:hover{background:var(--surface2)}
+  #meta-table tbody td{padding:9px 10px;vertical-align:middle}
+  #meta-table tfoot tr{border-top:2px solid var(--border);background:var(--surface2)}
+  #meta-table tfoot td{padding:11px 10px;font-weight:700}
+
+  /* Badges de estado */
+  .meta-badge{display:inline-block;font-size:9px;padding:2px 9px;border-radius:10px;letter-spacing:.5px;text-transform:uppercase;font-weight:600;white-space:nowrap}
+  .meta-badge-active{background:var(--green-soft);color:#3F7F5C;border:1px solid var(--green)}
+  .meta-badge-paused{background:var(--surface2);color:var(--muted);border:1px solid var(--border)}
+  .meta-badge-disabled{background:var(--red-soft);color:#9B4A4A;border:1px solid var(--red)}
+  .meta-badge-archived{background:var(--surface2);color:var(--muted2);border:1px solid var(--border)}
+
   #splash{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:999;transition:opacity .6s ease, visibility .6s ease}
   #splash.hidden{opacity:0;visibility:hidden}
   #splash-logo{font-family:'Syne',sans-serif;font-weight:800;font-size:42px;letter-spacing:-2px;color:var(--accent);opacity:0;transform:translateY(10px);transition:opacity .7s ease, transform .7s ease}
@@ -1161,7 +1187,15 @@
 
 
   <div id="section-reportes" class="section">
-    <div style="max-width:700px;margin:0 auto">
+    <div style="max-width:1100px;margin:0 auto">
+
+      <!-- Sub-tabs Shopify / Meta Ads -->
+      <div class="report-subtabs">
+        <button class="report-subtab active" data-tab="shopify" onclick="switchReportTab('shopify')">📊 Shopify</button>
+        <button class="report-subtab" data-tab="meta" onclick="switchReportTab('meta')">📈 Meta Ads</button>
+      </div>
+
+      <div id="report-tab-shopify" style="max-width:700px">
 
       <!-- Header -->
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px">
@@ -1264,6 +1298,69 @@
         </table></div>
       </div>
 
+      </div><!-- /#report-tab-shopify -->
+
+      <!-- Tab Meta Ads -->
+      <div id="report-tab-meta" style="display:none">
+        <!-- Header Meta -->
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px">
+          <div>
+            <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:22px;color:var(--text)">📈 Meta Ads</div>
+            <div id="meta-account-name" style="font-size:11px;color:var(--muted);margin-top:2px;letter-spacing:.5px"></div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <select id="meta-account-select" onchange="onMetaAccountChange()" style="background:var(--surface);border:1.5px solid var(--border);color:var(--text);padding:6px 12px;border-radius:20px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer;outline:none"></select>
+            <select id="meta-date-preset" onchange="fetchMetaAds()" style="background:var(--surface);border:1.5px solid var(--border);color:var(--text);padding:6px 12px;border-radius:20px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer;outline:none">
+              <option value="today">Hoy</option>
+              <option value="yesterday">Ayer</option>
+              <option value="last_7d" selected>Últimos 7 días</option>
+              <option value="last_30d">Últimos 30 días</option>
+              <option value="this_month">Este mes</option>
+              <option value="last_month">Mes pasado</option>
+            </select>
+            <button onclick="fetchMetaAds()" style="background:#1877F2;color:#fff;border:none;border-radius:20px;padding:7px 16px;font-size:11px;letter-spacing:.5px;cursor:pointer;font-family:'DM Mono',monospace">↻ Actualizar</button>
+          </div>
+        </div>
+
+        <!-- KPIs Meta -->
+        <div class="meta-kpis">
+          <div class="meta-kpi"><div class="meta-kpi-label">GASTADO</div><div id="meta-kpi-spend" class="meta-kpi-val">—</div></div>
+          <div class="meta-kpi"><div class="meta-kpi-label">COMPRAS</div><div id="meta-kpi-purchases" class="meta-kpi-val">—</div></div>
+          <div class="meta-kpi"><div class="meta-kpi-label">VALOR DE COMPRAS</div><div id="meta-kpi-pvalue" class="meta-kpi-val">—</div></div>
+          <div class="meta-kpi"><div class="meta-kpi-label">CPA PROMEDIO</div><div id="meta-kpi-cpa" class="meta-kpi-val">—</div></div>
+          <div class="meta-kpi"><div class="meta-kpi-label">ROAS PROMEDIO</div><div id="meta-kpi-roas" class="meta-kpi-val">—</div></div>
+        </div>
+
+        <!-- Tabla campañas -->
+        <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:14px;overflow:hidden">
+          <div style="padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px">
+            <div style="font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);flex:1">Campañas activas</div>
+            <span id="meta-count" style="font-size:11px;color:var(--muted2);font-family:'DM Mono',monospace"></span>
+          </div>
+          <div id="meta-loading" style="padding:24px;text-align:center;color:var(--muted2);font-size:12px">Cargando...</div>
+          <div id="meta-error" style="display:none;padding:24px 20px;color:var(--peach);font-size:12px;line-height:1.6"></div>
+          <div class="reporte-scroll"><table id="meta-table" style="display:none;width:100%;border-collapse:collapse;font-size:11px">
+            <thead>
+              <tr style="border-bottom:1px solid var(--border);background:var(--surface2)">
+                <th style="text-align:left;padding:10px 14px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">CAMPAÑA</th>
+                <th style="text-align:center;padding:10px 8px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">ESTADO</th>
+                <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">PPTO/DÍA</th>
+                <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">GASTO</th>
+                <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">COMPRAS</th>
+                <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--accent);font-weight:600">CPA</th>
+                <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--accent);font-weight:600">ROAS</th>
+                <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">CTR</th>
+                <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">CPC</th>
+                <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">IMPR.</th>
+                <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">FREC.</th>
+              </tr>
+            </thead>
+            <tbody id="meta-tbody"></tbody>
+            <tfoot id="meta-tfoot"></tfoot>
+          </table></div>
+        </div>
+
+      </div><!-- /#report-tab-meta -->
 
     </div>
   </div>
@@ -5557,7 +5654,211 @@ function initReportes() {
   document.getElementById('reporte-date-to').value = today;
   document.getElementById('reporte-fecha').textContent =
     '📅 ' + new Date().toLocaleDateString('es-CL', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-  fetchShopifyReport();
+  // Restaurar última tab elegida
+  const lastTab = localStorage.getItem('bkdrop_report_tab') || 'shopify';
+  switchReportTab(lastTab);
+  if (lastTab === 'shopify') fetchShopifyReport();
+}
+
+// ── REPORTES — sub-tabs Shopify / Meta Ads ────────────────────────────────────
+
+function switchReportTab(tab){
+  document.querySelectorAll('.report-subtab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  document.getElementById('report-tab-shopify').style.display = tab === 'shopify' ? '' : 'none';
+  document.getElementById('report-tab-meta').style.display    = tab === 'meta'    ? '' : 'none';
+  localStorage.setItem('bkdrop_report_tab', tab);
+  if (tab === 'meta') initMetaTab();
+}
+
+// ── META ADS ──────────────────────────────────────────────────────────────────
+
+let _metaAccountsLoaded = false;
+
+async function initMetaTab(){
+  if (!_metaAccountsLoaded) {
+    await loadMetaAccounts();
+    _metaAccountsLoaded = true;
+  }
+  fetchMetaAds();
+}
+
+async function loadMetaAccounts(){
+  const sel = document.getElementById('meta-account-select');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">Cargando cuentas…</option>';
+  try {
+    const resp = await fetch('/.netlify/functions/meta-ad-accounts');
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'HTTP '+resp.status);
+    const accounts = data.accounts || [];
+    if (!accounts.length){
+      sel.innerHTML = '<option value="">Sin cuentas</option>';
+      return;
+    }
+    const saved = localStorage.getItem('bkdrop_meta_account') || accounts[0].id;
+    sel.innerHTML = accounts.map(a=>{
+      const isActive = a.status === 1;
+      const label = `${a.name} (${a.currency})${isActive ? '' : ' · inactiva'}`;
+      return `<option value="${a.id}" ${a.id === saved ? 'selected':''}>${label}</option>`;
+    }).join('');
+  } catch(err){
+    sel.innerHTML = '<option value="">Error</option>';
+    showMetaError('No se pudieron cargar las cuentas: '+err.message);
+  }
+}
+
+function onMetaAccountChange(){
+  const sel = document.getElementById('meta-account-select');
+  if (sel && sel.value) localStorage.setItem('bkdrop_meta_account', sel.value);
+  fetchMetaAds();
+}
+
+async function fetchMetaAds(){
+  const sel       = document.getElementById('meta-account-select');
+  const presetSel = document.getElementById('meta-date-preset');
+  const accountId = sel ? sel.value : '';
+  const preset    = presetSel ? presetSel.value : 'last_7d';
+  if (!accountId) return;
+
+  const loading = document.getElementById('meta-loading');
+  const errBox  = document.getElementById('meta-error');
+  const table   = document.getElementById('meta-table');
+  const tbody   = document.getElementById('meta-tbody');
+  const tfoot   = document.getElementById('meta-tfoot');
+  const count   = document.getElementById('meta-count');
+
+  if (loading) loading.style.display = '';
+  if (loading) loading.textContent = 'Cargando…';
+  if (errBox) errBox.style.display = 'none';
+  if (table) table.style.display = 'none';
+
+  try {
+    const resp = await fetch(`/.netlify/functions/meta-ads-insights?account_id=${encodeURIComponent(accountId)}&date_preset=${encodeURIComponent(preset)}`);
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'HTTP '+resp.status);
+
+    const rows = data.rows || [];
+    const currency = data.currency || 'USD';
+    document.getElementById('meta-account-name').textContent = data.accountName ? `${data.accountName} · ${currency}` : currency;
+    if (count) count.textContent = `${rows.length} ${rows.length === 1 ? 'campaña' : 'campañas'}`;
+
+    if (loading) loading.style.display = 'none';
+
+    if (rows.length === 0) {
+      if (loading) {
+        loading.style.display = '';
+        loading.textContent = 'Sin campañas con actividad en este período';
+      }
+      renderMetaKpis([], currency);
+      return;
+    }
+
+    rows.sort((a,b)=>b.spend - a.spend);
+    renderMetaTable(rows, currency);
+    renderMetaKpis(rows, currency);
+    if (table) table.style.display = '';
+    if (tfoot) tfoot.innerHTML = renderMetaTotalsRow(rows, currency);
+  } catch(err){
+    showMetaError(err.message || 'Error');
+  }
+}
+
+function showMetaError(msg){
+  const loading = document.getElementById('meta-loading');
+  const errBox  = document.getElementById('meta-error');
+  const table   = document.getElementById('meta-table');
+  if (loading) loading.style.display = 'none';
+  if (table) table.style.display = 'none';
+  if (errBox){
+    errBox.style.display = '';
+    errBox.textContent = '⚠️ ' + msg;
+  }
+}
+
+function renderMetaTable(rows, currency){
+  const tbody = document.getElementById('meta-tbody');
+  if (!tbody) return;
+  tbody.innerHTML = rows.map(r=>{
+    const status = (r.status || '').toUpperCase();
+    let badgeCls = 'meta-badge-paused';
+    let badgeLabel = status.toLowerCase();
+    if (status === 'ACTIVE'){ badgeCls = 'meta-badge-active'; badgeLabel = 'activa'; }
+    else if (status === 'PAUSED'){ badgeCls = 'meta-badge-paused'; badgeLabel = 'pausada'; }
+    else if (status === 'DELETED' || status === 'DISABLED' || status === 'WITH_ISSUES'){ badgeCls = 'meta-badge-disabled'; badgeLabel = status === 'WITH_ISSUES' ? 'con problemas' : status.toLowerCase(); }
+    else if (status === 'ARCHIVED' || status === 'IN_PROCESS'){ badgeCls = 'meta-badge-archived'; badgeLabel = status === 'IN_PROCESS' ? 'en proceso' : 'archivada'; }
+    return `
+      <tr>
+        <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.name)}">${esc(r.name)}</td>
+        <td style="text-align:center"><span class="meta-badge ${badgeCls}">${badgeLabel}</span></td>
+        <td style="text-align:right;color:var(--muted)">${r.dailyBudget ? fmtMoney(r.dailyBudget, currency) : '—'}</td>
+        <td style="text-align:right"><b>${fmtMoney(r.spend, currency)}</b></td>
+        <td style="text-align:right">${fmtNum(r.purchases)}</td>
+        <td style="text-align:right;color:var(--accent);font-weight:600">${r.cpa ? fmtMoney(r.cpa, currency) : '—'}</td>
+        <td style="text-align:right;color:var(--accent);font-weight:600">${r.roas ? Number(r.roas).toFixed(2) + 'x' : '—'}</td>
+        <td style="text-align:right">${r.ctr ? Number(r.ctr).toFixed(2) + '%' : '—'}</td>
+        <td style="text-align:right">${r.cpc ? fmtMoney(r.cpc, currency) : '—'}</td>
+        <td style="text-align:right;color:var(--muted)">${fmtNum(r.impressions)}</td>
+        <td style="text-align:right;color:var(--muted)">${r.frequency ? Number(r.frequency).toFixed(2) : '—'}</td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function renderMetaTotalsRow(rows, currency){
+  const t = rows.reduce((a,r)=>{
+    a.spend += r.spend || 0;
+    a.purchases += r.purchases || 0;
+    a.purchaseValue += r.purchaseValue || 0;
+    a.impressions += r.impressions || 0;
+    a.clicks += r.clicks || 0;
+    return a;
+  }, { spend:0, purchases:0, purchaseValue:0, impressions:0, clicks:0 });
+  const avgCpa = t.purchases > 0 ? t.spend / t.purchases : null;
+  const avgRoas = t.spend > 0 ? t.purchaseValue / t.spend : null;
+  const avgCtr = t.impressions > 0 ? (t.clicks / t.impressions) * 100 : null;
+  const avgCpc = t.clicks > 0 ? t.spend / t.clicks : null;
+  return `
+    <tr>
+      <td>TOTAL</td>
+      <td></td>
+      <td></td>
+      <td style="text-align:right">${fmtMoney(t.spend, currency)}</td>
+      <td style="text-align:right">${fmtNum(t.purchases)}</td>
+      <td style="text-align:right;color:var(--accent)">${avgCpa ? fmtMoney(avgCpa, currency) : '—'}</td>
+      <td style="text-align:right;color:var(--accent)">${avgRoas ? avgRoas.toFixed(2) + 'x' : '—'}</td>
+      <td style="text-align:right">${avgCtr ? avgCtr.toFixed(2) + '%' : '—'}</td>
+      <td style="text-align:right">${avgCpc ? fmtMoney(avgCpc, currency) : '—'}</td>
+      <td style="text-align:right">${fmtNum(t.impressions)}</td>
+      <td></td>
+    </tr>
+  `;
+}
+
+function renderMetaKpis(rows, currency){
+  const t = rows.reduce((a,r)=>{
+    a.spend += r.spend || 0;
+    a.purchases += r.purchases || 0;
+    a.purchaseValue += r.purchaseValue || 0;
+    return a;
+  }, { spend:0, purchases:0, purchaseValue:0 });
+  const avgCpa = t.purchases > 0 ? t.spend / t.purchases : null;
+  const avgRoas = t.spend > 0 ? t.purchaseValue / t.spend : null;
+  document.getElementById('meta-kpi-spend').textContent     = fmtMoney(t.spend, currency);
+  document.getElementById('meta-kpi-purchases').textContent = fmtNum(t.purchases);
+  document.getElementById('meta-kpi-pvalue').textContent    = fmtMoney(t.purchaseValue, currency);
+  document.getElementById('meta-kpi-cpa').textContent       = avgCpa ? fmtMoney(avgCpa, currency) : '—';
+  document.getElementById('meta-kpi-roas').textContent      = avgRoas ? avgRoas.toFixed(2) + 'x' : '—';
+}
+
+function fmtMoney(n, currency){
+  if (n == null) return '—';
+  const sym = currency === 'CLP' ? '$' : currency === 'USD' ? 'US$' : (currency || '') + ' ';
+  const decs = currency === 'CLP' ? 0 : 2;
+  return sym + Number(n).toLocaleString('es-CL', { minimumFractionDigits: decs, maximumFractionDigits: decs });
+}
+function fmtNum(n){
+  if (n == null) return '—';
+  return Number(n).toLocaleString('es-CL');
 }
 </script>
 </body>
