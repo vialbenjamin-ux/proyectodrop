@@ -5898,28 +5898,51 @@ async function initMetaTab(){
   fetchMetaAds();
 }
 
+// Trae las ad accounts con cache de 1h en localStorage. Evita pegarle al
+// endpoint Meta cada vez que se cambia de tab o se refresca.
+async function getAdAccountsCached(){
+  const CACHE_KEY = 'bkdrop_meta_accounts_cache_v2';
+  const TTL = 3600000; // 1 hora
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (raw){
+      const c = JSON.parse(raw);
+      if (c.at && (Date.now() - c.at) < TTL && Array.isArray(c.accounts) && c.accounts.length){
+        return c.accounts;
+      }
+    }
+  } catch {}
+  const resp = await fetch('/.netlify/functions/meta-ad-accounts');
+  const data = await resp.json();
+  if (!resp.ok) throw new Error(data.error || 'HTTP '+resp.status);
+  const accounts = data.accounts || [];
+  if (accounts.length) localStorage.setItem(CACHE_KEY, JSON.stringify({ at: Date.now(), accounts }));
+  return accounts;
+}
+
+function fillAccountSelect(sel, accounts){
+  if (!accounts.length){ sel.innerHTML = '<option value="">Sin cuentas</option>'; return; }
+  const saved = localStorage.getItem('bkdrop_meta_account') || accounts[0].id;
+  sel.innerHTML = accounts.map(a=>{
+    const isActive = a.status === 1;
+    const label = `${a.name} (${a.currency})${isActive ? '' : ' · inactiva'}`;
+    return `<option value="${a.id}" ${a.id === saved ? 'selected':''}>${label}</option>`;
+  }).join('');
+}
+
 async function loadMetaAccounts(){
   const sel = document.getElementById('meta-account-select');
   if (!sel) return;
   sel.innerHTML = '<option value="">Cargando cuentas…</option>';
   try {
-    const resp = await fetch('/.netlify/functions/meta-ad-accounts');
-    const data = await resp.json();
-    if (!resp.ok) throw new Error(data.error || 'HTTP '+resp.status);
-    const accounts = data.accounts || [];
-    if (!accounts.length){
-      sel.innerHTML = '<option value="">Sin cuentas</option>';
-      return;
-    }
-    const saved = localStorage.getItem('bkdrop_meta_account') || accounts[0].id;
-    sel.innerHTML = accounts.map(a=>{
-      const isActive = a.status === 1;
-      const label = `${a.name} (${a.currency})${isActive ? '' : ' · inactiva'}`;
-      return `<option value="${a.id}" ${a.id === saved ? 'selected':''}>${label}</option>`;
-    }).join('');
+    const accounts = await getAdAccountsCached();
+    fillAccountSelect(sel, accounts);
   } catch(err){
     sel.innerHTML = '<option value="">Error</option>';
-    showMetaError('No se pudieron cargar las cuentas: '+err.message);
+    const friendly = /usage_exceeded|rate.?limit|too many/i.test(err.message)
+      ? 'Meta bloqueó las requests por rate limit. Esperá ~1h y refrescá la página.'
+      : err.message;
+    showMetaError('No se pudieron cargar las cuentas: '+friendly);
   }
 }
 
@@ -6362,20 +6385,14 @@ async function loadCrossAccounts(){
   if (!sel) return;
   sel.innerHTML = '<option value="">Cargando cuentas…</option>';
   try {
-    const resp = await fetch('/.netlify/functions/meta-ad-accounts');
-    const data = await resp.json();
-    if (!resp.ok) throw new Error(data.error || 'HTTP '+resp.status);
-    const accounts = data.accounts || [];
-    if (!accounts.length){ sel.innerHTML = '<option value="">Sin cuentas</option>'; return; }
-    const saved = localStorage.getItem('bkdrop_meta_account') || accounts[0].id;
-    sel.innerHTML = accounts.map(a=>{
-      const isActive = a.status === 1;
-      const label = `${a.name} (${a.currency})${isActive ? '' : ' · inactiva'}`;
-      return `<option value="${a.id}" ${a.id === saved ? 'selected':''}>${label}</option>`;
-    }).join('');
+    const accounts = await getAdAccountsCached();
+    fillAccountSelect(sel, accounts);
   } catch(err){
     sel.innerHTML = '<option value="">Error</option>';
-    showCrossError('No se pudieron cargar las cuentas: '+err.message);
+    const friendly = /usage_exceeded|rate.?limit|too many/i.test(err.message)
+      ? 'Meta bloqueó las requests por rate limit. Esperá ~1h y refrescá la página. (Una vez se libere queda en caché 1h en este navegador.)'
+      : err.message;
+    showCrossError('No se pudieron cargar las cuentas: '+friendly);
   }
 }
 
@@ -6431,11 +6448,12 @@ async function fetchCrossReport(){
   if (content) content.style.display = 'none';
 
   try {
-    // Período actual + período anterior en paralelo (este último es opcional)
+    // Período actual: full report. Período anterior: solo summary (mucho más liviano,
+    // ahorra requests a Meta y evita rate limit).
     const prevRange = getPreviousRangeForPreset(preset);
     const currentReq = fetch(`/.netlify/functions/cross-report?account_id=${encodeURIComponent(accountId)}&date_preset=${encodeURIComponent(preset)}`);
     const prevReq = prevRange
-      ? fetch(`/.netlify/functions/cross-report?account_id=${encodeURIComponent(accountId)}&since=${prevRange.since}&until=${prevRange.until}`).catch(()=>null)
+      ? fetch(`/.netlify/functions/cross-report-summary?account_id=${encodeURIComponent(accountId)}&since=${prevRange.since}&until=${prevRange.until}`).catch(()=>null)
       : Promise.resolve(null);
     const [resp, prevResp] = await Promise.all([currentReq, prevReq]);
 
@@ -6444,7 +6462,33 @@ async function fetchCrossReport(){
 
     _crossPrevData = null;
     if (prevResp && prevResp.ok) {
-      try { _crossPrevData = await prevResp.json(); _crossPrevData.label = prevRange.label; } catch {}
+      try {
+        const summary = await prevResp.json();
+        // Adaptar formato summary → estructura esperada por renderCrossKpis
+        _crossPrevData = {
+          kpis: {
+            spend: summary.spend,
+            shopifyMetaOrders: summary.orders,
+            metaPurchases: summary.metaPurchases,
+            metaPurchaseValue: summary.metaPurchaseValue,
+            roasAccount: summary.spend > 0 && summary.revenue > 0 ? summary.revenue / summary.spend : null,
+            roasMeta: summary.spend > 0 && summary.metaPurchaseValue > 0 ? summary.metaPurchaseValue / summary.spend : null,
+          },
+          // Construimos un byProduct sintético con un solo "producto" agregado
+          // para que applyCodMetrics pueda calcular ganancia neta del período anterior
+          byProduct: [{
+            name: '(agregado período anterior)',
+            variantIds: [],
+            qty: summary.orders,
+            orders: summary.orders,
+            revenue: summary.revenue,
+            attributedSpend: summary.spend,
+            unitCost: summary.totalCost != null && summary.orders > 0 ? summary.totalCost / summary.orders : null,
+            totalCost: summary.totalCost,
+          }],
+          label: prevRange.label,
+        };
+      } catch {}
     }
     _crossLastData = data;
     if (loading) loading.style.display = 'none';
