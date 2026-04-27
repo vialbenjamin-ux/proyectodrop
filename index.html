@@ -1507,14 +1507,21 @@
           </div>
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
             <select id="cross-account-select" onchange="onCrossAccountChange()" style="background:var(--surface);border:1.5px solid var(--border);color:var(--text);padding:6px 12px;border-radius:20px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer;outline:none"></select>
-            <select id="cross-date-preset" onchange="fetchCrossReport()" style="background:var(--surface);border:1.5px solid var(--border);color:var(--text);padding:6px 12px;border-radius:20px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer;outline:none">
+            <select id="cross-date-preset" onchange="onCrossPresetChange()" style="background:var(--surface);border:1.5px solid var(--border);color:var(--text);padding:6px 12px;border-radius:20px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer;outline:none">
               <option value="today">Hoy</option>
               <option value="yesterday">Ayer</option>
               <option value="last_7d" selected>Últimos 7 días</option>
               <option value="last_30d">Últimos 30 días</option>
               <option value="this_month">Este mes</option>
               <option value="last_month">Mes pasado</option>
+              <option value="custom">📅 Personalizado…</option>
             </select>
+            <div id="cross-custom-range" style="display:none;align-items:center;gap:6px">
+              <span style="font-size:10px;color:var(--muted);letter-spacing:.5px">Desde</span>
+              <input type="date" id="cross-date-from" onchange="onCrossCustomDateChange()" style="background:var(--surface);border:1.5px solid var(--border);color:var(--text);padding:5px 10px;border-radius:18px;font-size:11px;font-family:'DM Mono',monospace;outline:none;cursor:pointer">
+              <span style="font-size:10px;color:var(--muted);letter-spacing:.5px">Hasta</span>
+              <input type="date" id="cross-date-to" onchange="onCrossCustomDateChange()" style="background:var(--surface);border:1.5px solid var(--border);color:var(--text);padding:5px 10px;border-radius:18px;font-size:11px;font-family:'DM Mono',monospace;outline:none;cursor:pointer">
+            </div>
             <button onclick="fetchCrossReport()" style="background:var(--peach);color:#fff;border:none;border-radius:20px;padding:7px 16px;font-size:11px;letter-spacing:.5px;cursor:pointer;font-family:'DM Mono',monospace">↻ Actualizar</button>
           </div>
         </div>
@@ -6698,6 +6705,45 @@ function onCrossAccountChange(){
   fetchCrossReport();
 }
 
+// Helper para sumar/restar días a una fecha YYYY-MM-DD
+function _crossAddDays(yyyymmdd, n){
+  const d = new Date(yyyymmdd + 'T12:00:00Z');
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().split('T')[0];
+}
+
+// Maneja el cambio del dropdown de preset (incluye custom)
+function onCrossPresetChange(){
+  const preset = document.getElementById('cross-date-preset').value;
+  const customWrap = document.getElementById('cross-custom-range');
+  if (preset === 'custom') {
+    if (customWrap) customWrap.style.display = 'inline-flex';
+    // Si no hay fechas seteadas, defaultear a últimos 7 días
+    const fromInp = document.getElementById('cross-date-from');
+    const toInp = document.getElementById('cross-date-to');
+    if (!fromInp.value || !toInp.value) {
+      const today = new Date().toLocaleString('en-CA', { timeZone: 'America/Santiago' }).split(',')[0].trim();
+      toInp.value = _crossAddDays(today, -1);
+      fromInp.value = _crossAddDays(today, -7);
+    }
+    fetchCrossReport();
+  } else {
+    if (customWrap) customWrap.style.display = 'none';
+    fetchCrossReport();
+  }
+}
+
+function onCrossCustomDateChange(){
+  const from = document.getElementById('cross-date-from').value;
+  const to = document.getElementById('cross-date-to').value;
+  if (!from || !to) return;
+  if (from > to) {
+    alert('La fecha "Desde" no puede ser posterior a "Hasta"');
+    return;
+  }
+  fetchCrossReport();
+}
+
 // Calcula el rango del período anterior equivalente al preset seleccionado
 function getPreviousRangeForPreset(preset){
   const tz = 'America/Santiago';
@@ -6743,11 +6789,29 @@ async function fetchCrossReport(){
   if (warnBox) warnBox.style.display = 'none';
   if (content) content.style.display = 'none';
 
+  // Construir URL del período actual y rango del período anterior
+  let currentUrl, prevRange;
+  if (preset === 'custom') {
+    const since = document.getElementById('cross-date-from')?.value;
+    const until = document.getElementById('cross-date-to')?.value;
+    if (!since || !until) { if (loading) loading.textContent = 'Elegí Desde y Hasta para el rango personalizado'; return; }
+    currentUrl = `/.netlify/functions/cross-report?account_id=${encodeURIComponent(accountId)}&since=${since}&until=${until}`;
+    // Período anterior de igual duración (días totales)
+    const days = Math.round((new Date(until + 'T12:00:00Z') - new Date(since + 'T12:00:00Z')) / 86400000) + 1;
+    prevRange = {
+      since: _crossAddDays(since, -days),
+      until: _crossAddDays(since, -1),
+      label: `${days} día${days === 1 ? '' : 's'} anteriores`
+    };
+  } else {
+    currentUrl = `/.netlify/functions/cross-report?account_id=${encodeURIComponent(accountId)}&date_preset=${encodeURIComponent(preset)}`;
+    prevRange = getPreviousRangeForPreset(preset);
+  }
+
   try {
     // Período actual: full report. Período anterior: solo summary (mucho más liviano,
     // ahorra requests a Meta y evita rate limit).
-    const prevRange = getPreviousRangeForPreset(preset);
-    const currentReq = fetch(`/.netlify/functions/cross-report?account_id=${encodeURIComponent(accountId)}&date_preset=${encodeURIComponent(preset)}`);
+    const currentReq = fetch(currentUrl);
     const prevReq = prevRange
       ? fetch(`/.netlify/functions/cross-report-summary?account_id=${encodeURIComponent(accountId)}&since=${prevRange.since}&until=${prevRange.until}`).catch(()=>null)
       : Promise.resolve(null);
