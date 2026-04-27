@@ -769,6 +769,35 @@
   .meta-badge-disabled{background:var(--red-soft);color:#9B4A4A;border:1px solid var(--red)}
   .meta-badge-archived{background:var(--surface2);color:var(--muted2);border:1px solid var(--border)}
 
+  /* Cruce real */
+  .cross-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:16px}
+  .cross-kpi{background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:14px 16px}
+  .cross-kpi.cross-kpi-real{border-color:var(--accent);background:var(--accent-soft)}
+  .cross-kpi-label{font-size:9px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px}
+  .cross-kpi.cross-kpi-real .cross-kpi-label{color:var(--accent);font-weight:600}
+  .cross-kpi-val{font-family:'Syne',sans-serif;font-weight:800;font-size:22px;color:var(--text);line-height:1.1}
+  .cross-kpi.cross-kpi-real .cross-kpi-val{color:var(--accent)}
+  .cross-kpi-sub{font-size:10px;color:var(--muted2);margin-top:4px;font-family:'DM Mono',monospace}
+
+  .cross-rec{display:flex;gap:10px;align-items:flex-start;padding:9px 0;border-bottom:1px dashed var(--border)}
+  .cross-rec:last-child{border-bottom:none}
+  .cross-rec-emoji{font-size:18px;flex-shrink:0;margin-top:1px}
+  .cross-rec-body{flex:1;min-width:0}
+  .cross-rec-title{font-size:12px;font-weight:600;color:var(--text);margin-bottom:2px}
+  .cross-rec-name{font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;margin-bottom:3px;word-break:break-word}
+  .cross-rec-text{font-size:11px;color:var(--text);line-height:1.5}
+  .cross-rec.cross-rec-burned .cross-rec-title,.cross-rec.cross-rec-turnoff .cross-rec-title{color:#B14747}
+  .cross-rec.cross-rec-scale .cross-rec-title{color:#3F7F5C}
+  .cross-rec.cross-rec-saturated .cross-rec-title,.cross-rec.cross-rec-underreport .cross-rec-title{color:#A6862A}
+  .cross-rec-empty{font-size:11px;color:var(--muted);font-style:italic;padding:8px 0}
+
+  .cross-cost-input{width:80px;background:var(--surface2);border:1.5px solid var(--yellow);color:var(--text);padding:4px 8px;border-radius:8px;font-size:11px;font-family:'DM Mono',monospace;text-align:right;outline:none}
+  .cross-cost-input:focus{border-color:var(--accent);background:var(--surface)}
+  .cross-cost-shopify{color:var(--muted);font-style:italic;font-size:10px}
+
+  .cross-qty-dist{font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;letter-spacing:.3px}
+  .cross-qty-dist b{color:var(--text)}
+
   #splash{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:999;transition:opacity .6s ease, visibility .6s ease}
   #splash.hidden{opacity:0;visibility:hidden}
   #splash-logo{font-family:'Syne',sans-serif;font-weight:800;font-size:42px;letter-spacing:-2px;color:var(--accent);opacity:0;transform:translateY(10px);transition:opacity .7s ease, transform .7s ease}
@@ -1189,10 +1218,11 @@
   <div id="section-reportes" class="section">
     <div style="max-width:1100px;margin:0 auto">
 
-      <!-- Sub-tabs Shopify / Meta Ads -->
+      <!-- Sub-tabs Shopify / Meta Ads / Cruce -->
       <div class="report-subtabs">
         <button class="report-subtab active" data-tab="shopify" onclick="switchReportTab('shopify')">📊 Shopify</button>
         <button class="report-subtab" data-tab="meta" onclick="switchReportTab('meta')">📈 Meta Ads</button>
+        <button class="report-subtab" data-tab="cross" onclick="switchReportTab('cross')">📐 Cruce real</button>
       </div>
 
       <div id="report-tab-shopify" style="max-width:700px">
@@ -1361,6 +1391,98 @@
         </div>
 
       </div><!-- /#report-tab-meta -->
+
+      <!-- Tab Cruce real (Shopify × Meta) -->
+      <div id="report-tab-cross" style="display:none">
+        <!-- Header Cross -->
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:12px">
+          <div>
+            <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:22px;color:var(--text)">📐 Cruce real (Shopify × Meta)</div>
+            <div id="cross-account-name" style="font-size:11px;color:var(--muted);margin-top:2px;letter-spacing:.5px"></div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <select id="cross-account-select" onchange="onCrossAccountChange()" style="background:var(--surface);border:1.5px solid var(--border);color:var(--text);padding:6px 12px;border-radius:20px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer;outline:none"></select>
+            <select id="cross-date-preset" onchange="fetchCrossReport()" style="background:var(--surface);border:1.5px solid var(--border);color:var(--text);padding:6px 12px;border-radius:20px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer;outline:none">
+              <option value="today">Hoy</option>
+              <option value="yesterday">Ayer</option>
+              <option value="last_7d" selected>Últimos 7 días</option>
+              <option value="last_30d">Últimos 30 días</option>
+              <option value="this_month">Este mes</option>
+              <option value="last_month">Mes pasado</option>
+            </select>
+            <button onclick="fetchCrossReport()" style="background:var(--peach);color:#fff;border:none;border-radius:20px;padding:7px 16px;font-size:11px;letter-spacing:.5px;cursor:pointer;font-family:'DM Mono',monospace">↻ Actualizar</button>
+          </div>
+        </div>
+
+        <div id="cross-loading" style="padding:24px;text-align:center;color:var(--muted2);font-size:12px">Cargando…</div>
+        <div id="cross-error" style="display:none;padding:18px 20px;color:var(--peach);font-size:12px;line-height:1.6;background:var(--peach-soft);border:1px solid var(--peach);border-radius:12px;margin-bottom:14px"></div>
+        <div id="cross-warn" style="display:none;padding:12px 16px;color:#A6862A;font-size:11px;line-height:1.5;background:var(--yellow-soft);border:1px solid var(--yellow);border-radius:10px;margin-bottom:14px"></div>
+
+        <div id="cross-content" style="display:none">
+          <!-- KPIs reales -->
+          <div class="cross-kpis">
+            <div class="cross-kpi"><div class="cross-kpi-label">GASTO META</div><div id="cross-kpi-spend" class="cross-kpi-val">—</div></div>
+            <div class="cross-kpi cross-kpi-real"><div class="cross-kpi-label">VENTAS REALES (SHOPIFY)</div><div id="cross-kpi-real-orders" class="cross-kpi-val">—</div><div id="cross-kpi-real-revenue" class="cross-kpi-sub">—</div></div>
+            <div class="cross-kpi cross-kpi-real"><div class="cross-kpi-label">CPA REAL</div><div id="cross-kpi-cpa" class="cross-kpi-val">—</div><div id="cross-kpi-cpa-meta" class="cross-kpi-sub">—</div></div>
+            <div class="cross-kpi cross-kpi-real"><div class="cross-kpi-label">ROAS REAL</div><div id="cross-kpi-roas" class="cross-kpi-val">—</div><div id="cross-kpi-roas-meta" class="cross-kpi-sub">—</div></div>
+            <div class="cross-kpi"><div class="cross-kpi-label">SUBREPORTE META</div><div id="cross-kpi-delta" class="cross-kpi-val">—</div><div id="cross-kpi-delta-sub" class="cross-kpi-sub">—</div></div>
+          </div>
+
+          <!-- Recomendaciones -->
+          <div id="cross-recs-wrap" style="background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:16px 20px;margin-bottom:14px">
+            <div style="font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:12px">💡 Recomendaciones</div>
+            <div id="cross-recs"></div>
+          </div>
+
+          <!-- Tabla por campaña -->
+          <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:14px">
+            <div style="padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px">
+              <div style="font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);flex:1">Por campaña — gasto Meta vs ventas Shopify</div>
+              <span id="cross-camp-count" style="font-size:11px;color:var(--muted2);font-family:'DM Mono',monospace"></span>
+            </div>
+            <div class="reporte-scroll"><table style="width:100%;border-collapse:collapse;font-size:11px">
+              <thead>
+                <tr style="border-bottom:1px solid var(--border);background:var(--surface2)">
+                  <th style="text-align:left;padding:10px 14px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">CAMPAÑA</th>
+                  <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">GASTO</th>
+                  <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">META</th>
+                  <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--accent);font-weight:600">SHOPIFY</th>
+                  <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">Δ%</th>
+                  <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--accent);font-weight:600">CPA REAL</th>
+                  <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--accent);font-weight:600">ROAS REAL</th>
+                  <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">FREC.</th>
+                </tr>
+              </thead>
+              <tbody id="cross-camp-tbody"></tbody>
+            </table></div>
+          </div>
+
+          <!-- Tabla por producto + ofertas Releasit -->
+          <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:14px;overflow:hidden">
+            <div style="padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px">
+              <div style="font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);flex:1">Por producto — ventas atribuidas a Meta</div>
+              <span id="cross-prod-count" style="font-size:11px;color:var(--muted2);font-family:'DM Mono',monospace"></span>
+            </div>
+            <div class="reporte-scroll"><table style="width:100%;border-collapse:collapse;font-size:11px">
+              <thead>
+                <tr style="border-bottom:1px solid var(--border);background:var(--surface2)">
+                  <th style="text-align:left;padding:10px 14px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">PRODUCTO</th>
+                  <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">ÓRDENES</th>
+                  <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">UNIDADES</th>
+                  <th style="text-align:left;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">DISTRIB. (1u·2u·3u)</th>
+                  <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">TICKET PROM.</th>
+                  <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--accent);font-weight:600">REVENUE</th>
+                  <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">GASTO ATRIB.</th>
+                  <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--accent);font-weight:600">CPA</th>
+                  <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--accent);font-weight:600">ROAS</th>
+                </tr>
+              </thead>
+              <tbody id="cross-prod-tbody"></tbody>
+            </table></div>
+          </div>
+        </div>
+
+      </div><!-- /#report-tab-cross -->
 
     </div>
   </div>
@@ -5666,8 +5788,10 @@ function switchReportTab(tab){
   document.querySelectorAll('.report-subtab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
   document.getElementById('report-tab-shopify').style.display = tab === 'shopify' ? '' : 'none';
   document.getElementById('report-tab-meta').style.display    = tab === 'meta'    ? '' : 'none';
+  document.getElementById('report-tab-cross').style.display   = tab === 'cross'   ? '' : 'none';
   localStorage.setItem('bkdrop_report_tab', tab);
-  if (tab === 'meta') initMetaTab();
+  if (tab === 'meta')  initMetaTab();
+  if (tab === 'cross') initCrossTab();
 }
 
 // ── META ADS ──────────────────────────────────────────────────────────────────
@@ -5859,6 +5983,267 @@ function fmtMoney(n, currency){
 function fmtNum(n){
   if (n == null) return '—';
   return Number(n).toLocaleString('es-CL');
+}
+
+// ── CRUCE REAL (Shopify × Meta) ───────────────────────────────────────────────
+
+const CROSS_COST_OVERRIDES_KEY = 'bkdrop_cross_cost_overrides';
+let _crossLastData = null;
+let _crossAccountsLoaded = false;
+
+function getCostOverrides(){
+  try { return JSON.parse(localStorage.getItem(CROSS_COST_OVERRIDES_KEY) || '{}'); }
+  catch { return {}; }
+}
+function setCostOverride(productKey, value){
+  const all = getCostOverrides();
+  if (value == null || value === '' || isNaN(value)) delete all[productKey];
+  else all[productKey] = parseFloat(value);
+  localStorage.setItem(CROSS_COST_OVERRIDES_KEY, JSON.stringify(all));
+}
+
+async function initCrossTab(){
+  if (!_crossAccountsLoaded){
+    await loadCrossAccounts();
+    _crossAccountsLoaded = true;
+  }
+  fetchCrossReport();
+}
+
+async function loadCrossAccounts(){
+  const sel = document.getElementById('cross-account-select');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">Cargando cuentas…</option>';
+  try {
+    const resp = await fetch('/.netlify/functions/meta-ad-accounts');
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'HTTP '+resp.status);
+    const accounts = data.accounts || [];
+    if (!accounts.length){ sel.innerHTML = '<option value="">Sin cuentas</option>'; return; }
+    const saved = localStorage.getItem('bkdrop_meta_account') || accounts[0].id;
+    sel.innerHTML = accounts.map(a=>{
+      const isActive = a.status === 1;
+      const label = `${a.name} (${a.currency})${isActive ? '' : ' · inactiva'}`;
+      return `<option value="${a.id}" ${a.id === saved ? 'selected':''}>${label}</option>`;
+    }).join('');
+  } catch(err){
+    sel.innerHTML = '<option value="">Error</option>';
+    showCrossError('No se pudieron cargar las cuentas: '+err.message);
+  }
+}
+
+function onCrossAccountChange(){
+  const sel = document.getElementById('cross-account-select');
+  if (sel && sel.value) localStorage.setItem('bkdrop_meta_account', sel.value);
+  fetchCrossReport();
+}
+
+async function fetchCrossReport(){
+  const accountId = document.getElementById('cross-account-select')?.value;
+  const preset    = document.getElementById('cross-date-preset')?.value || 'last_7d';
+  if (!accountId) return;
+
+  const loading = document.getElementById('cross-loading');
+  const errBox  = document.getElementById('cross-error');
+  const warnBox = document.getElementById('cross-warn');
+  const content = document.getElementById('cross-content');
+
+  if (loading){ loading.style.display = ''; loading.textContent = 'Cruzando datos de Shopify y Meta… (puede tardar 10-20s)'; }
+  if (errBox)  errBox.style.display = 'none';
+  if (warnBox) warnBox.style.display = 'none';
+  if (content) content.style.display = 'none';
+
+  try {
+    const resp = await fetch(`/.netlify/functions/cross-report?account_id=${encodeURIComponent(accountId)}&date_preset=${encodeURIComponent(preset)}`);
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'HTTP '+resp.status);
+
+    _crossLastData = data;
+    if (loading) loading.style.display = 'none';
+    if (content) content.style.display = '';
+
+    // Mostrar warnings útiles si corresponde
+    const warnings = [];
+    if (!data.kpis.costsAvailable && data.byProduct.length > 0){
+      warnings.push('⚠️ No se pudieron leer los costos desde Shopify (¿el token tiene permiso <code>read_inventory</code>?). Podés ingresar el costo manualmente en cada fila — se guarda en este navegador.');
+    } else if (data.kpis.productsWithoutCost > 0){
+      warnings.push(`💡 ${data.kpis.productsWithoutCost} producto(s) sin costo configurado en Shopify. Ingresalo en la columna "Costo" para calcular margen real.`);
+    }
+    if (data.kpis.unmatchedMetaOrders > 0){
+      warnings.push(`📋 ${data.kpis.unmatchedMetaOrders} orden(es) con utm_source=meta pero sin <code>utm_campaign</code> trackeable. Para mejor matching, configurá los URL parameters de tus ads con <code>utm_campaign={{campaign.id}}</code>.`);
+    }
+    if (warnings.length && warnBox){
+      warnBox.style.display = '';
+      warnBox.innerHTML = warnings.join('<br><br>');
+    }
+
+    document.getElementById('cross-account-name').textContent = data.accountName ? `${data.accountName} · ${data.currency} · ${data.dateFrom} a ${data.dateTo}` : `${data.currency} · ${data.dateFrom} a ${data.dateTo}`;
+
+    renderCrossKpis(data);
+    renderCrossRecs(data);
+    renderCrossCampaignsTable(data);
+    renderCrossProductsTable(data);
+  } catch(err){
+    showCrossError(err.message || 'Error');
+  }
+}
+
+function showCrossError(msg){
+  const loading = document.getElementById('cross-loading');
+  const errBox  = document.getElementById('cross-error');
+  const content = document.getElementById('cross-content');
+  if (loading) loading.style.display = 'none';
+  if (content) content.style.display = 'none';
+  if (errBox){ errBox.style.display = ''; errBox.textContent = '⚠️ '+msg; }
+}
+
+function renderCrossKpis(data){
+  const k = data.kpis;
+  const cur = data.currency;
+  document.getElementById('cross-kpi-spend').textContent       = fmtMoney(k.spend, cur);
+  document.getElementById('cross-kpi-real-orders').textContent = fmtNum(k.shopifyMetaOrders) + ' órd.';
+  document.getElementById('cross-kpi-real-revenue').textContent= fmtMoney(k.shopifyMetaRevenue, cur);
+  document.getElementById('cross-kpi-cpa').textContent         = k.cpaAccount ? fmtMoney(k.cpaAccount, cur) : '—';
+  document.getElementById('cross-kpi-cpa-meta').textContent    = k.cpaMeta ? `Meta: ${fmtMoney(k.cpaMeta, cur)}` : 'Meta: —';
+  document.getElementById('cross-kpi-roas').textContent        = k.roasAccount ? k.roasAccount.toFixed(2) + 'x' : '—';
+  document.getElementById('cross-kpi-roas-meta').textContent   = k.roasMeta ? `Meta: ${k.roasMeta.toFixed(2)}x` : 'Meta: —';
+
+  const delta = k.shopifyMetaOrders - k.metaPurchases;
+  const deltaPct = k.shopifyMetaOrders > 0 ? (delta / k.shopifyMetaOrders) * 100 : 0;
+  document.getElementById('cross-kpi-delta').textContent = (delta >= 0 ? '+' : '') + fmtNum(delta);
+  document.getElementById('cross-kpi-delta-sub').textContent = k.shopifyMetaOrders > 0
+    ? `${deltaPct >= 0 ? '+' : ''}${deltaPct.toFixed(0)}% vs reportado por Meta`
+    : 'Sin ventas Meta en período';
+}
+
+function renderCrossRecs(data){
+  const wrap = document.getElementById('cross-recs');
+  const recs = data.recommendations || [];
+  if (recs.length === 0){
+    wrap.innerHTML = '<div class="cross-rec-empty">Sin alertas. Las campañas están dentro de los umbrales saludables.</div>';
+    return;
+  }
+  wrap.innerHTML = recs.map(r=>`
+    <div class="cross-rec cross-rec-${r.type}">
+      <div class="cross-rec-emoji">${r.emoji}</div>
+      <div class="cross-rec-body">
+        <div class="cross-rec-title">${esc(r.title)}</div>
+        <div class="cross-rec-name">${esc(r.campaign)}</div>
+        <div class="cross-rec-text">${esc(r.body)}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderCrossCampaignsTable(data){
+  const tbody = document.getElementById('cross-camp-tbody');
+  const count = document.getElementById('cross-camp-count');
+  const rows = (data.byCampaign || []).filter(r => r.spend > 0);
+  if (count) count.textContent = `${rows.length} ${rows.length === 1 ? 'campaña' : 'campañas'}`;
+  if (rows.length === 0){
+    tbody.innerHTML = '<tr><td colspan="8" style="padding:24px;text-align:center;color:var(--muted2)">Sin campañas con gasto en este período</td></tr>';
+    return;
+  }
+  const cur = data.currency;
+  tbody.innerHTML = rows.map(r=>{
+    const deltaClass = r.deltaPct > 0.30 ? 'color:#B14747;font-weight:600' : (r.deltaPct < -0.10 ? 'color:#3F7F5C' : 'color:var(--muted)');
+    return `
+      <tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:9px 14px;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.name)}">${esc(r.name)}</td>
+        <td style="text-align:right;padding:9px 10px"><b>${fmtMoney(r.spend, cur)}</b></td>
+        <td style="text-align:right;padding:9px 10px">${fmtNum(r.metaPurchases)}</td>
+        <td style="text-align:right;padding:9px 10px;color:var(--accent);font-weight:600">${fmtNum(r.realPurchases)}</td>
+        <td style="text-align:right;padding:9px 10px;${deltaClass}">${r.metaPurchases || r.realPurchases ? (r.deltaPct >= 0 ? '+' : '') + (r.deltaPct * 100).toFixed(0) + '%' : '—'}</td>
+        <td style="text-align:right;padding:9px 10px;color:var(--accent);font-weight:600">${r.cpaReal ? fmtMoney(r.cpaReal, cur) : '—'}</td>
+        <td style="text-align:right;padding:9px 10px;color:${r.roasReal && r.roasReal > 2 ? '#3F7F5C' : (r.roasReal && r.roasReal < 1.5 ? '#B14747' : 'var(--accent)')};font-weight:600">${r.roasReal ? r.roasReal.toFixed(2) + 'x' : '—'}</td>
+        <td style="text-align:right;padding:9px 10px;color:${r.frequency > 4 ? '#A6862A' : 'var(--muted)'}">${r.frequency ? r.frequency.toFixed(2) : '—'}</td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function renderCrossProductsTable(data){
+  const tbody = document.getElementById('cross-prod-tbody');
+  const count = document.getElementById('cross-prod-count');
+  const rows = data.byProduct || [];
+  if (count) count.textContent = `${rows.length} ${rows.length === 1 ? 'producto' : 'productos'}`;
+  if (rows.length === 0){
+    tbody.innerHTML = '<tr><td colspan="9" style="padding:24px;text-align:center;color:var(--muted2)">Sin ventas atribuidas a Meta en este período</td></tr>';
+    return;
+  }
+  const cur = data.currency;
+  const overrides = getCostOverrides();
+
+  tbody.innerHTML = rows.map((r, idx)=>{
+    const dist = formatQtyDist(r.qtyDistribution);
+    // Resolver costo: override del usuario > Shopify > null
+    const overrideKey = (r.variantIds && r.variantIds.length) ? 'v:' + r.variantIds[0] : 'p:' + r.name;
+    const override = overrides[overrideKey];
+    const effectiveUnitCost = override != null ? override : r.unitCost;
+    const effectiveTotalCost = effectiveUnitCost != null ? effectiveUnitCost * r.qty : null;
+    const grossProfit = effectiveTotalCost != null ? r.revenue - effectiveTotalCost : null;
+    const netProfit = grossProfit != null ? grossProfit - r.attributedSpend : null;
+
+    let costCell;
+    if (effectiveUnitCost == null){
+      costCell = `<input type="number" class="cross-cost-input" placeholder="costo" data-key="${overrideKey}" data-row="${idx}" step="any" min="0" onchange="onCrossCostChange(this)">`;
+    } else {
+      const fromShopify = r.unitCost != null && override == null;
+      costCell = `<span style="font-weight:600">${fmtMoney(effectiveUnitCost, cur)}</span>` +
+        (fromShopify ? `<div class="cross-cost-shopify">desde Shopify</div>` : '') +
+        (override != null ? `<a href="#" onclick="onCrossCostReset('${overrideKey}'); return false" style="font-size:9px;color:var(--muted);text-decoration:underline;display:block">×</a>` : '') +
+        ` <input type="number" class="cross-cost-input" style="display:none" placeholder="costo" data-key="${overrideKey}" data-row="${idx}" step="any" min="0" onchange="onCrossCostChange(this)">`;
+    }
+
+    const npClass = netProfit != null ? (netProfit > 0 ? 'color:#3F7F5C;font-weight:600' : 'color:#B14747;font-weight:600') : 'color:var(--muted)';
+    const marginPct = effectiveUnitCost != null && r.revenue > 0 ? ((grossProfit/r.revenue)*100).toFixed(0) : null;
+
+    return `
+      <tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:9px 14px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.name)}">${esc(r.name)}</td>
+        <td style="text-align:right;padding:9px 10px">${fmtNum(r.orders)}</td>
+        <td style="text-align:right;padding:9px 10px">${fmtNum(r.qty)}</td>
+        <td style="padding:9px 10px;font-size:10px"><span class="cross-qty-dist">${dist}</span></td>
+        <td style="text-align:right;padding:9px 10px">${fmtMoney(r.avgTicket, cur)}</td>
+        <td style="text-align:right;padding:9px 10px;color:var(--accent);font-weight:600">${fmtMoney(r.revenue, cur)}</td>
+        <td style="text-align:right;padding:9px 10px;color:var(--muted)">${fmtMoney(r.attributedSpend, cur)}</td>
+        <td style="text-align:right;padding:9px 10px">${costCell}</td>
+        <td style="text-align:right;padding:9px 10px;${npClass}">${netProfit != null ? fmtMoney(netProfit, cur) + (marginPct != null ? `<div style="font-size:9px;color:var(--muted);font-weight:400">margen ${marginPct}%</div>` : '') : '—'}</td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function formatQtyDist(dist){
+  if (!dist) return '—';
+  const entries = Object.entries(dist).sort((a,b)=>parseInt(a[0])-parseInt(b[0]));
+  if (entries.length === 0) return '—';
+  return entries.map(([q,n])=>`<b>${q}u</b>:${n}`).join(' · ');
+}
+
+function onCrossCostChange(input){
+  const key = input.dataset.key;
+  const val = input.value.trim();
+  setCostOverride(key, val);
+  // Re-render con datos cacheados
+  if (_crossLastData) {
+    renderCrossProductsTable(_crossLastData);
+    // Recalcular ganancia neta total con overrides aplicados (solo el KPI)
+    recalcNetProfitKpi(_crossLastData);
+  }
+}
+
+function onCrossCostReset(key){
+  setCostOverride(key, null);
+  if (_crossLastData) {
+    renderCrossProductsTable(_crossLastData);
+    recalcNetProfitKpi(_crossLastData);
+  }
+}
+
+function recalcNetProfitKpi(data){
+  // Por ahora la rentabilidad neta total no se muestra como KPI separado,
+  // pero dejamos el hook listo si después agregamos la card.
 }
 </script>
 </body>
