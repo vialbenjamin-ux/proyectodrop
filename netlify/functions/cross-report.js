@@ -198,6 +198,8 @@ exports.handler = async (event) => {
       const deltaPct = ins.metaPurchases > 0 || realPurchases > 0
         ? (realPurchases - ins.metaPurchases) / Math.max(realPurchases, ins.metaPurchases || 1)
         : 0;
+      // Calcular unidades totales vendidas en esta campaña (suma de todos los productos)
+      const realUnits = Object.values(shop.byProduct || {}).reduce((s, p) => s + (p.qty || 0), 0);
       byCampaign.push({
         id: cid,
         name: camp.name,
@@ -211,7 +213,8 @@ exports.handler = async (event) => {
         frequency: ins.frequency,
         metaPurchases: ins.metaPurchases,
         metaPurchaseValue: ins.metaPurchaseValue,
-        realPurchases,
+        realPurchases,                      // órdenes únicas
+        realUnits,                          // unidades totales (combos suman más)
         realRevenue,
         cpaReal,
         roasReal,

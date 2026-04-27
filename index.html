@@ -814,6 +814,10 @@
   .cross-qty-dist{font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;letter-spacing:.3px}
   .cross-qty-dist b{color:var(--text)}
 
+  .cross-camp-row .cross-chevron{display:inline-block;margin-right:4px;color:var(--muted2);font-size:9px;transition:transform .2s;width:10px}
+  .cross-camp-row.expanded .cross-chevron{transform:rotate(90deg);color:var(--accent)}
+  .cross-camp-row:hover{background:var(--surface2)}
+
   #splash{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:999;transition:opacity .6s ease, visibility .6s ease}
   #splash.hidden{opacity:0;visibility:hidden}
   #splash-logo{font-family:'Syne',sans-serif;font-weight:800;font-size:42px;letter-spacing:-2px;color:var(--accent);opacity:0;transform:translateY(10px);transition:opacity .7s ease, transform .7s ease}
@@ -1464,7 +1468,7 @@
           <!-- Tabla por campaña -->
           <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:14px">
             <div style="padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px">
-              <div style="font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);flex:1">Por campaña — gasto Meta vs ventas Shopify</div>
+              <div style="font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);flex:1">Por campaña — gasto Meta vs ventas Shopify <span style="font-weight:400;text-transform:none;letter-spacing:.3px">· click en una fila para ver productos vendidos</span></div>
               <span id="cross-camp-count" style="font-size:11px;color:var(--muted2);font-family:'DM Mono',monospace"></span>
             </div>
             <div class="reporte-scroll"><table style="width:100%;border-collapse:collapse;font-size:11px">
@@ -1472,8 +1476,9 @@
                 <tr style="border-bottom:1px solid var(--border);background:var(--surface2)">
                   <th style="text-align:left;padding:10px 14px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">CAMPAÑA</th>
                   <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">GASTO</th>
-                  <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">META</th>
-                  <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--accent);font-weight:600">SHOPIFY</th>
+                  <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500" title="Compras según el pixel/CAPI de Meta">META</th>
+                  <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--accent);font-weight:600" title="Órdenes únicas en Shopify atribuidas a esta campaña">ÓRDENES</th>
+                  <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500" title="Unidades totales vendidas (puede ser más que órdenes si se venden combos)">UNIDADES</th>
                   <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">Δ%</th>
                   <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--accent);font-weight:600">CPA REAL</th>
                   <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--accent);font-weight:600">ROAS REAL</th>
@@ -6286,25 +6291,74 @@ function renderCrossCampaignsTable(data){
   const rows = (data.byCampaign || []).filter(r => r.spend > 0);
   if (count) count.textContent = `${rows.length} ${rows.length === 1 ? 'campaña' : 'campañas'}`;
   if (rows.length === 0){
-    tbody.innerHTML = '<tr><td colspan="8" style="padding:24px;text-align:center;color:var(--muted2)">Sin campañas con gasto en este período</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9" style="padding:24px;text-align:center;color:var(--muted2)">Sin campañas con gasto en este período</td></tr>';
     return;
   }
   const cur = data.currency;
-  tbody.innerHTML = rows.map(r=>{
+  tbody.innerHTML = rows.map((r, idx)=>{
     const deltaClass = r.deltaPct > 0.30 ? 'color:#B14747;font-weight:600' : (r.deltaPct < -0.10 ? 'color:#3F7F5C' : 'color:var(--muted)');
+    const products = r.attributedProducts || {};
+    const productKeys = Object.keys(products);
+    const hasProducts = productKeys.length > 0;
     return `
-      <tr style="border-bottom:1px solid var(--border)">
-        <td style="padding:9px 14px;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.name)}">${esc(r.name)}</td>
+      <tr class="cross-camp-row" data-idx="${idx}" ${hasProducts ? `onclick="toggleCrossCamp(${idx})"` : ''} style="border-bottom:1px solid var(--border);${hasProducts ? 'cursor:pointer' : ''}">
+        <td style="padding:9px 14px;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.name)}">${hasProducts ? '<span class="cross-chevron">▶</span>' : '<span style="display:inline-block;width:14px"></span>'}${esc(r.name)}</td>
         <td style="text-align:right;padding:9px 10px"><b>${fmtMoney(r.spend, cur)}</b></td>
-        <td style="text-align:right;padding:9px 10px">${fmtNum(r.metaPurchases)}</td>
-        <td style="text-align:right;padding:9px 10px;color:var(--accent);font-weight:600">${fmtNum(r.realPurchases)}</td>
+        <td style="text-align:right;padding:9px 10px;color:var(--muted)" title="Compras del pixel/CAPI de Meta">${fmtNum(r.metaPurchases)}</td>
+        <td style="text-align:right;padding:9px 10px;color:var(--accent);font-weight:600" title="Órdenes únicas en Shopify">${fmtNum(r.realPurchases)}</td>
+        <td style="text-align:right;padding:9px 10px;color:var(--text)" title="Unidades totales (puede ser mayor por combos)">${fmtNum(r.realUnits || 0)}</td>
         <td style="text-align:right;padding:9px 10px;${deltaClass}">${r.metaPurchases || r.realPurchases ? (r.deltaPct >= 0 ? '+' : '') + (r.deltaPct * 100).toFixed(0) + '%' : '—'}</td>
         <td style="text-align:right;padding:9px 10px;color:var(--accent);font-weight:600">${r.cpaReal ? fmtMoney(r.cpaReal, cur) : '—'}</td>
         <td style="text-align:right;padding:9px 10px;color:${r.roasReal && r.roasReal > 2 ? '#3F7F5C' : (r.roasReal && r.roasReal < 1.5 ? '#B14747' : 'var(--accent)')};font-weight:600">${r.roasReal ? r.roasReal.toFixed(2) + 'x' : '—'}</td>
         <td style="text-align:right;padding:9px 10px;color:${r.frequency > 4 ? '#A6862A' : 'var(--muted)'}">${r.frequency ? r.frequency.toFixed(2) : '—'}</td>
       </tr>
+      ${hasProducts ? `
+        <tr class="cross-camp-products-row" id="cross-camp-products-${idx}" style="display:none;background:var(--surface2)">
+          <td colspan="9" style="padding:0">
+            <div style="padding:14px 20px 18px;background:linear-gradient(180deg,#F0EDE8 0%,var(--surface2) 100%);border-bottom:1px solid var(--border)">
+              <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);font-weight:600;margin-bottom:10px">📦 Productos vendidos en esta campaña</div>
+              <table style="width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden">
+                <thead>
+                  <tr style="background:var(--surface2)">
+                    <th style="text-align:left;padding:8px 12px;font-size:9px;letter-spacing:.8px;text-transform:uppercase;color:var(--muted);font-weight:600">PRODUCTO</th>
+                    <th style="text-align:right;padding:8px 12px;font-size:9px;letter-spacing:.8px;text-transform:uppercase;color:var(--muted);font-weight:600">UNIDADES</th>
+                    <th style="text-align:right;padding:8px 12px;font-size:9px;letter-spacing:.8px;text-transform:uppercase;color:var(--accent);font-weight:600">REVENUE</th>
+                    <th style="text-align:right;padding:8px 12px;font-size:9px;letter-spacing:.8px;text-transform:uppercase;color:var(--muted);font-weight:600">% DEL TOTAL</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${productKeys.map(k => {
+                    const p = products[k];
+                    const pct = r.realRevenue > 0 ? (p.revenue / r.realRevenue * 100).toFixed(0) : 0;
+                    return `<tr style="border-top:1px solid var(--border)">
+                      <td style="padding:8px 12px;font-size:11px;max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(k)}">${esc(k)}</td>
+                      <td style="text-align:right;padding:8px 12px;font-size:11px"><b>${fmtNum(p.qty)}</b></td>
+                      <td style="text-align:right;padding:8px 12px;font-size:11px;color:var(--accent)">${fmtMoney(p.revenue, cur)}</td>
+                      <td style="text-align:right;padding:8px 12px;font-size:10px;color:var(--muted)">${pct}%</td>
+                    </tr>`;
+                  }).join('')}
+                </tbody>
+              </table>
+            </div>
+          </td>
+        </tr>
+      ` : ''}
     `;
   }).join('');
+}
+
+function toggleCrossCamp(idx){
+  const row = document.querySelector(`tr.cross-camp-row[data-idx="${idx}"]`);
+  const productsRow = document.getElementById('cross-camp-products-' + idx);
+  if (!row || !productsRow) return;
+  const isOpen = row.classList.contains('expanded');
+  if (isOpen){
+    row.classList.remove('expanded');
+    productsRow.style.display = 'none';
+  } else {
+    row.classList.add('expanded');
+    productsRow.style.display = '';
+  }
 }
 
 function renderCrossProductsTable(data){
