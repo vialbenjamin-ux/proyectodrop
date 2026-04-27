@@ -409,6 +409,10 @@
   .bk-prompt-card.tone-imagenes::before{background:#B07CDB}
   .bk-prompt-card.tone-imagenes .bk-prompt-card-icon{background:#F5EAFB;border-color:#B07CDB;color:#8B5FB5}
   .bk-prompt-card.tone-imagenes .bk-prompt-copy-big{background:#B07CDB}
+  .bk-prompt-card.tone-imagenes5{border-color:#C9B6E8}
+  .bk-prompt-card.tone-imagenes5::before{background:#7B3FB5}
+  .bk-prompt-card.tone-imagenes5 .bk-prompt-card-icon{background:#EBDDF7;border-color:#7B3FB5;color:#5C2D8A}
+  .bk-prompt-card.tone-imagenes5 .bk-prompt-copy-big{background:#7B3FB5}
   .bk-prompt-card.tone-master{border-color:#F7D9CE}
   .bk-prompt-card.tone-master::before{background:#F0907A}
   .bk-prompt-card.tone-master .bk-prompt-card-icon{background:var(--peach-soft);border-color:#F0907A;color:#C4674F}
@@ -1154,6 +1158,31 @@
               <button class="bk-prompt-output-close" onclick="closeBkOutput('imagenes')" title="Cerrar">✕</button>
             </div>
             <div class="bk-prompt-output-body" id="bk-output-body-imagenes"></div>
+          </div>
+        </div>
+
+        <div class="bk-prompt-card tone-imagenes5">
+          <div class="bk-prompt-card-head">
+            <div class="bk-prompt-card-icon">🎯</div>
+            <div>
+              <div class="bk-prompt-card-tag">5 ángulos en 1</div>
+              <div class="bk-prompt-card-title">Imágenes x5 Pro</div>
+            </div>
+          </div>
+          <div class="bk-prompt-card-desc">Pegas el link o descripción del producto y recibes 5 prompts de imagen listos — uno por ángulo de venta — sin pasos intermedios.</div>
+          <div class="bk-prompt-card-actions">
+            <button class="bk-prompt-copy-big" id="bk-copy-imagenes5" onclick="ejecutarBkPrompt('imagenes5')">▶ Ejecutar</button>
+            <button class="bk-prompt-view-btn" onclick="copyBkPrompt('imagenes5')" title="Solo copiar sin abrir">📋</button>
+            <button class="bk-prompt-view-btn" onclick="toggleBkPrompt('imagenes5')">Ver</button>
+          </div>
+          <div class="bk-prompt-full" id="bk-full-imagenes5"></div>
+          <div class="bk-prompt-output" id="bk-output-imagenes5">
+            <div class="bk-prompt-output-head">
+              <span class="bk-prompt-output-label" id="bk-output-label-imagenes5">Respuesta de Gemini</span>
+              <button class="bk-prompt-output-copy" id="bk-output-copy-imagenes5" onclick="copyBkOutput('imagenes5')">📋 Copiar</button>
+              <button class="bk-prompt-output-close" onclick="closeBkOutput('imagenes5')" title="Cerrar">✕</button>
+            </div>
+            <div class="bk-prompt-output-body" id="bk-output-body-imagenes5"></div>
           </div>
         </div>
 
@@ -3086,6 +3115,54 @@ Escena natural y creíble, nunca exagerada
 Persona del público objetivo alineada al ángulo de venta
 Responder SOLO con el prompt, nada más`,
 
+  imagenes5: `🎯 MASTER IMAGE PROMPT — 5 ÁNGULOS EN UN SOLO PASO
+Actúa como experto en marketing digital, copywriting para e-commerce y performance ads (Meta Ads + TikTok Ads).
+Analiza la landing page o descripción de producto entre corchetes [ ] al final de este prompt y genera EXACTAMENTE 5 prompts de imagen publicitaria listos para copiar/pegar en una IA generadora de imágenes (DALL·E, Imagen, Midjourney, etc.), uno por cada ángulo de venta.
+
+🎯 REGLAS DE LOS ÁNGULOS:
+- Ángulo 1: el ángulo PRINCIPAL identificado directamente en la landing/descripción del producto.
+- Ángulos 2-5: ángulos NUEVOS creados por ti, dirigidos a distintos tipos de clientes, beneficios o momentos de uso.
+- Cada ángulo debe apuntar a un público objetivo distinto (35-60 años, definido por contexto de uso).
+
+📤 FORMATO DE SALIDA OBLIGATORIO:
+
+Para cada uno de los 5 ángulos, devolver un bloque con esta estructura exacta:
+
+═══════════════════════════════════
+🅰️ ÁNGULO [N]: [Nombre corto del ángulo]
+👥 Nicho: [máx 4 palabras]
+😣 Problema: [dolor que resuelve, en 1 línea]
+✨ Beneficio: [transformación principal, en 1 línea]
+
+🖼️ PROMPT IMAGEN:
+Fotografía publicitaria, calidad premium 8K, formato cuadrado 1:1, optimizada para Meta Ads y TikTok Ads.
+Primer plano: [PRODUCTO] perfectamente enfocado, iluminación de estudio con sombras suaves y reflejos realistas. Materiales reales respetados.
+Fondo: Escena aspiracional ligeramente desenfocada con [DESCRIPCIÓN ESPECÍFICA DEL PÚBLICO OBJETIVO DE ESTE ÁNGULO: edad, género, contexto] usando o interactuando con el producto. Expresión de [satisfacción/alivio/confianza, según el ángulo]. Atmósfera hogareña, cálida y creíble — nunca exagerada.
+Textos gráficos sobre la imagen:
+🔥 [DESCUENTO]% OFF — esquina superior derecha
+Título bold máximo 5 palabras: "[PROBLEMA EN PREGUNTA, derivado del ángulo]"
+Subtítulo máximo 6 palabras debajo: "[BENEFICIO directo y poderoso]"
+Cinta central: ¡OFERTA ESPECIAL!
+Estilo visual: Fotografía cinematográfica, luz cálida y profesional, profundidad de campo, fondo ligeramente desenfocado, colores acordes al producto, tipografía bold de alto contraste, estética premium ultra realista 8K, composición que detiene el scroll.
+═══════════════════════════════════
+
+⚠️ REGLAS FIJAS DEL PROMPT DE IMAGEN (no romper):
+- Sin lista lateral de beneficios con ✔
+- Título máximo 5 palabras
+- Subtítulo máximo 6 palabras
+- 🔥 descuento SIEMPRE en esquina superior derecha
+- Escena natural y creíble, nunca exagerada
+- Persona del público objetivo alineada al ángulo de venta
+- El placeholder [DESCUENTO] queda tal cual (lo rellena el usuario al copiar)
+- El placeholder [PRODUCTO] se reemplaza por el nombre real del producto
+
+⚠️ REGLAS DE OUTPUT:
+- Responder SOLO con los 5 bloques en el formato exacto.
+- No agregar introducción, despedida, ni explicaciones.
+
+📦 PRODUCTO A ANALIZAR:
+[PEGAR AQUÍ EL LINK O DESCRIPCIÓN DEL PRODUCTO]`,
+
   master: `📦 MASTER PROMPT PARA CREAR LANDING PAGE DE E-COMMERCE
 Actúa como experto en marketing digital, copywriting para e-commerce y performance ads (Meta Ads y TikTok Ads).
 Analiza la siguiente landing page o descripción de producto entre corchetes [ ] y genera una estructura completa de contenido optimizado para una landing page de alta conversión, siguiendo exactamente este formato:
@@ -3479,7 +3556,7 @@ function loadBkVars(){
 function clearBkVars(){
   BK_VAR_FIELDS.forEach(f=>{ const el=document.getElementById('bkv-'+f); if(el) el.value=''; });
   saveBkVars();
-  ['imagenes','master','copys'].forEach(k=>{
+  ['imagenes','imagenes5','master','copys'].forEach(k=>{
     const box = document.getElementById('bk-full-'+k);
     if(box){ box.classList.remove('open'); box.textContent=''; }
   });
@@ -3498,7 +3575,7 @@ function fillBkPrompt(key){
     if(v.angulo)   extras.push('ÁNGULO DE VENTA: '+v.angulo);
     if(extras.length) text += '\n\n'+extras.join('\n');
   }
-  else if(key === 'master'){
+  else if(key === 'master' || key === 'imagenes5'){
     if(v.producto) text = text.replace('[PEGAR AQUÍ EL LINK O DESCRIPCIÓN DEL PRODUCTO]', v.producto);
   }
   else if(key === 'copys'){
