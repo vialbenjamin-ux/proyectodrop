@@ -27,17 +27,27 @@ exports.handler = async (event) => {
   const accountId = (params.account_id || '').trim();
   if (!/^act_\d+$/.test(accountId)) return respond(400, { error: 'account_id inválido' });
 
+  // Soporte para rango custom (since/until) o date_preset
+  const customSince = params.since;
+  const customUntil = params.until;
   const datePreset = params.date_preset || 'last_7d';
   const validPresets = ['today','yesterday','last_3d','last_7d','last_14d','last_28d','last_30d','last_90d','this_month','last_month'];
-  if (!validPresets.includes(datePreset)) return respond(400, { error: 'date_preset inválido' });
+  const useCustom = customSince && customUntil
+    && /^\d{4}-\d{2}-\d{2}$/.test(customSince) && /^\d{4}-\d{2}-\d{2}$/.test(customUntil);
+  if (!useCustom && !validPresets.includes(datePreset)) return respond(400, { error: 'date_preset inválido' });
 
-  // Convertir preset a rango de fechas para Shopify (timezone Santiago)
-  const { startUTC, endUTC, dateFrom, dateTo } = presetToRange(datePreset);
+  // Convertir a rango de fechas para Shopify (timezone Santiago)
+  const range = useCustom
+    ? customRangeToRange(customSince, customUntil)
+    : presetToRange(datePreset);
+  const { startUTC, endUTC, dateFrom, dateTo } = range;
 
   try {
     const [orders, insightsRaw, campaignsRaw, accountRaw] = await Promise.all([
       fetchShopifyOrders(shopifyDomain, shopifyToken, startUTC, endUTC),
-      fetchMetaInsights(accountId, metaToken, datePreset),
+      useCustom
+        ? fetchMetaInsightsRange(accountId, metaToken, customSince, customUntil)
+        : fetchMetaInsights(accountId, metaToken, datePreset),
       fetchMetaCampaigns(accountId, metaToken),
       fetchMetaAccount(accountId, metaToken),
     ]);
@@ -488,6 +498,16 @@ async function fetchMetaInsights(accountId, token, datePreset) {
   return data;
 }
 
+async function fetchMetaInsightsRange(accountId, token, since, until) {
+  const fields = 'campaign_id,campaign_name,spend,impressions,clicks,cpc,ctr,frequency,reach,actions,action_values,purchase_roas';
+  const timeRange = encodeURIComponent(JSON.stringify({ since, until }));
+  const url = `https://graph.facebook.com/v19.0/${accountId}/insights?fields=${fields}&time_range=${timeRange}&level=campaign&limit=200&access_token=${encodeURIComponent(token)}`;
+  const resp = await fetch(url);
+  const data = await resp.json();
+  if (!resp.ok) throw new Error('Meta insights: ' + (data?.error?.message || resp.status));
+  return data;
+}
+
 async function fetchMetaCampaigns(accountId, token) {
   const url = `https://graph.facebook.com/v19.0/${accountId}/campaigns?fields=id,name,status,effective_status,daily_budget,objective&limit=200&access_token=${encodeURIComponent(token)}`;
   const resp = await fetch(url);
@@ -554,6 +574,15 @@ function getTzOffsetHours(date, tz) {
   const utcStr = date.toLocaleString('en-US', { timeZone: 'UTC' });
   const tzStr = date.toLocaleString('en-US', { timeZone: tz });
   return Math.round((new Date(utcStr) - new Date(tzStr)) / 3600000);
+}
+
+function customRangeToRange(since, until) {
+  const tz = 'America/Santiago';
+  const offsetH = getTzOffsetHours(new Date(), tz);
+  const off = String(Math.abs(offsetH)).padStart(2, '0');
+  const startUTC = new Date(since + 'T' + off + ':00:00Z');
+  const endUTC = new Date(new Date(until + 'T' + off + ':00:00Z').getTime() + 24 * 3600000);
+  return { dateFrom: since, dateTo: until, startUTC, endUTC };
 }
 
 // ── Recomendaciones ─────────────────────────────────────────────────────────

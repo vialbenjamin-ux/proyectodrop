@@ -6359,6 +6359,36 @@ function onCrossAccountChange(){
   fetchCrossReport();
 }
 
+// Calcula el rango del período anterior equivalente al preset seleccionado
+function getPreviousRangeForPreset(preset){
+  const tz = 'America/Santiago';
+  const todayStr = new Date().toLocaleString('en-CA', { timeZone: tz }).split(',')[0].trim();
+  const addDays = (yyyymmdd, n) => {
+    const d = new Date(yyyymmdd + 'T12:00:00Z');
+    d.setUTCDate(d.getUTCDate() + n);
+    return d.toISOString().split('T')[0];
+  };
+  const monthStart = (year, month) => `${year}-${String(month+1).padStart(2,'0')}-01`;
+  const lastDayOfMonth = (year, month) => {
+    const d = new Date(Date.UTC(year, month+1, 0));
+    return d.toISOString().split('T')[0];
+  };
+  const todayDate = new Date(todayStr + 'T12:00:00Z');
+  const yyyy = todayDate.getUTCFullYear(), mm = todayDate.getUTCMonth();
+
+  switch(preset){
+    case 'today':       return { since: addDays(todayStr, -1), until: addDays(todayStr, -1), label: 'ayer' };
+    case 'yesterday':   return { since: addDays(todayStr, -2), until: addDays(todayStr, -2), label: 'antes de ayer' };
+    case 'last_7d':     return { since: addDays(todayStr, -14), until: addDays(todayStr, -8), label: '7 días anteriores' };
+    case 'last_30d':    return { since: addDays(todayStr, -60), until: addDays(todayStr, -31), label: '30 días anteriores' };
+    case 'this_month':  return { since: monthStart(yyyy, mm-1), until: lastDayOfMonth(yyyy, mm-1), label: 'mes pasado' };
+    case 'last_month':  return { since: monthStart(yyyy, mm-2), until: lastDayOfMonth(yyyy, mm-2), label: 'mes anterior al pasado' };
+    default:            return null;
+  }
+}
+
+let _crossPrevData = null;
+
 async function fetchCrossReport(){
   const accountId = document.getElementById('cross-account-select')?.value;
   const preset    = document.getElementById('cross-date-preset')?.value || 'last_7d';
@@ -6369,16 +6399,27 @@ async function fetchCrossReport(){
   const warnBox = document.getElementById('cross-warn');
   const content = document.getElementById('cross-content');
 
-  if (loading){ loading.style.display = ''; loading.textContent = 'Cruzando datos de Shopify y Meta… (puede tardar 10-20s)'; }
+  if (loading){ loading.style.display = ''; loading.textContent = 'Cruzando datos de Shopify y Meta + período anterior… (puede tardar 15-25s)'; }
   if (errBox)  errBox.style.display = 'none';
   if (warnBox) warnBox.style.display = 'none';
   if (content) content.style.display = 'none';
 
   try {
-    const resp = await fetch(`/.netlify/functions/cross-report?account_id=${encodeURIComponent(accountId)}&date_preset=${encodeURIComponent(preset)}`);
+    // Período actual + período anterior en paralelo (este último es opcional)
+    const prevRange = getPreviousRangeForPreset(preset);
+    const currentReq = fetch(`/.netlify/functions/cross-report?account_id=${encodeURIComponent(accountId)}&date_preset=${encodeURIComponent(preset)}`);
+    const prevReq = prevRange
+      ? fetch(`/.netlify/functions/cross-report?account_id=${encodeURIComponent(accountId)}&since=${prevRange.since}&until=${prevRange.until}`).catch(()=>null)
+      : Promise.resolve(null);
+    const [resp, prevResp] = await Promise.all([currentReq, prevReq]);
+
     const data = await resp.json();
     if (!resp.ok) throw new Error(data.error || 'HTTP '+resp.status);
 
+    _crossPrevData = null;
+    if (prevResp && prevResp.ok) {
+      try { _crossPrevData = await prevResp.json(); _crossPrevData.label = prevRange.label; } catch {}
+    }
     _crossLastData = data;
     if (loading) loading.style.display = 'none';
     if (content) content.style.display = '';
@@ -6448,18 +6489,68 @@ function renderCrossKpis(data){
   const margenNeto        = gananciaNeta != null && revenueEntregado > 0 ? (gananciaNeta / revenueEntregado) * 100 : null;
   const roasReal          = k.spend > 0 && totalRevenuePostOverride > 0 ? totalRevenuePostOverride / k.spend : k.roasAccount;
 
-  document.getElementById('cross-kpi-spend').textContent          = fmtMoney(k.spend, cur);
-  document.getElementById('cross-kpi-real-orders').textContent    = fmtNum(k.shopifyMetaOrders) + ' órd.';
-  document.getElementById('cross-kpi-real-revenue').textContent   = fmtMoney(totalRevenuePostOverride, cur);
-  document.getElementById('cross-kpi-delivered').textContent      = fmtNum(Math.round(ordenesEntregadas)) + ' órd.';
+  // Calcular delta vs período anterior si existe
+  let prevAgg = null;
+  if (_crossPrevData) {
+    const pk = _crossPrevData.kpis;
+    const prevTasaEntrega = (cfg.confirmacion / 100) * (cfg.entrega / 100);
+    let prevRevenue = 0, prevCogs = 0, prevHasCost = false;
+    for (const p of (_crossPrevData.byProduct || [])) {
+      const overrideKey = (p.variantIds && p.variantIds.length) ? 'v:' + p.variantIds[0] : 'p:' + p.name;
+      const m = applyCodMetrics(p, costOverrides[overrideKey], priceOverrides[overrideKey]);
+      prevRevenue += m.revenue || 0;
+      if (m.totalCost != null) { prevCogs += m.totalCost; prevHasCost = true; }
+    }
+    const prevDelivered = pk.shopifyMetaOrders * prevTasaEntrega;
+    const prevRevenueDelivered = prevRevenue * prevTasaEntrega;
+    const prevCogsDelivered = prevHasCost ? prevCogs * prevTasaEntrega : null;
+    const prevEnvio = pk.shopifyMetaOrders * (cfg.confirmacion / 100) * cfg.envio;
+    const prevGanancia = prevCogsDelivered != null ? prevRevenueDelivered - prevCogsDelivered - pk.spend - prevEnvio : null;
+    const prevRoas = pk.spend > 0 && prevRevenue > 0 ? prevRevenue / pk.spend : pk.roasAccount;
+    prevAgg = {
+      spend: pk.spend,
+      orders: pk.shopifyMetaOrders,
+      revenue: prevRevenue,
+      delivered: prevDelivered,
+      deliveredRev: prevRevenueDelivered,
+      roas: prevRoas,
+      ganancia: prevGanancia,
+      label: _crossPrevData.label || 'período anterior',
+    };
+  }
+
+  const setKpi = (id, value, prev, formatter, biggerIsBetter = true) => {
+    document.getElementById(id).textContent = value;
+    const subId = id + '-delta';
+    const subEl = document.getElementById(subId);
+    if (!subEl) return;
+    if (prev == null || (typeof prev === 'number' && prev === 0)) { subEl.textContent = ''; return; }
+    const pct = ((formatter ? null : null), 0);
+  };
+
+  // Función simple para renderizar delta
+  const fmtDelta = (cur, prev, biggerIsBetter = true) => {
+    if (prev == null || prev === 0 || cur == null) return '';
+    const diff = cur - prev;
+    const pct = (diff / prev) * 100;
+    const arrow = diff > 0 ? '▲' : (diff < 0 ? '▼' : '');
+    const positive = biggerIsBetter ? diff >= 0 : diff <= 0;
+    const color = positive ? '#3F7F5C' : '#B14747';
+    return `<span style="color:${color};font-size:10px;font-weight:600">${arrow} ${Math.abs(pct).toFixed(0)}%</span>`;
+  };
+
+  document.getElementById('cross-kpi-spend').innerHTML            = fmtMoney(k.spend, cur) + (prevAgg ? ' ' + fmtDelta(k.spend, prevAgg.spend, false) : '');
+  document.getElementById('cross-kpi-real-orders').innerHTML      = fmtNum(k.shopifyMetaOrders) + ' órd.' + (prevAgg ? ' ' + fmtDelta(k.shopifyMetaOrders, prevAgg.orders, true) : '');
+  document.getElementById('cross-kpi-real-revenue').innerHTML     = fmtMoney(totalRevenuePostOverride, cur) + (prevAgg ? ' ' + fmtDelta(totalRevenuePostOverride, prevAgg.revenue, true) : '');
+  document.getElementById('cross-kpi-delivered').innerHTML        = fmtNum(Math.round(ordenesEntregadas)) + ' órd.' + (prevAgg ? ' ' + fmtDelta(ordenesEntregadas, prevAgg.delivered, true) : '');
   document.getElementById('cross-kpi-delivered-rev').textContent  = fmtMoney(revenueEntregado, cur);
-  document.getElementById('cross-kpi-roas').textContent           = roasReal ? roasReal.toFixed(2) + 'x' : '—';
-  document.getElementById('cross-kpi-roas-meta').textContent      = k.roasMeta ? `Meta: ${k.roasMeta.toFixed(2)}x` : 'Meta: —';
+  document.getElementById('cross-kpi-roas').innerHTML             = (roasReal ? roasReal.toFixed(2) + 'x' : '—') + (prevAgg && roasReal ? ' ' + fmtDelta(roasReal, prevAgg.roas, true) : '');
+  document.getElementById('cross-kpi-roas-meta').textContent      = prevAgg ? `vs ${prevAgg.label}` : (k.roasMeta ? `Meta: ${k.roasMeta.toFixed(2)}x` : 'Meta: —');
 
   const netEl    = document.getElementById('cross-kpi-net');
   const marginEl = document.getElementById('cross-kpi-net-margin');
   if (gananciaNeta != null) {
-    netEl.textContent = fmtMoney(gananciaNeta, cur);
+    netEl.innerHTML = fmtMoney(gananciaNeta, cur) + (prevAgg && prevAgg.ganancia != null ? ' ' + fmtDelta(gananciaNeta, prevAgg.ganancia, true) : '');
     netEl.style.color = gananciaNeta >= 0 ? '#3F7F5C' : '#B14747';
     marginEl.textContent = `margen ${margenNeto.toFixed(0)}% · envío ${fmtMoney(envioTotal, cur)}`;
   } else {
@@ -6503,8 +6594,8 @@ function renderCrossCampaignsTable(data){
     const productKeys = Object.keys(products);
     const hasProducts = productKeys.length > 0;
     return `
-      <tr class="cross-camp-row" data-idx="${idx}" ${hasProducts ? `onclick="toggleCrossCamp(${idx})"` : ''} style="border-bottom:1px solid var(--border);${hasProducts ? 'cursor:pointer' : ''}">
-        <td style="padding:9px 14px;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.name)}">${hasProducts ? '<span class="cross-chevron">▶</span>' : '<span style="display:inline-block;width:14px"></span>'}${esc(r.name)}</td>
+      <tr class="cross-camp-row" data-idx="${idx}" onclick="toggleCrossCamp(${idx})" style="border-bottom:1px solid var(--border);cursor:pointer">
+        <td style="padding:9px 14px;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.name)}"><span class="cross-chevron">▶</span>${esc(r.name)}</td>
         <td style="text-align:right;padding:9px 10px"><b>${fmtMoney(r.spend, cur)}</b></td>
         <td style="text-align:right;padding:9px 10px;color:var(--muted)" title="Compras del pixel/CAPI de Meta">${fmtNum(r.metaPurchases)}</td>
         <td style="text-align:right;padding:9px 10px;color:var(--accent);font-weight:600" title="Órdenes únicas en Shopify">${fmtNum(r.realPurchases)}</td>
@@ -6514,42 +6605,45 @@ function renderCrossCampaignsTable(data){
         <td style="text-align:right;padding:9px 10px;color:${r.roasReal && r.roasReal > 2 ? '#3F7F5C' : (r.roasReal && r.roasReal < 1.5 ? '#B14747' : 'var(--accent)')};font-weight:600">${r.roasReal ? r.roasReal.toFixed(2) + 'x' : '—'}</td>
         <td style="text-align:right;padding:9px 10px;color:${r.frequency > 4 ? '#A6862A' : 'var(--muted)'}">${r.frequency ? r.frequency.toFixed(2) : '—'}</td>
       </tr>
-      ${hasProducts ? `
-        <tr class="cross-camp-products-row" id="cross-camp-products-${idx}" style="display:none;background:var(--surface2)">
-          <td colspan="9" style="padding:0">
-            <div style="padding:14px 20px 18px;background:linear-gradient(180deg,#F0EDE8 0%,var(--surface2) 100%);border-bottom:1px solid var(--border)">
-              <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);font-weight:600;margin-bottom:10px">📦 Productos vendidos en esta campaña</div>
+      <tr class="cross-camp-products-row" id="cross-camp-products-${idx}" style="display:none;background:var(--surface2)">
+        <td colspan="9" style="padding:0">
+          <div style="padding:14px 20px 18px;background:linear-gradient(180deg,#F0EDE8 0%,var(--surface2) 100%);border-bottom:1px solid var(--border);display:grid;grid-template-columns:1fr 1fr;gap:14px">
+            ${hasProducts ? `
+            <div>
+              <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);font-weight:600;margin-bottom:10px">📦 Productos vendidos</div>
               <table style="width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden">
                 <thead>
                   <tr style="background:var(--surface2)">
                     <th style="text-align:left;padding:8px 12px;font-size:9px;letter-spacing:.8px;text-transform:uppercase;color:var(--muted);font-weight:600">PRODUCTO</th>
-                    <th style="text-align:right;padding:8px 12px;font-size:9px;letter-spacing:.8px;text-transform:uppercase;color:var(--muted);font-weight:600">UNIDADES</th>
+                    <th style="text-align:right;padding:8px 12px;font-size:9px;letter-spacing:.8px;text-transform:uppercase;color:var(--muted);font-weight:600">UNID.</th>
                     <th style="text-align:right;padding:8px 12px;font-size:9px;letter-spacing:.8px;text-transform:uppercase;color:var(--accent);font-weight:600">REVENUE</th>
-                    <th style="text-align:right;padding:8px 12px;font-size:9px;letter-spacing:.8px;text-transform:uppercase;color:var(--muted);font-weight:600">% DEL TOTAL</th>
                   </tr>
                 </thead>
                 <tbody>
                   ${productKeys.map(k => {
                     const p = products[k];
-                    const pct = r.realRevenue > 0 ? (p.revenue / r.realRevenue * 100).toFixed(0) : 0;
                     return `<tr style="border-top:1px solid var(--border)">
-                      <td style="padding:8px 12px;font-size:11px;max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(k)}">${esc(k)}</td>
-                      <td style="text-align:right;padding:8px 12px;font-size:11px"><b>${fmtNum(p.qty)}</b></td>
-                      <td style="text-align:right;padding:8px 12px;font-size:11px;color:var(--accent)">${fmtMoney(p.revenue, cur)}</td>
-                      <td style="text-align:right;padding:8px 12px;font-size:10px;color:var(--muted)">${pct}%</td>
+                      <td style="padding:7px 12px;font-size:11px;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(k)}">${esc(k)}</td>
+                      <td style="text-align:right;padding:7px 12px;font-size:11px"><b>${fmtNum(p.qty)}</b></td>
+                      <td style="text-align:right;padding:7px 12px;font-size:11px;color:var(--accent)">${fmtMoney(p.revenue, cur)}</td>
                     </tr>`;
                   }).join('')}
                 </tbody>
               </table>
             </div>
-          </td>
-        </tr>
-      ` : ''}
+            ` : '<div></div>'}
+            <div>
+              <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);font-weight:600;margin-bottom:10px">📋 Conjuntos de anuncios</div>
+              <div id="cross-camp-adsets-${idx}" data-cid="${r.id}"><div style="font-size:11px;color:var(--muted);font-style:italic;padding:10px">Cargando adsets…</div></div>
+            </div>
+          </div>
+        </td>
+      </tr>
     `;
   }).join('');
 }
 
-function toggleCrossCamp(idx){
+async function toggleCrossCamp(idx){
   const row = document.querySelector(`tr.cross-camp-row[data-idx="${idx}"]`);
   const productsRow = document.getElementById('cross-camp-products-' + idx);
   if (!row || !productsRow) return;
@@ -6557,9 +6651,55 @@ function toggleCrossCamp(idx){
   if (isOpen){
     row.classList.remove('expanded');
     productsRow.style.display = 'none';
-  } else {
-    row.classList.add('expanded');
-    productsRow.style.display = '';
+    return;
+  }
+  row.classList.add('expanded');
+  productsRow.style.display = '';
+
+  // Lazy load adsets de esta campaña
+  const adsetsWrap = document.getElementById('cross-camp-adsets-' + idx);
+  if (adsetsWrap && !adsetsWrap.dataset.loaded){
+    const cid = adsetsWrap.dataset.cid;
+    const preset = document.getElementById('cross-date-preset')?.value || 'last_7d';
+    try {
+      const resp = await fetch(`/.netlify/functions/meta-adsets?campaign_id=${encodeURIComponent(cid)}&date_preset=${encodeURIComponent(preset)}`);
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || 'HTTP '+resp.status);
+      adsetsWrap.dataset.loaded = '1';
+      const cur = _crossLastData?.currency || 'USD';
+      const adsets = data.rows || [];
+      if (adsets.length === 0){
+        adsetsWrap.innerHTML = '<div style="font-size:11px;color:var(--muted);font-style:italic;padding:10px">Sin adsets con actividad</div>';
+        return;
+      }
+      adsetsWrap.innerHTML = `
+        <table style="width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden">
+          <thead><tr style="background:var(--surface2)">
+            <th style="text-align:left;padding:8px 12px;font-size:9px;letter-spacing:.8px;text-transform:uppercase;color:var(--muted);font-weight:600">ADSET</th>
+            <th style="text-align:right;padding:8px 12px;font-size:9px;letter-spacing:.8px;text-transform:uppercase;color:var(--muted);font-weight:600">GASTO</th>
+            <th style="text-align:right;padding:8px 12px;font-size:9px;letter-spacing:.8px;text-transform:uppercase;color:var(--muted);font-weight:600">COMPRAS</th>
+            <th style="text-align:right;padding:8px 12px;font-size:9px;letter-spacing:.8px;text-transform:uppercase;color:var(--accent);font-weight:600">CPA</th>
+            <th style="text-align:right;padding:8px 12px;font-size:9px;letter-spacing:.8px;text-transform:uppercase;color:var(--accent);font-weight:600">ROAS</th>
+            <th style="text-align:right;padding:8px 12px;font-size:9px;letter-spacing:.8px;text-transform:uppercase;color:var(--muted);font-weight:600">FREC.</th>
+          </tr></thead>
+          <tbody>
+            ${adsets.map(a => {
+              const st = (a.status || '').toUpperCase();
+              const isActive = st === 'ACTIVE';
+              return `<tr style="border-top:1px solid var(--border);${isActive ? '' : 'opacity:.6'}">
+                <td style="padding:7px 12px;font-size:11px;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(a.name)}">${esc(a.name)}${!isActive ? ` <span style="font-size:9px;color:var(--muted2)">· ${st.toLowerCase()}</span>` : ''}</td>
+                <td style="text-align:right;padding:7px 12px;font-size:11px"><b>${fmtMoney(a.spend, cur)}</b></td>
+                <td style="text-align:right;padding:7px 12px;font-size:11px">${fmtNum(a.purchases)}</td>
+                <td style="text-align:right;padding:7px 12px;font-size:11px;color:var(--accent)">${a.cpa ? fmtMoney(a.cpa, cur) : '—'}</td>
+                <td style="text-align:right;padding:7px 12px;font-size:11px;color:${a.roas && a.roas > 2 ? '#3F7F5C' : (a.roas && a.roas < 1.5 ? '#B14747' : 'var(--accent)')};font-weight:600">${a.roas ? a.roas.toFixed(2) + 'x' : '—'}</td>
+                <td style="text-align:right;padding:7px 12px;font-size:11px;color:${a.frequency > 4 ? '#A6862A' : 'var(--muted)'}">${a.frequency ? a.frequency.toFixed(2) : '—'}</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>`;
+    } catch(err){
+      adsetsWrap.innerHTML = `<div style="font-size:11px;color:var(--peach);font-style:italic;padding:10px">⚠️ ${esc(err.message)}</div>`;
+    }
   }
 }
 
