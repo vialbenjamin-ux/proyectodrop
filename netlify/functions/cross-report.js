@@ -233,17 +233,7 @@ exports.handler = async (event) => {
       totalRealRevenue += r.realRevenue;
     }
 
-    // Totales de costo/ganancia (de productos vendidos vía Meta)
-    let totalCogs = 0, totalCogsRevenue = 0;
-    for (const r of byProduct) {
-      if (r.totalCost != null) {
-        totalCogs += r.totalCost;
-        totalCogsRevenue += r.revenue;
-      }
-    }
-    const totalGrossProfit = totalCogsRevenue > 0 ? totalCogsRevenue - totalCogs : null;
-    const totalNetProfit = totalGrossProfit != null ? totalGrossProfit - totalSpend : null;
-
+    // KPIs agregados (sin costos todavía — los agregamos después de construir byProduct)
     const kpis = {
       spend: totalSpend,
       metaPurchases: totalMetaPurchases,
@@ -259,12 +249,7 @@ exports.handler = async (event) => {
       cpaAccount: shopifyMetaOrdersTotal > 0 ? totalSpend / shopifyMetaOrdersTotal : null,
       roasAccount: totalSpend > 0 && shopifyMetaRevenueTotal > 0 ? shopifyMetaRevenueTotal / totalSpend : null,
       unmatchedMetaOrders,
-      // Costos & rentabilidad
-      cogs: totalCogs || 0,
-      grossProfit: totalGrossProfit,
-      netProfit: totalNetProfit,
       costsAvailable,
-      productsWithoutCost: byProduct.filter(p => p.totalCost == null).length,
     };
 
     // Tabla por producto: para cada producto con ventas atribuidas a Meta, sumar ventas y gasto estimado
@@ -319,6 +304,19 @@ exports.handler = async (event) => {
       });
     }
     byProduct.sort((a, b) => b.revenue - a.revenue);
+
+    // Totales de costo/ganancia (de productos vendidos vía Meta) — necesita byProduct construido
+    let totalCogs = 0, totalCogsRevenue = 0;
+    for (const r of byProduct) {
+      if (r.totalCost != null) {
+        totalCogs += r.totalCost;
+        totalCogsRevenue += r.revenue;
+      }
+    }
+    kpis.cogs = totalCogs || 0;
+    kpis.grossProfit = totalCogsRevenue > 0 ? totalCogsRevenue - totalCogs : null;
+    kpis.netProfit = kpis.grossProfit != null ? kpis.grossProfit - totalSpend : null;
+    kpis.productsWithoutCost = byProduct.filter(p => p.totalCost == null).length;
 
     // Recomendaciones
     const recommendations = generateRecommendations(byCampaign, currency);
