@@ -1372,13 +1372,13 @@
           </div>
         </div>
 
-        <!-- KPIs Meta -->
+        <!-- KPIs Meta (con datos reales de Shopify cuando hay match) -->
         <div class="meta-kpis">
           <div class="meta-kpi"><div class="meta-kpi-label">GASTADO</div><div id="meta-kpi-spend" class="meta-kpi-val">—</div></div>
-          <div class="meta-kpi"><div class="meta-kpi-label">COMPRAS</div><div id="meta-kpi-purchases" class="meta-kpi-val">—</div></div>
-          <div class="meta-kpi"><div class="meta-kpi-label">VALOR DE COMPRAS</div><div id="meta-kpi-pvalue" class="meta-kpi-val">—</div></div>
-          <div class="meta-kpi"><div class="meta-kpi-label">CPA PROMEDIO</div><div id="meta-kpi-cpa" class="meta-kpi-val">—</div></div>
-          <div class="meta-kpi"><div class="meta-kpi-label">ROAS PROMEDIO</div><div id="meta-kpi-roas" class="meta-kpi-val">—</div></div>
+          <div class="meta-kpi"><div class="meta-kpi-label">ÓRDENES REALES</div><div id="meta-kpi-purchases" class="meta-kpi-val">—</div></div>
+          <div class="meta-kpi"><div class="meta-kpi-label">REVENUE REAL</div><div id="meta-kpi-pvalue" class="meta-kpi-val">—</div></div>
+          <div class="meta-kpi"><div class="meta-kpi-label">CPA REAL</div><div id="meta-kpi-cpa" class="meta-kpi-val">—</div></div>
+          <div class="meta-kpi"><div class="meta-kpi-label">ROAS REAL</div><div id="meta-kpi-roas" class="meta-kpi-val">—</div></div>
         </div>
 
         <!-- Tabla campañas -->
@@ -1400,19 +1400,20 @@
           </div>
           <div id="meta-loading" style="padding:24px;text-align:center;color:var(--muted2);font-size:12px">Cargando...</div>
           <div id="meta-error" style="display:none;padding:24px 20px;color:var(--peach);font-size:12px;line-height:1.6"></div>
-          <div class="reporte-scroll"><table id="meta-table" style="display:none;width:100%;border-collapse:collapse;font-size:11px">
+          <div class="reporte-scroll"><table id="meta-table" style="display:none;width:100%;border-collapse:collapse;font-size:11px;min-width:980px">
             <thead>
               <tr style="border-bottom:1px solid var(--border);background:var(--surface2)">
                 <th style="text-align:left;padding:10px 14px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">CAMPAÑA</th>
                 <th style="text-align:center;padding:10px 8px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">ESTADO</th>
                 <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">PPTO/DÍA</th>
                 <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">GASTO</th>
-                <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">COMPRAS</th>
-                <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--accent);font-weight:600">CPA</th>
-                <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--accent);font-weight:600">ROAS</th>
+                <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500" title="Compras según pixel/CAPI de Meta">META</th>
+                <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--accent);font-weight:600" title="Órdenes únicas en Shopify atribuidas a esta campaña">ÓRDENES</th>
+                <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--text);font-weight:500" title="Unidades totales (combos suman más)">UNID.</th>
+                <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--accent);font-weight:600" title="CPA real basado en órdenes Shopify">CPA REAL</th>
+                <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--accent);font-weight:600" title="ROAS real basado en revenue Shopify">ROAS REAL</th>
                 <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">CTR</th>
                 <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">CPC</th>
-                <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">IMPR.</th>
                 <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">FREC.</th>
               </tr>
             </thead>
@@ -5888,16 +5889,46 @@ async function fetchMetaAds(){
   const table   = document.getElementById('meta-table');
   const count   = document.getElementById('meta-count');
 
-  if (loading) { loading.style.display = ''; loading.textContent = 'Cargando…'; }
+  if (loading) { loading.style.display = ''; loading.textContent = 'Cargando datos de Meta y Shopify…'; }
   if (errBox) errBox.style.display = 'none';
   if (table) table.style.display = 'none';
 
   try {
-    const resp = await fetch(`/.netlify/functions/meta-ads-insights?account_id=${encodeURIComponent(accountId)}&date_preset=${encodeURIComponent(preset)}`);
-    const data = await resp.json();
-    if (!resp.ok) throw new Error(data.error || 'HTTP '+resp.status);
+    // Fetch en paralelo: Meta insights (rápido) y cross-report (incluye Shopify, más lento).
+    // Si cross-report falla, igualmente mostramos Meta solo.
+    const [metaResp, crossResp] = await Promise.all([
+      fetch(`/.netlify/functions/meta-ads-insights?account_id=${encodeURIComponent(accountId)}&date_preset=${encodeURIComponent(preset)}`),
+      fetch(`/.netlify/functions/cross-report?account_id=${encodeURIComponent(accountId)}&date_preset=${encodeURIComponent(preset)}`).catch(()=>null),
+    ]);
+    const data = await metaResp.json();
+    if (!metaResp.ok) throw new Error(data.error || 'HTTP '+metaResp.status);
 
-    const rows = data.rows || [];
+    // Mergear datos de Shopify por campaign_id si cross-report respondió OK
+    let crossById = {};
+    if (crossResp && crossResp.ok) {
+      try {
+        const crossData = await crossResp.json();
+        for (const c of (crossData.byCampaign || [])) {
+          crossById[c.id] = c;
+        }
+      } catch {}
+    }
+
+    const rows = (data.rows || []).map(r => {
+      const cross = crossById[r.id];
+      if (cross) {
+        return {
+          ...r,
+          realPurchases: cross.realPurchases,
+          realUnits: cross.realUnits,
+          realRevenue: cross.realRevenue,
+          cpaReal: cross.cpaReal,
+          roasReal: cross.roasReal,
+          attributedProducts: cross.attributedProducts,
+        };
+      }
+      return { ...r, realPurchases: 0, realUnits: 0, realRevenue: 0, cpaReal: null, roasReal: null, attributedProducts: {} };
+    });
     const currency = data.currency || 'USD';
     _metaLastRows = rows.slice().sort((a,b)=>b.spend - a.spend);
     _metaLastCurrency = currency;
@@ -5958,7 +5989,7 @@ function renderMetaTable(rows, currency){
   const tbody = document.getElementById('meta-tbody');
   if (!tbody) return;
   if (rows.length === 0){
-    tbody.innerHTML = '<tr><td colspan="11" style="padding:24px;text-align:center;color:var(--muted2)">Sin campañas que cumplan el filtro</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="12" style="padding:24px;text-align:center;color:var(--muted2)">Sin campañas que cumplan el filtro</td></tr>';
     return;
   }
   tbody.innerHTML = rows.map(r=>{
@@ -5969,22 +6000,26 @@ function renderMetaTable(rows, currency){
     else if (status === 'PAUSED'){ badgeCls = 'meta-badge-paused'; badgeLabel = 'pausada'; }
     else if (status === 'DELETED' || status === 'DISABLED' || status === 'WITH_ISSUES'){ badgeCls = 'meta-badge-disabled'; badgeLabel = status === 'WITH_ISSUES' ? 'con problemas' : status.toLowerCase(); }
     else if (status === 'ARCHIVED' || status === 'IN_PROCESS'){ badgeCls = 'meta-badge-archived'; badgeLabel = status === 'IN_PROCESS' ? 'en proceso' : 'archivada'; }
+    // Color del ROAS real (priorizar real sobre el de Meta para colorización)
+    const roasUsed = r.roasReal != null ? r.roasReal : r.roas;
+    const roasColor = roasUsed && roasUsed > 2 ? '#3F7F5C' : (roasUsed && roasUsed < 1.5 ? '#B14747' : 'var(--accent)');
     return `
       <tr class="meta-camp-row" data-cid="${r.id}" onclick="toggleAdsets('${r.id}')">
         <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.name)}"><span class="meta-chevron">▶</span>${esc(r.name)}</td>
         <td style="text-align:center"><span class="meta-badge ${badgeCls}">${badgeLabel}</span></td>
         <td style="text-align:right;color:var(--muted)">${r.dailyBudget ? fmtMoney(r.dailyBudget, currency) : '—'}</td>
         <td style="text-align:right"><b>${fmtMoney(r.spend, currency)}</b></td>
-        <td style="text-align:right">${fmtNum(r.purchases)}</td>
-        <td style="text-align:right;color:var(--accent);font-weight:600">${r.cpa ? fmtMoney(r.cpa, currency) : '—'}</td>
-        <td style="text-align:right;color:var(--accent);font-weight:600">${r.roas ? Number(r.roas).toFixed(2) + 'x' : '—'}</td>
+        <td style="text-align:right;color:var(--muted)">${fmtNum(r.purchases)}</td>
+        <td style="text-align:right;color:var(--accent);font-weight:600">${fmtNum(r.realPurchases || 0)}</td>
+        <td style="text-align:right;color:var(--text)">${fmtNum(r.realUnits || 0)}</td>
+        <td style="text-align:right;color:var(--accent);font-weight:600">${r.cpaReal ? fmtMoney(r.cpaReal, currency) : '—'}</td>
+        <td style="text-align:right;color:${roasColor};font-weight:600">${r.roasReal ? Number(r.roasReal).toFixed(2) + 'x' : '—'}</td>
         <td style="text-align:right">${r.ctr ? Number(r.ctr).toFixed(2) + '%' : '—'}</td>
         <td style="text-align:right">${r.cpc ? fmtMoney(r.cpc, currency) : '—'}</td>
-        <td style="text-align:right;color:var(--muted)">${fmtNum(r.impressions)}</td>
-        <td style="text-align:right;color:var(--muted)">${r.frequency ? Number(r.frequency).toFixed(2) : '—'}</td>
+        <td style="text-align:right;color:${r.frequency > 4 ? '#A6862A' : 'var(--muted)'}">${r.frequency ? Number(r.frequency).toFixed(2) : '—'}</td>
       </tr>
       <tr class="meta-adsets-row" id="meta-adsets-row-${r.id}" style="display:none">
-        <td colspan="11"><div class="meta-adsets-wrap" id="meta-adsets-wrap-${r.id}"></div></td>
+        <td colspan="12"><div class="meta-adsets-wrap" id="meta-adsets-wrap-${r.id}"></div></td>
       </tr>
     `;
   }).join('');
@@ -6082,13 +6117,15 @@ function renderMetaTotalsRow(rows, currency){
   const t = rows.reduce((a,r)=>{
     a.spend += r.spend || 0;
     a.purchases += r.purchases || 0;
-    a.purchaseValue += r.purchaseValue || 0;
+    a.realPurchases += r.realPurchases || 0;
+    a.realUnits += r.realUnits || 0;
+    a.realRevenue += r.realRevenue || 0;
     a.impressions += r.impressions || 0;
     a.clicks += r.clicks || 0;
     return a;
-  }, { spend:0, purchases:0, purchaseValue:0, impressions:0, clicks:0 });
-  const avgCpa = t.purchases > 0 ? t.spend / t.purchases : null;
-  const avgRoas = t.spend > 0 ? t.purchaseValue / t.spend : null;
+  }, { spend:0, purchases:0, realPurchases:0, realUnits:0, realRevenue:0, impressions:0, clicks:0 });
+  const avgCpaReal = t.realPurchases > 0 ? t.spend / t.realPurchases : null;
+  const avgRoasReal = t.spend > 0 && t.realRevenue > 0 ? t.realRevenue / t.spend : null;
   const avgCtr = t.impressions > 0 ? (t.clicks / t.impressions) * 100 : null;
   const avgCpc = t.clicks > 0 ? t.spend / t.clicks : null;
   return `
@@ -6097,31 +6134,34 @@ function renderMetaTotalsRow(rows, currency){
       <td></td>
       <td></td>
       <td style="text-align:right">${fmtMoney(t.spend, currency)}</td>
-      <td style="text-align:right">${fmtNum(t.purchases)}</td>
-      <td style="text-align:right;color:var(--accent)">${avgCpa ? fmtMoney(avgCpa, currency) : '—'}</td>
-      <td style="text-align:right;color:var(--accent)">${avgRoas ? avgRoas.toFixed(2) + 'x' : '—'}</td>
+      <td style="text-align:right;color:var(--muted)">${fmtNum(t.purchases)}</td>
+      <td style="text-align:right;color:var(--accent)">${fmtNum(t.realPurchases)}</td>
+      <td style="text-align:right">${fmtNum(t.realUnits)}</td>
+      <td style="text-align:right;color:var(--accent)">${avgCpaReal ? fmtMoney(avgCpaReal, currency) : '—'}</td>
+      <td style="text-align:right;color:var(--accent)">${avgRoasReal ? avgRoasReal.toFixed(2) + 'x' : '—'}</td>
       <td style="text-align:right">${avgCtr ? avgCtr.toFixed(2) + '%' : '—'}</td>
       <td style="text-align:right">${avgCpc ? fmtMoney(avgCpc, currency) : '—'}</td>
-      <td style="text-align:right">${fmtNum(t.impressions)}</td>
       <td></td>
     </tr>
   `;
 }
 
 function renderMetaKpis(rows, currency){
+  // KPIs basados en datos reales (Shopify) cuando hay match, fallback Meta
   const t = rows.reduce((a,r)=>{
     a.spend += r.spend || 0;
-    a.purchases += r.purchases || 0;
-    a.purchaseValue += r.purchaseValue || 0;
+    a.metaPurchases += r.purchases || 0;
+    a.realPurchases += r.realPurchases || 0;
+    a.realRevenue += r.realRevenue || 0;
     return a;
-  }, { spend:0, purchases:0, purchaseValue:0 });
-  const avgCpa = t.purchases > 0 ? t.spend / t.purchases : null;
-  const avgRoas = t.spend > 0 ? t.purchaseValue / t.spend : null;
+  }, { spend:0, metaPurchases:0, realPurchases:0, realRevenue:0 });
+  const avgCpaReal = t.realPurchases > 0 ? t.spend / t.realPurchases : null;
+  const avgRoasReal = t.spend > 0 && t.realRevenue > 0 ? t.realRevenue / t.spend : null;
   document.getElementById('meta-kpi-spend').textContent     = fmtMoney(t.spend, currency);
-  document.getElementById('meta-kpi-purchases').textContent = fmtNum(t.purchases);
-  document.getElementById('meta-kpi-pvalue').textContent    = fmtMoney(t.purchaseValue, currency);
-  document.getElementById('meta-kpi-cpa').textContent       = avgCpa ? fmtMoney(avgCpa, currency) : '—';
-  document.getElementById('meta-kpi-roas').textContent      = avgRoas ? avgRoas.toFixed(2) + 'x' : '—';
+  document.getElementById('meta-kpi-purchases').textContent = fmtNum(t.realPurchases) + ' órd.';
+  document.getElementById('meta-kpi-pvalue').textContent    = fmtMoney(t.realRevenue, currency);
+  document.getElementById('meta-kpi-cpa').textContent       = avgCpaReal ? fmtMoney(avgCpaReal, currency) : '—';
+  document.getElementById('meta-kpi-roas').textContent      = avgRoasReal ? avgRoasReal.toFixed(2) + 'x' : '—';
 }
 
 function fmtMoney(n, currency){
