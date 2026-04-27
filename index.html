@@ -977,10 +977,16 @@
         <span class="stock-bell-title">🚨 Alertas de stock</span>
         <button onclick="fetchStockAlerts()" style="background:none;border:1px solid var(--border);border-radius:6px;padding:3px 8px;font-size:10px;color:var(--muted);cursor:pointer">↻</button>
       </div>
-      <div class="stock-bell-config">
-        <span>Avisar cuando stock ≤</span>
-        <input type="number" id="stock-bell-threshold" min="0" max="999" oninput="onStockThresholdChange()">
-        <span>unidades</span>
+      <div class="stock-bell-config" style="flex-direction:column;align-items:stretch;gap:6px">
+        <div style="display:flex;align-items:center;gap:6px">
+          <span>Avisar cuando stock ≤</span>
+          <input type="number" id="stock-bell-threshold" min="0" max="999" oninput="onStockThresholdChange()">
+          <span>unidades</span>
+        </div>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:10px">
+          <input type="checkbox" id="stock-bell-only-active" onchange="onStockOnlyActiveChange()" style="cursor:pointer;width:auto">
+          Solo productos en campañas activas
+        </label>
       </div>
       <div class="stock-bell-list" id="stock-bell-list">
         <div class="stock-bell-empty">Cargando…</div>
@@ -6313,9 +6319,54 @@ function fmtNum(n){
 // ── STOCK ALERTS — Campanita in-app ──────────────────────────────────────────
 const STOCK_THRESHOLD_KEY = 'bkdrop_stock_threshold';
 const STOCK_SEEN_KEY = 'bkdrop_stock_seen_alerts';
+const STOCK_ONLY_ACTIVE_KEY = 'bkdrop_stock_only_active';
+const ACTIVE_PRODUCTS_KEY = 'bkdrop_active_products';
+const ACTIVE_PRODUCTS_TTL = 4 * 3600 * 1000; // 4 horas
 const STOCK_POLL_INTERVAL = 5 * 60 * 1000; // 5 min
 let _stockPollTimer = null;
 let _stockLastData = null;
+
+function getStockOnlyActive(){
+  return localStorage.getItem(STOCK_ONLY_ACTIVE_KEY) !== '0'; // default ON
+}
+function setStockOnlyActive(on){
+  localStorage.setItem(STOCK_ONLY_ACTIVE_KEY, on ? '1' : '0');
+}
+function onStockOnlyActiveChange(){
+  const cb = document.getElementById('stock-bell-only-active');
+  if (!cb) return;
+  setStockOnlyActive(cb.checked);
+  if (_stockLastData) renderStockAlerts(_stockLastData);
+}
+
+// Guardado por fetchCrossReport: lista de productos en campañas ACTIVE con ventas
+function saveActiveProductsCache(crossData){
+  if (!crossData || !crossData.byCampaign) return;
+  const names = new Set();
+  for (const camp of crossData.byCampaign) {
+    const status = (camp.status || '').toUpperCase();
+    if (status !== 'ACTIVE') continue;
+    if (!camp.attributedProducts) continue;
+    for (const productName of Object.keys(camp.attributedProducts)) {
+      if (productName) names.add(productName);
+    }
+  }
+  localStorage.setItem(ACTIVE_PRODUCTS_KEY, JSON.stringify({
+    at: Date.now(),
+    products: [...names],
+  }));
+}
+
+function getActiveProductsCache(){
+  try {
+    const raw = localStorage.getItem(ACTIVE_PRODUCTS_KEY);
+    if (!raw) return null;
+    const c = JSON.parse(raw);
+    if (!c || !Array.isArray(c.products)) return null;
+    if (Date.now() - (c.at || 0) > ACTIVE_PRODUCTS_TTL) return null;
+    return { set: new Set(c.products), at: c.at, count: c.products.length };
+  } catch { return null; }
+}
 
 function getStockThreshold(){
   const v = parseInt(localStorage.getItem(STOCK_THRESHOLD_KEY) || '5', 10);
@@ -6368,9 +6419,38 @@ function renderStockAlerts(data){
   const badge = document.getElementById('stock-bell-badge');
   const btn = document.getElementById('stock-bell-btn');
   const inp = document.getElementById('stock-bell-threshold');
+  const cb = document.getElementById('stock-bell-only-active');
   if (inp) inp.value = data.threshold;
+  if (cb) cb.checked = getStockOnlyActive();
 
-  const products = data.products || [];
+  // Aplicar filtro "solo productos en campañas activas" si está activado
+  let products = data.products || [];
+  let filterInfo = '';
+  if (getStockOnlyActive()) {
+    const cache = getActiveProductsCache();
+    if (cache) {
+      const beforeCount = products.length;
+      products = products.filter(p => cache.set.has(p.productTitle));
+      const filtered = beforeCount - products.length;
+      if (filtered > 0) filterInfo = `(${filtered} oculto${filtered === 1 ? '' : 's'} de campañas no activas)`;
+    } else {
+      // No hay cache de campañas activas → mensaje educativo
+      if (list) {
+        list.innerHTML = `<div class="stock-bell-empty">
+          🔄 <b>Para ver solo activas, abrí Cruce Real una vez</b><br>
+          <span style="font-size:10px;color:var(--muted2);display:block;margin-top:6px">
+          Esto carga la lista de productos en campañas activas.<br>
+          O desactivá el filtro arriba para ver todos.
+          </span>
+        </div>`;
+      }
+      if (badge) badge.style.display = 'none';
+      if (btn) btn.classList.remove('has-alerts');
+      if (foot) foot.textContent = '';
+      return;
+    }
+  }
+
   const critical = products.filter(p => p.alertLevel === 'critical');
   const total = products.length;
 
@@ -6410,7 +6490,12 @@ function renderStockAlerts(data){
     const fetched = data.fetchedAt ? new Date(data.fetchedAt) : new Date();
     const hh = String(fetched.getHours()).padStart(2,'0');
     const mm = String(fetched.getMinutes()).padStart(2,'0');
-    foot.textContent = `Actualizado ${hh}:${mm} · auto cada 5 min`;
+    const onlyActive = getStockOnlyActive();
+    const cache = onlyActive ? getActiveProductsCache() : null;
+    const filterTxt = onlyActive && cache
+      ? ` · ${cache.count} productos activos`
+      : (onlyActive ? '' : ' · viendo todos');
+    foot.textContent = `Actualizado ${hh}:${mm}${filterTxt}${filterInfo ? ' ' + filterInfo : ''}`;
   }
 }
 
@@ -6670,6 +6755,12 @@ async function fetchCrossReport(){
 
     const data = await resp.json();
     if (!resp.ok) throw new Error(data.error || 'HTTP '+resp.status);
+
+    // Guardar cache de productos en campañas activas para que la campanita
+    // de stock pueda filtrar correctamente
+    saveActiveProductsCache(data);
+    // Refrescar la campana si está visible (puede ser que ahora hay productos activos)
+    if (typeof fetchStockAlerts === 'function') fetchStockAlerts();
 
     _crossPrevData = null;
     if (prevResp && prevResp.ok) {
