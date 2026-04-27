@@ -834,6 +834,34 @@
   .bk-cod-reset{background:none;border:1px solid var(--border);color:var(--muted);font-size:10px;padding:3px 8px;border-radius:6px;cursor:pointer;font-family:'DM Mono',monospace}
   .bk-cod-reset:hover{color:var(--text);border-color:var(--border2)}
 
+  /* Stock Bell — alertas in-app */
+  #stock-bell-wrap{position:relative;display:inline-flex;align-items:center}
+  .stock-bell-btn{background:none;border:none;cursor:pointer;font-size:20px;padding:6px 8px;position:relative;line-height:1;color:var(--text);transition:transform .15s}
+  .stock-bell-btn:hover{transform:scale(1.1)}
+  .stock-bell-btn.has-alerts{animation:bellShake 1.5s ease-in-out infinite}
+  @keyframes bellShake{0%,100%{transform:rotate(0)}10%,30%{transform:rotate(-12deg)}20%,40%{transform:rotate(12deg)}50%,100%{transform:rotate(0)}}
+  .stock-bell-badge{position:absolute;top:0;right:0;background:var(--red);color:#fff;font-family:'Syne',sans-serif;font-weight:800;font-size:10px;min-width:18px;height:18px;border-radius:9px;display:flex;align-items:center;justify-content:center;padding:0 5px;border:1.5px solid var(--surface)}
+  .stock-bell-badge.warning-only{background:var(--yellow);color:#6B5818}
+  .stock-bell-panel{display:none;position:absolute;right:0;top:38px;width:380px;max-height:500px;background:var(--surface);border:1.5px solid var(--border);border-radius:14px;box-shadow:0 8px 30px rgba(0,0,0,.15);z-index:150;flex-direction:column;overflow:hidden}
+  .stock-bell-panel.open{display:flex}
+  .stock-bell-header{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px}
+  .stock-bell-title{font-family:'Syne',sans-serif;font-weight:800;font-size:14px;color:var(--text);flex:1}
+  .stock-bell-config{display:flex;align-items:center;gap:6px;padding:8px 16px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:10px;color:var(--muted)}
+  .stock-bell-config input{width:48px;background:var(--surface);border:1.5px solid var(--border);color:var(--text);padding:3px 8px;border-radius:6px;font-size:10px;font-family:'DM Mono',monospace;text-align:right;outline:none}
+  .stock-bell-list{flex:1;overflow-y:auto;padding:6px 0}
+  .stock-bell-item{display:flex;gap:10px;padding:10px 16px;border-bottom:1px solid var(--border);align-items:center;text-decoration:none;color:inherit;transition:background .12s}
+  .stock-bell-item:last-child{border-bottom:none}
+  .stock-bell-item:hover{background:var(--surface2)}
+  .stock-bell-img{width:42px;height:42px;border-radius:8px;background:var(--surface2);object-fit:cover;flex-shrink:0;border:1px solid var(--border)}
+  .stock-bell-info{flex:1;min-width:0}
+  .stock-bell-pname{font-size:12px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .stock-bell-pmeta{font-size:10px;color:var(--muted);margin-top:2px;font-family:'DM Mono',monospace}
+  .stock-bell-stock{font-family:'Syne',sans-serif;font-weight:800;font-size:18px;flex-shrink:0;text-align:right;min-width:46px}
+  .stock-bell-stock.critical{color:var(--red)}
+  .stock-bell-stock.warning{color:#A6862A}
+  .stock-bell-empty{padding:30px 20px;text-align:center;color:var(--muted);font-size:11px;font-style:italic}
+  .stock-bell-foot{padding:8px 16px;border-top:1px solid var(--border);background:var(--surface2);font-size:9px;color:var(--muted2);font-family:'DM Mono',monospace;text-align:center}
+
   #splash{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:999;transition:opacity .6s ease, visibility .6s ease}
   #splash.hidden{opacity:0;visibility:hidden}
   #splash-logo{font-family:'Syne',sans-serif;font-weight:800;font-size:42px;letter-spacing:-2px;color:var(--accent);opacity:0;transform:translateY(10px);transition:opacity .7s ease, transform .7s ease}
@@ -938,6 +966,29 @@
     📅 Calendario
   </button>
   <div style="flex:1"></div>
+
+  <!-- Stock alert bell -->
+  <div id="stock-bell-wrap">
+    <button class="stock-bell-btn" id="stock-bell-btn" onclick="toggleStockBell()" title="Alertas de stock">
+      🔔<span class="stock-bell-badge" id="stock-bell-badge" style="display:none">0</span>
+    </button>
+    <div class="stock-bell-panel" id="stock-bell-panel">
+      <div class="stock-bell-header">
+        <span class="stock-bell-title">🚨 Alertas de stock</span>
+        <button onclick="fetchStockAlerts()" style="background:none;border:1px solid var(--border);border-radius:6px;padding:3px 8px;font-size:10px;color:var(--muted);cursor:pointer">↻</button>
+      </div>
+      <div class="stock-bell-config">
+        <span>Avisar cuando stock ≤</span>
+        <input type="number" id="stock-bell-threshold" min="0" max="999" oninput="onStockThresholdChange()">
+        <span>unidades</span>
+      </div>
+      <div class="stock-bell-list" id="stock-bell-list">
+        <div class="stock-bell-empty">Cargando…</div>
+      </div>
+      <div class="stock-bell-foot" id="stock-bell-foot"></div>
+    </div>
+  </div>
+
   <button id="admin-nav-btn" onclick="openAdmin()" title="Administrar accesos" style="display:none;background:none;border:1px solid var(--border);border-radius:20px;padding:5px 12px;font-size:11px;color:var(--muted);margin-right:6px">⚙️ Admin</button>
   <button id="login-user-chip" onclick="doLogout()" title="Cerrar sesión">
     <span id="nav-user-name">—</span> · salir
@@ -5464,6 +5515,8 @@ async function initApp(){
   render();
   calcPrices();
   checkAuth();
+  // Iniciar polling de alertas de stock (5 min)
+  startStockPolling();
 }
 
 // ── CALENDARIO SEMANAL ────────────────────────────────────────────────────────
@@ -6255,6 +6308,164 @@ function fmtMoney(n, currency){
 function fmtNum(n){
   if (n == null) return '—';
   return Number(n).toLocaleString('es-CL');
+}
+
+// ── STOCK ALERTS — Campanita in-app ──────────────────────────────────────────
+const STOCK_THRESHOLD_KEY = 'bkdrop_stock_threshold';
+const STOCK_SEEN_KEY = 'bkdrop_stock_seen_alerts';
+const STOCK_POLL_INTERVAL = 5 * 60 * 1000; // 5 min
+let _stockPollTimer = null;
+let _stockLastData = null;
+
+function getStockThreshold(){
+  const v = parseInt(localStorage.getItem(STOCK_THRESHOLD_KEY) || '5', 10);
+  return isNaN(v) ? 5 : Math.max(0, v);
+}
+function setStockThreshold(v){
+  localStorage.setItem(STOCK_THRESHOLD_KEY, String(Math.max(0, parseInt(v, 10) || 0)));
+}
+function getSeenAlerts(){
+  try { return JSON.parse(localStorage.getItem(STOCK_SEEN_KEY) || '{}'); }
+  catch { return {}; }
+}
+function markAsSeen(variantIds){
+  const seen = getSeenAlerts();
+  for (const id of variantIds) seen[id] = Date.now();
+  localStorage.setItem(STOCK_SEEN_KEY, JSON.stringify(seen));
+}
+
+async function fetchStockAlerts(){
+  const threshold = getStockThreshold();
+  const list = document.getElementById('stock-bell-list');
+  const foot = document.getElementById('stock-bell-foot');
+  try {
+    const resp = await fetch(`/.netlify/functions/shopify-stock-check?threshold=${threshold}`);
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'HTTP '+resp.status);
+
+    // Detectar alertas nuevas (no vistas) → toast
+    if (_stockLastData) {
+      const seen = getSeenAlerts();
+      const newOnes = (data.products || []).filter(p => !seen[p.variantId]);
+      const previousIds = new Set((_stockLastData.products || []).map(p => p.variantId));
+      const trulyNew = newOnes.filter(p => !previousIds.has(p.variantId));
+      if (trulyNew.length > 0) {
+        showStockToast(trulyNew);
+      }
+    }
+
+    _stockLastData = data;
+    renderStockAlerts(data);
+  } catch(err){
+    if (list) list.innerHTML = `<div class="stock-bell-empty" style="color:var(--peach)">⚠️ ${esc(err.message)}</div>`;
+    if (foot) foot.textContent = '';
+  }
+}
+
+function renderStockAlerts(data){
+  const list = document.getElementById('stock-bell-list');
+  const foot = document.getElementById('stock-bell-foot');
+  const badge = document.getElementById('stock-bell-badge');
+  const btn = document.getElementById('stock-bell-btn');
+  const inp = document.getElementById('stock-bell-threshold');
+  if (inp) inp.value = data.threshold;
+
+  const products = data.products || [];
+  const critical = products.filter(p => p.alertLevel === 'critical');
+  const total = products.length;
+
+  if (badge && btn) {
+    if (total > 0) {
+      badge.style.display = '';
+      badge.textContent = String(total);
+      badge.classList.toggle('warning-only', critical.length === 0);
+      btn.classList.toggle('has-alerts', critical.length > 0);
+    } else {
+      badge.style.display = 'none';
+      btn.classList.remove('has-alerts');
+    }
+  }
+
+  if (!list) return;
+  if (total === 0) {
+    list.innerHTML = `<div class="stock-bell-empty">✅ Todo el stock OK<br><span style="font-size:10px;color:var(--muted2)">Revisando ${data.totalTracked || 0} variantes con inventario rastreado</span></div>`;
+  } else {
+    list.innerHTML = products.map(p => {
+      const stockClass = p.alertLevel === 'critical' ? 'critical' : 'warning';
+      const meta = [p.variantTitle, p.sku].filter(Boolean).join(' · ');
+      const productUrl = `https://${data.domain}/admin/products/${p.productId}`;
+      return `
+        <a class="stock-bell-item" href="${productUrl}" target="_blank" rel="noopener">
+          ${p.image ? `<img class="stock-bell-img" src="${esc(p.image)}" alt="">` : '<div class="stock-bell-img"></div>'}
+          <div class="stock-bell-info">
+            <div class="stock-bell-pname">${esc(p.productTitle)}</div>
+            ${meta ? `<div class="stock-bell-pmeta">${esc(meta)}</div>` : ''}
+          </div>
+          <div class="stock-bell-stock ${stockClass}">${p.stock}</div>
+        </a>`;
+    }).join('');
+  }
+
+  if (foot) {
+    const fetched = data.fetchedAt ? new Date(data.fetchedAt) : new Date();
+    const hh = String(fetched.getHours()).padStart(2,'0');
+    const mm = String(fetched.getMinutes()).padStart(2,'0');
+    foot.textContent = `Actualizado ${hh}:${mm} · auto cada 5 min`;
+  }
+}
+
+function showStockToast(newAlerts){
+  // Reusa el sistema de toasts existente si está, sino hace uno simple
+  const txt = newAlerts.length === 1
+    ? `⚠️ ${newAlerts[0].productTitle} ${newAlerts[0].stock <= 0 ? 'sin stock' : `con ${newAlerts[0].stock} unidades`}`
+    : `⚠️ ${newAlerts.length} productos en alerta de stock`;
+  if (typeof showToast === 'function') {
+    showToast(txt);
+  } else {
+    // Fallback: notificación nativa del browser si está permitida
+    if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+      new Notification('BKDROP — Alerta de stock', { body: txt, icon: '/favicon.ico' });
+    }
+  }
+}
+
+function toggleStockBell(){
+  const panel = document.getElementById('stock-bell-panel');
+  if (!panel) return;
+  panel.classList.toggle('open');
+  if (panel.classList.contains('open')) {
+    // Marcar como vistas las alertas actuales
+    if (_stockLastData) markAsSeen((_stockLastData.products || []).map(p => p.variantId));
+  }
+}
+
+function onStockThresholdChange(){
+  const inp = document.getElementById('stock-bell-threshold');
+  if (!inp) return;
+  setStockThreshold(inp.value);
+  fetchStockAlerts();
+}
+
+function startStockPolling(){
+  // Cargar threshold guardado
+  const inp = document.getElementById('stock-bell-threshold');
+  if (inp) inp.value = getStockThreshold();
+  // Click fuera del panel lo cierra
+  document.addEventListener('click', (e)=>{
+    const wrap = document.getElementById('stock-bell-wrap');
+    if (wrap && !wrap.contains(e.target)) {
+      const panel = document.getElementById('stock-bell-panel');
+      if (panel) panel.classList.remove('open');
+    }
+  });
+  // Solicitar permiso de notification (no bloqueante)
+  if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+    setTimeout(()=>Notification.requestPermission().catch(()=>{}), 5000);
+  }
+  // Fetch inicial + polling cada 5 min
+  fetchStockAlerts();
+  if (_stockPollTimer) clearInterval(_stockPollTimer);
+  _stockPollTimer = setInterval(fetchStockAlerts, STOCK_POLL_INTERVAL);
 }
 
 // ── CRUCE REAL (Shopify × Meta) ───────────────────────────────────────────────
