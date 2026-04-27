@@ -331,6 +331,46 @@ exports.handler = async (event) => {
     kpis.netProfit = kpis.grossProfit != null ? kpis.grossProfit - totalSpend : null;
     kpis.productsWithoutCost = byProduct.filter(p => p.totalCost == null).length;
 
+    // Acumulado por día (solo si el período tiene >= 2 días)
+    const dayDiff = Math.round((new Date(dateTo + 'T12:00:00Z') - new Date(dateFrom + 'T12:00:00Z')) / (24 * 3600 * 1000));
+    let byDay = null;
+    if (dayDiff >= 1) {
+      const metaByDay = await fetchMetaInsightsByDay(
+        accountId, metaToken,
+        useCustom ? null : datePreset,
+        useCustom ? customSince : null,
+        useCustom ? customUntil : null,
+      );
+      // Agregar Shopify por día (solo órdenes vía Meta)
+      const shopByDay = {};
+      for (const o of orders) {
+        const src = extractUtmSource(o);
+        if (src !== 'meta') continue;
+        const day = getSantiagoDate(o.created_at);
+        if (!shopByDay[day]) shopByDay[day] = { orders: 0, units: 0, revenue: 0, totalCost: 0, hasAnyCost: false };
+        shopByDay[day].orders += 1;
+        shopByDay[day].revenue += parseFloat(o.current_subtotal_price || 0);
+        for (const li of computeLineRevenues(o)) {
+          shopByDay[day].units += li.qty;
+          if (li.variantId && costsByVariant[li.variantId] != null) {
+            shopByDay[day].totalCost += costsByVariant[li.variantId] * li.qty;
+            shopByDay[day].hasAnyCost = true;
+          }
+        }
+      }
+      const allDays = new Set([...Object.keys(metaByDay), ...Object.keys(shopByDay)]);
+      byDay = [...allDays].sort().map(date => ({
+        date,
+        spend: metaByDay[date]?.spend || 0,
+        metaPurchases: metaByDay[date]?.metaPurchases || 0,
+        metaPurchaseValue: metaByDay[date]?.metaPurchaseValue || 0,
+        orders: shopByDay[date]?.orders || 0,
+        units: shopByDay[date]?.units || 0,
+        revenue: shopByDay[date]?.revenue || 0,
+        totalCost: shopByDay[date]?.hasAnyCost ? shopByDay[date].totalCost : null,
+      }));
+    }
+
     // Recomendaciones
     const recommendations = generateRecommendations(byCampaign, currency);
 
@@ -338,6 +378,7 @@ exports.handler = async (event) => {
       kpis,
       byCampaign,
       byProduct,
+      byDay,
       recommendations,
       currency,
       accountName,
@@ -506,6 +547,35 @@ async function fetchMetaInsightsRange(accountId, token, since, until) {
   const data = await resp.json();
   if (!resp.ok) throw new Error('Meta insights: ' + (data?.error?.message || resp.status));
   return data;
+}
+
+// Insights Meta agregados por día (time_increment=1) — para tabla acumulado
+async function fetchMetaInsightsByDay(accountId, token, datePreset, since, until) {
+  const fields = 'spend,actions,action_values';
+  const rangeParam = since && until
+    ? `time_range=${encodeURIComponent(JSON.stringify({ since, until }))}`
+    : `date_preset=${datePreset}`;
+  const url = `https://graph.facebook.com/v19.0/${accountId}/insights?fields=${fields}&${rangeParam}&time_increment=1&level=account&limit=400&access_token=${encodeURIComponent(token)}`;
+  const resp = await fetch(url);
+  const data = await resp.json();
+  if (!resp.ok) return {};
+  const result = {};
+  for (const r of (data.data || [])) {
+    const date = r.date_start;
+    const findAction = (arr, type) => (arr || []).find(a => a.action_type === type);
+    const purchaseAct = findAction(r.actions, 'purchase') || findAction(r.actions, 'omni_purchase');
+    const purchaseVal = findAction(r.action_values, 'purchase') || findAction(r.action_values, 'omni_purchase');
+    result[date] = {
+      spend: parseFloat(r.spend || 0),
+      metaPurchases: purchaseAct ? parseFloat(purchaseAct.value) : 0,
+      metaPurchaseValue: purchaseVal ? parseFloat(purchaseVal.value) : 0,
+    };
+  }
+  return result;
+}
+
+function getSantiagoDate(isoString) {
+  return new Date(isoString).toLocaleDateString('en-CA', { timeZone: 'America/Santiago' });
 }
 
 async function fetchMetaCampaigns(accountId, token) {

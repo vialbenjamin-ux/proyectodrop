@@ -1525,6 +1525,30 @@
             </table></div>
           </div>
 
+          <!-- Tabla acumulado por día -->
+          <div id="cross-byday-wrapper" style="background:var(--surface);border:1.5px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:14px;display:none">
+            <div style="padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px">
+              <div style="font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);flex:1">📅 Acumulado por día · gasto · órdenes · ganancia post COD</div>
+              <span id="cross-byday-count" style="font-size:11px;color:var(--muted2);font-family:'DM Mono',monospace"></span>
+            </div>
+            <div class="reporte-scroll"><table style="width:100%;border-collapse:collapse;font-size:11px;min-width:780px">
+              <thead>
+                <tr style="border-bottom:1px solid var(--border);background:var(--surface2)">
+                  <th style="text-align:left;padding:10px 14px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">FECHA</th>
+                  <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">GASTO</th>
+                  <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">META</th>
+                  <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--accent);font-weight:600">ÓRDENES</th>
+                  <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">UNID.</th>
+                  <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--accent);font-weight:600">REVENUE</th>
+                  <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--accent);font-weight:600">ROAS</th>
+                  <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:#C4674F;font-weight:600">GANANCIA REAL</th>
+                </tr>
+              </thead>
+              <tbody id="cross-byday-tbody"></tbody>
+              <tfoot id="cross-byday-tfoot"></tfoot>
+            </table></div>
+          </div>
+
           <!-- Tabla por producto + ofertas Releasit -->
           <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:14px;overflow:hidden">
             <div style="padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px">
@@ -6282,6 +6306,7 @@ function onCodConfigChange(){
     renderCrossKpis(_crossLastData);
     renderCrossProductsTable(_crossLastData);
     renderCrossCampaignsTable(_crossLastData);
+    renderCrossByDay(_crossLastData);
   }
 }
 function resetCodConfig(){
@@ -6291,6 +6316,7 @@ function resetCodConfig(){
     renderCrossKpis(_crossLastData);
     renderCrossProductsTable(_crossLastData);
     renderCrossCampaignsTable(_crossLastData);
+    renderCrossByDay(_crossLastData);
   }
 }
 
@@ -6445,9 +6471,85 @@ async function fetchCrossReport(){
     renderCrossRecs(data);
     renderCrossCampaignsTable(data);
     renderCrossProductsTable(data);
+    renderCrossByDay(data);
   } catch(err){
     showCrossError(err.message || 'Error');
   }
+}
+
+function renderCrossByDay(data){
+  const wrap = document.getElementById('cross-byday-wrapper');
+  const tbody = document.getElementById('cross-byday-tbody');
+  const tfoot = document.getElementById('cross-byday-tfoot');
+  const count = document.getElementById('cross-byday-count');
+  const days = data.byDay || [];
+  if (!wrap || !tbody) return;
+  if (days.length < 2){ wrap.style.display = 'none'; return; }
+
+  wrap.style.display = '';
+  if (count) count.textContent = `${days.length} ${days.length === 1 ? 'día' : 'días'}`;
+  const cur = data.currency;
+  const cfg = getCodConfig();
+  const tasaConfirm = cfg.confirmacion / 100;
+  const tasaEntrega = tasaConfirm * (cfg.entrega / 100);
+
+  const fmtFecha = (yyyymmdd) => {
+    const [y,m,d] = yyyymmdd.split('-');
+    const dt = new Date(Date.UTC(+y, +m-1, +d));
+    const dia = dt.toLocaleDateString('es-CL', { weekday: 'short', timeZone: 'UTC' });
+    return `<b>${d}/${m}</b> <span style="color:var(--muted);font-weight:400">${dia}</span>`;
+  };
+
+  const computeRow = (d) => {
+    const revenueReal = d.revenue * tasaEntrega;
+    const cogsReal = d.totalCost != null ? d.totalCost * tasaEntrega : null;
+    const envio = d.orders * tasaConfirm * cfg.envio;
+    const ganancia = cogsReal != null ? revenueReal - cogsReal - d.spend - envio : null;
+    const roas = d.spend > 0 && d.revenue > 0 ? d.revenue / d.spend : null;
+    return { revenueReal, cogsReal, envio, ganancia, roas };
+  };
+
+  tbody.innerHTML = days.map(d => {
+    const c = computeRow(d);
+    const ganClass = c.ganancia != null ? (c.ganancia >= 0 ? 'color:#3F7F5C;font-weight:600' : 'color:#B14747;font-weight:600') : 'color:var(--muted)';
+    const roasColor = c.roas && c.roas > 2 ? '#3F7F5C' : (c.roas && c.roas < 1.5 ? '#B14747' : 'var(--accent)');
+    return `
+      <tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:9px 14px">${fmtFecha(d.date)}</td>
+        <td style="text-align:right;padding:9px 10px"><b>${fmtMoney(d.spend, cur)}</b></td>
+        <td style="text-align:right;padding:9px 10px;color:var(--muted)">${fmtNum(d.metaPurchases)}</td>
+        <td style="text-align:right;padding:9px 10px;color:var(--accent);font-weight:600">${fmtNum(d.orders)}</td>
+        <td style="text-align:right;padding:9px 10px">${fmtNum(d.units)}</td>
+        <td style="text-align:right;padding:9px 10px;color:var(--accent)">${fmtMoney(d.revenue, cur)}</td>
+        <td style="text-align:right;padding:9px 10px;color:${roasColor};font-weight:600">${c.roas ? c.roas.toFixed(2) + 'x' : '—'}</td>
+        <td style="text-align:right;padding:9px 10px;${ganClass}">${c.ganancia != null ? fmtMoney(c.ganancia, cur) : '<span style="font-size:10px;color:var(--muted);font-style:italic">sin costo</span>'}</td>
+      </tr>
+    `;
+  }).join('');
+
+  // Totales
+  const t = days.reduce((a,d)=>{
+    a.spend += d.spend; a.metaPurchases += d.metaPurchases;
+    a.orders += d.orders; a.units += d.units; a.revenue += d.revenue;
+    if (d.totalCost != null) { a.totalCost += d.totalCost; a.hasCost = true; }
+    return a;
+  }, { spend:0, metaPurchases:0, orders:0, units:0, revenue:0, totalCost:0, hasCost:false });
+  const tComputed = computeRow({
+    spend: t.spend, orders: t.orders, units: t.units, revenue: t.revenue,
+    totalCost: t.hasCost ? t.totalCost : null, metaPurchases: t.metaPurchases,
+  });
+  tfoot.innerHTML = `
+    <tr style="border-top:2px solid var(--border);background:var(--surface2);font-weight:700">
+      <td style="padding:11px 14px">TOTAL · ${days.length}d</td>
+      <td style="text-align:right;padding:11px 10px">${fmtMoney(t.spend, cur)}</td>
+      <td style="text-align:right;padding:11px 10px;color:var(--muted)">${fmtNum(t.metaPurchases)}</td>
+      <td style="text-align:right;padding:11px 10px;color:var(--accent)">${fmtNum(t.orders)}</td>
+      <td style="text-align:right;padding:11px 10px">${fmtNum(t.units)}</td>
+      <td style="text-align:right;padding:11px 10px;color:var(--accent)">${fmtMoney(t.revenue, cur)}</td>
+      <td style="text-align:right;padding:11px 10px;color:var(--accent)">${tComputed.roas ? tComputed.roas.toFixed(2) + 'x' : '—'}</td>
+      <td style="text-align:right;padding:11px 10px;color:${tComputed.ganancia != null && tComputed.ganancia >= 0 ? '#3F7F5C' : '#B14747'}">${tComputed.ganancia != null ? fmtMoney(tComputed.ganancia, cur) : '—'}</td>
+    </tr>
+  `;
 }
 
 function showCrossError(msg){
