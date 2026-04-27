@@ -811,9 +811,9 @@
   .cross-rec.cross-rec-saturated .cross-rec-title,.cross-rec.cross-rec-underreport .cross-rec-title{color:#A6862A}
   .cross-rec-empty{font-size:11px;color:var(--muted);font-style:italic;padding:8px 0}
 
-  .cross-cost-input{width:80px;background:var(--surface2);border:1.5px solid var(--yellow);color:var(--text);padding:4px 8px;border-radius:8px;font-size:11px;font-family:'DM Mono',monospace;text-align:right;outline:none}
-  .cross-cost-input:focus{border-color:var(--accent);background:var(--surface)}
-  .cross-cost-shopify{color:var(--muted);font-style:italic;font-size:10px}
+  .cross-cost-input,.cross-price-input{width:88px;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:4px 8px;border-radius:8px;font-size:11px;font-family:'DM Mono',monospace;text-align:right;outline:none}
+  .cross-cost-input:focus,.cross-price-input:focus{border-color:var(--accent);background:var(--surface)}
+  .cross-cost-shopify{color:var(--muted);font-style:italic;font-size:9px}
 
   .cross-qty-dist{font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;letter-spacing:.3px}
   .cross-qty-dist b{color:var(--text)}
@@ -821,6 +821,18 @@
   .cross-camp-row .cross-chevron{display:inline-block;margin-right:4px;color:var(--muted2);font-size:9px;transition:transform .2s;width:10px}
   .cross-camp-row.expanded .cross-chevron{transform:rotate(90deg);color:var(--accent)}
   .cross-camp-row:hover{background:var(--surface2)}
+
+  /* Modelo COD — panel configurable */
+  .bk-cod-config{display:flex;align-items:center;gap:14px;flex-wrap:wrap;background:var(--surface);border:1.5px solid var(--border);border-radius:12px;padding:10px 16px;margin-bottom:14px}
+  .bk-cod-title{font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);font-weight:600}
+  .bk-cod-field{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text)}
+  .bk-cod-field label{color:var(--muted);font-size:10px;letter-spacing:.5px}
+  .bk-cod-field input{background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:5px 10px;border-radius:8px;font-size:11px;font-family:'DM Mono',monospace;outline:none;width:64px;text-align:right}
+  .bk-cod-field input:focus{border-color:var(--accent)}
+  .bk-cod-eff{font-size:11px;color:var(--accent);font-weight:600;margin-left:auto;font-family:'DM Mono',monospace}
+  .bk-cod-eff b{font-family:'Syne',sans-serif;font-size:14px}
+  .bk-cod-reset{background:none;border:1px solid var(--border);color:var(--muted);font-size:10px;padding:3px 8px;border-radius:6px;cursor:pointer;font-family:'DM Mono',monospace}
+  .bk-cod-reset:hover{color:var(--text);border-color:var(--border2)}
 
   #splash{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:999;transition:opacity .6s ease, visibility .6s ease}
   #splash.hidden{opacity:0;visibility:hidden}
@@ -1450,18 +1462,37 @@
           </div>
         </div>
 
+        <!-- Panel modelo COD configurable -->
+        <div class="bk-cod-config">
+          <div class="bk-cod-title">💰 MODELO COD</div>
+          <div class="bk-cod-field">
+            <label>Confirmación</label>
+            <input type="number" id="cod-confirmacion" min="0" max="100" step="1" oninput="onCodConfigChange()"> %
+          </div>
+          <div class="bk-cod-field">
+            <label>Entrega</label>
+            <input type="number" id="cod-entrega" min="0" max="100" step="1" oninput="onCodConfigChange()"> %
+          </div>
+          <div class="bk-cod-field">
+            <label>Envío</label>
+            $<input type="number" id="cod-envio" min="0" step="100" oninput="onCodConfigChange()">
+          </div>
+          <button class="bk-cod-reset" onclick="resetCodConfig()" title="Volver a 70 / 70 / 8000">↺ default</button>
+          <div class="bk-cod-eff">Efectividad: <b id="cod-eff-pct">49%</b></div>
+        </div>
+
         <div id="cross-loading" style="padding:24px;text-align:center;color:var(--muted2);font-size:12px">Cargando…</div>
         <div id="cross-error" style="display:none;padding:18px 20px;color:var(--peach);font-size:12px;line-height:1.6;background:var(--peach-soft);border:1px solid var(--peach);border-radius:12px;margin-bottom:14px"></div>
         <div id="cross-warn" style="display:none;padding:12px 16px;color:#A6862A;font-size:11px;line-height:1.5;background:var(--yellow-soft);border:1px solid var(--yellow);border-radius:10px;margin-bottom:14px"></div>
 
         <div id="cross-content" style="display:none">
-          <!-- KPIs reales -->
+          <!-- KPIs reales (post COD) -->
           <div class="cross-kpis">
             <div class="cross-kpi"><div class="cross-kpi-label">GASTO META</div><div id="cross-kpi-spend" class="cross-kpi-val">—</div></div>
-            <div class="cross-kpi cross-kpi-real"><div class="cross-kpi-label">VENTAS REALES (SHOPIFY)</div><div id="cross-kpi-real-orders" class="cross-kpi-val">—</div><div id="cross-kpi-real-revenue" class="cross-kpi-sub">—</div></div>
-            <div class="cross-kpi cross-kpi-real"><div class="cross-kpi-label">CPA REAL</div><div id="cross-kpi-cpa" class="cross-kpi-val">—</div><div id="cross-kpi-cpa-meta" class="cross-kpi-sub">—</div></div>
+            <div class="cross-kpi cross-kpi-real"><div class="cross-kpi-label">ÓRDENES SHOPIFY</div><div id="cross-kpi-real-orders" class="cross-kpi-val">—</div><div id="cross-kpi-real-revenue" class="cross-kpi-sub">—</div></div>
+            <div class="cross-kpi cross-kpi-real"><div class="cross-kpi-label">ENTREGADAS (POST COD)</div><div id="cross-kpi-delivered" class="cross-kpi-val">—</div><div id="cross-kpi-delivered-rev" class="cross-kpi-sub">—</div></div>
             <div class="cross-kpi cross-kpi-real"><div class="cross-kpi-label">ROAS REAL</div><div id="cross-kpi-roas" class="cross-kpi-val">—</div><div id="cross-kpi-roas-meta" class="cross-kpi-sub">—</div></div>
-            <div class="cross-kpi"><div class="cross-kpi-label">SUBREPORTE META</div><div id="cross-kpi-delta" class="cross-kpi-val">—</div><div id="cross-kpi-delta-sub" class="cross-kpi-sub">—</div></div>
+            <div class="cross-kpi cross-kpi-real" style="border-color:var(--peach);background:var(--peach-soft)"><div class="cross-kpi-label" style="color:#C4674F">GANANCIA NETA REAL</div><div id="cross-kpi-net" class="cross-kpi-val" style="color:#C4674F">—</div><div id="cross-kpi-net-margin" class="cross-kpi-sub">—</div></div>
           </div>
 
           <!-- Recomendaciones -->
@@ -1497,21 +1528,21 @@
           <!-- Tabla por producto + ofertas Releasit -->
           <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:14px;overflow:hidden">
             <div style="padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px">
-              <div style="font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);flex:1">Por producto — ventas atribuidas a Meta</div>
+              <div style="font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);flex:1">Por producto · precio y costo editables · ganancia POST COD</div>
               <span id="cross-prod-count" style="font-size:11px;color:var(--muted2);font-family:'DM Mono',monospace"></span>
             </div>
-            <div class="reporte-scroll"><table style="width:100%;border-collapse:collapse;font-size:11px">
+            <div class="reporte-scroll"><table style="width:100%;border-collapse:collapse;font-size:11px;min-width:1100px">
               <thead>
                 <tr style="border-bottom:1px solid var(--border);background:var(--surface2)">
                   <th style="text-align:left;padding:10px 14px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">PRODUCTO</th>
-                  <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">ÓRDENES</th>
-                  <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">UNIDADES</th>
-                  <th style="text-align:left;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">DISTRIB. (1u·2u·3u)</th>
-                  <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">TICKET PROM.</th>
+                  <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">UNID.</th>
+                  <th style="text-align:left;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">COMBOS (1u·2u·3u)</th>
+                  <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500" title="Editable">PRECIO U.</th>
+                  <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500" title="Editable">COSTO U.</th>
                   <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--accent);font-weight:600">REVENUE</th>
                   <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">GASTO ATRIB.</th>
-                  <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--accent);font-weight:600">CPA</th>
                   <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--accent);font-weight:600">ROAS</th>
+                  <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:#C4674F;font-weight:600" title="Ganancia neta aplicando tasas COD">GANANCIA REAL</th>
                 </tr>
               </thead>
               <tbody id="cross-prod-tbody"></tbody>
@@ -6182,6 +6213,8 @@ function fmtNum(n){
 // ── CRUCE REAL (Shopify × Meta) ───────────────────────────────────────────────
 
 const CROSS_COST_OVERRIDES_KEY = 'bkdrop_cross_cost_overrides';
+const CROSS_PRICE_OVERRIDES_KEY = 'bkdrop_cross_price_overrides';
+const COD_CONFIG_KEY = 'bkdrop_cod_config';
 let _crossLastData = null;
 let _crossAccountsLoaded = false;
 
@@ -6196,7 +6229,101 @@ function setCostOverride(productKey, value){
   localStorage.setItem(CROSS_COST_OVERRIDES_KEY, JSON.stringify(all));
 }
 
+function getPriceOverrides(){
+  try { return JSON.parse(localStorage.getItem(CROSS_PRICE_OVERRIDES_KEY) || '{}'); }
+  catch { return {}; }
+}
+function setPriceOverride(productKey, value){
+  const all = getPriceOverrides();
+  if (value == null || value === '' || isNaN(value)) delete all[productKey];
+  else all[productKey] = parseFloat(value);
+  localStorage.setItem(CROSS_PRICE_OVERRIDES_KEY, JSON.stringify(all));
+}
+
+// ── Modelo COD (% confirmación, % entrega, costo envío) ──────────────────────
+const COD_DEFAULTS = { confirmacion: 70, entrega: 70, envio: 8000 };
+function getCodConfig(){
+  try {
+    const c = JSON.parse(localStorage.getItem(COD_CONFIG_KEY)) || {};
+    return {
+      confirmacion: c.confirmacion ?? COD_DEFAULTS.confirmacion,
+      entrega: c.entrega ?? COD_DEFAULTS.entrega,
+      envio: c.envio ?? COD_DEFAULTS.envio,
+    };
+  } catch { return { ...COD_DEFAULTS }; }
+}
+function saveCodConfig(c){ localStorage.setItem(COD_CONFIG_KEY, JSON.stringify(c)); }
+
+function applyCodConfigToInputs(){
+  const c = getCodConfig();
+  const a = document.getElementById('cod-confirmacion');
+  const b = document.getElementById('cod-entrega');
+  const e = document.getElementById('cod-envio');
+  if (a) a.value = c.confirmacion;
+  if (b) b.value = c.entrega;
+  if (e) e.value = c.envio;
+  updateCodEfficiencyLabel();
+}
+function updateCodEfficiencyLabel(){
+  const c = getCodConfig();
+  const eff = ((c.confirmacion / 100) * (c.entrega / 100) * 100).toFixed(0);
+  const el = document.getElementById('cod-eff-pct');
+  if (el) el.textContent = eff + '%';
+}
+function onCodConfigChange(){
+  const c = {
+    confirmacion: parseFloat(document.getElementById('cod-confirmacion').value) || 0,
+    entrega: parseFloat(document.getElementById('cod-entrega').value) || 0,
+    envio: parseFloat(document.getElementById('cod-envio').value) || 0,
+  };
+  saveCodConfig(c);
+  updateCodEfficiencyLabel();
+  if (_crossLastData) {
+    renderCrossKpis(_crossLastData);
+    renderCrossProductsTable(_crossLastData);
+    renderCrossCampaignsTable(_crossLastData);
+  }
+}
+function resetCodConfig(){
+  saveCodConfig({ ...COD_DEFAULTS });
+  applyCodConfigToInputs();
+  if (_crossLastData) {
+    renderCrossKpis(_crossLastData);
+    renderCrossProductsTable(_crossLastData);
+    renderCrossCampaignsTable(_crossLastData);
+  }
+}
+
+// Aplica modelo COD a una row para obtener métricas reales (entregadas, ganancia, etc).
+// row debe tener: orders/realPurchases, revenue/realRevenue, totalCost (opcional), spend/attributedSpend.
+function applyCodMetrics(row, costOverride, priceOverride){
+  const cfg = getCodConfig();
+  const tasaConfirm = cfg.confirmacion / 100;
+  const tasaEntrega = tasaConfirm * (cfg.entrega / 100);
+
+  const orders  = row.orders ?? row.realPurchases ?? 0;
+  const qty     = row.qty ?? 0;
+  // Revenue puede ser overrideado: si hay precio editado, recalcular como qty × precio
+  const baseRevenue = row.revenue ?? row.realRevenue ?? 0;
+  const revenue = (priceOverride != null && qty > 0) ? qty * priceOverride : baseRevenue;
+  // Cost: priorizar override, si no usa el de Shopify
+  const unitCost = costOverride != null ? costOverride : row.unitCost;
+  const totalCost = unitCost != null && qty > 0 ? unitCost * qty : (row.totalCost ?? null);
+  const spend   = row.attributedSpend ?? row.spend ?? 0;
+
+  const ordenesConfirmadas = orders * tasaConfirm;
+  const ordenesEntregadas  = orders * tasaEntrega;
+  const revenueReal  = revenue * tasaEntrega;
+  const cogsReal     = totalCost != null ? totalCost * tasaEntrega : null;
+  const envioTotal   = ordenesConfirmadas * cfg.envio;
+  const gananciaReal = cogsReal != null ? revenueReal - cogsReal - spend - envioTotal : null;
+  const margenReal   = revenueReal > 0 && gananciaReal != null ? (gananciaReal / revenueReal) * 100 : null;
+
+  return { ordenesConfirmadas, ordenesEntregadas, revenueReal, cogsReal, envioTotal, gananciaReal, margenReal, revenue, totalCost, unitCost };
+}
+
 async function initCrossTab(){
+  applyCodConfigToInputs();
   if (!_crossAccountsLoaded){
     await loadCrossAccounts();
     _crossAccountsLoaded = true;
@@ -6294,20 +6421,51 @@ function showCrossError(msg){
 function renderCrossKpis(data){
   const k = data.kpis;
   const cur = data.currency;
-  document.getElementById('cross-kpi-spend').textContent       = fmtMoney(k.spend, cur);
-  document.getElementById('cross-kpi-real-orders').textContent = fmtNum(k.shopifyMetaOrders) + ' órd.';
-  document.getElementById('cross-kpi-real-revenue').textContent= fmtMoney(k.shopifyMetaRevenue, cur);
-  document.getElementById('cross-kpi-cpa').textContent         = k.cpaAccount ? fmtMoney(k.cpaAccount, cur) : '—';
-  document.getElementById('cross-kpi-cpa-meta').textContent    = k.cpaMeta ? `Meta: ${fmtMoney(k.cpaMeta, cur)}` : 'Meta: —';
-  document.getElementById('cross-kpi-roas').textContent        = k.roasAccount ? k.roasAccount.toFixed(2) + 'x' : '—';
-  document.getElementById('cross-kpi-roas-meta').textContent   = k.roasMeta ? `Meta: ${k.roasMeta.toFixed(2)}x` : 'Meta: —';
+  const cfg = getCodConfig();
+  const tasaEntrega = (cfg.confirmacion / 100) * (cfg.entrega / 100);
 
-  const delta = k.shopifyMetaOrders - k.metaPurchases;
-  const deltaPct = k.shopifyMetaOrders > 0 ? (delta / k.shopifyMetaOrders) * 100 : 0;
-  document.getElementById('cross-kpi-delta').textContent = (delta >= 0 ? '+' : '') + fmtNum(delta);
-  document.getElementById('cross-kpi-delta-sub').textContent = k.shopifyMetaOrders > 0
-    ? `${deltaPct >= 0 ? '+' : ''}${deltaPct.toFixed(0)}% vs reportado por Meta`
-    : 'Sin ventas Meta en período';
+  // Calcular agregados POST COD aplicando overrides en byProduct
+  const costOverrides  = getCostOverrides();
+  const priceOverrides = getPriceOverrides();
+  let totalRevenuePostOverride = 0;
+  let totalCogsPostOverride = 0;
+  let hasAnyCost = false;
+  for (const p of (data.byProduct || [])) {
+    const overrideKey = (p.variantIds && p.variantIds.length) ? 'v:' + p.variantIds[0] : 'p:' + p.name;
+    const m = applyCodMetrics(p, costOverrides[overrideKey], priceOverrides[overrideKey]);
+    totalRevenuePostOverride += m.revenue || 0;
+    if (m.totalCost != null) {
+      totalCogsPostOverride += m.totalCost;
+      hasAnyCost = true;
+    }
+  }
+
+  const ordenesEntregadas = k.shopifyMetaOrders * tasaEntrega;
+  const revenueEntregado  = totalRevenuePostOverride * tasaEntrega;
+  const cogsEntregado     = hasAnyCost ? totalCogsPostOverride * tasaEntrega : null;
+  const envioTotal        = k.shopifyMetaOrders * (cfg.confirmacion / 100) * cfg.envio;
+  const gananciaNeta      = cogsEntregado != null ? revenueEntregado - cogsEntregado - k.spend - envioTotal : null;
+  const margenNeto        = gananciaNeta != null && revenueEntregado > 0 ? (gananciaNeta / revenueEntregado) * 100 : null;
+  const roasReal          = k.spend > 0 && totalRevenuePostOverride > 0 ? totalRevenuePostOverride / k.spend : k.roasAccount;
+
+  document.getElementById('cross-kpi-spend').textContent          = fmtMoney(k.spend, cur);
+  document.getElementById('cross-kpi-real-orders').textContent    = fmtNum(k.shopifyMetaOrders) + ' órd.';
+  document.getElementById('cross-kpi-real-revenue').textContent   = fmtMoney(totalRevenuePostOverride, cur);
+  document.getElementById('cross-kpi-delivered').textContent      = fmtNum(Math.round(ordenesEntregadas)) + ' órd.';
+  document.getElementById('cross-kpi-delivered-rev').textContent  = fmtMoney(revenueEntregado, cur);
+  document.getElementById('cross-kpi-roas').textContent           = roasReal ? roasReal.toFixed(2) + 'x' : '—';
+  document.getElementById('cross-kpi-roas-meta').textContent      = k.roasMeta ? `Meta: ${k.roasMeta.toFixed(2)}x` : 'Meta: —';
+
+  const netEl    = document.getElementById('cross-kpi-net');
+  const marginEl = document.getElementById('cross-kpi-net-margin');
+  if (gananciaNeta != null) {
+    netEl.textContent = fmtMoney(gananciaNeta, cur);
+    netEl.style.color = gananciaNeta >= 0 ? '#3F7F5C' : '#B14747';
+    marginEl.textContent = `margen ${margenNeto.toFixed(0)}% · envío ${fmtMoney(envioTotal, cur)}`;
+  } else {
+    netEl.textContent = '—';
+    marginEl.textContent = 'falta costo en algunos productos';
+  }
 }
 
 function renderCrossRecs(data){
@@ -6415,46 +6573,71 @@ function renderCrossProductsTable(data){
     return;
   }
   const cur = data.currency;
-  const overrides = getCostOverrides();
+  const costOverrides  = getCostOverrides();
+  const priceOverrides = getPriceOverrides();
 
   tbody.innerHTML = rows.map((r, idx)=>{
     const dist = formatQtyDist(r.qtyDistribution);
-    // Resolver costo: override del usuario > Shopify > null
     const overrideKey = (r.variantIds && r.variantIds.length) ? 'v:' + r.variantIds[0] : 'p:' + r.name;
-    const override = overrides[overrideKey];
-    const effectiveUnitCost = override != null ? override : r.unitCost;
-    const effectiveTotalCost = effectiveUnitCost != null ? effectiveUnitCost * r.qty : null;
-    const grossProfit = effectiveTotalCost != null ? r.revenue - effectiveTotalCost : null;
-    const netProfit = grossProfit != null ? grossProfit - r.attributedSpend : null;
+    const costOv  = costOverrides[overrideKey];
+    const priceOv = priceOverrides[overrideKey];
 
+    // Aplicar modelo COD con overrides
+    const m = applyCodMetrics(r, costOv, priceOv);
+
+    // Precio unitario actual (override o calculado)
+    const baseUnitPrice = r.qty > 0 ? r.revenue / r.qty : 0;
+    const effectiveUnitPrice = priceOv != null ? priceOv : baseUnitPrice;
+    const priceCell = `<input type="number" class="cross-price-input" data-key="${overrideKey}" value="${effectiveUnitPrice ? Math.round(effectiveUnitPrice) : ''}" step="any" min="0" onchange="onCrossPriceChange(this)" title="${priceOv != null ? 'Override: original era '+fmtMoney(baseUnitPrice, cur) : 'Precio promedio histórico'}">` +
+      (priceOv != null ? `<a href="#" onclick="onCrossPriceReset('${overrideKey}'); return false" style="font-size:9px;color:var(--muted);text-decoration:underline;display:block">× reset</a>` : '');
+
+    // Costo unitario
+    const effectiveUnitCost = m.unitCost;
     let costCell;
     if (effectiveUnitCost == null){
-      costCell = `<input type="number" class="cross-cost-input" placeholder="costo" data-key="${overrideKey}" data-row="${idx}" step="any" min="0" onchange="onCrossCostChange(this)">`;
+      costCell = `<input type="number" class="cross-cost-input" placeholder="costo" data-key="${overrideKey}" step="any" min="0" onchange="onCrossCostChange(this)">`;
     } else {
-      const fromShopify = r.unitCost != null && override == null;
-      costCell = `<span style="font-weight:600">${fmtMoney(effectiveUnitCost, cur)}</span>` +
+      const fromShopify = r.unitCost != null && costOv == null;
+      costCell = `<input type="number" class="cross-cost-input" data-key="${overrideKey}" value="${Math.round(effectiveUnitCost)}" step="any" min="0" onchange="onCrossCostChange(this)" title="${fromShopify ? 'Desde Shopify · editable' : (costOv != null ? 'Override' : '')}">` +
         (fromShopify ? `<div class="cross-cost-shopify">desde Shopify</div>` : '') +
-        (override != null ? `<a href="#" onclick="onCrossCostReset('${overrideKey}'); return false" style="font-size:9px;color:var(--muted);text-decoration:underline;display:block">×</a>` : '') +
-        ` <input type="number" class="cross-cost-input" style="display:none" placeholder="costo" data-key="${overrideKey}" data-row="${idx}" step="any" min="0" onchange="onCrossCostChange(this)">`;
+        (costOv != null ? `<a href="#" onclick="onCrossCostReset('${overrideKey}'); return false" style="font-size:9px;color:var(--muted);text-decoration:underline;display:block">× reset</a>` : '');
     }
 
-    const npClass = netProfit != null ? (netProfit > 0 ? 'color:#3F7F5C;font-weight:600' : 'color:#B14747;font-weight:600') : 'color:var(--muted)';
-    const marginPct = effectiveUnitCost != null && r.revenue > 0 ? ((grossProfit/r.revenue)*100).toFixed(0) : null;
+    const roasReal = r.attributedSpend > 0 && m.revenue > 0 ? m.revenue / r.attributedSpend : null;
+    const ganancia = m.gananciaReal;
+    const gClass = ganancia != null ? (ganancia > 0 ? 'color:#3F7F5C;font-weight:600' : 'color:#B14747;font-weight:600') : 'color:var(--muted)';
 
     return `
       <tr style="border-bottom:1px solid var(--border)">
-        <td style="padding:9px 14px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.name)}">${esc(r.name)}</td>
-        <td style="text-align:right;padding:9px 10px">${fmtNum(r.orders)}</td>
-        <td style="text-align:right;padding:9px 10px">${fmtNum(r.qty)}</td>
+        <td style="padding:9px 14px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.name)}">${esc(r.name)}</td>
+        <td style="text-align:right;padding:9px 10px"><b>${fmtNum(r.qty)}</b><div style="font-size:9px;color:var(--muted)">${fmtNum(r.orders)} órd.</div></td>
         <td style="padding:9px 10px;font-size:10px"><span class="cross-qty-dist">${dist}</span></td>
-        <td style="text-align:right;padding:9px 10px">${fmtMoney(r.avgTicket, cur)}</td>
-        <td style="text-align:right;padding:9px 10px;color:var(--accent);font-weight:600">${fmtMoney(r.revenue, cur)}</td>
-        <td style="text-align:right;padding:9px 10px;color:var(--muted)">${fmtMoney(r.attributedSpend, cur)}</td>
+        <td style="text-align:right;padding:9px 10px">${priceCell}</td>
         <td style="text-align:right;padding:9px 10px">${costCell}</td>
-        <td style="text-align:right;padding:9px 10px;${npClass}">${netProfit != null ? fmtMoney(netProfit, cur) + (marginPct != null ? `<div style="font-size:9px;color:var(--muted);font-weight:400">margen ${marginPct}%</div>` : '') : '—'}</td>
+        <td style="text-align:right;padding:9px 10px;color:var(--accent);font-weight:600">${fmtMoney(m.revenue, cur)}</td>
+        <td style="text-align:right;padding:9px 10px;color:var(--muted)">${fmtMoney(r.attributedSpend, cur)}</td>
+        <td style="text-align:right;padding:9px 10px;color:${roasReal && roasReal > 2 ? '#3F7F5C' : (roasReal && roasReal < 1.5 ? '#B14747' : 'var(--accent)')};font-weight:600">${roasReal ? roasReal.toFixed(2) + 'x' : '—'}</td>
+        <td style="text-align:right;padding:9px 10px;${gClass}">${ganancia != null ? fmtMoney(ganancia, cur) + (m.margenReal != null ? `<div style="font-size:9px;color:var(--muted);font-weight:400">margen ${m.margenReal.toFixed(0)}%</div>` : '') : `<span style="font-size:10px;color:var(--muted);font-style:italic">falta costo</span>`}</td>
       </tr>
     `;
   }).join('');
+}
+
+function onCrossPriceChange(input){
+  const key = input.dataset.key;
+  const val = input.value.trim();
+  setPriceOverride(key, val);
+  if (_crossLastData) {
+    renderCrossProductsTable(_crossLastData);
+    renderCrossKpis(_crossLastData);
+  }
+}
+function onCrossPriceReset(key){
+  setPriceOverride(key, null);
+  if (_crossLastData) {
+    renderCrossProductsTable(_crossLastData);
+    renderCrossKpis(_crossLastData);
+  }
 }
 
 function formatQtyDist(dist){
@@ -6468,11 +6651,9 @@ function onCrossCostChange(input){
   const key = input.dataset.key;
   const val = input.value.trim();
   setCostOverride(key, val);
-  // Re-render con datos cacheados
   if (_crossLastData) {
     renderCrossProductsTable(_crossLastData);
-    // Recalcular ganancia neta total con overrides aplicados (solo el KPI)
-    recalcNetProfitKpi(_crossLastData);
+    renderCrossKpis(_crossLastData);
   }
 }
 
@@ -6480,13 +6661,8 @@ function onCrossCostReset(key){
   setCostOverride(key, null);
   if (_crossLastData) {
     renderCrossProductsTable(_crossLastData);
-    recalcNetProfitKpi(_crossLastData);
+    renderCrossKpis(_crossLastData);
   }
-}
-
-function recalcNetProfitKpi(data){
-  // Por ahora la rentabilidad neta total no se muestra como KPI separado,
-  // pero dejamos el hook listo si después agregamos la card.
 }
 </script>
 </body>
