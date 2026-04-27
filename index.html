@@ -762,6 +762,22 @@
   #meta-table tfoot tr{border-top:2px solid var(--border);background:var(--surface2)}
   #meta-table tfoot td{padding:11px 10px;font-weight:700}
 
+  /* Filas expandibles de campañas Meta */
+  .meta-camp-row{cursor:pointer}
+  .meta-camp-row .meta-chevron{display:inline-block;margin-right:4px;color:var(--muted2);font-size:10px;transition:transform .2s;width:10px}
+  .meta-camp-row.expanded .meta-chevron{transform:rotate(90deg);color:var(--accent)}
+  .meta-adsets-row{background:var(--surface2)}
+  .meta-adsets-row td{padding:0 !important}
+  .meta-adsets-wrap{padding:14px 18px 18px;border-bottom:1px solid var(--border);background:linear-gradient(180deg,#F0EDE8 0%,var(--surface2) 100%)}
+  .meta-adsets-title{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);font-weight:600;margin-bottom:8px}
+  .meta-adsets-loading{font-size:11px;color:var(--muted);padding:10px;text-align:center}
+  .meta-adsets-table{width:100%;border-collapse:collapse;background:var(--surface);border-radius:10px;overflow:hidden;border:1px solid var(--border)}
+  .meta-adsets-table thead th{padding:8px 10px;font-size:9px;letter-spacing:.8px;text-transform:uppercase;color:var(--muted);font-weight:600;background:var(--surface2);text-align:right}
+  .meta-adsets-table thead th:first-child{text-align:left}
+  .meta-adsets-table tbody td{padding:8px 10px;font-size:10px;border-top:1px solid var(--border);text-align:right}
+  .meta-adsets-table tbody td:first-child{text-align:left;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .meta-adsets-empty{font-size:11px;color:var(--muted);padding:14px;text-align:center;font-style:italic}
+
   /* Badges de estado */
   .meta-badge{display:inline-block;font-size:9px;padding:2px 9px;border-radius:10px;letter-spacing:.5px;text-transform:uppercase;font-weight:600;white-space:nowrap}
   .meta-badge-active{background:var(--green-soft);color:#3F7F5C;border:1px solid var(--green)}
@@ -1363,9 +1379,20 @@
 
         <!-- Tabla campañas -->
         <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:14px;overflow:hidden">
-          <div style="padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px">
-            <div style="font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);flex:1">Campañas activas</div>
-            <span id="meta-count" style="font-size:11px;color:var(--muted2);font-family:'DM Mono',monospace"></span>
+          <div style="padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+            <div style="font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted)">Campañas</div>
+            <div style="position:relative;flex:1;max-width:280px">
+              <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--muted2);font-size:11px">🔍</span>
+              <input type="text" id="meta-filter" placeholder="Filtrar por nombre…" oninput="onMetaFilterChange()"
+                style="width:100%;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:6px 10px 6px 28px;border-radius:18px;font-size:11px;font-family:'DM Mono',monospace;outline:none">
+            </div>
+            <select id="meta-status-filter" onchange="onMetaFilterChange()" style="background:var(--surface);border:1.5px solid var(--border);color:var(--text);padding:5px 10px;border-radius:18px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer;outline:none">
+              <option value="all">Todas</option>
+              <option value="active" selected>Solo activas</option>
+              <option value="paused">Solo pausadas</option>
+              <option value="with_spend">Con gasto</option>
+            </select>
+            <span id="meta-count" style="font-size:11px;color:var(--muted2);font-family:'DM Mono',monospace;margin-left:auto"></span>
           </div>
           <div id="meta-loading" style="padding:24px;text-align:center;color:var(--muted2);font-size:12px">Cargando...</div>
           <div id="meta-error" style="display:none;padding:24px 20px;color:var(--peach);font-size:12px;line-height:1.6"></div>
@@ -5837,6 +5864,10 @@ function onMetaAccountChange(){
   fetchMetaAds();
 }
 
+let _metaLastRows = [];
+let _metaLastCurrency = 'USD';
+const _metaAdsetsCache = new Map(); // key = `${campaignId}:${preset}` -> rows
+
 async function fetchMetaAds(){
   const sel       = document.getElementById('meta-account-select');
   const presetSel = document.getElementById('meta-date-preset');
@@ -5844,15 +5875,15 @@ async function fetchMetaAds(){
   const preset    = presetSel ? presetSel.value : 'last_7d';
   if (!accountId) return;
 
+  // Limpiar cache de adsets al cambiar de cuenta o período
+  _metaAdsetsCache.clear();
+
   const loading = document.getElementById('meta-loading');
   const errBox  = document.getElementById('meta-error');
   const table   = document.getElementById('meta-table');
-  const tbody   = document.getElementById('meta-tbody');
-  const tfoot   = document.getElementById('meta-tfoot');
   const count   = document.getElementById('meta-count');
 
-  if (loading) loading.style.display = '';
-  if (loading) loading.textContent = 'Cargando…';
+  if (loading) { loading.style.display = ''; loading.textContent = 'Cargando…'; }
   if (errBox) errBox.style.display = 'none';
   if (table) table.style.display = 'none';
 
@@ -5863,28 +5894,47 @@ async function fetchMetaAds(){
 
     const rows = data.rows || [];
     const currency = data.currency || 'USD';
+    _metaLastRows = rows.slice().sort((a,b)=>b.spend - a.spend);
+    _metaLastCurrency = currency;
     document.getElementById('meta-account-name').textContent = data.accountName ? `${data.accountName} · ${currency}` : currency;
-    if (count) count.textContent = `${rows.length} ${rows.length === 1 ? 'campaña' : 'campañas'}`;
 
     if (loading) loading.style.display = 'none';
 
     if (rows.length === 0) {
-      if (loading) {
-        loading.style.display = '';
-        loading.textContent = 'Sin campañas con actividad en este período';
-      }
+      if (loading) { loading.style.display = ''; loading.textContent = 'Sin campañas con actividad en este período'; }
+      if (count) count.textContent = '0 campañas';
       renderMetaKpis([], currency);
       return;
     }
 
-    rows.sort((a,b)=>b.spend - a.spend);
-    renderMetaTable(rows, currency);
-    renderMetaKpis(rows, currency);
+    applyMetaFilterAndRender();
     if (table) table.style.display = '';
-    if (tfoot) tfoot.innerHTML = renderMetaTotalsRow(rows, currency);
   } catch(err){
     showMetaError(err.message || 'Error');
   }
+}
+
+function onMetaFilterChange(){
+  applyMetaFilterAndRender();
+}
+
+function applyMetaFilterAndRender(){
+  const filter = (document.getElementById('meta-filter')?.value || '').toLowerCase().trim();
+  const statusFilter = document.getElementById('meta-status-filter')?.value || 'all';
+  const filtered = _metaLastRows.filter(r => {
+    if (filter && !(r.name || '').toLowerCase().includes(filter)) return false;
+    const status = (r.status || '').toUpperCase();
+    if (statusFilter === 'active' && status !== 'ACTIVE') return false;
+    if (statusFilter === 'paused' && status !== 'PAUSED') return false;
+    if (statusFilter === 'with_spend' && r.spend <= 0) return false;
+    return true;
+  });
+  const count = document.getElementById('meta-count');
+  if (count) count.textContent = `${filtered.length} de ${_metaLastRows.length} ${_metaLastRows.length === 1 ? 'campaña' : 'campañas'}`;
+  renderMetaTable(filtered, _metaLastCurrency);
+  renderMetaKpis(filtered, _metaLastCurrency);
+  const tfoot = document.getElementById('meta-tfoot');
+  if (tfoot) tfoot.innerHTML = filtered.length > 0 ? renderMetaTotalsRow(filtered, _metaLastCurrency) : '';
 }
 
 function showMetaError(msg){
@@ -5902,6 +5952,10 @@ function showMetaError(msg){
 function renderMetaTable(rows, currency){
   const tbody = document.getElementById('meta-tbody');
   if (!tbody) return;
+  if (rows.length === 0){
+    tbody.innerHTML = '<tr><td colspan="11" style="padding:24px;text-align:center;color:var(--muted2)">Sin campañas que cumplan el filtro</td></tr>';
+    return;
+  }
   tbody.innerHTML = rows.map(r=>{
     const status = (r.status || '').toUpperCase();
     let badgeCls = 'meta-badge-paused';
@@ -5911,8 +5965,8 @@ function renderMetaTable(rows, currency){
     else if (status === 'DELETED' || status === 'DISABLED' || status === 'WITH_ISSUES'){ badgeCls = 'meta-badge-disabled'; badgeLabel = status === 'WITH_ISSUES' ? 'con problemas' : status.toLowerCase(); }
     else if (status === 'ARCHIVED' || status === 'IN_PROCESS'){ badgeCls = 'meta-badge-archived'; badgeLabel = status === 'IN_PROCESS' ? 'en proceso' : 'archivada'; }
     return `
-      <tr>
-        <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.name)}">${esc(r.name)}</td>
+      <tr class="meta-camp-row" data-cid="${r.id}" onclick="toggleAdsets('${r.id}')">
+        <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.name)}"><span class="meta-chevron">▶</span>${esc(r.name)}</td>
         <td style="text-align:center"><span class="meta-badge ${badgeCls}">${badgeLabel}</span></td>
         <td style="text-align:right;color:var(--muted)">${r.dailyBudget ? fmtMoney(r.dailyBudget, currency) : '—'}</td>
         <td style="text-align:right"><b>${fmtMoney(r.spend, currency)}</b></td>
@@ -5924,8 +5978,99 @@ function renderMetaTable(rows, currency){
         <td style="text-align:right;color:var(--muted)">${fmtNum(r.impressions)}</td>
         <td style="text-align:right;color:var(--muted)">${r.frequency ? Number(r.frequency).toFixed(2) : '—'}</td>
       </tr>
+      <tr class="meta-adsets-row" id="meta-adsets-row-${r.id}" style="display:none">
+        <td colspan="11"><div class="meta-adsets-wrap" id="meta-adsets-wrap-${r.id}"></div></td>
+      </tr>
     `;
   }).join('');
+}
+
+async function toggleAdsets(campaignId){
+  const row = document.querySelector(`tr.meta-camp-row[data-cid="${campaignId}"]`);
+  const adsetsRow = document.getElementById('meta-adsets-row-' + campaignId);
+  const wrap = document.getElementById('meta-adsets-wrap-' + campaignId);
+  if (!row || !adsetsRow || !wrap) return;
+
+  const isOpen = row.classList.contains('expanded');
+  if (isOpen){
+    row.classList.remove('expanded');
+    adsetsRow.style.display = 'none';
+    return;
+  }
+  row.classList.add('expanded');
+  adsetsRow.style.display = '';
+
+  const preset = document.getElementById('meta-date-preset')?.value || 'last_7d';
+  const cacheKey = `${campaignId}:${preset}`;
+  if (_metaAdsetsCache.has(cacheKey)){
+    renderAdsetsInline(campaignId, _metaAdsetsCache.get(cacheKey));
+    return;
+  }
+
+  wrap.innerHTML = '<div class="meta-adsets-loading"><span class="bk-spinner"></span> Cargando conjuntos de anuncios…</div>';
+  try {
+    const resp = await fetch(`/.netlify/functions/meta-adsets?campaign_id=${encodeURIComponent(campaignId)}&date_preset=${encodeURIComponent(preset)}`);
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'HTTP '+resp.status);
+    const rows = data.rows || [];
+    _metaAdsetsCache.set(cacheKey, rows);
+    renderAdsetsInline(campaignId, rows);
+  } catch(err){
+    wrap.innerHTML = `<div class="meta-adsets-empty">⚠️ ${esc(err.message)}</div>`;
+  }
+}
+
+function renderAdsetsInline(campaignId, rows){
+  const wrap = document.getElementById('meta-adsets-wrap-' + campaignId);
+  if (!wrap) return;
+  const currency = _metaLastCurrency;
+  if (rows.length === 0){
+    wrap.innerHTML = '<div class="meta-adsets-empty">Sin conjuntos de anuncios con actividad en este período</div>';
+    return;
+  }
+  wrap.innerHTML = `
+    <div class="meta-adsets-title">📋 ${rows.length} ${rows.length === 1 ? 'conjunto de anuncios' : 'conjuntos de anuncios'}</div>
+    <table class="meta-adsets-table">
+      <thead>
+        <tr>
+          <th>NOMBRE</th>
+          <th style="text-align:center">ESTADO</th>
+          <th>PPTO/DÍA</th>
+          <th>GASTO</th>
+          <th>COMPRAS</th>
+          <th>CPA</th>
+          <th>ROAS</th>
+          <th>CTR</th>
+          <th>CPC</th>
+          <th>FREC.</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows.map(r=>{
+          const st = (r.status || '').toUpperCase();
+          let bcl = 'meta-badge-paused', blab = st.toLowerCase();
+          if (st === 'ACTIVE'){ bcl = 'meta-badge-active'; blab = 'activa'; }
+          else if (st === 'PAUSED'){ blab = 'pausada'; }
+          else if (st.includes('DELETED') || st.includes('DISABLED') || st === 'WITH_ISSUES'){ bcl = 'meta-badge-disabled'; }
+          else if (st === 'ARCHIVED' || st === 'IN_PROCESS'){ bcl = 'meta-badge-archived'; }
+          return `
+            <tr>
+              <td title="${esc(r.name)}">${esc(r.name)}</td>
+              <td style="text-align:center"><span class="meta-badge ${bcl}">${blab}</span></td>
+              <td>${r.dailyBudget ? fmtMoney(r.dailyBudget, currency) : '—'}</td>
+              <td><b>${fmtMoney(r.spend, currency)}</b></td>
+              <td>${fmtNum(r.purchases)}</td>
+              <td style="color:var(--accent);font-weight:600">${r.cpa ? fmtMoney(r.cpa, currency) : '—'}</td>
+              <td style="color:${r.roas && r.roas > 2 ? '#3F7F5C' : (r.roas && r.roas < 1.5 ? '#B14747' : 'var(--accent)')};font-weight:600">${r.roas ? r.roas.toFixed(2) + 'x' : '—'}</td>
+              <td>${r.ctr ? r.ctr.toFixed(2) + '%' : '—'}</td>
+              <td>${r.cpc ? fmtMoney(r.cpc, currency) : '—'}</td>
+              <td style="color:${r.frequency > 4 ? '#A6862A' : 'var(--muted)'}">${r.frequency ? r.frequency.toFixed(2) : '—'}</td>
+            </tr>
+          `;
+        }).join('')}
+      </tbody>
+    </table>
+  `;
 }
 
 function renderMetaTotalsRow(rows, currency){
