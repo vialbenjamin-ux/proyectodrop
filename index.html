@@ -807,6 +807,74 @@
   .meta-backup-dl:hover{opacity:.85}
   .meta-backup-dl.csv{background:#3F7F5C}
 
+  /* Sección Creativos */
+  .creativos-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;padding:18px 22px}
+  .creativo-card{background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:14px 16px;cursor:pointer;transition:transform .15s,box-shadow .15s;position:relative;border-left:4px solid var(--border)}
+  .creativo-card:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,0,0,.06)}
+  .creativo-card.v-winner{border-left-color:#3F7F5C}
+  .creativo-card.v-semi{border-left-color:#D9A82E}
+  .creativo-card.v-normal{border-left-color:var(--muted2)}
+  .creativo-card.v-va_mal{border-left-color:#E08770}
+  .creativo-card.v-perdedor{border-left-color:#9B4A4A}
+  .creativo-card.v-investigar{border-left-color:#7B3FB5}
+  .creativo-card.v-pendiente{border-left-color:var(--border)}
+  .creativo-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:8px}
+  .creativo-card-name{font-family:'Syne',sans-serif;font-weight:700;font-size:14px;color:var(--text);line-height:1.3;flex:1}
+  .creativo-card-prod{font-size:10px;color:var(--muted);letter-spacing:.5px;margin-bottom:8px;text-transform:uppercase}
+  .creativo-card-hook{font-size:11px;color:var(--text);font-style:italic;background:var(--surface2);padding:6px 10px;border-radius:8px;margin-bottom:10px;line-height:1.4;border-left:2px solid var(--accent)}
+  .creativo-card-stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;font-family:'DM Mono',monospace;font-size:10px}
+  .creativo-card-stat{background:var(--surface2);padding:6px 8px;border-radius:6px;text-align:center}
+  .creativo-card-stat-lbl{color:var(--muted);font-size:8px;letter-spacing:1px;text-transform:uppercase;margin-bottom:2px}
+  .creativo-card-stat-val{color:var(--text);font-weight:700;font-size:11px}
+  .creativo-card-stat-val.good{color:#3F7F5C}
+  .creativo-card-stat-val.bad{color:#9B4A4A}
+  .creativo-card-meta{display:flex;flex-wrap:wrap;gap:4px;margin-top:10px}
+  .creativo-tag{display:inline-block;font-size:9px;padding:2px 8px;border-radius:8px;background:var(--surface2);color:var(--muted);letter-spacing:.3px;border:1px solid var(--border)}
+  .creativo-veredicto-badge{position:absolute;top:12px;right:12px;font-size:9px;padding:3px 9px;border-radius:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase}
+  .creativo-veredicto-badge.v-winner{background:var(--green-soft);color:#2D5A3F}
+  .creativo-veredicto-badge.v-semi{background:#FBF1D9;color:#A6862A}
+  .creativo-veredicto-badge.v-normal{background:var(--surface2);color:var(--muted)}
+  .creativo-veredicto-badge.v-va_mal{background:var(--peach-soft);color:#C4674F}
+  .creativo-veredicto-badge.v-perdedor{background:var(--red-soft);color:#9B4A4A}
+  .creativo-veredicto-badge.v-investigar{background:#EBDDF7;color:#5C2D8A}
+  .creativo-veredicto-badge.v-pendiente{background:var(--border);color:var(--muted)}
+  .creativos-empty{padding:60px 24px;text-align:center;color:var(--text)}
+
+  /* Modal Creativo */
+  .creativo-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;display:flex;align-items:flex-start;justify-content:center;padding:40px 20px;overflow-y:auto}
+  .creativo-modal{background:var(--surface);border-radius:16px;width:100%;max-width:780px;box-shadow:0 24px 60px rgba(0,0,0,.2);display:flex;flex-direction:column;max-height:calc(100vh - 80px)}
+  .creativo-modal-head{padding:18px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+  .creativo-modal-title{font-family:'Syne',sans-serif;font-weight:800;font-size:18px;color:var(--text)}
+  .creativo-modal-close{background:none;border:none;font-size:18px;color:var(--muted);cursor:pointer;padding:4px 10px;border-radius:8px}
+  .creativo-modal-close:hover{background:var(--surface2);color:var(--text)}
+  .creativo-modal-body{padding:18px 22px;overflow-y:auto;flex:1}
+  .creativo-section-label{font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin:18px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+  .creativo-section-label:first-child{margin-top:0}
+  .creativo-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .creativo-grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+  .creativo-field{display:flex;flex-direction:column;gap:4px}
+  .creativo-field span{font-size:10px;color:var(--muted);letter-spacing:.5px;text-transform:uppercase;font-weight:600}
+  .creativo-field input,.creativo-field select,.creativo-field textarea{background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px 12px;border-radius:8px;font-size:12px;font-family:'DM Mono',monospace;outline:none;width:100%}
+  .creativo-field input:focus,.creativo-field select:focus,.creativo-field textarea:focus{border-color:var(--accent)}
+  .creativo-field textarea{resize:vertical;min-height:60px;font-family:inherit;line-height:1.5}
+  .creativo-full{grid-column:1/-1}
+  .creativo-tip{background:var(--accent-soft,#FFF4D8);border:1px solid var(--yellow,#E5C04E);border-radius:10px;padding:10px 14px;font-size:11px;color:var(--text);line-height:1.5;margin-bottom:12px}
+  .creativo-veredicto-preview{padding:12px 16px;border-radius:10px;font-size:13px;font-weight:700;text-align:center;background:var(--surface2);border:1.5px dashed var(--border);color:var(--muted);margin-bottom:12px;letter-spacing:.5px}
+  .creativo-veredicto-preview.v-winner{background:var(--green-soft);border-color:var(--green);color:#2D5A3F;border-style:solid}
+  .creativo-veredicto-preview.v-semi{background:#FBF1D9;border-color:#D9A82E;color:#A6862A;border-style:solid}
+  .creativo-veredicto-preview.v-normal{background:var(--surface2);border-color:var(--muted2);color:var(--text);border-style:solid}
+  .creativo-veredicto-preview.v-va_mal{background:var(--peach-soft);border-color:#E08770;color:#C4674F;border-style:solid}
+  .creativo-veredicto-preview.v-perdedor{background:var(--red-soft);border-color:var(--red);color:#9B4A4A;border-style:solid}
+  .creativo-veredicto-preview.v-investigar{background:#EBDDF7;border-color:#7B3FB5;color:#5C2D8A;border-style:solid}
+  .creativo-modal-foot{padding:14px 22px;border-top:1px solid var(--border);display:flex;align-items:center;gap:10px;background:var(--surface2)}
+  .creativo-btn-cancel,.creativo-btn-save,.creativo-btn-delete{padding:9px 18px;border-radius:20px;font-size:11px;letter-spacing:.5px;cursor:pointer;font-family:'DM Mono',monospace;font-weight:600;border:none}
+  .creativo-btn-cancel{background:var(--surface);color:var(--text);border:1.5px solid var(--border)}
+  .creativo-btn-save{background:var(--accent);color:#fff}
+  .creativo-btn-delete{background:var(--red-soft);color:#9B4A4A;border:1px solid var(--red)}
+  @media (max-width:640px){
+    .creativo-grid-2,.creativo-grid-3{grid-template-columns:1fr}
+  }
+
   /* Badges de estado */
   .meta-badge{display:inline-block;font-size:9px;padding:2px 9px;border-radius:10px;letter-spacing:.5px;text-transform:uppercase;font-weight:600;white-space:nowrap}
   .meta-badge-active{background:var(--green-soft);color:#3F7F5C;border:1px solid var(--green)}
@@ -969,6 +1037,9 @@
   </button>
   <button class="tab-btn active" data-section="productos" onclick="switchSection('productos')">
     Productos <span class="badge" id="badge-productos" style="display:none">0</span>
+  </button>
+  <button class="tab-btn" data-section="creativos" onclick="switchSection('creativos')">
+    🎯 Creativos <span class="badge" id="badge-creativos" style="display:none">0</span>
   </button>
   <button class="tab-btn" data-section="videos" onclick="switchSection('videos')">
     🎬 Tutorial BK
@@ -1715,6 +1786,211 @@
     </div>
   </div>
 
+  <div id="section-creativos" class="section">
+    <div class="filter-row">
+      <div style="display:flex;align-items:center;gap:10px;flex:1;flex-wrap:wrap">
+        <div style="font-size:10px;color:var(--muted);letter-spacing:2px;text-transform:uppercase">🎯 Creativos · ADN + Performance</div>
+        <div style="position:relative;flex:1;max-width:280px">
+          <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--muted2);font-size:13px">🔍</span>
+          <input id="creativos-search" placeholder="Buscar por nombre, hook, ángulo..." oninput="renderCreativos()"
+            style="width:100%;background:var(--surface);border:1.5px solid var(--border);color:var(--text);padding:7px 12px 7px 30px;border-radius:20px;font-size:12px;font-family:'DM Mono',monospace;outline:none">
+        </div>
+        <select id="creativos-filter-veredicto" onchange="renderCreativos()" style="background:var(--surface);border:1.5px solid var(--border);color:var(--text);padding:6px 12px;border-radius:20px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer;outline:none">
+          <option value="all">Todos</option>
+          <option value="winner">🟢 Winners</option>
+          <option value="semi">🟡 Semi-winners</option>
+          <option value="normal">⚪ Normales</option>
+          <option value="va_mal">🔴 Van mal</option>
+          <option value="perdedor">❌ Perdedores</option>
+          <option value="investigar">🔍 Investigar</option>
+          <option value="pendiente">⏳ Pendientes</option>
+        </select>
+        <select id="creativos-filter-producto" onchange="renderCreativos()" style="background:var(--surface);border:1.5px solid var(--border);color:var(--text);padding:6px 12px;border-radius:20px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer;outline:none">
+          <option value="all">Todos los productos</option>
+        </select>
+        <span id="creativos-count" style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace"></span>
+      </div>
+      <button class="btn-primary" onclick="openCreativoModal()">+ Nuevo creativo</button>
+    </div>
+
+    <div class="creativos-grid" id="creativos-grid"></div>
+    <div id="creativos-empty" class="creativos-empty" style="display:none">
+      <div style="font-size:48px;margin-bottom:8px">🎯</div>
+      <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:18px;margin-bottom:6px">Aún no tienes creativos fichados</div>
+      <div style="font-size:12px;color:var(--muted);max-width:480px;margin:0 auto;line-height:1.6">Cada creativo (video) se ficha con su ADN: hook, ángulo, framework, voz en off. Cuando lo lances en Meta, copias spend / CPA real / ROAS real desde la planilla Cruce y BKDROP calcula automáticamente si es winner, semi-winner o perdedor.</div>
+      <button class="btn-primary" style="margin-top:18px" onclick="openCreativoModal()">+ Crear primer creativo</button>
+    </div>
+
+    <!-- Modal de creativo -->
+    <div id="creativo-modal" class="creativo-modal-overlay" style="display:none" onclick="closeCreativoModalIfBg(event)">
+      <div class="creativo-modal">
+        <div class="creativo-modal-head">
+          <div class="creativo-modal-title" id="creativo-modal-title">Nuevo creativo</div>
+          <button class="creativo-modal-close" onclick="closeCreativoModal()">✕</button>
+        </div>
+        <div class="creativo-modal-body">
+          <input type="hidden" id="cre-id">
+
+          <div class="creativo-section-label">📝 Datos básicos</div>
+          <div class="creativo-grid-2">
+            <label class="creativo-field">
+              <span>Nombre del creativo *</span>
+              <input type="text" id="cre-nombre" placeholder="Ej: Hook pregunta dolor v3 — UGC mujer 40">
+            </label>
+            <label class="creativo-field">
+              <span>Producto *</span>
+              <select id="cre-producto"></select>
+            </label>
+            <label class="creativo-field creativo-full">
+              <span>URL del video (Drive / Dropbox / link público)</span>
+              <input type="url" id="cre-video-url" placeholder="https://drive.google.com/...">
+            </label>
+            <label class="creativo-field creativo-full">
+              <span>Ángulo de venta</span>
+              <input type="text" id="cre-angulo" placeholder="Ej: Resultado deseado — verse más joven en 30 días">
+            </label>
+          </div>
+
+          <div class="creativo-section-label">🧬 ADN del creativo</div>
+          <div class="creativo-grid-2">
+            <label class="creativo-field">
+              <span>Tipo de video</span>
+              <select id="cre-tipo">
+                <option value="">— Seleccionar —</option>
+                <option>UGC</option>
+                <option>Demo</option>
+                <option>Testimonial</option>
+                <option>Problema/Solución</option>
+                <option>Before/After</option>
+                <option>Historia personal</option>
+                <option>Unboxing</option>
+                <option>Respuesta a comentario</option>
+                <option>Comparativo</option>
+                <option>Oferta directa</option>
+                <option>Educación</option>
+              </select>
+            </label>
+            <label class="creativo-field">
+              <span>Framework narrativo</span>
+              <select id="cre-framework">
+                <option value="">— Seleccionar —</option>
+                <option>PAS (Problema-Agitación-Solución)</option>
+                <option>Demo</option>
+                <option>Mecanismo único</option>
+                <option>Educación</option>
+                <option>Historia personal</option>
+                <option>Respuesta a comentario</option>
+                <option>Híbrido</option>
+              </select>
+            </label>
+            <label class="creativo-field creativo-full">
+              <span>Hook (texto exacto del primer 1-3 seg)</span>
+              <input type="text" id="cre-hook" placeholder='Ej: "¿Sigues durmiendo mal por culpa del calor?"'>
+            </label>
+            <label class="creativo-field">
+              <span>Tipo de hook</span>
+              <select id="cre-hook-tipo">
+                <option value="">— Seleccionar —</option>
+                <option>Pregunta al dolor</option>
+                <option>Sensacionalista</option>
+                <option>Anti-promesa</option>
+                <option>Tiempo / urgencia</option>
+                <option>Mejor producto</option>
+                <option>Prueba social</option>
+                <option>Oferta</option>
+                <option>Estadístico</option>
+                <option>Controversia</option>
+                <option>Rutina</option>
+                <option>Empatía</option>
+                <option>Historia que impacta</option>
+              </select>
+            </label>
+            <label class="creativo-field">
+              <span>Mecanismo emocional</span>
+              <select id="cre-emocion">
+                <option value="">— Seleccionar —</option>
+                <option>Frustración</option>
+                <option>Alivio</option>
+                <option>Miedo a seguir igual</option>
+                <option>Curiosidad</option>
+                <option>Sorpresa</option>
+                <option>Deseo</option>
+                <option>Aspiración</option>
+                <option>Identificación</option>
+                <option>Urgencia</option>
+              </select>
+            </label>
+            <label class="creativo-field creativo-full">
+              <span>Voz en off (transcripción)</span>
+              <textarea id="cre-voz-off" rows="4" placeholder="Pega aquí la locución completa del video..."></textarea>
+            </label>
+          </div>
+
+          <div class="creativo-section-label">📊 Performance (copia desde planilla Cruce real)</div>
+          <div class="creativo-tip">💡 Tip: ve a <b>Reportes → Cruce real</b>, busca tu campaña/ad, y copia los números aquí. El veredicto se calcula automático según tus umbrales (ROAS &lt; 6 = perdedor; con ROAS ≥ 6 aplica escala CPA).</div>
+          <div class="creativo-grid-3">
+            <label class="creativo-field">
+              <span>Spend (CLP)</span>
+              <input type="number" id="cre-spend" min="0" step="100" oninput="recalcVeredicto()" placeholder="0">
+            </label>
+            <label class="creativo-field">
+              <span>Ventas (órdenes)</span>
+              <input type="number" id="cre-ventas" min="0" step="1" oninput="recalcVeredicto()" placeholder="0">
+            </label>
+            <label class="creativo-field">
+              <span>Revenue (CLP)</span>
+              <input type="number" id="cre-revenue" min="0" step="100" oninput="recalcVeredicto()" placeholder="0">
+            </label>
+            <label class="creativo-field">
+              <span>CPA real (calculado)</span>
+              <input type="text" id="cre-cpa-calc" readonly placeholder="—" style="background:var(--surface2)">
+            </label>
+            <label class="creativo-field">
+              <span>ROAS real (calculado)</span>
+              <input type="text" id="cre-roas-calc" readonly placeholder="—" style="background:var(--surface2)">
+            </label>
+            <label class="creativo-field">
+              <span>Días activo</span>
+              <input type="number" id="cre-dias" min="0" step="1" placeholder="0">
+            </label>
+            <label class="creativo-field creativo-full">
+              <span>Ad IDs vinculados (separados por coma — opcional, para Fase 1b)</span>
+              <input type="text" id="cre-ad-ids" placeholder="6520123456789, 6520987654321">
+            </label>
+          </div>
+
+          <div class="creativo-section-label">⚖️ Veredicto</div>
+          <div id="cre-veredicto-preview" class="creativo-veredicto-preview">⏳ Pendiente — completa los datos de performance para calcular</div>
+          <div class="creativo-grid-2">
+            <label class="creativo-field">
+              <span>Veredicto manual (opcional, sobreescribe automático)</span>
+              <select id="cre-veredicto-manual">
+                <option value="">— Usar automático —</option>
+                <option value="winner">🟢 Winner</option>
+                <option value="semi">🟡 Semi-winner</option>
+                <option value="normal">⚪ Normal</option>
+                <option value="va_mal">🔴 Va mal</option>
+                <option value="perdedor">❌ Perdedor</option>
+                <option value="investigar">🔍 Investigar</option>
+                <option value="pendiente">⏳ Pendiente</option>
+              </select>
+            </label>
+            <label class="creativo-field creativo-full">
+              <span>Patrón aprendido / Notas</span>
+              <textarea id="cre-patron" rows="3" placeholder="¿Qué te enseñó este creativo? Ej: 'Hook tipo pregunta funciona en mujeres 40+ con ángulo de resultado'"></textarea>
+            </label>
+          </div>
+        </div>
+        <div class="creativo-modal-foot">
+          <button class="creativo-btn-delete" id="cre-btn-delete" onclick="deleteCreativo()" style="display:none">🗑 Eliminar</button>
+          <div style="flex:1"></div>
+          <button class="creativo-btn-cancel" onclick="closeCreativoModal()">Cancelar</button>
+          <button class="creativo-btn-save" onclick="saveCreativo()">💾 Guardar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div id="section-archivo" class="section">
     <div class="filter-row">
       <div style="display:flex;align-items:center;gap:10px;flex:1;flex-wrap:wrap">
@@ -1905,6 +2181,7 @@ try {
           s.videos      = d.videos      || [];
           s.videoTemas  = d.videoTemas  || [];
           s.promptTemas = d.promptTemas || [];
+          s.creativos   = d.creativos   || [];
         }
       } catch(e) { console.warn('FB load:', e); }
     },
@@ -1919,7 +2196,8 @@ try {
           todos:       s.todos       || [],
           videos:      s.videos      || [],
           videoTemas:  s.videoTemas  || [],
-          promptTemas: s.promptTemas || []
+          promptTemas: s.promptTemas || [],
+          creativos:   s.creativos   || []
         });
       } catch(e) { console.warn('FB save:', e); }
       _saving = false;
@@ -1962,7 +2240,9 @@ try {
           s.videos      = d.videos      || [];
           s.videoTemas  = d.videoTemas  || [];
           s.promptTemas = d.promptTemas || [];
+          s.creativos   = d.creativos   || [];
           if (window._appRender) window._appRender();
+          if (window.renderCreativos) window.renderCreativos();
         }
       });
     }
@@ -2000,7 +2280,7 @@ const PRIOS = [
   {id:'baja',  label:'Baja',  color:'#4ECDC4'},
 ];
 
-let state = {products:[], suppliers:[], todos:[], videos:[], videoTemas:[], promptTemas:[]};
+let state = {products:[], suppliers:[], todos:[], videos:[], videoTemas:[], promptTemas:[], creativos:[]};
 window._appState = state;
 let modalType=null, editId=null, prodFilter='all', todoFilter='all', ownerFilter='all';
 
@@ -2068,6 +2348,7 @@ function switchSection(s, silent){
   if(s==='calendario') renderCalendar();
   if(s==='prompts'){ renderPrompts(); loadBkVars(); }
   if(s==='reportes') initReportes();
+  if(s==='creativos') renderCreativos();
 }
 
 function startRenameOwner(owner){
@@ -2299,7 +2580,7 @@ function shiftRankingPeriod(dir){
   renderRanking();
 }
 
-function render(){ renderHoyPanel(); renderRanking(); renderPriorityPanel(); renderProducts(); renderSuppliers(); renderTodos(); renderArchivo(); renderVideos(); renderPrompts(); renderBadges(); }
+function render(){ renderHoyPanel(); renderRanking(); renderPriorityPanel(); renderProducts(); renderSuppliers(); renderTodos(); renderArchivo(); renderVideos(); renderPrompts(); renderBadges(); renderCreativos(); }
 
 function renderHoyPanel(){
   const panel = document.getElementById('hoy-panel');
@@ -6136,6 +6417,273 @@ function onMetaAccountChange(){
   const sel = document.getElementById('meta-account-select');
   if (sel && sel.value) localStorage.setItem('bkdrop_meta_account', sel.value);
   fetchMetaAds();
+}
+
+// ── CREATIVOS — ADN del creativo + Performance + Veredicto ────────────────────
+const VEREDICTO_LABELS = {
+  winner:     { emoji:'🟢', txt:'Winner',      class:'v-winner' },
+  semi:       { emoji:'🟡', txt:'Semi-winner', class:'v-semi' },
+  normal:     { emoji:'⚪', txt:'Normal',      class:'v-normal' },
+  va_mal:     { emoji:'🔴', txt:'Va mal',      class:'v-va_mal' },
+  perdedor:   { emoji:'❌', txt:'Perdedor',    class:'v-perdedor' },
+  investigar: { emoji:'🔍', txt:'Investigar',  class:'v-investigar' },
+  pendiente:  { emoji:'⏳', txt:'Pendiente',   class:'v-pendiente' },
+};
+
+// Aplica la regla del usuario: ROAS<6 perdedor automático; con ROAS>=6 escala CPA en CLP.
+function calcularVeredicto({ ventas, spend, revenue }){
+  const v = Number(ventas) || 0;
+  const s = Number(spend) || 0;
+  const r = Number(revenue) || 0;
+  if (s === 0) return { veredicto:'pendiente', cpa:null, roas:null };
+  if (v === 0) return { veredicto:'investigar', cpa:null, roas: r > 0 ? r/s : 0 };
+  const cpa = s / v;
+  const roas = r / s;
+  if (roas < 6) return { veredicto:'perdedor', cpa, roas };
+  if (cpa < 2500)              return { veredicto:'winner',   cpa, roas };
+  if (cpa < 4000)              return { veredicto:'semi',     cpa, roas };
+  if (cpa < 5000)              return { veredicto:'normal',   cpa, roas };
+  if (cpa < 6000)              return { veredicto:'va_mal',   cpa, roas };
+  return { veredicto:'perdedor', cpa, roas };
+}
+
+function fmtMoneyCLP(n){
+  if (n === null || n === undefined || isNaN(n)) return '—';
+  return '$' + Math.round(n).toLocaleString('es-CL');
+}
+function fmtRoas(n){
+  if (n === null || n === undefined || isNaN(n)) return '—';
+  return n.toFixed(2) + 'x';
+}
+
+function renderCreativos(){
+  const grid = document.getElementById('creativos-grid');
+  const empty = document.getElementById('creativos-empty');
+  const countEl = document.getElementById('creativos-count');
+  if (!grid) return;
+  const all = (window._appState?.creativos || []).slice().sort((a,b) => (b.fechaActualizacion||0) - (a.fechaActualizacion||0));
+
+  // Llenar dropdown de productos al renderizar
+  const filterProd = document.getElementById('creativos-filter-producto');
+  if (filterProd){
+    const currentVal = filterProd.value;
+    const productos = window._appState?.products || [];
+    const opts = ['<option value="all">Todos los productos</option>']
+      .concat(productos.map(p => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name||'(sin nombre)')}</option>`));
+    filterProd.innerHTML = opts.join('');
+    filterProd.value = currentVal || 'all';
+  }
+
+  const search = (document.getElementById('creativos-search')?.value || '').toLowerCase().trim();
+  const fVer = document.getElementById('creativos-filter-veredicto')?.value || 'all';
+  const fProd = document.getElementById('creativos-filter-producto')?.value || 'all';
+
+  const filtered = all.filter(c => {
+    if (fVer !== 'all' && (c.veredictoFinal || 'pendiente') !== fVer) return false;
+    if (fProd !== 'all' && c.productoId !== fProd) return false;
+    if (search){
+      const blob = [c.nombre, c.angulo, c.hookTexto, c.tipoVideo, c.framework, c.hookTipo, c.emocion, c.productoNombre]
+        .filter(Boolean).join(' ').toLowerCase();
+      if (!blob.includes(search)) return false;
+    }
+    return true;
+  });
+
+  if (countEl) countEl.textContent = `${filtered.length} de ${all.length}`;
+
+  // Badge en nav
+  const badge = document.getElementById('badge-creativos');
+  if (badge){
+    if (all.length > 0){ badge.style.display = ''; badge.textContent = all.length; }
+    else badge.style.display = 'none';
+  }
+
+  if (filtered.length === 0){
+    grid.innerHTML = '';
+    grid.style.display = 'none';
+    if (empty) empty.style.display = '';
+    return;
+  }
+  grid.style.display = '';
+  if (empty) empty.style.display = 'none';
+
+  grid.innerHTML = filtered.map(c => {
+    const v = c.veredictoFinal || 'pendiente';
+    const vmeta = VEREDICTO_LABELS[v] || VEREDICTO_LABELS.pendiente;
+    const cpaClass = v === 'winner' ? 'good' : (v === 'perdedor' || v === 'va_mal' ? 'bad' : '');
+    const roasClass = (c.roas !== null && c.roas !== undefined && !isNaN(c.roas)) ? (c.roas >= 6 ? 'good' : 'bad') : '';
+    const tags = [c.tipoVideo, c.framework, c.hookTipo, c.emocion].filter(Boolean)
+      .map(t => `<span class="creativo-tag">${escapeHtml(t)}</span>`).join('');
+    return `
+      <div class="creativo-card ${vmeta.class}" onclick="openCreativoModal('${escapeHtml(c.id)}')">
+        <div class="creativo-veredicto-badge ${vmeta.class}">${vmeta.emoji} ${vmeta.txt}</div>
+        <div class="creativo-card-head">
+          <div class="creativo-card-name">${escapeHtml(c.nombre || '(sin nombre)')}</div>
+        </div>
+        <div class="creativo-card-prod">📦 ${escapeHtml(c.productoNombre || '—')}</div>
+        ${c.hookTexto ? `<div class="creativo-card-hook">"${escapeHtml(c.hookTexto)}"</div>` : ''}
+        <div class="creativo-card-stats">
+          <div class="creativo-card-stat"><div class="creativo-card-stat-lbl">Spend</div><div class="creativo-card-stat-val">${fmtMoneyCLP(c.spend)}</div></div>
+          <div class="creativo-card-stat"><div class="creativo-card-stat-lbl">CPA</div><div class="creativo-card-stat-val ${cpaClass}">${fmtMoneyCLP(c.cpa)}</div></div>
+          <div class="creativo-card-stat"><div class="creativo-card-stat-lbl">ROAS</div><div class="creativo-card-stat-val ${roasClass}">${fmtRoas(c.roas)}</div></div>
+        </div>
+        ${tags ? `<div class="creativo-card-meta">${tags}</div>` : ''}
+      </div>`;
+  }).join('');
+}
+
+function openCreativoModal(id){
+  const modal = document.getElementById('creativo-modal');
+  if (!modal) return;
+  // Llenar selector de productos (opciones desde _appState.products)
+  const prodSel = document.getElementById('cre-producto');
+  const productos = window._appState?.products || [];
+  prodSel.innerHTML = '<option value="">— Seleccionar producto —</option>' +
+    productos.map(p => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name||'(sin nombre)')}</option>`).join('');
+
+  // Limpiar todos los campos
+  ['cre-id','cre-nombre','cre-video-url','cre-angulo','cre-hook','cre-voz-off','cre-spend','cre-ventas','cre-revenue','cre-cpa-calc','cre-roas-calc','cre-dias','cre-ad-ids','cre-patron']
+    .forEach(k => { const el = document.getElementById(k); if (el) el.value = ''; });
+  ['cre-producto','cre-tipo','cre-framework','cre-hook-tipo','cre-emocion','cre-veredicto-manual']
+    .forEach(k => { const el = document.getElementById(k); if (el) el.value = ''; });
+
+  const titleEl = document.getElementById('creativo-modal-title');
+  const delBtn = document.getElementById('cre-btn-delete');
+
+  if (id){
+    const c = (window._appState?.creativos || []).find(x => x.id === id);
+    if (!c) return;
+    document.getElementById('cre-id').value = c.id;
+    document.getElementById('cre-nombre').value = c.nombre || '';
+    document.getElementById('cre-producto').value = c.productoId || '';
+    document.getElementById('cre-video-url').value = c.videoUrl || '';
+    document.getElementById('cre-angulo').value = c.angulo || '';
+    document.getElementById('cre-tipo').value = c.tipoVideo || '';
+    document.getElementById('cre-framework').value = c.framework || '';
+    document.getElementById('cre-hook').value = c.hookTexto || '';
+    document.getElementById('cre-hook-tipo').value = c.hookTipo || '';
+    document.getElementById('cre-emocion').value = c.emocion || '';
+    document.getElementById('cre-voz-off').value = c.vozOff || '';
+    document.getElementById('cre-spend').value = c.spend ?? '';
+    document.getElementById('cre-ventas').value = c.ventas ?? '';
+    document.getElementById('cre-revenue').value = c.revenue ?? '';
+    document.getElementById('cre-dias').value = c.diasActivo ?? '';
+    document.getElementById('cre-ad-ids').value = (c.adIds || []).join(', ');
+    document.getElementById('cre-veredicto-manual').value = c.veredictoManual || '';
+    document.getElementById('cre-patron').value = c.patronAprendido || '';
+    titleEl.textContent = 'Editar creativo';
+    if (delBtn) delBtn.style.display = '';
+  } else {
+    titleEl.textContent = 'Nuevo creativo';
+    if (delBtn) delBtn.style.display = 'none';
+  }
+  recalcVeredicto();
+  modal.style.display = '';
+  setTimeout(() => document.getElementById('cre-nombre')?.focus(), 50);
+}
+
+function closeCreativoModal(){
+  const m = document.getElementById('creativo-modal');
+  if (m) m.style.display = 'none';
+}
+function closeCreativoModalIfBg(ev){
+  if (ev.target.id === 'creativo-modal') closeCreativoModal();
+}
+
+function recalcVeredicto(){
+  const spend = parseFloat(document.getElementById('cre-spend')?.value) || 0;
+  const ventas = parseInt(document.getElementById('cre-ventas')?.value, 10) || 0;
+  const revenue = parseFloat(document.getElementById('cre-revenue')?.value) || 0;
+  const { veredicto, cpa, roas } = calcularVeredicto({ ventas, spend, revenue });
+  const cpaEl = document.getElementById('cre-cpa-calc');
+  const roasEl = document.getElementById('cre-roas-calc');
+  if (cpaEl) cpaEl.value = cpa !== null ? fmtMoneyCLP(cpa) : '—';
+  if (roasEl) roasEl.value = roas !== null ? fmtRoas(roas) : '—';
+
+  const manual = document.getElementById('cre-veredicto-manual')?.value || '';
+  const final = manual || veredicto;
+  const meta = VEREDICTO_LABELS[final] || VEREDICTO_LABELS.pendiente;
+  const preview = document.getElementById('cre-veredicto-preview');
+  if (preview){
+    preview.className = 'creativo-veredicto-preview ' + meta.class;
+    let text = `${meta.emoji} ${meta.txt}`;
+    if (manual) text += ' (manual)';
+    if (cpa !== null) text += ` · CPA ${fmtMoneyCLP(cpa)} · ROAS ${fmtRoas(roas)}`;
+    preview.textContent = text;
+  }
+}
+
+document.addEventListener('change', (e) => {
+  if (e.target && e.target.id === 'cre-veredicto-manual') recalcVeredicto();
+});
+
+async function saveCreativo(){
+  const id = document.getElementById('cre-id').value || ('cre_' + Date.now() + '_' + Math.random().toString(36).slice(2,8));
+  const nombre = document.getElementById('cre-nombre').value.trim();
+  if (!nombre){ alert('El nombre es obligatorio'); return; }
+  const productoId = document.getElementById('cre-producto').value;
+  const productos = window._appState?.products || [];
+  const prod = productos.find(p => p.id === productoId);
+
+  const spend = parseFloat(document.getElementById('cre-spend').value) || 0;
+  const ventas = parseInt(document.getElementById('cre-ventas').value, 10) || 0;
+  const revenue = parseFloat(document.getElementById('cre-revenue').value) || 0;
+  const { veredicto: veredictoAuto, cpa, roas } = calcularVeredicto({ ventas, spend, revenue });
+  const veredictoManual = document.getElementById('cre-veredicto-manual').value || '';
+
+  const adIdsRaw = document.getElementById('cre-ad-ids').value || '';
+  const adIds = adIdsRaw.split(/[,\s]+/).map(s => s.trim()).filter(Boolean);
+
+  const creativo = {
+    id,
+    nombre,
+    productoId: productoId || null,
+    productoNombre: prod ? (prod.name || '') : '',
+    videoUrl: document.getElementById('cre-video-url').value.trim(),
+    angulo: document.getElementById('cre-angulo').value.trim(),
+    tipoVideo: document.getElementById('cre-tipo').value,
+    framework: document.getElementById('cre-framework').value,
+    hookTexto: document.getElementById('cre-hook').value.trim(),
+    hookTipo: document.getElementById('cre-hook-tipo').value,
+    emocion: document.getElementById('cre-emocion').value,
+    vozOff: document.getElementById('cre-voz-off').value.trim(),
+    spend, ventas, revenue,
+    cpa: cpa !== null && !isNaN(cpa) ? Math.round(cpa) : null,
+    roas: roas !== null && !isNaN(roas) ? Math.round(roas * 100) / 100 : null,
+    diasActivo: parseInt(document.getElementById('cre-dias').value, 10) || 0,
+    adIds,
+    veredictoAuto,
+    veredictoManual,
+    veredictoFinal: veredictoManual || veredictoAuto,
+    patronAprendido: document.getElementById('cre-patron').value.trim(),
+    fechaCreacion: undefined,
+    fechaActualizacion: Date.now(),
+  };
+
+  const state = window._appState;
+  if (!state.creativos) state.creativos = [];
+  const idx = state.creativos.findIndex(c => c.id === id);
+  if (idx >= 0){
+    creativo.fechaCreacion = state.creativos[idx].fechaCreacion || Date.now();
+    state.creativos[idx] = creativo;
+  } else {
+    creativo.fechaCreacion = Date.now();
+    state.creativos.push(creativo);
+  }
+  if (window._firebaseReady && window._firebaseReady.save) await window._firebaseReady.save();
+  closeCreativoModal();
+  renderCreativos();
+}
+
+async function deleteCreativo(){
+  const id = document.getElementById('cre-id').value;
+  if (!id) return;
+  if (!confirm('¿Eliminar este creativo? No se puede deshacer.')) return;
+  const state = window._appState;
+  state.creativos = (state.creativos || []).filter(c => c.id !== id);
+  if (window._firebaseReady && window._firebaseReady.save) await window._firebaseReady.save();
+  closeCreativoModal();
+  renderCreativos();
 }
 
 // ── BACKUP ANTI-BANEO Meta ────────────────────────────────────────────────────
