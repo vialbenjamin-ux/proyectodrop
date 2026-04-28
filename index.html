@@ -6941,8 +6941,13 @@ async function generarBackupMeta(scope){
       if (status) status.textContent = `Cuenta ${i+1}/${accountIds.length}: ${id}…`;
       try {
         const r = await fetch('/.netlify/functions/meta-backup?account_id=' + encodeURIComponent(id));
-        const data = await r.json();
-        if (!r.ok) throw new Error(data.error || 'error');
+        const text = await r.text();
+        let data;
+        try { data = JSON.parse(text); }
+        catch (_) {
+          throw new Error('Servidor respondió ' + r.status + ' ' + (r.statusText || '') + ' (probable timeout, cuerpo vacío)');
+        }
+        if (!r.ok) throw new Error(data.error || ('HTTP ' + r.status));
         results.push(data);
       } catch (e){
         errores.push({ id, error: e.message || String(e) });

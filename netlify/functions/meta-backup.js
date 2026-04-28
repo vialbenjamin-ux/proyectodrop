@@ -47,6 +47,13 @@ exports.handler = async (event) => {
     'effective_object_story_id','object_type',
   ].join(',');
 
+  // Cap de tiempo: la función Netlify por default mata a los 10s.
+  // Reservamos ~1.5s para serializar/responder.
+  const startedAt = Date.now();
+  const TIMEOUT_BUDGET_MS = 8500;
+  const elapsed = () => Date.now() - startedAt;
+  const remaining = () => TIMEOUT_BUDGET_MS - elapsed();
+
   try {
     const [account, campaigns, adsets, ads] = await Promise.all([
       fetchOne(`https://graph.facebook.com/v19.0/${accountId}?fields=${accountFields}&access_token=${encodeURIComponent(token)}`),
@@ -55,16 +62,28 @@ exports.handler = async (event) => {
       fetchAllPages(`https://graph.facebook.com/v19.0/${accountId}/ads?fields=${adFields}&limit=100&access_token=${encodeURIComponent(token)}`),
     ]);
 
-    // Recolectar creative.id únicos y traer creativos en lotes de 50
+    // Recolectar creative.id únicos y traer creativos en lotes de 50.
+    // Si nos queda poco tiempo de función, saltamos esta fase y devolvemos
+    // los ads con creative={id} solamente, marcando partial=true.
     const creativeIds = Array.from(new Set(
       ads.map(a => a.creative?.id).filter(Boolean)
     ));
     const creativesById = {};
+    let creativesLoaded = 0;
+    let partialCreatives = false;
     for (let i = 0; i < creativeIds.length; i += 50){
+      // ~2s por lote en peor caso. Si no alcanza, abortamos.
+      if (remaining() < 2500){ partialCreatives = true; break; }
       const chunk = creativeIds.slice(i, i + 50);
       const url = `https://graph.facebook.com/v19.0/?ids=${chunk.join(',')}&fields=${creativeFields}&access_token=${encodeURIComponent(token)}`;
-      const data = await fetchWithRetry(url);
-      Object.assign(creativesById, data || {});
+      try {
+        const data = await fetchWithRetry(url);
+        Object.assign(creativesById, data || {});
+        creativesLoaded += chunk.length;
+      } catch (e){
+        // Si un lote falla, marcamos parcial y continuamos
+        partialCreatives = true;
+      }
     }
     // Sustituir el creative liviano por el completo
     for (const ad of ads){
@@ -103,6 +122,9 @@ exports.handler = async (event) => {
         campaigns: campaigns.length,
         adsets: adsets.length,
         ads: ads.length,
+        creativesLoaded,
+        partialCreatives,
+        elapsedMs: elapsed(),
       },
       campaigns: campaignsTree,
     });
