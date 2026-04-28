@@ -34,19 +34,45 @@ exports.handler = async (event) => {
     'targeting','promoted_object','attribution_spec','destination_type',
     'created_time','updated_time',
   ].join(',');
+  // Fase 1: ads sin creative completo (liviano). Solo guardamos creative.id.
   const adFields = [
     'id','name','adset_id','campaign_id','status','effective_status',
-    'created_time','updated_time',
-    'creative{id,name,title,body,object_story_spec,asset_feed_spec,link_url,instagram_permalink_url,thumbnail_url,image_url,video_id,call_to_action_type,effective_object_story_id,object_type}',
+    'created_time','updated_time','creative{id}',
+  ].join(',');
+
+  // Fase 2: creativos en batch (más liviano que pedirlos anidados en ads).
+  const creativeFields = [
+    'id','name','title','body','link_url','instagram_permalink_url',
+    'thumbnail_url','image_url','video_id','call_to_action_type',
+    'effective_object_story_id','object_type',
   ].join(',');
 
   try {
     const [account, campaigns, adsets, ads] = await Promise.all([
       fetchOne(`https://graph.facebook.com/v19.0/${accountId}?fields=${accountFields}&access_token=${encodeURIComponent(token)}`),
-      fetchAllPages(`https://graph.facebook.com/v19.0/${accountId}/campaigns?fields=${campaignFields}&limit=200&access_token=${encodeURIComponent(token)}`),
-      fetchAllPages(`https://graph.facebook.com/v19.0/${accountId}/adsets?fields=${adsetFields}&limit=200&access_token=${encodeURIComponent(token)}`),
-      fetchAllPages(`https://graph.facebook.com/v19.0/${accountId}/ads?fields=${adFields}&limit=200&access_token=${encodeURIComponent(token)}`),
+      fetchAllPages(`https://graph.facebook.com/v19.0/${accountId}/campaigns?fields=${campaignFields}&limit=100&access_token=${encodeURIComponent(token)}`),
+      fetchAllPages(`https://graph.facebook.com/v19.0/${accountId}/adsets?fields=${adsetFields}&limit=100&access_token=${encodeURIComponent(token)}`),
+      fetchAllPages(`https://graph.facebook.com/v19.0/${accountId}/ads?fields=${adFields}&limit=100&access_token=${encodeURIComponent(token)}`),
     ]);
+
+    // Recolectar creative.id únicos y traer creativos en lotes de 50
+    const creativeIds = Array.from(new Set(
+      ads.map(a => a.creative?.id).filter(Boolean)
+    ));
+    const creativesById = {};
+    for (let i = 0; i < creativeIds.length; i += 50){
+      const chunk = creativeIds.slice(i, i + 50);
+      const url = `https://graph.facebook.com/v19.0/?ids=${chunk.join(',')}&fields=${creativeFields}&access_token=${encodeURIComponent(token)}`;
+      const r = await fetch(url);
+      const data = await r.json();
+      if (!r.ok) throw new Error(data?.error?.message || 'Error trayendo creativos');
+      Object.assign(creativesById, data || {});
+    }
+    // Sustituir el creative liviano por el completo
+    for (const ad of ads){
+      const cid = ad.creative?.id;
+      if (cid && creativesById[cid]) ad.creative = creativesById[cid];
+    }
 
     // Construir jerarquía: campaign → adset → ad
     const adsByAdset = {};
