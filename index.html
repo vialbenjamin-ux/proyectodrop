@@ -859,6 +859,29 @@
   .creativo-field textarea{resize:vertical;min-height:60px;font-family:inherit;line-height:1.5}
   .creativo-full{grid-column:1/-1}
   .creativo-tip{background:var(--accent-soft,#FFF4D8);border:1px solid var(--yellow,#E5C04E);border-radius:10px;padding:10px 14px;font-size:11px;color:var(--text);line-height:1.5;margin-bottom:12px}
+  .creativo-import-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+  .creativo-btn-import{background:var(--accent);color:#fff;border:none;padding:8px 14px;border-radius:18px;font-size:11px;letter-spacing:.5px;cursor:pointer;font-family:'DM Mono',monospace;font-weight:600}
+  .creativo-btn-import:hover{opacity:.88}
+  .creativo-btn-import.secondary{background:var(--surface);color:var(--text);border:1.5px solid var(--border)}
+  .creativo-btn-import.secondary:hover{background:var(--surface2)}
+  .creativo-cross-source{font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;margin-left:auto}
+  .creativo-import-panel{background:var(--surface2);border:1.5px solid var(--border);border-radius:12px;padding:14px;margin-bottom:12px}
+  .creativo-import-grid{display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end}
+  .creativo-btn-load{background:var(--text);color:var(--surface);border:none;padding:8px 14px;border-radius:18px;font-size:11px;letter-spacing:.5px;cursor:pointer;font-family:'DM Mono',monospace;font-weight:600;height:36px}
+  .creativo-campañas-list{margin-top:12px;max-height:300px;overflow-y:auto;display:flex;flex-direction:column;gap:6px}
+  .creativo-campaña-row{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px;cursor:pointer;display:grid;grid-template-columns:1fr auto auto auto auto;gap:10px;align-items:center;font-size:11px;font-family:'DM Mono',monospace;transition:background .15s,border-color .15s}
+  .creativo-campaña-row:hover{background:var(--accent-soft);border-color:var(--accent)}
+  .creativo-campaña-row .name{color:var(--text);font-weight:600;font-family:'Syne',sans-serif;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .creativo-campaña-row .stat{color:var(--muted);text-align:right;min-width:70px}
+  .creativo-campaña-row .stat b{color:var(--text);font-weight:700}
+  .creativo-campaña-empty{font-size:11px;color:var(--muted);text-align:center;padding:18px}
+  .creativo-campaña-loading{font-size:11px;color:var(--muted);text-align:center;padding:18px}
+  .creativo-campaña-error{font-size:11px;color:#9B4A4A;text-align:center;padding:14px;background:var(--red-soft);border-radius:8px}
+  @media (max-width:640px){
+    .creativo-import-grid{grid-template-columns:1fr}
+    .creativo-campaña-row{grid-template-columns:1fr;gap:4px}
+  }
+
   .creativo-veredicto-preview{padding:12px 16px;border-radius:10px;font-size:13px;font-weight:700;text-align:center;background:var(--surface2);border:1.5px dashed var(--border);color:var(--muted);margin-bottom:12px;letter-spacing:.5px}
   .creativo-veredicto-preview.v-winner{background:var(--green-soft);border-color:var(--green);color:#2D5A3F;border-style:solid}
   .creativo-veredicto-preview.v-semi{background:#FBF1D9;border-color:#D9A82E;color:#A6862A;border-style:solid}
@@ -1828,7 +1851,7 @@
           <div class="creativo-modal-title" id="creativo-modal-title">Nuevo creativo</div>
           <button class="creativo-modal-close" onclick="closeCreativoModal()">✕</button>
         </div>
-        <div class="creativo-modal-body">
+        <div class="creativo-modal-body" id="creativo-modal-body">
           <input type="hidden" id="cre-id">
 
           <div class="creativo-section-label">📝 Datos básicos</div>
@@ -1926,8 +1949,36 @@
             </label>
           </div>
 
-          <div class="creativo-section-label">📊 Performance (copia desde planilla Cruce real)</div>
-          <div class="creativo-tip">💡 Tip: ve a <b>Reportes → Cruce real</b>, busca tu campaña/ad, y copia los números aquí. El veredicto se calcula automático según tus umbrales (ROAS &lt; 6 = perdedor; con ROAS ≥ 6 aplica escala CPA).</div>
+          <div class="creativo-section-label">📊 Performance</div>
+          <div class="creativo-import-row">
+            <button type="button" class="creativo-btn-import" onclick="toggleImportarCruce()">📥 Importar de Cruce real</button>
+            <button type="button" class="creativo-btn-import secondary" id="cre-btn-refresh" onclick="refrescarCruce()" style="display:none">↻ Refrescar última importación</button>
+            <div id="cre-cross-source" class="creativo-cross-source" style="display:none"></div>
+          </div>
+          <div id="cre-import-panel" class="creativo-import-panel" style="display:none">
+            <div class="creativo-import-grid">
+              <label class="creativo-field">
+                <span>Cuenta Meta</span>
+                <select id="cre-import-account"></select>
+              </label>
+              <label class="creativo-field">
+                <span>Período</span>
+                <select id="cre-import-preset">
+                  <option value="today">Hoy</option>
+                  <option value="yesterday">Ayer</option>
+                  <option value="last_3d">Últimos 3 días</option>
+                  <option value="last_7d" selected>Últimos 7 días</option>
+                  <option value="last_14d">Últimos 14 días</option>
+                  <option value="last_30d">Últimos 30 días</option>
+                  <option value="this_month">Este mes</option>
+                  <option value="last_month">Mes pasado</option>
+                </select>
+              </label>
+              <button type="button" class="creativo-btn-load" onclick="cargarCampañasCruce()">🔍 Cargar campañas</button>
+            </div>
+            <div id="cre-campañas-list" class="creativo-campañas-list"></div>
+          </div>
+          <div class="creativo-tip" style="display:none" id="cre-tip-manual">💡 Si la campaña tiene varios creativos compartidos, ajusta los números a mano para reflejar solo este video.</div>
           <div class="creativo-grid-3">
             <label class="creativo-field">
               <span>Spend (CLP)</span>
@@ -6550,6 +6601,18 @@ function openCreativoModal(id){
   const titleEl = document.getElementById('creativo-modal-title');
   const delBtn = document.getElementById('cre-btn-delete');
 
+  // Limpiar estado del import al abrir modal
+  const sourceEl = document.getElementById('cre-cross-source');
+  if (sourceEl){ sourceEl.style.display = 'none'; sourceEl.textContent = ''; }
+  const refreshBtn = document.getElementById('cre-btn-refresh');
+  if (refreshBtn) refreshBtn.style.display = 'none';
+  const tipManual = document.getElementById('cre-tip-manual');
+  if (tipManual) tipManual.style.display = 'none';
+  const importPanel = document.getElementById('cre-import-panel');
+  if (importPanel) importPanel.style.display = 'none';
+  const crossDataEl = document.getElementById('cre-cross-source-data');
+  if (crossDataEl) crossDataEl.value = '';
+
   if (id){
     const c = (window._appState?.creativos || []).find(x => x.id === id);
     if (!c) return;
@@ -6571,6 +6634,24 @@ function openCreativoModal(id){
     document.getElementById('cre-ad-ids').value = (c.adIds || []).join(', ');
     document.getElementById('cre-veredicto-manual').value = c.veredictoManual || '';
     document.getElementById('cre-patron').value = c.patronAprendido || '';
+    // Restaurar crossSource si existe
+    if (c.crossSource){
+      let crossEl = document.getElementById('cre-cross-source-data');
+      if (!crossEl){
+        crossEl = document.createElement('input');
+        crossEl.type = 'hidden';
+        crossEl.id = 'cre-cross-source-data';
+        document.getElementById('creativo-modal-body')?.appendChild(crossEl);
+      }
+      crossEl.value = JSON.stringify(c.crossSource);
+      if (sourceEl){
+        sourceEl.style.display = '';
+        const fecha = c.crossSource.fechaImport ? new Date(c.crossSource.fechaImport).toLocaleDateString('es-CL') : '';
+        sourceEl.textContent = `📥 ${c.crossSource.campaignName} (${c.crossSource.datePreset})${fecha ? ' · '+fecha : ''}`;
+      }
+      if (refreshBtn) refreshBtn.style.display = '';
+      if (tipManual) tipManual.style.display = '';
+    }
     titleEl.textContent = 'Editar creativo';
     if (delBtn) delBtn.style.display = '';
   } else {
@@ -6634,6 +6715,12 @@ async function saveCreativo(){
   const adIdsRaw = document.getElementById('cre-ad-ids').value || '';
   const adIds = adIdsRaw.split(/[,\s]+/).map(s => s.trim()).filter(Boolean);
 
+  let crossSource = null;
+  const crossEl = document.getElementById('cre-cross-source-data');
+  if (crossEl && crossEl.value){
+    try { crossSource = JSON.parse(crossEl.value); } catch(e){}
+  }
+
   const creativo = {
     id,
     nombre,
@@ -6656,6 +6743,7 @@ async function saveCreativo(){
     veredictoManual,
     veredictoFinal: veredictoManual || veredictoAuto,
     patronAprendido: document.getElementById('cre-patron').value.trim(),
+    crossSource,
     fechaCreacion: undefined,
     fechaActualizacion: Date.now(),
   };
@@ -6684,6 +6772,135 @@ async function deleteCreativo(){
   if (window._firebaseReady && window._firebaseReady.save) await window._firebaseReady.save();
   closeCreativoModal();
   renderCreativos();
+}
+
+// ── Import desde Cruce real ───────────────────────────────────────────────────
+let _creCampañasCache = []; // últimas campañas cargadas en el panel del modal
+
+function toggleImportarCruce(){
+  const panel = document.getElementById('cre-import-panel');
+  if (!panel) return;
+  const open = panel.style.display !== 'none';
+  panel.style.display = open ? 'none' : '';
+  if (!open) populateImportAccountSelect();
+}
+
+async function populateImportAccountSelect(){
+  const sel = document.getElementById('cre-import-account');
+  if (!sel) return;
+  // 1) Si ya hay opciones del selector global de Reportes, las copiamos
+  const main = document.getElementById('meta-account-select');
+  if (main && main.options.length > 0){
+    sel.innerHTML = Array.from(main.options).map(o =>
+      `<option value="${escapeHtml(o.value)}">${escapeHtml(o.textContent)}</option>`
+    ).join('');
+    const saved = localStorage.getItem('bkdrop_meta_account');
+    if (saved && Array.from(sel.options).some(o => o.value === saved)) sel.value = saved;
+    return;
+  }
+  // 2) Fallback: fetch a meta-ad-accounts
+  sel.innerHTML = '<option>Cargando cuentas…</option>';
+  try {
+    const r = await fetch('/.netlify/functions/meta-ad-accounts');
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || 'error');
+    sel.innerHTML = (data.accounts || []).map(a =>
+      `<option value="${escapeHtml(a.id)}">${escapeHtml(a.name||a.id)} (${escapeHtml(a.currency||'')})</option>`
+    ).join('');
+  } catch (e){
+    sel.innerHTML = '<option value="">Error: ' + escapeHtml(e.message||'no se pudo cargar') + '</option>';
+  }
+}
+
+async function cargarCampañasCruce(){
+  const accountId = document.getElementById('cre-import-account')?.value || '';
+  const preset = document.getElementById('cre-import-preset')?.value || 'last_7d';
+  const list = document.getElementById('cre-campañas-list');
+  if (!accountId){ if (list) list.innerHTML = '<div class="creativo-campaña-error">Selecciona una cuenta</div>'; return; }
+  if (list) list.innerHTML = '<div class="creativo-campaña-loading">Consultando Cruce real… (puede tardar 5-15s)</div>';
+  try {
+    const r = await fetch(`/.netlify/functions/cross-report?account_id=${encodeURIComponent(accountId)}&date_preset=${encodeURIComponent(preset)}`);
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || 'error');
+    const camps = (data.byCampaign || []).filter(c => c.spend > 0);
+    _creCampañasCache = camps;
+    if (camps.length === 0){
+      if (list) list.innerHTML = '<div class="creativo-campaña-empty">No hay campañas con gasto en este período</div>';
+      return;
+    }
+    if (list) list.innerHTML = camps.map((c, idx) => `
+      <div class="creativo-campaña-row" onclick="seleccionarCampañaCruce(${idx})">
+        <div class="name">${escapeHtml(c.name||'(sin nombre)')}</div>
+        <div class="stat">Spend<br><b>${fmtMoneyCLP(c.spend)}</b></div>
+        <div class="stat">Órdenes<br><b>${c.realPurchases||0}</b></div>
+        <div class="stat">Revenue<br><b>${fmtMoneyCLP(c.realRevenue)}</b></div>
+        <div class="stat">ROAS<br><b>${c.roasReal !== null && c.roasReal !== undefined ? c.roasReal.toFixed(2)+'x' : '—'}</b></div>
+      </div>`).join('');
+  } catch (e){
+    if (list) list.innerHTML = '<div class="creativo-campaña-error">❌ ' + escapeHtml(e.message||'Error') + '</div>';
+  }
+}
+
+function seleccionarCampañaCruce(idx){
+  const c = _creCampañasCache[idx];
+  if (!c) return;
+  document.getElementById('cre-spend').value = Math.round(c.spend || 0);
+  document.getElementById('cre-ventas').value = c.realPurchases || 0;
+  document.getElementById('cre-revenue').value = Math.round(c.realRevenue || 0);
+  // Guardar fuente de la importación en estado del modal (en hidden input)
+  let crossEl = document.getElementById('cre-cross-source-data');
+  if (!crossEl){
+    crossEl = document.createElement('input');
+    crossEl.type = 'hidden';
+    crossEl.id = 'cre-cross-source-data';
+    document.getElementById('creativo-modal-body')?.appendChild(crossEl);
+  }
+  const accountId = document.getElementById('cre-import-account')?.value || '';
+  const preset = document.getElementById('cre-import-preset')?.value || 'last_7d';
+  crossEl.value = JSON.stringify({
+    accountId, campaignId: c.id, campaignName: c.name, datePreset: preset, fechaImport: Date.now(),
+  });
+  // Mostrar fuente y botón refrescar
+  const sourceEl = document.getElementById('cre-cross-source');
+  if (sourceEl){
+    sourceEl.style.display = '';
+    sourceEl.textContent = `📥 ${c.name} (${preset})`;
+  }
+  const refreshBtn = document.getElementById('cre-btn-refresh');
+  if (refreshBtn) refreshBtn.style.display = '';
+  const tipManual = document.getElementById('cre-tip-manual');
+  if (tipManual) tipManual.style.display = '';
+  // Cerrar panel
+  document.getElementById('cre-import-panel').style.display = 'none';
+  recalcVeredicto();
+}
+
+async function refrescarCruce(){
+  const crossEl = document.getElementById('cre-cross-source-data');
+  if (!crossEl || !crossEl.value){ alert('No hay importación previa para refrescar'); return; }
+  let src;
+  try { src = JSON.parse(crossEl.value); } catch (e){ alert('Datos de importación corruptos'); return; }
+  const btn = document.getElementById('cre-btn-refresh');
+  if (btn){ btn.disabled = true; btn.textContent = '↻ Cargando…'; }
+  try {
+    const r = await fetch(`/.netlify/functions/cross-report?account_id=${encodeURIComponent(src.accountId)}&date_preset=${encodeURIComponent(src.datePreset)}`);
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || 'error');
+    const c = (data.byCampaign || []).find(x => x.id === src.campaignId);
+    if (!c) throw new Error('La campaña ya no aparece en el período');
+    document.getElementById('cre-spend').value = Math.round(c.spend || 0);
+    document.getElementById('cre-ventas').value = c.realPurchases || 0;
+    document.getElementById('cre-revenue').value = Math.round(c.realRevenue || 0);
+    src.fechaImport = Date.now();
+    crossEl.value = JSON.stringify(src);
+    const sourceEl = document.getElementById('cre-cross-source');
+    if (sourceEl) sourceEl.textContent = `📥 ${src.campaignName} (${src.datePreset}) · actualizado`;
+    recalcVeredicto();
+  } catch (e){
+    alert('No se pudo refrescar: ' + (e.message || 'error'));
+  } finally {
+    if (btn){ btn.disabled = false; btn.textContent = '↻ Refrescar última importación'; }
+  }
 }
 
 // ── BACKUP ANTI-BANEO Meta ────────────────────────────────────────────────────
