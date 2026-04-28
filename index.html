@@ -786,6 +786,27 @@
   .meta-adsets-table tbody td:first-child{text-align:left;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .meta-adsets-empty{font-size:11px;color:var(--muted);padding:14px;text-align:center;font-style:italic}
 
+  /* Backup anti-baneo */
+  .meta-backup-card{background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:18px 20px;margin-top:24px;border-left:4px solid #C4674F}
+  .meta-backup-head{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;flex-wrap:wrap}
+  .meta-backup-title{font-family:'Syne',sans-serif;font-weight:800;font-size:16px;color:var(--text);margin-bottom:4px}
+  .meta-backup-desc{font-size:11px;color:var(--muted);line-height:1.5;max-width:560px}
+  .meta-backup-actions{display:flex;gap:8px;flex-wrap:wrap}
+  .meta-backup-btn{background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px 14px;border-radius:20px;font-size:11px;letter-spacing:.5px;cursor:pointer;font-family:'DM Mono',monospace;transition:all .15s}
+  .meta-backup-btn:hover{background:var(--border)}
+  .meta-backup-btn.primary{background:#C4674F;border-color:#C4674F;color:#fff}
+  .meta-backup-btn.primary:hover{background:#A85540}
+  .meta-backup-btn:disabled{opacity:.5;cursor:not-allowed}
+  .meta-backup-status{margin-top:14px;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;font-size:11px;color:var(--muted);font-family:'DM Mono',monospace}
+  .meta-backup-status.error{background:var(--red-soft);border-color:var(--red);color:#9B4A4A}
+  .meta-backup-result{margin-top:14px}
+  .meta-backup-summary{background:var(--green-soft);border:1px solid var(--green);border-radius:10px;padding:12px 14px;margin-bottom:10px;font-size:11px;color:#3F7F5C;font-family:'DM Mono',monospace;line-height:1.6}
+  .meta-backup-summary b{color:#2D5A3F;font-weight:700}
+  .meta-backup-downloads{display:flex;gap:8px;flex-wrap:wrap}
+  .meta-backup-dl{background:var(--text);color:var(--surface);border:none;padding:9px 16px;border-radius:20px;font-size:11px;letter-spacing:.5px;cursor:pointer;font-family:'DM Mono',monospace;font-weight:600}
+  .meta-backup-dl:hover{opacity:.85}
+  .meta-backup-dl.csv{background:#3F7F5C}
+
   /* Badges de estado */
   .meta-badge{display:inline-block;font-size:9px;padding:2px 9px;border-radius:10px;letter-spacing:.5px;text-transform:uppercase;font-weight:600;white-space:nowrap}
   .meta-badge-active{background:var(--green-soft);color:#3F7F5C;border:1px solid var(--green)}
@@ -1522,6 +1543,28 @@
             <tbody id="meta-tbody"></tbody>
             <tfoot id="meta-tfoot"></tfoot>
           </table></div>
+        </div>
+
+        <!-- BACKUP ANTI-BANEO -->
+        <div class="meta-backup-card">
+          <div class="meta-backup-head">
+            <div>
+              <div class="meta-backup-title">🛡️ Backup Anti-Baneo</div>
+              <div class="meta-backup-desc">Guarda IDs, presupuestos, segmentación y creativos de todas tus campañas. Si Meta banea la cuenta, puedes reconstruirlas en otra ad account.</div>
+            </div>
+            <div class="meta-backup-actions">
+              <button class="meta-backup-btn primary" onclick="generarBackupMeta('all')">📦 Backup TODAS las cuentas</button>
+              <button class="meta-backup-btn" onclick="generarBackupMeta('current')">Solo cuenta actual</button>
+            </div>
+          </div>
+          <div id="meta-backup-status" class="meta-backup-status" style="display:none"></div>
+          <div id="meta-backup-result" class="meta-backup-result" style="display:none">
+            <div class="meta-backup-summary" id="meta-backup-summary"></div>
+            <div class="meta-backup-downloads">
+              <button class="meta-backup-dl json" onclick="descargarBackupMeta('json')">⬇ Descargar JSON</button>
+              <button class="meta-backup-dl csv" onclick="descargarBackupMeta('csv')">⬇ Descargar CSV</button>
+            </div>
+          </div>
         </div>
 
       </div><!-- /#report-tab-meta -->
@@ -6093,6 +6136,190 @@ function onMetaAccountChange(){
   const sel = document.getElementById('meta-account-select');
   if (sel && sel.value) localStorage.setItem('bkdrop_meta_account', sel.value);
   fetchMetaAds();
+}
+
+// ── BACKUP ANTI-BANEO Meta ────────────────────────────────────────────────────
+let _metaBackupData = null; // último backup generado (estructura {accounts:[...]})
+
+async function generarBackupMeta(scope){
+  const status = document.getElementById('meta-backup-status');
+  const result = document.getElementById('meta-backup-result');
+  const btns = document.querySelectorAll('.meta-backup-btn');
+  btns.forEach(b => b.disabled = true);
+  if (result) result.style.display = 'none';
+  if (status){
+    status.style.display = '';
+    status.classList.remove('error');
+    status.textContent = 'Consultando Meta Ads… (puede tardar 10-20s con varias cuentas)';
+  }
+
+  try {
+    let accountIds = [];
+    if (scope === 'current'){
+      const sel = document.getElementById('meta-account-select');
+      const id = sel ? sel.value : '';
+      if (!id) throw new Error('No hay cuenta seleccionada');
+      accountIds = [id];
+    } else {
+      // Todas las cuentas del selector
+      const sel = document.getElementById('meta-account-select');
+      if (!sel) throw new Error('Selector de cuentas no encontrado');
+      accountIds = Array.from(sel.options).map(o => o.value).filter(v => v && v.startsWith('act_'));
+      if (accountIds.length === 0) throw new Error('No se encontraron cuentas');
+    }
+
+    const results = await Promise.all(accountIds.map(async (id) => {
+      const r = await fetch('/.netlify/functions/meta-backup?account_id=' + encodeURIComponent(id));
+      const data = await r.json();
+      if (!r.ok) throw new Error(`${id}: ${data.error || 'error'}`);
+      return data;
+    }));
+
+    _metaBackupData = {
+      exportedAt: new Date().toISOString(),
+      accounts: results,
+    };
+
+    // Resumen agregado
+    const totals = results.reduce((acc, a) => ({
+      campaigns: acc.campaigns + (a.summary?.campaigns || 0),
+      adsets:    acc.adsets    + (a.summary?.adsets    || 0),
+      ads:       acc.ads       + (a.summary?.ads       || 0),
+    }), { campaigns: 0, adsets: 0, ads: 0 });
+
+    const summaryEl = document.getElementById('meta-backup-summary');
+    if (summaryEl){
+      const lines = results.map(a =>
+        `📂 <b>${escapeHtml(a.account.name)}</b> (${a.account.currency}) — ${a.summary.campaigns} campañas · ${a.summary.adsets} adsets · ${a.summary.ads} ads`
+      ).join('<br>');
+      summaryEl.innerHTML =
+        `✅ Backup generado: <b>${results.length}</b> ${results.length === 1 ? 'cuenta' : 'cuentas'}, <b>${totals.campaigns}</b> campañas, <b>${totals.adsets}</b> adsets, <b>${totals.ads}</b> ads.<br><br>${lines}`;
+    }
+    if (status) status.style.display = 'none';
+    if (result) result.style.display = '';
+  } catch (err) {
+    if (status){
+      status.classList.add('error');
+      status.textContent = '❌ ' + (err.message || 'Error generando backup');
+    }
+  } finally {
+    btns.forEach(b => b.disabled = false);
+  }
+}
+
+function descargarBackupMeta(formato){
+  if (!_metaBackupData) return;
+  const ts = new Date().toISOString().slice(0,19).replace(/[:T]/g,'-');
+  if (formato === 'json'){
+    const blob = new Blob([JSON.stringify(_metaBackupData, null, 2)], { type: 'application/json' });
+    descargarBlob(blob, `bkdrop-meta-backup_${ts}.json`);
+  } else if (formato === 'csv'){
+    const csv = backupToCsv(_metaBackupData);
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
+    descargarBlob(blob, `bkdrop-meta-backup_${ts}.csv`);
+  }
+}
+
+function backupToCsv(backup){
+  const rows = [];
+  const header = [
+    'account_id','account_name','currency','country','timezone',
+    'campaign_id','campaign_name','campaign_status','campaign_objective','campaign_daily_budget','campaign_lifetime_budget','campaign_buying_type','campaign_special_categories','campaign_start','campaign_stop',
+    'adset_id','adset_name','adset_status','adset_daily_budget','adset_billing_event','adset_optimization_goal','adset_bid_strategy','adset_targeting_summary','adset_promoted_pixel','adset_destination_type',
+    'ad_id','ad_name','ad_status','ad_created',
+    'creative_id','creative_title','creative_body','creative_link_url','creative_cta','creative_image_url','creative_video_id','creative_post_id',
+  ];
+  rows.push(header);
+
+  for (const acc of (backup.accounts || [])){
+    const a = acc.account || {};
+    const camps = acc.campaigns || [];
+    if (camps.length === 0){
+      rows.push([a.id, a.name, a.currency, a.country, a.timezone, ...Array(header.length - 5).fill('')]);
+      continue;
+    }
+    for (const c of camps){
+      const adsets = c.adsets || [];
+      if (adsets.length === 0){
+        rows.push([
+          a.id, a.name, a.currency, a.country, a.timezone,
+          c.id, c.name, c.effective_status || c.status, c.objective, fmtBudget(c.daily_budget), fmtBudget(c.lifetime_budget), c.buying_type, (c.special_ad_categories||[]).join('|'), c.start_time||'', c.stop_time||'',
+          ...Array(header.length - 15).fill(''),
+        ]);
+        continue;
+      }
+      for (const s of adsets){
+        const ads = s.ads || [];
+        const targetingSummary = summarizeTargeting(s.targeting);
+        const promotedPixel = s.promoted_object?.pixel_id || '';
+        if (ads.length === 0){
+          rows.push([
+            a.id, a.name, a.currency, a.country, a.timezone,
+            c.id, c.name, c.effective_status || c.status, c.objective, fmtBudget(c.daily_budget), fmtBudget(c.lifetime_budget), c.buying_type, (c.special_ad_categories||[]).join('|'), c.start_time||'', c.stop_time||'',
+            s.id, s.name, s.effective_status || s.status, fmtBudget(s.daily_budget), s.billing_event, s.optimization_goal, s.bid_strategy, targetingSummary, promotedPixel, s.destination_type||'',
+            ...Array(header.length - 25).fill(''),
+          ]);
+          continue;
+        }
+        for (const ad of ads){
+          const cr = ad.creative || {};
+          const oss = cr.object_story_spec || {};
+          const linkData = oss.link_data || oss.video_data || {};
+          const cta = (linkData.call_to_action || cr.call_to_action_type || '');
+          const ctaType = typeof cta === 'object' ? cta.type : cta;
+          rows.push([
+            a.id, a.name, a.currency, a.country, a.timezone,
+            c.id, c.name, c.effective_status || c.status, c.objective, fmtBudget(c.daily_budget), fmtBudget(c.lifetime_budget), c.buying_type, (c.special_ad_categories||[]).join('|'), c.start_time||'', c.stop_time||'',
+            s.id, s.name, s.effective_status || s.status, fmtBudget(s.daily_budget), s.billing_event, s.optimization_goal, s.bid_strategy, targetingSummary, promotedPixel, s.destination_type||'',
+            ad.id, ad.name, ad.effective_status || ad.status, ad.created_time || '',
+            cr.id || '', cr.title || linkData.name || '', cr.body || linkData.message || '', cr.link_url || linkData.link || '', ctaType, cr.image_url || '', cr.video_id || '', cr.effective_object_story_id || '',
+          ]);
+        }
+      }
+    }
+  }
+  return rows.map(r => r.map(csvCell).join(',')).join('\n');
+}
+
+function fmtBudget(v){
+  if (v === null || v === undefined || v === '') return '';
+  const n = parseInt(v, 10);
+  return isNaN(n) ? '' : (n / 100).toFixed(2);
+}
+
+function summarizeTargeting(t){
+  if (!t) return '';
+  const parts = [];
+  if (t.age_min || t.age_max) parts.push(`ages:${t.age_min||'?'}-${t.age_max||'?'}`);
+  if (t.genders) parts.push(`genders:${t.genders.join('|')}`);
+  if (t.geo_locations){
+    const g = t.geo_locations;
+    const countries = (g.countries || []).join('|');
+    if (countries) parts.push(`countries:${countries}`);
+    if (g.cities) parts.push(`cities:${g.cities.length}`);
+    if (g.regions) parts.push(`regions:${g.regions.length}`);
+  }
+  if (t.interests) parts.push(`interests:${t.interests.length}`);
+  if (t.behaviors) parts.push(`behaviors:${t.behaviors.length}`);
+  if (t.custom_audiences) parts.push(`custom_audiences:${t.custom_audiences.length}`);
+  if (t.flexible_spec) parts.push(`flexible:${t.flexible_spec.length}`);
+  if (t.publisher_platforms) parts.push(`platforms:${t.publisher_platforms.join('|')}`);
+  return parts.join('; ');
+}
+
+function csvCell(v){
+  if (v === null || v === undefined) return '';
+  const s = String(v);
+  if (/[",\n\r]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
+  return s;
+}
+
+function descargarBlob(blob, filename){
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
 }
 
 let _metaLastRows = [];
