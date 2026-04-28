@@ -63,9 +63,7 @@ exports.handler = async (event) => {
     for (let i = 0; i < creativeIds.length; i += 50){
       const chunk = creativeIds.slice(i, i + 50);
       const url = `https://graph.facebook.com/v19.0/?ids=${chunk.join(',')}&fields=${creativeFields}&access_token=${encodeURIComponent(token)}`;
-      const r = await fetch(url);
-      const data = await r.json();
-      if (!r.ok) throw new Error(data?.error?.message || 'Error trayendo creativos');
+      const data = await fetchWithRetry(url);
       Object.assign(creativesById, data || {});
     }
     // Sustituir el creative liviano por el completo
@@ -113,22 +111,43 @@ exports.handler = async (event) => {
   }
 };
 
-async function fetchOne(url) {
+// Detecta rate limit en la respuesta de Meta
+function isRateLimit(data, status){
+  const msg = (data?.error?.message || '').toLowerCase();
+  const code = data?.error?.code;
+  // Códigos conocidos: 4 (App rate), 17 (User request), 32 (Page rate), 613 (custom rate)
+  if ([4, 17, 32, 613].includes(code)) return true;
+  if (status === 429) return true;
+  if (/rate.?limit|too many|request limit|user request limit/.test(msg)) return true;
+  return false;
+}
+
+async function fetchWithRetry(url, attempt = 1, maxAttempts = 3){
   const r = await fetch(url);
   const data = await r.json();
-  if (!r.ok) throw new Error(data?.error?.message || 'Error en Meta API');
+  if (!r.ok){
+    if (isRateLimit(data, r.status) && attempt < maxAttempts){
+      // Backoff exponencial: 2s, 5s
+      const waitMs = attempt === 1 ? 2000 : 5000;
+      await new Promise(res => setTimeout(res, waitMs));
+      return fetchWithRetry(url, attempt + 1, maxAttempts);
+    }
+    throw new Error(data?.error?.message || 'Error en Meta API');
+  }
   return data;
 }
 
-// Recorre cursores de paginación con cap de seguridad (max 20 páginas = ~4000 items).
+async function fetchOne(url) {
+  return fetchWithRetry(url);
+}
+
+// Recorre cursores de paginación con cap de seguridad (max 20 páginas = ~2000 items con limit=100).
 async function fetchAllPages(initialUrl, maxPages = 20) {
   const all = [];
   let url = initialUrl;
   let pages = 0;
   while (url && pages < maxPages) {
-    const r = await fetch(url);
-    const data = await r.json();
-    if (!r.ok) throw new Error(data?.error?.message || 'Error en Meta API');
+    const data = await fetchWithRetry(url);
     if (Array.isArray(data.data)) all.push(...data.data);
     url = data?.paging?.next || null;
     pages++;
