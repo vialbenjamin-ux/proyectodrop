@@ -4726,14 +4726,24 @@ async function ejecutarBkVideo(key){
       if(body){ body.textContent = parsed.locucion || text; }
       if(label){ label.textContent = 'Locución traducida'; }
       if(box){ box.classList.remove('loading'); box.scrollIntoView({behavior:'smooth',block:'center'}); }
-      if(btn){ btn.textContent = '✓ Listo'; btn.classList.add('copied'); }
       // Montar panel TTS si hay caracterización (o aunque no haya, dejar selector libre)
       renderTtsPanel('transcripcion', parsed.locucion || text, parsed.voz);
     } else {
       if(body){ body.textContent = text || '(respuesta vacía)'; }
       if(label){ label.textContent = 'Respuesta de Gemini'; }
       if(box){ box.classList.remove('loading'); box.scrollIntoView({behavior:'smooth',block:'center'}); }
-      if(btn){ btn.textContent = '✓ Listo'; btn.classList.add('copied'); }
+    }
+    // Reset para permitir subir otro video sin recargar la app
+    if(inp) inp.value = '';
+    updateBkVideoLabel(key);
+    if(btn){
+      btn.textContent = '✓ Listo';
+      btn.classList.add('copied');
+      setTimeout(()=>{
+        btn.textContent = '▶ Ejecutar';
+        btn.classList.remove('copied');
+        btn.disabled = false;
+      }, 2500);
     }
   } catch(err){
     const rlSecs = parseRateLimitSeconds(err.message);
