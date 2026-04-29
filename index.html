@@ -6329,8 +6329,13 @@ async function fetchShopifyReport() {
 
   try {
     var res = await fetch('/.netlify/functions/shopify-report' + params);
-    var data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Error desconocido');
+    var text = await res.text();
+    var data;
+    try { data = JSON.parse(text); }
+    catch (_) {
+      throw new Error('Servidor respondió ' + res.status + ' ' + (res.statusText || '') + ' (probable timeout, cuerpo vacío). Reintenta en 30s.');
+    }
+    if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
 
     if (data.mode === 'range') {
       ['reporte-by-source-loading','reporte-detail-loading'].forEach(function(id) {

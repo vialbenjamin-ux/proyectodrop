@@ -225,31 +225,32 @@ exports.handler = async function (event) {
     todayEndUTC   = null;
   }
 
-  let allOrders;
-  try {
-    allOrders = await fetchAllOrders(buildUrl(todayStartUTC, todayEndUTC));
-  } catch (err) {
-    return { statusCode: 502, headers: { 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify({ error: err.message }) };
-  }
-
-  const proc = processOrders(allOrders, true);
-  const products = Object.values(proc.byProduct).sort(function(a, b) { return b.qty - a.qty; });
-
-  // Comparación con el día anterior a la misma hora
+  // Fetch hoy + ayer en paralelo. La comparación con día anterior a la misma
+  // hora es secundaria — si falla, devolvemos solo el día actual.
   const yesterdayStartUTC = new Date(todayStartUTC.getTime() - 24 * 3600000);
   const yesterdayEndUTC   = todayEndUTC
     ? new Date(todayEndUTC.getTime() - 24 * 3600000)
     : new Date(now.getTime() - 24 * 3600000);
 
+  const [todayResult, yesterdayResult] = await Promise.allSettled([
+    fetchAllOrders(buildUrl(todayStartUTC, todayEndUTC)),
+    fetchAllOrders(buildUrl(yesterdayStartUTC, yesterdayEndUTC)),
+  ]);
+
+  if (todayResult.status === 'rejected') {
+    return { statusCode: 502, headers: { 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify({ error: todayResult.reason?.message || 'Error fetching orders' }) };
+  }
+  const allOrders = todayResult.value;
+  const proc = processOrders(allOrders, true);
+  const products = Object.values(proc.byProduct).sort(function(a, b) { return b.qty - a.qty; });
+
   let previousDay = null;
-  try {
-    const yOrders = await fetchAllOrders(buildUrl(yesterdayStartUTC, yesterdayEndUTC));
+  if (yesterdayResult.status === 'fulfilled') {
+    const yOrders = yesterdayResult.value;
     previousDay = {
       totalOrders: yOrders.length,
       totalRevenue: sumRevenue(yOrders)
     };
-  } catch (_) {
-    previousDay = null;
   }
 
   return {
