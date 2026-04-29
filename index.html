@@ -6519,10 +6519,6 @@ function fmtCLP(x) {
   return '$' + Math.round(x).toLocaleString('es-CL');
 }
 
-// Thresholds FIJOS (no derivados de historial)
-const TIPO_3X1_MAX_COST = 1500;
-const TIPO_2X1_MAX_COST = 2500;
-
 function renderPreciosOutput() {
   const d = _preciosData;
   if (!d) return;
@@ -6530,10 +6526,11 @@ function renderPreciosOutput() {
   const out = document.getElementById('precios-output');
   if (!cost || cost <= 0) { out.style.display = 'none'; return; }
 
-  // Reglas fijas según costo
+  // Tipo de oferta: derivado del historial (umbral = costo máximo donde tú
+  // aplicaste 2x1/3x1 en los últimos 30 días)
   let tipo = 'normal';
-  if (cost < TIPO_3X1_MAX_COST) tipo = '3x1';
-  else if (cost < TIPO_2X1_MAX_COST) tipo = '2x1';
+  if (d.threshold3x1 != null && cost <= d.threshold3x1) tipo = '3x1';
+  else if (d.threshold2x1 != null && cost <= d.threshold2x1) tipo = '2x1';
 
   // Precios base usando multiplicadores históricos
   const p1 = applyFloor(round990(cost * d.mult1u));
@@ -6563,9 +6560,9 @@ function renderPreciosOutput() {
   // Render tipo
   const tipoEl = document.getElementById('precios-tipo');
   if (tipo === '3x1') {
-    tipoEl.innerHTML = '🔥 Oferta 3x1 <span style="color:var(--muted);font-weight:400">(costo &lt; $1.500)</span>';
+    tipoEl.innerHTML = '🔥 Oferta 3x1 <span style="color:var(--muted);font-weight:400">(costo muy bajo según tu historial)</span>';
   } else if (tipo === '2x1') {
-    tipoEl.innerHTML = '🎁 Oferta 2x1 <span style="color:var(--muted);font-weight:400">(costo &lt; $2.500)</span>';
+    tipoEl.innerHTML = '🎁 Oferta 2x1 <span style="color:var(--muted);font-weight:400">(costo bajo según tu historial)</span>';
   } else {
     tipoEl.innerHTML = '💼 Pack normal';
   }
