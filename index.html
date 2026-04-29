@@ -1460,6 +1460,7 @@
         <button class="report-subtab active" data-tab="shopify" onclick="switchReportTab('shopify')">📊 Shopify</button>
         <button class="report-subtab" data-tab="meta" onclick="switchReportTab('meta')">📈 Meta Ads</button>
         <button class="report-subtab" data-tab="cross" onclick="switchReportTab('cross')">📐 Cruce real</button>
+        <button class="report-subtab" data-tab="topflop" onclick="switchReportTab('topflop')">🏆 Top/Flop</button>
       </div>
 
       <div id="report-tab-shopify" style="max-width:700px">
@@ -1805,6 +1806,46 @@
         </div>
 
       </div><!-- /#report-tab-cross -->
+
+      <!-- Tab Top / Flop -->
+      <div id="report-tab-topflop" style="display:none">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:12px">
+          <div>
+            <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:22px;color:var(--text)">🏆 Top / Flop por producto</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px;letter-spacing:.3px">Ranking de productos por ventas, ROAS y CPA — cruzando Shopify × Meta</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <select id="tf-account-select" onchange="onTfAccountChange()" style="background:var(--surface);border:1.5px solid var(--border);color:var(--text);padding:6px 12px;border-radius:20px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer;outline:none"></select>
+            <select id="tf-date-preset" onchange="onTfPresetChange()" style="background:var(--surface);border:1.5px solid var(--border);color:var(--text);padding:6px 12px;border-radius:20px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer;outline:none">
+              <option value="today">Hoy</option>
+              <option value="yesterday">Ayer</option>
+              <option value="last_7d" selected>Últimos 7 días</option>
+              <option value="last_30d">Últimos 30 días</option>
+              <option value="this_month">Este mes</option>
+              <option value="last_month">Mes pasado</option>
+              <option value="custom">📅 Personalizado…</option>
+            </select>
+            <div id="tf-custom-range" style="display:none;align-items:center;gap:6px">
+              <span style="font-size:10px;color:var(--muted);letter-spacing:.5px">Desde</span>
+              <input type="date" id="tf-date-from" onchange="fetchTopFlopReport()" style="background:var(--surface);border:1.5px solid var(--border);color:var(--text);padding:5px 10px;border-radius:18px;font-size:11px;font-family:'DM Mono',monospace;outline:none;cursor:pointer">
+              <span style="font-size:10px;color:var(--muted);letter-spacing:.5px">Hasta</span>
+              <input type="date" id="tf-date-to" onchange="fetchTopFlopReport()" style="background:var(--surface);border:1.5px solid var(--border);color:var(--text);padding:5px 10px;border-radius:18px;font-size:11px;font-family:'DM Mono',monospace;outline:none;cursor:pointer">
+            </div>
+            <span style="font-size:10px;color:var(--muted);letter-spacing:.5px">Mín pedidos</span>
+            <input type="number" id="tf-min-orders" value="3" min="1" max="50" onchange="renderTopFlop()" style="width:50px;background:var(--surface);border:1.5px solid var(--border);color:var(--text);padding:5px 8px;border-radius:18px;font-size:11px;font-family:'DM Mono',monospace;outline:none;text-align:center">
+            <button onclick="fetchTopFlopReport()" style="background:var(--accent);color:#fff;border:none;border-radius:20px;padding:7px 16px;font-size:11px;letter-spacing:.5px;cursor:pointer;font-family:'DM Mono',monospace">↻ Actualizar</button>
+          </div>
+        </div>
+
+        <div id="tf-loading" style="padding:24px;text-align:center;color:var(--muted2);font-size:12px">Selecciona una cuenta y rango y presiona Actualizar</div>
+        <div id="tf-error" style="display:none;padding:18px;background:var(--surface);border:1.5px solid var(--peach);border-radius:14px;color:var(--peach);font-size:12px;margin-bottom:14px"></div>
+        <div id="tf-content" style="display:none">
+          <div id="tf-meta" style="font-size:10px;color:var(--muted2);margin-bottom:14px;letter-spacing:.3px"></div>
+          <div id="tf-block-revenue" style="margin-bottom:18px"></div>
+          <div id="tf-block-roas"    style="margin-bottom:18px"></div>
+          <div id="tf-block-cpa"     style="margin-bottom:18px"></div>
+        </div>
+      </div><!-- /#report-tab-topflop -->
 
     </div>
   </div>
@@ -6588,9 +6629,174 @@ function switchReportTab(tab){
   document.getElementById('report-tab-shopify').style.display = tab === 'shopify' ? '' : 'none';
   document.getElementById('report-tab-meta').style.display    = tab === 'meta'    ? '' : 'none';
   document.getElementById('report-tab-cross').style.display   = tab === 'cross'   ? '' : 'none';
+  const tfTab = document.getElementById('report-tab-topflop');
+  if (tfTab) tfTab.style.display = tab === 'topflop' ? '' : 'none';
   localStorage.setItem('bkdrop_report_tab', tab);
   if (tab === 'meta')  initMetaTab();
   if (tab === 'cross') initCrossTab();
+  if (tab === 'topflop') initTopFlopTab();
+}
+
+// ── TOP / FLOP por producto ───────────────────────────────────────────────────
+let _tfData = null; // último resultado del cross-report cacheado
+let _tfAccountsLoaded = false;
+
+async function initTopFlopTab(){
+  if (!_tfAccountsLoaded){
+    _tfAccountsLoaded = true;
+    const sel = document.getElementById('tf-account-select');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">Cargando cuentas…</option>';
+    try {
+      const accounts = await getAdAccountsCached();
+      fillAccountSelect(sel, accounts);
+    } catch (err) {
+      sel.innerHTML = '<option value="">Error</option>';
+      showTfError('No se pudieron cargar las cuentas Meta: ' + (err.message || err));
+      return;
+    }
+  }
+}
+
+function onTfAccountChange(){
+  // No fetch automático; usuario presiona Actualizar
+}
+
+function onTfPresetChange(){
+  const preset = document.getElementById('tf-date-preset').value;
+  const wrap = document.getElementById('tf-custom-range');
+  if (preset === 'custom'){
+    wrap.style.display = 'flex';
+    // Defaults razonables: últimos 7 días
+    const today = new Date();
+    const ago = new Date(today.getTime() - 7*86400000);
+    const fmt = d => d.toLocaleDateString('en-CA', { timeZone: 'America/Santiago' });
+    const fromEl = document.getElementById('tf-date-from');
+    const toEl = document.getElementById('tf-date-to');
+    if (!fromEl.value) fromEl.value = fmt(ago);
+    if (!toEl.value) toEl.value = fmt(today);
+  } else {
+    wrap.style.display = 'none';
+    fetchTopFlopReport();
+  }
+}
+
+function showTfError(msg){
+  const errEl = document.getElementById('tf-error');
+  document.getElementById('tf-loading').style.display = 'none';
+  document.getElementById('tf-content').style.display = 'none';
+  errEl.style.display = '';
+  errEl.textContent = '⚠️ ' + msg;
+}
+
+async function fetchTopFlopReport(){
+  const accountId = document.getElementById('tf-account-select')?.value;
+  if (!accountId) { showTfError('Selecciona una cuenta'); return; }
+  const preset = document.getElementById('tf-date-preset').value;
+  let url;
+  if (preset === 'custom'){
+    const since = document.getElementById('tf-date-from').value;
+    const until = document.getElementById('tf-date-to').value;
+    if (!since || !until) { showTfError('Completa el rango de fechas'); return; }
+    url = `/.netlify/functions/cross-report?account_id=${encodeURIComponent(accountId)}&since=${since}&until=${until}`;
+  } else {
+    url = `/.netlify/functions/cross-report?account_id=${encodeURIComponent(accountId)}&date_preset=${encodeURIComponent(preset)}`;
+  }
+  document.getElementById('tf-loading').style.display = '';
+  document.getElementById('tf-loading').textContent = 'Cargando ranking…';
+  document.getElementById('tf-error').style.display = 'none';
+  document.getElementById('tf-content').style.display = 'none';
+
+  try {
+    const r = await fetch(url);
+    const text = await r.text();
+    let data;
+    try { data = JSON.parse(text); }
+    catch (_) { throw new Error('Servidor respondió ' + r.status + ' (cuerpo no JSON, posible timeout)'); }
+    if (!r.ok) throw new Error(data.error || ('HTTP ' + r.status));
+    _tfData = data;
+    document.getElementById('tf-loading').style.display = 'none';
+    document.getElementById('tf-content').style.display = '';
+    renderTopFlop();
+  } catch (err) {
+    showTfError(err.message || 'Error');
+  }
+}
+
+function renderTopFlop(){
+  const data = _tfData;
+  if (!data) return;
+  const minOrders = Math.max(1, parseInt(document.getElementById('tf-min-orders').value, 10) || 3);
+  const products = (data.byProduct || []).filter(p => (p.orders || 0) >= minOrders);
+
+  // Meta info
+  const meta = document.getElementById('tf-meta');
+  const periodo = data.dateFrom && data.dateTo
+    ? `${data.dateFrom} → ${data.dateTo}`
+    : '(rango activo)';
+  meta.innerHTML = `<b>${products.length}</b> productos elegibles (≥ ${minOrders} pedidos) · período ${periodo} · cuenta ${data.account?.name || ''}`;
+
+  // 3 bloques: Revenue, ROAS, CPA
+  renderTfBlock('tf-block-revenue', '💰 Ventas netas', products,
+    (a,b) => (b.revenue||0) - (a.revenue||0),
+    p => fmtCLP(p.revenue || 0),
+    p => `${p.orders} pedidos · ${p.qty} unidades`,
+    false);
+
+  // ROAS: solo productos con attributedSpend > 0
+  const withSpend = products.filter(p => (p.attributedSpend || 0) > 0 && p.roas != null);
+  renderTfBlock('tf-block-roas', '📈 ROAS real', withSpend,
+    (a,b) => (b.roas||0) - (a.roas||0),
+    p => (p.roas || 0).toFixed(2) + 'x',
+    p => `${fmtCLP(p.revenue||0)} / ${fmtCLP(p.attributedSpend||0)} ads`,
+    false);
+
+  // CPA: ascendente (menor CPA = mejor). Solo con cpa válido
+  const withCpa = products.filter(p => p.cpa != null && p.cpa > 0);
+  renderTfBlock('tf-block-cpa', '🎯 CPA real', withCpa,
+    (a,b) => (a.cpa||0) - (b.cpa||0), // ASC: menor primero
+    p => fmtCLP(p.cpa || 0),
+    p => `${p.orders} pedidos · spend ${fmtCLP(p.attributedSpend||0)}`,
+    true);
+}
+
+function renderTfBlock(containerId, title, products, sorter, valueFn, hintFn, cpaMode){
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  if (products.length === 0){
+    container.innerHTML = `<div style="font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:8px">${title}</div><div style="background:var(--surface);border:1.5px solid var(--border);border-radius:12px;padding:18px;color:var(--muted2);font-size:11px;text-align:center">Sin datos suficientes</div>`;
+    return;
+  }
+  const sorted = [...products].sort(sorter);
+  const top3 = sorted.slice(0, 3);
+  // Flop: invertir orden (los últimos) — para CPA, los últimos son los peores (CPA más alto)
+  const bottom3 = [...sorted].reverse().slice(0, Math.min(3, sorted.length));
+  const topLabel = cpaMode ? '🏆 TOP 3 (más bajo)' : '🏆 TOP 3';
+  const flopLabel = cpaMode ? '💀 FLOP 3 (más alto)' : '💀 FLOP 3';
+
+  container.innerHTML =
+    `<div style="font-size:13px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text);margin-bottom:10px">${title}</div>
+     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+       <div style="background:var(--surface);border:1.5px solid var(--accent);border-radius:12px;padding:14px 16px">
+         <div style="font-size:10px;letter-spacing:1px;color:var(--accent);font-weight:700;margin-bottom:8px">${topLabel}</div>
+         ${top3.map((p, i) => tfRow(i+1, p, valueFn, hintFn)).join('')}
+       </div>
+       <div style="background:var(--surface);border:1.5px solid var(--peach);border-radius:12px;padding:14px 16px">
+         <div style="font-size:10px;letter-spacing:1px;color:var(--peach);font-weight:700;margin-bottom:8px">${flopLabel}</div>
+         ${bottom3.map((p, i) => tfRow(i+1, p, valueFn, hintFn)).join('')}
+       </div>
+     </div>`;
+}
+
+function tfRow(rank, p, valueFn, hintFn){
+  const name = (p.name || '—').replace(/[<>]/g, c => c === '<' ? '&lt;' : '&gt;');
+  return `<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;padding:8px 0;border-bottom:1px solid var(--border)">
+    <div style="min-width:0;flex:1">
+      <div style="font-size:12px;color:var(--text);font-weight:600;line-height:1.3">${rank}. ${name}</div>
+      <div style="font-size:10px;color:var(--muted2);margin-top:2px">${hintFn(p)}</div>
+    </div>
+    <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:14px;color:var(--text);white-space:nowrap">${valueFn(p)}</div>
+  </div>`;
 }
 
 // ── META ADS ──────────────────────────────────────────────────────────────────
