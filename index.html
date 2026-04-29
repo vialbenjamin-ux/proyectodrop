@@ -6440,8 +6440,24 @@ function initReportes() {
 }
 
 // ── CALCULADORA DE PRECIO ─────────────────────────────────────────────────────
+// Tabla fija: precio 1u por rango de costo. Sobre el último rango, extrapola.
+const PRECIO_TABLE = [
+  // [maxCost, price1u, offer]
+  [1000,  24990, '3x1'],
+  [2000,  24990, '2x1'],
+  [3500,  25990, 'normal'],
+  [5500,  27990, 'normal'],
+  [7500,  29990, 'normal'],
+  [9500,  32990, 'normal'],
+  [11500, 34990, 'normal'],
+  [13500, 37990, 'normal'],
+  [15500, 39990, 'normal'],
+  [17500, 42990, 'normal'],
+  [19500, 44990, 'normal'],
+];
 const PRECIO_FLOOR = 24990;
-let _preciosData = null;
+const DESCUENTO_PACK_2 = 0.15; // 15% al llevar 2
+const DESCUENTO_PACK_3 = 0.20; // 20% al llevar 3
 
 function switchCalcTab(tab){
   document.querySelectorAll('[data-calctab]').forEach(b => b.classList.toggle('active', b.dataset.calctab === tab));
@@ -6450,61 +6466,25 @@ function switchCalcTab(tab){
   if (tab === 'precios') initPrecios();
 }
 
-async function initPrecios() {
-  // Si ya está cargado, no recargar (los datos cambian poco)
-  if (_preciosData) {
-    document.getElementById('precios-loading').style.display = 'none';
-    document.getElementById('precios-form').style.display = '';
-    renderPreciosOutput();
-    return;
-  }
-  document.getElementById('precios-loading').style.display = '';
+function initPrecios() {
+  // Reglas locales: no necesita API
+  document.getElementById('precios-loading').style.display = 'none';
   document.getElementById('precios-error').style.display = 'none';
-  document.getElementById('precios-form').style.display = 'none';
-
-  try {
-    const r = await fetch('/.netlify/functions/pricing-calc');
-    const text = await r.text();
-    let data;
-    try { data = JSON.parse(text); }
-    catch (_) {
-      throw new Error('Servidor respondió ' + r.status + ' (cuerpo no JSON)');
-    }
-    if (!r.ok) throw new Error(data.error || 'Error al cargar datos');
-
-    if (!data.sampleSize || data.sampleSize === 0 || !data.mult1u) {
-      throw new Error('No hay suficientes productos con costo cargado en los últimos 30 días');
-    }
-
-    _preciosData = data;
-    document.getElementById('precios-loading').style.display = 'none';
-    document.getElementById('precios-form').style.display = '';
-    renderPreciosMeta();
-    renderPreciosOutput();
-  } catch (err) {
-    document.getElementById('precios-loading').style.display = 'none';
-    const errEl = document.getElementById('precios-error');
-    errEl.style.display = '';
-    errEl.textContent = '⚠️ ' + (err.message || 'Error desconocido');
-  }
+  document.getElementById('precios-form').style.display = '';
+  document.getElementById('precios-meta').innerHTML =
+    'Reglas fijas: 1u por rango de costo · Pack 2 con 15% descuento · Pack 3 con 20% descuento · piso $24.990 · todos los precios terminan en .990';
+  renderPreciosOutput();
 }
 
-function renderPreciosMeta() {
-  const d = _preciosData;
-  if (!d) return;
-  const meta = document.getElementById('precios-meta');
-  const parts = [];
-  parts.push('Basado en <b>' + d.sampleSize + '</b> producto' + (d.sampleSize !== 1 ? 's' : '') + ' con 1u y costo cargado');
-  if (d.sampleSize2u) parts.push(d.sampleSize2u + ' con Pack 2 normal');
-  if (d.sampleSize3u) parts.push(d.sampleSize3u + ' con Pack 3 normal');
-  if (d.sampleSize2x1) parts.push(d.sampleSize2x1 + ' con oferta 2x1');
-  if (d.sampleSize3x1) parts.push(d.sampleSize3x1 + ' con oferta 3x1');
-  let html = parts.join(' · ');
-  if (d.costRange) {
-    html += '<br>Rango habitual de costos: $' + Math.round(d.costRange.min).toLocaleString('es-CL') + ' – $' + Math.round(d.costRange.max).toLocaleString('es-CL');
+function getPrecio1u(cost) {
+  for (const [maxCost, price1u, offer] of PRECIO_TABLE) {
+    if (cost <= maxCost) return { price1u, offer };
   }
-  html += '<br>Última actualización: ' + new Date(d.updatedAt).toLocaleString('es-CL', { hour: '2-digit', minute: '2-digit' });
-  meta.innerHTML = html;
+  // Sobre el último rango: extrapola lineal +$2.500 por cada +$2.000 de costo
+  const last = PRECIO_TABLE[PRECIO_TABLE.length - 1];
+  const slope = 2500 / 2000;
+  const extrap = last[1] + (cost - last[0]) * slope;
+  return { price1u: round990(extrap), offer: 'normal_extrap' };
 }
 
 function round990(x) {
@@ -6520,91 +6500,84 @@ function fmtCLP(x) {
 }
 
 function renderPreciosOutput() {
-  const d = _preciosData;
-  if (!d) return;
   const cost = parseFloat(document.getElementById('precios-input-cost').value);
   const out = document.getElementById('precios-output');
   if (!cost || cost <= 0) { out.style.display = 'none'; return; }
 
-  // Tipo de oferta: derivado del historial (umbral = costo máximo donde tú
-  // aplicaste 2x1/3x1 en los últimos 30 días)
-  let tipo = 'normal';
-  if (d.threshold3x1 != null && cost <= d.threshold3x1) tipo = '3x1';
-  else if (d.threshold2x1 != null && cost <= d.threshold2x1) tipo = '2x1';
+  const { price1u, offer } = getPrecio1u(cost);
+  const p1 = applyFloor(price1u);
 
-  // Precios base usando multiplicadores históricos
-  const p1 = applyFloor(round990(cost * d.mult1u));
-  const p2Normal = d.mult2u ? applyFloor(round990(cost * d.mult2u)) : null;
-  const p3Normal = d.mult3u ? applyFloor(round990(cost * d.mult3u)) : null;
-
-  // Aplicar lógica de oferta sobre precios pack
-  let p2, p3, hint2, hint3, hint1;
-  if (tipo === '3x1') {
+  // Calcular Pack 2 y Pack 3 según tipo de oferta
+  let p2, p3, hint1, hint2, hint3;
+  if (offer === '3x1') {
     p2 = p1; p3 = p1;
-    hint1 = 'Mismo precio que packs (3x1 activo)';
+    hint1 = 'Lleva 1, 2 o 3 al mismo precio';
     hint2 = 'Mismo precio (3x1 activo)';
     hint3 = 'Mismo precio (3x1 activo)';
-  } else if (tipo === '2x1') {
+  } else if (offer === '2x1') {
     p2 = p1;
-    p3 = p3Normal;
-    hint1 = 'Mismo precio que Pack 2 (2x1 activo)';
+    // En 2x1 no se ofrece Pack 3 explícitamente
+    p3 = null;
+    hint1 = 'Lleva 1 o 2 al mismo precio';
     hint2 = 'Mismo precio que 1u (2x1 activo)';
-    hint3 = p3Normal ? '×' + (d.mult3u / 3).toFixed(2) + ' c/u' : '';
   } else {
-    p2 = p2Normal; p3 = p3Normal;
-    hint1 = '×' + d.mult1u.toFixed(2) + ' costo';
-    hint2 = p2Normal ? '×' + (d.mult2u / 2).toFixed(2) + ' c/u' : '';
-    hint3 = p3Normal ? '×' + (d.mult3u / 3).toFixed(2) + ' c/u' : '';
+    // Pack normal: 15% off al llevar 2, 20% off al llevar 3
+    p2 = round990(p1 * 2 * (1 - DESCUENTO_PACK_2));
+    p3 = round990(p1 * 3 * (1 - DESCUENTO_PACK_3));
+    hint1 = '';
+    hint2 = '15% descuento sobre el precio de 2 unidades';
+    hint3 = '20% descuento sobre el precio de 3 unidades';
   }
 
-  // Render tipo
+  // Render header del tipo de oferta
   const tipoEl = document.getElementById('precios-tipo');
-  if (tipo === '3x1') {
-    tipoEl.innerHTML = '🔥 Oferta 3x1 <span style="color:var(--muted);font-weight:400">(costo muy bajo según tu historial)</span>';
-  } else if (tipo === '2x1') {
-    tipoEl.innerHTML = '🎁 Oferta 2x1 <span style="color:var(--muted);font-weight:400">(costo bajo según tu historial)</span>';
+  if (offer === '3x1') {
+    tipoEl.innerHTML = '🔥 Oferta 3x1 <span style="color:var(--muted);font-weight:400">(costo ≤ $1.000)</span>';
+  } else if (offer === '2x1') {
+    tipoEl.innerHTML = '🎁 Oferta 2x1 <span style="color:var(--muted);font-weight:400">(costo ≤ $2.000)</span>';
+  } else if (offer === 'normal_extrap') {
+    tipoEl.innerHTML = '💼 Pack normal <span style="color:var(--muted);font-weight:400">(extrapolado)</span>';
   } else {
     tipoEl.innerHTML = '💼 Pack normal';
   }
 
-  // Render filas (siempre 1u, Pack 2, Pack 3)
+  // Render filas
   let rowsHtml = '';
-  rowsHtml += preciosRow('1 unidad', p1, hint1, true);
-  if (p2) rowsHtml += preciosRow('Pack 2', p2, hint2, false);
-  if (p3) rowsHtml += preciosRow('Pack 3', p3, hint3, false);
+  rowsHtml += preciosRow('1 unidad', p1, hint1, null, true);
+  if (p2 != null) {
+    const perUnit2 = Math.round(p2 / 2);
+    rowsHtml += preciosRow('Pack 2 (–15%)', p2, hint2, 'Costo cliente por unidad: ' + fmtCLP(perUnit2), false);
+  }
+  if (p3 != null) {
+    const perUnit3 = Math.round(p3 / 3);
+    rowsHtml += preciosRow('Pack 3 (–20%)', p3, hint3, 'Costo cliente por unidad: ' + fmtCLP(perUnit3), false);
+  }
   document.getElementById('precios-rows').innerHTML = rowsHtml;
 
   // Warnings
   const warnEl = document.getElementById('precios-warning');
   warnEl.style.display = 'none';
-  const warnings = [];
-  if (d.costRange && (cost < d.costRange.min || cost > d.costRange.max)) {
-    warnings.push('Tu costo está fuera del rango habitual ($' + Math.round(d.costRange.min).toLocaleString('es-CL') + ' – $' + Math.round(d.costRange.max).toLocaleString('es-CL') + '), la sugerencia puede ser imprecisa.');
-  }
-  const baseRaw = round990(cost * d.mult1u);
-  if (baseRaw < PRECIO_FLOOR) {
-    warnings.push('Precio 1u calculado bajo el piso de $' + PRECIO_FLOOR.toLocaleString('es-CL') + ', se elevó al mínimo permitido.');
-  }
-  if (warnings.length) {
+  if (offer === 'normal_extrap') {
     warnEl.style.display = '';
-    warnEl.innerHTML = '⚠️ ' + warnings.join('<br>⚠️ ');
+    warnEl.innerHTML = '⚠️ Costo fuera de la tabla ($19.500 máximo). El precio 1u se extrapoló linealmente — verifica que tenga sentido para este producto.';
   }
 
   out.style.display = '';
 }
 
-function preciosRow(label, price, hint, primary) {
+function preciosRow(label, price, hint, perUnitNote, primary) {
   const labelStyle = primary
     ? 'font-size:13px;font-weight:600;color:var(--text)'
     : 'font-size:12px;color:var(--muted)';
   const priceStyle = primary
     ? 'font-family:\'Syne\',sans-serif;font-weight:800;font-size:24px;color:var(--accent)'
     : 'font-family:\'Syne\',sans-serif;font-weight:700;font-size:18px;color:var(--text)';
-  return '<div style="display:flex;align-items:baseline;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border)">'
-       + '<div><div style="' + labelStyle + '">' + label + '</div>'
+  return '<div style="display:flex;align-items:baseline;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);gap:14px">'
+       + '<div style="min-width:0;flex:1"><div style="' + labelStyle + '">' + label + '</div>'
        + (hint ? '<div style="font-size:10px;color:var(--muted2);margin-top:2px">' + hint + '</div>' : '')
+       + (perUnitNote ? '<div style="font-size:10px;color:var(--accent);margin-top:2px;font-weight:600">' + perUnitNote + '</div>' : '')
        + '</div>'
-       + '<div style="' + priceStyle + '">' + fmtCLP(price) + '</div>'
+       + '<div style="' + priceStyle + ';white-space:nowrap">' + fmtCLP(price) + '</div>'
        + '</div>';
 }
 
