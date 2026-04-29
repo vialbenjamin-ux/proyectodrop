@@ -1076,9 +1076,6 @@
   <button class="tab-btn" data-section="calculadora" onclick="switchSection('calculadora')">
     🧮 Calculadora
   </button>
-  <button class="tab-btn" data-section="precios" onclick="switchSection('precios')">
-    💡 Calc. Precio
-  </button>
   <button class="tab-btn" data-section="pendientes" onclick="switchSection('pendientes')">
     Pendientes <span class="badge" id="badge-pendientes" style="display:none">0</span>
   </button>
@@ -2045,47 +2042,6 @@
     </div>
   </div>
 
-  <div id="section-precios" class="section">
-    <div style="max-width:600px;margin:0 auto">
-
-      <!-- Header -->
-      <div style="margin-bottom:24px">
-        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:22px;color:var(--text)">💡 Calculadora de Precio</div>
-        <div style="font-size:11px;color:var(--muted);margin-top:4px;letter-spacing:.3px">Sugerencia de precio para productos nuevos basada en tu historial de Shopify (últimos 30 días)</div>
-      </div>
-
-      <!-- Loading -->
-      <div id="precios-loading" style="background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:24px;text-align:center;color:var(--muted2);font-size:12px">Cargando datos de Shopify…</div>
-
-      <!-- Error -->
-      <div id="precios-error" style="display:none;background:var(--surface);border:1.5px solid var(--peach);border-radius:14px;padding:18px;color:var(--peach);font-size:12px;margin-bottom:14px"></div>
-
-      <!-- Form (oculto hasta que cargue) -->
-      <div id="precios-form" style="display:none">
-        <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:20px;margin-bottom:14px">
-          <label style="display:block;font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:8px;font-weight:600">Costo del producto (CLP)</label>
-          <div style="display:flex;align-items:center;gap:8px">
-            <span style="font-family:'Syne',sans-serif;font-size:24px;color:var(--muted2)">$</span>
-            <input type="number" id="precios-input-cost" inputmode="numeric" placeholder="4500"
-              style="flex:1;background:var(--surface2);border:1.5px solid var(--border);border-radius:10px;padding:12px 14px;font-size:20px;font-family:'Syne',sans-serif;font-weight:700;color:var(--text);outline:none"
-              oninput="renderPreciosOutput()"
-              onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'">
-          </div>
-        </div>
-
-        <!-- Resultado -->
-        <div id="precios-output" style="display:none;background:var(--surface);border:2px solid var(--accent);border-radius:14px;padding:22px;margin-bottom:14px">
-          <div id="precios-tipo" style="font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);font-weight:700;margin-bottom:14px"></div>
-          <div id="precios-rows"></div>
-          <div id="precios-warning" style="display:none;margin-top:14px;padding:10px 12px;background:var(--surface2);border-radius:8px;font-size:11px;color:var(--peach);line-height:1.5"></div>
-        </div>
-
-        <!-- Meta -->
-        <div id="precios-meta" style="font-size:10px;color:var(--muted2);letter-spacing:.3px;line-height:1.6;padding:0 4px"></div>
-      </div>
-    </div>
-  </div>
-
   <div id="section-archivo" class="section">
     <div class="filter-row">
       <div style="display:flex;align-items:center;gap:10px;flex:1;flex-wrap:wrap">
@@ -2106,8 +2062,18 @@
   <div id="section-calculadora" class="section">
     <div style="max-width:620px;margin:0 auto">
 
-      <div style="margin-bottom:28px">
-        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:20px;color:var(--text);margin-bottom:4px">Calculadora de Precios</div>
+      <div style="margin-bottom:18px">
+        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:20px;color:var(--text);margin-bottom:4px">Calculadoras</div>
+      </div>
+
+      <!-- SUB-TABS -->
+      <div class="report-subtabs">
+        <button class="report-subtab active" data-calctab="cod" onclick="switchCalcTab('cod')">🧮 Precio mínimo + BEROAS</button>
+        <button class="report-subtab" data-calctab="precios" onclick="switchCalcTab('precios')">💡 Sugerir precio nuevo</button>
+      </div>
+
+      <div id="calc-tab-cod">
+      <div style="margin-bottom:20px">
         <div style="font-size:11px;color:var(--muted);letter-spacing:.5px">Precio mínimo sugerido + BEROAS para tus campañas</div>
       </div>
 
@@ -2206,6 +2172,43 @@
           BEROAS = Precio Venta / CPA Máximo
         </div>
       </details>
+      </div><!-- /#calc-tab-cod -->
+
+      <div id="calc-tab-precios" style="display:none">
+        <div style="margin-bottom:20px">
+          <div style="font-size:11px;color:var(--muted);letter-spacing:.5px">Sugerencia de precio para productos nuevos basada en tu historial de Shopify (últimos 30 días)</div>
+        </div>
+
+        <!-- Loading -->
+        <div id="precios-loading" style="background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:24px;text-align:center;color:var(--muted2);font-size:12px">Cargando datos de Shopify…</div>
+
+        <!-- Error -->
+        <div id="precios-error" style="display:none;background:var(--surface);border:1.5px solid var(--peach);border-radius:14px;padding:18px;color:var(--peach);font-size:12px;margin-bottom:14px"></div>
+
+        <!-- Form (oculto hasta que cargue) -->
+        <div id="precios-form" style="display:none">
+          <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:20px;margin-bottom:14px">
+            <label style="display:block;font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:8px;font-weight:600">Costo del producto (CLP)</label>
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="font-family:'Syne',sans-serif;font-size:24px;color:var(--muted2)">$</span>
+              <input type="number" id="precios-input-cost" inputmode="numeric" placeholder="4500"
+                style="flex:1;background:var(--surface2);border:1.5px solid var(--border);border-radius:10px;padding:12px 14px;font-size:20px;font-family:'Syne',sans-serif;font-weight:700;color:var(--text);outline:none"
+                oninput="renderPreciosOutput()"
+                onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'">
+            </div>
+          </div>
+
+          <!-- Resultado -->
+          <div id="precios-output" style="display:none;background:var(--surface);border:2px solid var(--accent);border-radius:14px;padding:22px;margin-bottom:14px">
+            <div id="precios-tipo" style="font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);font-weight:700;margin-bottom:14px"></div>
+            <div id="precios-rows"></div>
+            <div id="precios-warning" style="display:none;margin-top:14px;padding:10px 12px;background:var(--surface2);border-radius:8px;font-size:11px;color:var(--peach);line-height:1.5"></div>
+          </div>
+
+          <!-- Meta -->
+          <div id="precios-meta" style="font-size:10px;color:var(--muted2);letter-spacing:.3px;line-height:1.6;padding:0 4px"></div>
+        </div>
+      </div><!-- /#calc-tab-precios -->
 
     </div>
   </div>
@@ -2416,7 +2419,7 @@ function openMobileMenu(){
   const isAdm = currentUser===ADMIN_USER;
   links.innerHTML = ALL_SECTIONS.map(s=>{
     if(!isAdm && !perms.includes(s.id)) return '';
-    const icons = {productos:'📦',videos:'🎬',prompts:'✨',proveedores:'🏭',calculadora:'🧮',precios:'💡',pendientes:'📋',archivo:'📁',calendario:'📅',reportes:'📊'};
+    const icons = {productos:'📦',videos:'🎬',prompts:'✨',proveedores:'🏭',calculadora:'🧮',pendientes:'📋',archivo:'📁',calendario:'📅',reportes:'📊'};
     const activeSection = document.querySelector('.section.active');
     const activeId = activeSection ? activeSection.id.replace('section-','') : '';
     return `<button class="mobile-tab${activeId===s.id?' active':''}" onclick="closeMobileMenu();switchSection('${s.id}')">
@@ -2444,7 +2447,6 @@ function switchSection(s, silent){
   if(s==='prompts'){ renderPrompts(); loadBkVars(); }
   if(s==='reportes') initReportes();
   if(s==='creativos') renderCreativos();
-  if(s==='precios') initPrecios();
 }
 
 function startRenameOwner(owner){
@@ -5752,7 +5754,6 @@ const ALL_SECTIONS = [
   {id:'prompts',     label:'Prompts'},
   {id:'proveedores', label:'Proveedores'},
   {id:'calculadora', label:'Calculadora'},
-  {id:'precios',     label:'Calc. Precio'},
   {id:'pendientes',  label:'Pendientes'},
   {id:'reportes',    label:'Reportes'},
   {id:'archivo',     label:'Archivo'},
@@ -6441,6 +6442,13 @@ function initReportes() {
 // ── CALCULADORA DE PRECIO ─────────────────────────────────────────────────────
 const PRECIO_FLOOR = 24990;
 let _preciosData = null;
+
+function switchCalcTab(tab){
+  document.querySelectorAll('[data-calctab]').forEach(b => b.classList.toggle('active', b.dataset.calctab === tab));
+  document.getElementById('calc-tab-cod').style.display     = tab === 'cod'     ? '' : 'none';
+  document.getElementById('calc-tab-precios').style.display = tab === 'precios' ? '' : 'none';
+  if (tab === 'precios') initPrecios();
+}
 
 async function initPrecios() {
   // Si ya está cargado, no recargar (los datos cambian poco)
