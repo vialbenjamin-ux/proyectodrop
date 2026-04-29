@@ -63,19 +63,64 @@ export default async (request) => {
         safeEnqueue(encoder.encode(': keep-alive\n\n'));
       }, 5000);
 
-      try {
-        const geminiResp = await fetch(geminiUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: geminiBody,
-        });
+      // Reintenta automáticamente cuando Gemini devuelve "high demand" /
+      // overloaded / rate-limit transitorio. Mientras tanto los heartbeats
+      // mantienen la conexión viva con el cliente.
+      const TRANSIENT_RETRIES = 3;
+      const TRANSIENT_BACKOFF_MS = [2000, 4000, 8000];
 
-        if (!geminiResp.ok) {
+      function isTransient(status, msg) {
+        if (status === 503 || status === 429) return true;
+        const m = String(msg || '').toLowerCase();
+        return m.includes('high demand') || m.includes('overloaded')
+            || m.includes('temporarily') || m.includes('try again later')
+            || m.includes('unavailable');
+      }
+
+      try {
+        let geminiResp;
+        let lastErrMsg = null;
+        let lastStatus = null;
+        for (let attempt = 0; attempt <= TRANSIENT_RETRIES; attempt++) {
+          try {
+            geminiResp = await fetch(geminiUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: geminiBody,
+            });
+          } catch (netErr) {
+            lastErrMsg = netErr.message || 'network error';
+            lastStatus = 0;
+            if (attempt < TRANSIENT_RETRIES) {
+              await new Promise(r => setTimeout(r, TRANSIENT_BACKOFF_MS[attempt] || 4000));
+              continue;
+            }
+            throw netErr;
+          }
+
+          if (geminiResp.ok) break;
+
           const errText = await geminiResp.text();
           let msg = errText;
           try { const j = JSON.parse(errText); msg = j?.error?.message || errText; } catch {}
+          lastErrMsg = msg;
+          lastStatus = geminiResp.status;
+
+          if (isTransient(geminiResp.status, msg) && attempt < TRANSIENT_RETRIES) {
+            // Avisamos al cliente que estamos reintentando (no rompe el JSON parse:
+            // los SSE comments inician con ":" y el cliente los ignora)
+            safeEnqueue(encoder.encode(`: retry ${attempt + 1}/${TRANSIENT_RETRIES} (${geminiResp.status})\n\n`));
+            await new Promise(r => setTimeout(r, TRANSIENT_BACKOFF_MS[attempt] || 4000));
+            continue;
+          }
+
+          // Error definitivo o no retriable
           safeEnqueue(encoder.encode(`data: ${JSON.stringify({ error: 'Gemini: ' + String(msg).slice(0, 400) })}\n\n`));
-        } else {
+          geminiResp = null;
+          break;
+        }
+
+        if (geminiResp && geminiResp.ok) {
           // Gemini empezó a responder: cortar heartbeats y reenviar su stream
           if (heartbeatInterval) { clearInterval(heartbeatInterval); heartbeatInterval = null; }
           const reader = geminiResp.body.getReader();
@@ -84,6 +129,11 @@ export default async (request) => {
             if (done) break;
             safeEnqueue(value);
           }
+        } else if (lastErrMsg && (lastStatus !== null) && !isTransient(lastStatus, lastErrMsg)) {
+          // ya enqueado el error
+        } else if (lastErrMsg) {
+          // Tras agotar reintentos en error transitorio, enviar mensaje claro
+          safeEnqueue(encoder.encode(`data: ${JSON.stringify({ error: 'Gemini sigue saturado tras varios reintentos. Inténtalo en 1-2 minutos.' })}\n\n`));
         }
       } catch (err) {
         safeEnqueue(encoder.encode(`data: ${JSON.stringify({ error: 'Error: ' + (err.message || 'desconocido') })}\n\n`));
