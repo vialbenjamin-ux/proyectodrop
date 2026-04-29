@@ -109,12 +109,15 @@ exports.handler = async function (event) {
   }
 
   const FIELDS = 'id,line_items,landing_site,referring_site,source_name,cancelled_at,financial_status,refunds,created_at,current_subtotal_price,note_attributes';
+  // Para ayer (comparación) solo necesitamos contar y sumar revenue.
+  // Bajamos el payload ~10x evitando line_items/refunds/etc.
+  const FIELDS_LIGHT = 'id,cancelled_at,financial_status,current_subtotal_price';
 
-  function buildUrl(startUTC, endUTC) {
+  function buildUrl(startUTC, endUTC, light) {
     return 'https://' + domain + '/admin/api/2024-10/orders.json?status=any'
       + '&created_at_min=' + startUTC.toISOString()
       + (endUTC ? '&created_at_max=' + endUTC.toISOString() : '')
-      + '&limit=250&fields=' + FIELDS;
+      + '&limit=250&fields=' + (light ? FIELDS_LIGHT : FIELDS);
   }
 
   async function fetchAllOrders(startUrl) {
@@ -233,8 +236,8 @@ exports.handler = async function (event) {
     : new Date(now.getTime() - 24 * 3600000);
 
   const [todayResult, yesterdayResult] = await Promise.allSettled([
-    fetchAllOrders(buildUrl(todayStartUTC, todayEndUTC)),
-    fetchAllOrders(buildUrl(yesterdayStartUTC, yesterdayEndUTC)),
+    fetchAllOrders(buildUrl(todayStartUTC, todayEndUTC, false)),
+    fetchAllOrders(buildUrl(yesterdayStartUTC, yesterdayEndUTC, true)),
   ]);
 
   if (todayResult.status === 'rejected') {
