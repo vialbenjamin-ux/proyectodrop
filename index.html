@@ -6507,28 +6507,6 @@ function renderPreciosOutput() {
   const { price1u, offer } = getPrecio1u(cost);
   const p1 = applyFloor(price1u);
 
-  // Calcular Pack 2 y Pack 3 según tipo de oferta
-  let p2, p3, hint1, hint2, hint3;
-  if (offer === '3x1') {
-    p2 = p1; p3 = p1;
-    hint1 = 'Lleva 1, 2 o 3 al mismo precio';
-    hint2 = 'Mismo precio (3x1 activo)';
-    hint3 = 'Mismo precio (3x1 activo)';
-  } else if (offer === '2x1') {
-    p2 = p1;
-    // En 2x1 no se ofrece Pack 3 explícitamente
-    p3 = null;
-    hint1 = 'Lleva 1 o 2 al mismo precio';
-    hint2 = 'Mismo precio que 1u (2x1 activo)';
-  } else {
-    // Pack normal: 15% off al llevar 2, 20% off al llevar 3
-    p2 = round990(p1 * 2 * (1 - DESCUENTO_PACK_2));
-    p3 = round990(p1 * 3 * (1 - DESCUENTO_PACK_3));
-    hint1 = '';
-    hint2 = '15% descuento sobre el precio de 2 unidades';
-    hint3 = '20% descuento sobre el precio de 3 unidades';
-  }
-
   // Render header del tipo de oferta
   const tipoEl = document.getElementById('precios-tipo');
   if (offer === '3x1') {
@@ -6541,16 +6519,28 @@ function renderPreciosOutput() {
     tipoEl.innerHTML = '💼 Pack normal';
   }
 
-  // Render filas
+  // Construir filas según el tipo
   let rowsHtml = '';
-  rowsHtml += preciosRow('1 unidad', p1, hint1, null, true);
-  if (p2 != null) {
-    const perUnit2 = Math.round(p2 / 2);
-    rowsHtml += preciosRow('Pack 2 (–15%)', p2, hint2, 'Costo cliente por unidad: ' + fmtCLP(perUnit2), false);
-  }
-  if (p3 != null) {
-    const perUnit3 = Math.round(p3 / 3);
-    rowsHtml += preciosRow('Pack 3 (–20%)', p3, hint3, 'Costo cliente por unidad: ' + fmtCLP(perUnit3), false);
+  rowsHtml += preciosRow('1 unidad', p1, '', null, true);
+
+  if (offer === '3x1') {
+    // 3x1: 3 unidades al precio de 1
+    rowsHtml += preciosRow('3x1', p1, '3 unidades por el precio de 1', 'Costo cliente por unidad: ' + fmtCLP(Math.round(p1 / 3)), false);
+    // 6x2: 6 unidades al precio de 2 con 15% descuento
+    const p6x2 = round990(p1 * 2 * (1 - DESCUENTO_PACK_2));
+    rowsHtml += preciosRow('6x2', p6x2, '6 unidades al precio de 2 (con 15% descuento)', 'Costo cliente por unidad: ' + fmtCLP(Math.round(p6x2 / 6)), false);
+  } else if (offer === '2x1') {
+    // 2x1: 2 unidades al precio de 1
+    rowsHtml += preciosRow('2x1', p1, '2 unidades por el precio de 1', 'Costo cliente por unidad: ' + fmtCLP(Math.round(p1 / 2)), false);
+    // 4x2: 4 unidades al precio de 2 con 15% descuento
+    const p4x2 = round990(p1 * 2 * (1 - DESCUENTO_PACK_2));
+    rowsHtml += preciosRow('4x2', p4x2, '4 unidades al precio de 2 (con 15% descuento)', 'Costo cliente por unidad: ' + fmtCLP(Math.round(p4x2 / 4)), false);
+  } else {
+    // Pack normal: 15% off al llevar 2, 20% off al llevar 3
+    const p2 = round990(p1 * 2 * (1 - DESCUENTO_PACK_2));
+    const p3 = round990(p1 * 3 * (1 - DESCUENTO_PACK_3));
+    rowsHtml += preciosRow('Pack 2 (–15%)', p2, '15% descuento sobre el precio de 2 unidades', 'Costo cliente por unidad: ' + fmtCLP(Math.round(p2 / 2)), false);
+    rowsHtml += preciosRow('Pack 3 (–20%)', p3, '20% descuento sobre el precio de 3 unidades', 'Costo cliente por unidad: ' + fmtCLP(Math.round(p3 / 3)), false);
   }
   document.getElementById('precios-rows').innerHTML = rowsHtml;
 
