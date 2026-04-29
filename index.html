@@ -6519,6 +6519,10 @@ function fmtCLP(x) {
   return '$' + Math.round(x).toLocaleString('es-CL');
 }
 
+// Thresholds FIJOS (no derivados de historial)
+const TIPO_3X1_MAX_COST = 1500;
+const TIPO_2X1_MAX_COST = 2500;
+
 function renderPreciosOutput() {
   const d = _preciosData;
   if (!d) return;
@@ -6526,55 +6530,63 @@ function renderPreciosOutput() {
   const out = document.getElementById('precios-output');
   if (!cost || cost <= 0) { out.style.display = 'none'; return; }
 
-  // Decidir tipo de oferta según costo
+  // Reglas fijas según costo
   let tipo = 'normal';
-  if (d.threshold3x1 != null && cost <= d.threshold3x1) tipo = '3x1';
-  else if (d.threshold2x1 != null && cost <= d.threshold2x1) tipo = '2x1';
+  if (cost < TIPO_3X1_MAX_COST) tipo = '3x1';
+  else if (cost < TIPO_2X1_MAX_COST) tipo = '2x1';
 
-  const tipoEl = document.getElementById('precios-tipo');
-  const rowsEl = document.getElementById('precios-rows');
-  const warnEl = document.getElementById('precios-warning');
-  warnEl.style.display = 'none';
+  // Precios base usando multiplicadores históricos
+  const p1 = applyFloor(round990(cost * d.mult1u));
+  const p2Normal = d.mult2u ? applyFloor(round990(cost * d.mult2u)) : null;
+  const p3Normal = d.mult3u ? applyFloor(round990(cost * d.mult3u)) : null;
 
-  let rowsHtml = '';
+  // Aplicar lógica de oferta sobre precios pack
+  let p2, p3, hint2, hint3, hint1;
   if (tipo === '3x1') {
-    tipoEl.innerHTML = '🔥 Oferta 3x1 <span style="color:var(--muted);font-weight:400">(costo muy bajo)</span>';
-    const base = applyFloor(round990(cost * d.mult1u));
-    const pack3opcional = d.mult3u ? applyFloor(round990(cost * d.mult3u)) : null;
-    rowsHtml = preciosRow('Precio único', base, '1, 2 o 3 al mismo precio', true);
-    if (pack3opcional && pack3opcional > base) rowsHtml += preciosRow('Pack 3 opcional', pack3opcional, '×' + (pack3opcional / cost).toFixed(2) + ' costo');
+    p2 = p1; p3 = p1;
+    hint1 = 'Mismo precio que packs (3x1 activo)';
+    hint2 = 'Mismo precio (3x1 activo)';
+    hint3 = 'Mismo precio (3x1 activo)';
   } else if (tipo === '2x1') {
-    tipoEl.innerHTML = '🎁 Oferta 2x1 <span style="color:var(--muted);font-weight:400">(costo bajo)</span>';
-    const base = applyFloor(round990(cost * d.mult1u));
-    const pack3opcional = d.mult3u ? applyFloor(round990(cost * d.mult3u)) : null;
-    rowsHtml = preciosRow('Precio único', base, '1 o 2 al mismo precio', true);
-    if (pack3opcional && pack3opcional > base) rowsHtml += preciosRow('Pack 3 opcional', pack3opcional, '×' + (pack3opcional / cost).toFixed(2) + ' costo');
+    p2 = p1;
+    p3 = p3Normal;
+    hint1 = 'Mismo precio que Pack 2 (2x1 activo)';
+    hint2 = 'Mismo precio que 1u (2x1 activo)';
+    hint3 = p3Normal ? '×' + (d.mult3u / 3).toFixed(2) + ' c/u' : '';
   } else {
-    tipoEl.innerHTML = '💼 Pack normal';
-    const p1 = applyFloor(round990(cost * d.mult1u));
-    rowsHtml += preciosRow('1 unidad', p1, '×' + d.mult1u.toFixed(2) + ' costo', true);
-    if (d.mult2u) {
-      const p2 = applyFloor(round990(cost * d.mult2u));
-      const perUnit = d.mult2u / 2;
-      rowsHtml += preciosRow('Pack 2', p2, '×' + perUnit.toFixed(2) + ' c/u');
-    }
-    if (d.mult3u) {
-      const p3 = applyFloor(round990(cost * d.mult3u));
-      const perUnit = d.mult3u / 3;
-      rowsHtml += preciosRow('Pack 3', p3, '×' + perUnit.toFixed(2) + ' c/u');
-    }
+    p2 = p2Normal; p3 = p3Normal;
+    hint1 = '×' + d.mult1u.toFixed(2) + ' costo';
+    hint2 = p2Normal ? '×' + (d.mult2u / 2).toFixed(2) + ' c/u' : '';
+    hint3 = p3Normal ? '×' + (d.mult3u / 3).toFixed(2) + ' c/u' : '';
   }
 
-  rowsEl.innerHTML = rowsHtml;
+  // Render tipo
+  const tipoEl = document.getElementById('precios-tipo');
+  if (tipo === '3x1') {
+    tipoEl.innerHTML = '🔥 Oferta 3x1 <span style="color:var(--muted);font-weight:400">(costo &lt; $1.500)</span>';
+  } else if (tipo === '2x1') {
+    tipoEl.innerHTML = '🎁 Oferta 2x1 <span style="color:var(--muted);font-weight:400">(costo &lt; $2.500)</span>';
+  } else {
+    tipoEl.innerHTML = '💼 Pack normal';
+  }
+
+  // Render filas (siempre 1u, Pack 2, Pack 3)
+  let rowsHtml = '';
+  rowsHtml += preciosRow('1 unidad', p1, hint1, true);
+  if (p2) rowsHtml += preciosRow('Pack 2', p2, hint2, false);
+  if (p3) rowsHtml += preciosRow('Pack 3', p3, hint3, false);
+  document.getElementById('precios-rows').innerHTML = rowsHtml;
 
   // Warnings
+  const warnEl = document.getElementById('precios-warning');
+  warnEl.style.display = 'none';
   const warnings = [];
   if (d.costRange && (cost < d.costRange.min || cost > d.costRange.max)) {
     warnings.push('Tu costo está fuera del rango habitual ($' + Math.round(d.costRange.min).toLocaleString('es-CL') + ' – $' + Math.round(d.costRange.max).toLocaleString('es-CL') + '), la sugerencia puede ser imprecisa.');
   }
   const baseRaw = round990(cost * d.mult1u);
   if (baseRaw < PRECIO_FLOOR) {
-    warnings.push('Precio calculado bajo el piso de $' + PRECIO_FLOOR.toLocaleString('es-CL') + ', se elevó al mínimo permitido.');
+    warnings.push('Precio 1u calculado bajo el piso de $' + PRECIO_FLOOR.toLocaleString('es-CL') + ', se elevó al mínimo permitido.');
   }
   if (warnings.length) {
     warnEl.style.display = '';
