@@ -6729,34 +6729,46 @@ function renderTopFlop(){
   const minOrders = Math.max(1, parseInt(document.getElementById('tf-min-orders').value, 10) || 3);
   const products = (data.byProduct || []).filter(p => (p.orders || 0) >= minOrders);
 
+  // Calcular ganancia real considerando COD (confirmación × entrega × revenue
+  // − COGS × entrega − ad spend − envío). Solo productos con costo cargado.
+  const productsWithProfit = products.map(p => {
+    const cod = applyCodMetrics(p);
+    return { ...p, gananciaReal: cod.gananciaReal };
+  });
+  const withProfit = productsWithProfit.filter(p => p.gananciaReal != null);
+  const withoutCost = productsWithProfit.length - withProfit.length;
+
   // Meta info
   const meta = document.getElementById('tf-meta');
   const periodo = data.dateFrom && data.dateTo
     ? `${data.dateFrom} → ${data.dateTo}`
     : '(rango activo)';
-  meta.innerHTML = `<b>${products.length}</b> productos elegibles (≥ ${minOrders} pedidos) · período ${periodo} · cuenta ${data.account?.name || ''}`;
+  let metaHtml = `<b>${products.length}</b> productos elegibles (≥ ${minOrders} pedidos) · ${withProfit.length} con costo cargado`;
+  if (withoutCost > 0) metaHtml += ` · ${withoutCost} sin costo`;
+  metaHtml += ` · período ${periodo} · cuenta ${data.account?.name || ''}`;
+  meta.innerHTML = metaHtml;
 
-  // 3 bloques: Revenue, ROAS, CPA
-  renderTfBlock('tf-block-revenue', '💰 Ventas netas', products,
-    (a,b) => (b.revenue||0) - (a.revenue||0),
-    p => fmtCLP(p.revenue || 0),
-    p => `${p.orders} pedidos · ${p.qty} unidades`,
+  // 1) Ganancia real (post-ads, post-COD) — el número que importa
+  renderTfBlock('tf-block-revenue', '💵 Ganancia real (post-ads, post-COD)', withProfit,
+    (a,b) => (b.gananciaReal||0) - (a.gananciaReal||0),
+    p => fmtCLP(p.gananciaReal || 0),
+    p => `Gasto ads ${fmtCLP(p.attributedSpend||0)} · ${p.orders} pedidos · venta bruta ${fmtCLP(p.revenue||0)}`,
     false);
 
-  // ROAS: solo productos con attributedSpend > 0
-  const withSpend = products.filter(p => (p.attributedSpend || 0) > 0 && p.roas != null);
+  // 2) ROAS real
+  const withSpend = productsWithProfit.filter(p => (p.attributedSpend || 0) > 0 && p.roas != null);
   renderTfBlock('tf-block-roas', '📈 ROAS real', withSpend,
     (a,b) => (b.roas||0) - (a.roas||0),
     p => (p.roas || 0).toFixed(2) + 'x',
-    p => `${fmtCLP(p.revenue||0)} / ${fmtCLP(p.attributedSpend||0)} ads`,
+    p => `Gasto ${fmtCLP(p.attributedSpend||0)} · venta ${fmtCLP(p.revenue||0)}`,
     false);
 
-  // CPA: ascendente (menor CPA = mejor). Solo con cpa válido
-  const withCpa = products.filter(p => p.cpa != null && p.cpa > 0);
+  // 3) CPA real (asc: menor primero = mejor)
+  const withCpa = productsWithProfit.filter(p => p.cpa != null && p.cpa > 0);
   renderTfBlock('tf-block-cpa', '🎯 CPA real', withCpa,
-    (a,b) => (a.cpa||0) - (b.cpa||0), // ASC: menor primero
+    (a,b) => (a.cpa||0) - (b.cpa||0),
     p => fmtCLP(p.cpa || 0),
-    p => `${p.orders} pedidos · spend ${fmtCLP(p.attributedSpend||0)}`,
+    p => `${p.orders} pedidos · gasto ${fmtCLP(p.attributedSpend||0)}`,
     true);
 }
 
