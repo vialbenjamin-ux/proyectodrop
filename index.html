@@ -6625,22 +6625,19 @@ function renderPreciosOutput() {
     tipoEl.innerHTML = '💼 Pack normal';
   }
 
-  // Etiquetas coloridas para modo Pack Normal (mensajes para la ficha de venta)
+  // Colores fijos por posición de etiqueta: 1° azul, 2° verde, 3° violeta
+  const COLOR_AZUL    = { bg: '#DDE8F8', border: '#4A6FB5', fg: '#1F3A7A' };
+  const COLOR_VERDE   = { bg: '#DCF1D9', border: '#4F9A4A', fg: '#1F5520' };
+  const COLOR_VIOLETA = { bg: '#E8DDF5', border: '#6B4FA0', fg: '#3F2870' };
+  const subPorUnidad = (price, n) => 'SÓLO ' + fmtCLP(Math.round(price / n)) + ' POR UNIDAD!';
+
+  // Sólo en Pack Normal la fila 1u tiene etiqueta (los otros modos arrancan
+  // su primera etiqueta en la fila de oferta).
   const isNormal = (offer === 'normal' || offer === 'normal_extrap');
   const ETI_1U = isNormal ? {
-    bg: '#FFE8DC', border: '#E08254', fg: '#9C4520',
+    ...COLOR_AZUL,
     main: '¡Llevo 1 unidad! (35% OFF)',
     sub: 'PRECIO OFERTA HOY!'
-  } : null;
-  const ETI_2U = isNormal ? {
-    bg: '#D9F0EC', border: '#3A8B82', fg: '#1F5E58',
-    main: '¡Llevo 2 unidades! (45% OFF)',
-    sub: 'División del precio en 2'
-  } : null;
-  const ETI_3U = isNormal ? {
-    bg: '#E8DDF5', border: '#6B4FA0', fg: '#3F2870',
-    main: '¡Llevo 3 unidades! · PRECIO MAYORISTA',
-    sub: 'División del precio en 3'
   } : null;
 
   // Construir filas según el tipo
@@ -6648,41 +6645,27 @@ function renderPreciosOutput() {
   rowsHtml += preciosRow('1 unidad', p1, '', null, true, ETI_1U);
 
   if (offer === '3x1') {
-    const ETI_3X1 = {
-      bg: '#FFE8DC', border: '#E08254', fg: '#9C4520',
-      main: '¡Llevo 3 unidades y pago 1! (50% OFF)',
-      sub: 'División precio en 3'
-    };
-    const ETI_6X2 = {
-      bg: '#E8DDF5', border: '#6B4FA0', fg: '#3F2870',
-      main: '¡Llevo 6 unidades y pago 2! · PRECIO MAYORISTA',
-      sub: 'División precio en 6'
-    };
-    // 3x1: 3 unidades al precio de 1
+    // 3x1: primera etiqueta visible → azul
+    const ETI_3X1 = { ...COLOR_AZUL, main: '¡Llevo 3 unidades y pago 1! (50% OFF)', sub: subPorUnidad(p1, 3) };
     rowsHtml += preciosRow('3x1', p1, '3 unidades por el precio de 1', 'Costo cliente por unidad: ' + fmtCLP(Math.round(p1 / 3)), false, ETI_3X1);
-    // 6x2: 6 unidades al precio de 2 con 15% descuento
+    // 6x2: segunda etiqueta → verde
     const p6x2 = round990(p1 * 2 * (1 - DESCUENTO_PACK_2));
+    const ETI_6X2 = { ...COLOR_VERDE, main: '¡Llevo 6 unidades y pago 2! · PRECIO MAYORISTA', sub: subPorUnidad(p6x2, 6) };
     rowsHtml += preciosRow('6x2', p6x2, '6 unidades al precio de 2 (con 15% descuento)', 'Costo cliente por unidad: ' + fmtCLP(Math.round(p6x2 / 6)), false, ETI_6X2);
   } else if (offer === '2x1') {
-    const ETI_2X1 = {
-      bg: '#FFE8DC', border: '#E08254', fg: '#9C4520',
-      main: '¡Llevo 2 unidades y pago 1! (35% OFF)',
-      sub: 'División precio en 2'
-    };
-    const ETI_4X2 = {
-      bg: '#D9F0EC', border: '#3A8B82', fg: '#1F5E58',
-      main: '¡Llevo 4 unidades y pago 2! (45% OFF)',
-      sub: 'División precio en 4'
-    };
-    // 2x1: 2 unidades al precio de 1
+    // 2x1: primera etiqueta → azul
+    const ETI_2X1 = { ...COLOR_AZUL, main: '¡Llevo 2 unidades y pago 1! (35% OFF)', sub: subPorUnidad(p1, 2) };
     rowsHtml += preciosRow('2x1', p1, '2 unidades por el precio de 1', 'Costo cliente por unidad: ' + fmtCLP(Math.round(p1 / 2)), false, ETI_2X1);
-    // 4x2: 4 unidades al precio de 2 con 15% descuento
+    // 4x2: segunda → verde
     const p4x2 = round990(p1 * 2 * (1 - DESCUENTO_PACK_2));
+    const ETI_4X2 = { ...COLOR_VERDE, main: '¡Llevo 4 unidades y pago 2! (45% OFF)', sub: subPorUnidad(p4x2, 4) };
     rowsHtml += preciosRow('4x2', p4x2, '4 unidades al precio de 2 (con 15% descuento)', 'Costo cliente por unidad: ' + fmtCLP(Math.round(p4x2 / 4)), false, ETI_4X2);
   } else {
-    // Pack normal: 15% off al llevar 2, 20% off al llevar 3
+    // Pack normal: 1° azul (1u arriba), 2° verde (Pack 2), 3° violeta (Pack 3)
     const p2 = round990(p1 * 2 * (1 - DESCUENTO_PACK_2));
     const p3 = round990(p1 * 3 * (1 - DESCUENTO_PACK_3));
+    const ETI_2U = { ...COLOR_VERDE,   main: '¡Llevo 2 unidades! (45% OFF)',          sub: subPorUnidad(p2, 2) };
+    const ETI_3U = { ...COLOR_VIOLETA, main: '¡Llevo 3 unidades! · PRECIO MAYORISTA', sub: subPorUnidad(p3, 3) };
     rowsHtml += preciosRow('Pack 2 (–15%)', p2, '15% descuento sobre el precio de 2 unidades', 'Costo cliente por unidad: ' + fmtCLP(Math.round(p2 / 2)), false, ETI_2U);
     rowsHtml += preciosRow('Pack 3 (–20%)', p3, '20% descuento sobre el precio de 3 unidades', 'Costo cliente por unidad: ' + fmtCLP(Math.round(p3 / 3)), false, ETI_3U);
   }
