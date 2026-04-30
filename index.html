@@ -6625,28 +6625,46 @@ function renderPreciosOutput() {
     tipoEl.innerHTML = '💼 Pack normal';
   }
 
+  // Etiquetas coloridas para modo Pack Normal (mensajes para la ficha de venta)
+  const isNormal = (offer === 'normal' || offer === 'normal_extrap');
+  const ETI_1U = isNormal ? {
+    bg: '#FFE8DC', border: '#E08254', fg: '#9C4520',
+    main: '¡Llevo 1 unidad! (35% OFF)',
+    sub: 'PRECIO OFERTA HOY!'
+  } : null;
+  const ETI_2U = isNormal ? {
+    bg: '#D9F0EC', border: '#3A8B82', fg: '#1F5E58',
+    main: '¡Llevo 2 unidades! (45% OFF)',
+    sub: 'División del precio en 2'
+  } : null;
+  const ETI_3U = isNormal ? {
+    bg: '#E8DDF5', border: '#6B4FA0', fg: '#3F2870',
+    main: '¡Llevo 3 unidades! · PRECIO MAYORISTA',
+    sub: 'División del precio en 3'
+  } : null;
+
   // Construir filas según el tipo
   let rowsHtml = '';
-  rowsHtml += preciosRow('1 unidad', p1, '', null, true);
+  rowsHtml += preciosRow('1 unidad', p1, '', null, true, ETI_1U);
 
   if (offer === '3x1') {
     // 3x1: 3 unidades al precio de 1
-    rowsHtml += preciosRow('3x1', p1, '3 unidades por el precio de 1', 'Costo cliente por unidad: ' + fmtCLP(Math.round(p1 / 3)), false);
+    rowsHtml += preciosRow('3x1', p1, '3 unidades por el precio de 1', 'Costo cliente por unidad: ' + fmtCLP(Math.round(p1 / 3)), false, null);
     // 6x2: 6 unidades al precio de 2 con 15% descuento
     const p6x2 = round990(p1 * 2 * (1 - DESCUENTO_PACK_2));
-    rowsHtml += preciosRow('6x2', p6x2, '6 unidades al precio de 2 (con 15% descuento)', 'Costo cliente por unidad: ' + fmtCLP(Math.round(p6x2 / 6)), false);
+    rowsHtml += preciosRow('6x2', p6x2, '6 unidades al precio de 2 (con 15% descuento)', 'Costo cliente por unidad: ' + fmtCLP(Math.round(p6x2 / 6)), false, null);
   } else if (offer === '2x1') {
     // 2x1: 2 unidades al precio de 1
-    rowsHtml += preciosRow('2x1', p1, '2 unidades por el precio de 1', 'Costo cliente por unidad: ' + fmtCLP(Math.round(p1 / 2)), false);
+    rowsHtml += preciosRow('2x1', p1, '2 unidades por el precio de 1', 'Costo cliente por unidad: ' + fmtCLP(Math.round(p1 / 2)), false, null);
     // 4x2: 4 unidades al precio de 2 con 15% descuento
     const p4x2 = round990(p1 * 2 * (1 - DESCUENTO_PACK_2));
-    rowsHtml += preciosRow('4x2', p4x2, '4 unidades al precio de 2 (con 15% descuento)', 'Costo cliente por unidad: ' + fmtCLP(Math.round(p4x2 / 4)), false);
+    rowsHtml += preciosRow('4x2', p4x2, '4 unidades al precio de 2 (con 15% descuento)', 'Costo cliente por unidad: ' + fmtCLP(Math.round(p4x2 / 4)), false, null);
   } else {
     // Pack normal: 15% off al llevar 2, 20% off al llevar 3
     const p2 = round990(p1 * 2 * (1 - DESCUENTO_PACK_2));
     const p3 = round990(p1 * 3 * (1 - DESCUENTO_PACK_3));
-    rowsHtml += preciosRow('Pack 2 (–15%)', p2, '15% descuento sobre el precio de 2 unidades', 'Costo cliente por unidad: ' + fmtCLP(Math.round(p2 / 2)), false);
-    rowsHtml += preciosRow('Pack 3 (–20%)', p3, '20% descuento sobre el precio de 3 unidades', 'Costo cliente por unidad: ' + fmtCLP(Math.round(p3 / 3)), false);
+    rowsHtml += preciosRow('Pack 2 (–15%)', p2, '15% descuento sobre el precio de 2 unidades', 'Costo cliente por unidad: ' + fmtCLP(Math.round(p2 / 2)), false, ETI_2U);
+    rowsHtml += preciosRow('Pack 3 (–20%)', p3, '20% descuento sobre el precio de 3 unidades', 'Costo cliente por unidad: ' + fmtCLP(Math.round(p3 / 3)), false, ETI_3U);
   }
   document.getElementById('precios-rows').innerHTML = rowsHtml;
 
@@ -6661,19 +6679,28 @@ function renderPreciosOutput() {
   out.style.display = '';
 }
 
-function preciosRow(label, price, hint, perUnitNote, primary) {
+function preciosRow(label, price, hint, perUnitNote, primary, etiqueta) {
   const labelStyle = primary
     ? 'font-size:13px;font-weight:600;color:var(--text)'
     : 'font-size:12px;color:var(--muted)';
   const priceStyle = primary
     ? 'font-family:\'Syne\',sans-serif;font-weight:800;font-size:24px;color:var(--accent)'
     : 'font-family:\'Syne\',sans-serif;font-weight:700;font-size:18px;color:var(--text)';
-  return '<div style="display:flex;align-items:baseline;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);gap:14px">'
+  const etiquetaHtml = etiqueta
+    ? '<div style="display:inline-block;background:' + etiqueta.bg + ';border:1.5px solid ' + etiqueta.border + ';border-radius:8px;padding:5px 10px;margin-bottom:6px">'
+      + '<div style="font-family:\'Syne\',sans-serif;font-weight:800;font-size:11px;color:' + etiqueta.fg + ';line-height:1.2">' + etiqueta.main + '</div>'
+      + '<div style="font-size:9px;color:' + etiqueta.fg + ';opacity:.85;letter-spacing:.5px;text-transform:uppercase;margin-top:2px;font-weight:600">' + etiqueta.sub + '</div>'
+      + '</div>'
+    : '';
+  return '<div style="padding:12px 0;border-bottom:1px solid var(--border)">'
+       + etiquetaHtml
+       + '<div style="display:flex;align-items:baseline;justify-content:space-between;gap:14px">'
        + '<div style="min-width:0;flex:1"><div style="' + labelStyle + '">' + label + '</div>'
        + (hint ? '<div style="font-size:10px;color:var(--muted2);margin-top:2px">' + hint + '</div>' : '')
        + (perUnitNote ? '<div style="font-size:10px;color:var(--accent);margin-top:2px;font-weight:600">' + perUnitNote + '</div>' : '')
        + '</div>'
        + '<div style="' + priceStyle + ';white-space:nowrap">' + fmtCLP(price) + '</div>'
+       + '</div>'
        + '</div>';
 }
 
