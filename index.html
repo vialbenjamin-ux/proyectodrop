@@ -6648,17 +6648,37 @@ function renderPreciosOutput() {
   rowsHtml += preciosRow('1 unidad', p1, '', null, true, ETI_1U);
 
   if (offer === '3x1') {
+    const ETI_3X1 = {
+      bg: '#FFE8DC', border: '#E08254', fg: '#9C4520',
+      main: '¡Llevo 3 unidades y pago 1! (50% OFF)',
+      sub: 'División precio en 3'
+    };
+    const ETI_6X2 = {
+      bg: '#E8DDF5', border: '#6B4FA0', fg: '#3F2870',
+      main: '¡Llevo 6 unidades y pago 2! · PRECIO MAYORISTA',
+      sub: 'División precio en 6'
+    };
     // 3x1: 3 unidades al precio de 1
-    rowsHtml += preciosRow('3x1', p1, '3 unidades por el precio de 1', 'Costo cliente por unidad: ' + fmtCLP(Math.round(p1 / 3)), false, null);
+    rowsHtml += preciosRow('3x1', p1, '3 unidades por el precio de 1', 'Costo cliente por unidad: ' + fmtCLP(Math.round(p1 / 3)), false, ETI_3X1);
     // 6x2: 6 unidades al precio de 2 con 15% descuento
     const p6x2 = round990(p1 * 2 * (1 - DESCUENTO_PACK_2));
-    rowsHtml += preciosRow('6x2', p6x2, '6 unidades al precio de 2 (con 15% descuento)', 'Costo cliente por unidad: ' + fmtCLP(Math.round(p6x2 / 6)), false, null);
+    rowsHtml += preciosRow('6x2', p6x2, '6 unidades al precio de 2 (con 15% descuento)', 'Costo cliente por unidad: ' + fmtCLP(Math.round(p6x2 / 6)), false, ETI_6X2);
   } else if (offer === '2x1') {
+    const ETI_2X1 = {
+      bg: '#FFE8DC', border: '#E08254', fg: '#9C4520',
+      main: '¡Llevo 2 unidades y pago 1! (35% OFF)',
+      sub: 'División precio en 2'
+    };
+    const ETI_4X2 = {
+      bg: '#D9F0EC', border: '#3A8B82', fg: '#1F5E58',
+      main: '¡Llevo 4 unidades y pago 2! (45% OFF)',
+      sub: 'División precio en 4'
+    };
     // 2x1: 2 unidades al precio de 1
-    rowsHtml += preciosRow('2x1', p1, '2 unidades por el precio de 1', 'Costo cliente por unidad: ' + fmtCLP(Math.round(p1 / 2)), false, null);
+    rowsHtml += preciosRow('2x1', p1, '2 unidades por el precio de 1', 'Costo cliente por unidad: ' + fmtCLP(Math.round(p1 / 2)), false, ETI_2X1);
     // 4x2: 4 unidades al precio de 2 con 15% descuento
     const p4x2 = round990(p1 * 2 * (1 - DESCUENTO_PACK_2));
-    rowsHtml += preciosRow('4x2', p4x2, '4 unidades al precio de 2 (con 15% descuento)', 'Costo cliente por unidad: ' + fmtCLP(Math.round(p4x2 / 4)), false, null);
+    rowsHtml += preciosRow('4x2', p4x2, '4 unidades al precio de 2 (con 15% descuento)', 'Costo cliente por unidad: ' + fmtCLP(Math.round(p4x2 / 4)), false, ETI_4X2);
   } else {
     // Pack normal: 15% off al llevar 2, 20% off al llevar 3
     const p2 = round990(p1 * 2 * (1 - DESCUENTO_PACK_2));
