@@ -2522,6 +2522,9 @@ function cancelRenameOwner(owner){
 const BONO_POR_PRODUCTO = 3000;
 const META_SEMANAL_LANDINGS = 15;
 const BONO_META_SEMANAL = 10000;
+const META_MENSUAL_SEMANAS = 4; // semanas con meta dentro del mes
+const BONO_META_MENSUAL = 20000;
+const MES_INICIO_META_MENSUAL = '2026-05'; // aplica desde mayo 2026 en adelante
 
 // Obtener lunes y domingo de la semana (lunes=inicio, domingo=fin)
 function getWeekRange(date){
@@ -2562,6 +2565,49 @@ function calcMetaSemanal(bonusList){
     }
   });
   return metaBonus;
+}
+
+// Calcula el bono mensual extra: $20.000 si el owner alcanzó las 4 metas
+// semanales dentro del mismo mes calendario. Solo aplica desde mayo 2026.
+// Devuelve { owner: amount, ... } y { owner: { yearMonth: weeksHit } }.
+function calcBonoMensual(bonusList){
+  const byOwnerWeek = {};
+  bonusList.forEach(p=>{
+    const owner = (p.bonusBy||p.owner||'').trim();
+    if(!owner||!p.bonusAt) return;
+    const wk = getWeekKey(new Date(p.bonusAt));
+    const key = owner+'__'+wk;
+    byOwnerWeek[key] = (byOwnerWeek[key]||0) + 1;
+  });
+  // Por cada (owner, mes) cuento cuántas semanas tuvieron meta cumplida
+  const weeksByOwnerMonth = {}; // 'owner__YYYY-MM' -> Set<weekKey>
+  Object.entries(byOwnerWeek).forEach(([key, count])=>{
+    if(count < META_SEMANAL_LANDINGS) return;
+    const sep = key.indexOf('__');
+    const owner = key.substring(0, sep);
+    const wkKey = key.substring(sep+2);
+    // wkKey formato: 'YYYY-WMM-DD' (ej '2026-W05-04')
+    const m = wkKey.match(/^(\d{4})-W(\d{2})-(\d{2})$/);
+    if(!m) return;
+    const yearMonth = m[1] + '-' + m[2];
+    if(yearMonth < MES_INICIO_META_MENSUAL) return;
+    const monKey = owner + '__' + yearMonth;
+    if(!weeksByOwnerMonth[monKey]) weeksByOwnerMonth[monKey] = new Set();
+    weeksByOwnerMonth[monKey].add(wkKey);
+  });
+  const bonus = {};
+  const detail = {};
+  Object.entries(weeksByOwnerMonth).forEach(([monKey, semanas])=>{
+    const sep = monKey.indexOf('__');
+    const owner = monKey.substring(0, sep);
+    const yearMonth = monKey.substring(sep+2);
+    if(!detail[owner]) detail[owner] = {};
+    detail[owner][yearMonth] = semanas.size;
+    if(semanas.size >= META_MENSUAL_SEMANAS){
+      bonus[owner] = (bonus[owner]||0) + BONO_META_MENSUAL;
+    }
+  });
+  return { bonus, detail };
 }
 
 let rankingMode = 'month'; // 'month' | 'year' | 'all'
@@ -2633,13 +2679,38 @@ function renderRanking(){
     return !!owner && !!p.bonusAt;
   });
   const metaBonus = calcMetaSemanal(allBonusList);
+  // Bono mensual: $20k si el owner alcanzó 4 metas semanales en el mismo
+  // mes calendario (desde mayo 2026). Filtrar por período visible.
+  const { detail: allMonthlyDetail } = calcBonoMensual(allBonusList);
+  const yearMonthInPeriod = (ym) => {
+    if(rankingMode === 'all') return true;
+    if(rankingMode === 'year') return ym.startsWith(String(now.getFullYear() + rankingMonthOffset));
+    if(rankingMode === 'month') {
+      const target = new Date(now.getFullYear(), now.getMonth() + rankingMonthOffset, 1);
+      return ym === target.getFullYear()+'-'+String(target.getMonth()+1).padStart(2,'0');
+    }
+    return false;
+  };
+  const monthlyBonusByOwner = {};   // owner -> total $ del período
+  const monthlyDetailByOwner = {};  // owner -> [ {month, weeks}, ... ] del período
+  Object.entries(allMonthlyDetail).forEach(([owner, byMonth])=>{
+    Object.entries(byMonth).forEach(([ym, weeks])=>{
+      if(!yearMonthInPeriod(ym)) return;
+      if(weeks >= META_MENSUAL_SEMANAS){
+        monthlyBonusByOwner[owner] = (monthlyBonusByOwner[owner]||0) + BONO_META_MENSUAL;
+        if(!monthlyDetailByOwner[owner]) monthlyDetailByOwner[owner] = [];
+        monthlyDetailByOwner[owner].push({ month: ym, weeks });
+      }
+    });
+  });
 
   const sorted = Object.entries(counts).sort((a,b)=>b[1]-a[1]);
   const maxCount = sorted.length ? sorted[0][1] : 1;
   const medals = ['🥇','🥈','🥉'];
   const totalBonos = bonusList.length * BONO_POR_PRODUCTO
                    + releasitList.length * BONO_RELEASIT
-                   + Object.values(metaBonus).reduce((s,v)=>s+v,0);
+                   + Object.values(metaBonus).reduce((s,v)=>s+v,0)
+                   + Object.values(monthlyBonusByOwner).reduce((s,v)=>s+v,0);
 
   const canGoBack = rankingMode !== 'all';
   const canGoFwd  = rankingMode !== 'all' && rankingMonthOffset < 0;
@@ -2667,9 +2738,11 @@ function renderRanking(){
     const barPct = Math.round((count/(maxCount||1))*100);
     const gBase = count * BONO_POR_PRODUCTO;
     const gMeta = metaBonus[owner] || 0;
+    const gMensual = monthlyBonusByOwner[owner] || 0;
+    const mensualDet = monthlyDetailByOwner[owner] || [];
     const releasitN = releasitCounts[owner] || 0;
     const gReleasit = releasitN * BONO_RELEASIT;
-    const gananciaTotal = gBase + gMeta + gReleasit;
+    const gananciaTotal = gBase + gMeta + gMensual + gReleasit;
     const metaSemanasGanadas = gMeta / BONO_META_SEMANAL;
     return `<div class="ranking-card" style="background:${oc.bg};border-color:${oc.border}">
       <div class="ranking-card-medal">${medals[i]||'🏅'}</div>
@@ -2678,6 +2751,7 @@ function renderRanking(){
       <div class="ranking-card-count">${count} landing${count!==1?'s':''} publicada${count!==1?'s':''}</div>
       <div class="ranking-card-amount" style="color:${oc.text}">${fmtCLP(gananciaTotal)}</div>
       ${gMeta>0?`<div style="font-size:10px;color:var(--green);font-family:'DM Mono',monospace;margin-top:2px">⭐ +${fmtCLP(gMeta)} meta semanal × ${metaSemanasGanadas}</div>`:''}
+      ${gMensual>0?`<div style="font-size:10px;color:#7B5BB5;font-family:'DM Mono',monospace;margin-top:2px;font-weight:700">🌟 +${fmtCLP(gMensual)} bono mensual (${mensualDet.length} mes${mensualDet.length!==1?'es':''})</div>`:''}
       ${gReleasit>0?`<div style="font-size:10px;color:#F07070;font-family:'DM Mono',monospace;margin-top:2px">⚙️ +${fmtCLP(gReleasit)} · ${releasitN} releasit</div>`:''}
       <div style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">${fmtCLP(gBase)} base</div>
       <div class="ranking-card-bar"><div class="ranking-card-bar-fill" style="width:${barPct}%;background:${oc.border}"></div></div>
