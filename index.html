@@ -2404,13 +2404,15 @@ const STORAGE_KEY = 'dropboard_v2';
 const PROD_STAGES = [
   {id:'landing',    label:'Creando Landing',   icon:'🖥️', color:'#4ECDC4'},
   {id:'landingpub', label:'Landing Publicado', icon:'🌐', color:'#22C55E'},
-  {id:'videos',     label:'Creando Videos',    icon:'🎬', color:'#A855F7'},
   {id:'releasit',   label:'Config. Releasit',  icon:'⚙️', color:'#F07070'},
+  {id:'videos',     label:'Creando Videos',    icon:'🎬', color:'#A855F7'},
   {id:'ads',        label:'Publicado en Ads',  icon:'🚀', color:'#F59E0B'},
   {id:'done',       label:'Terminado',         icon:'✅', color:'#4ECDC4'},
 ];
 
-const BONO_STAGE = 'landingpub'; // etapa que genera el bono
+const BONO_STAGE = 'landingpub'; // etapa que genera el bono principal
+const BONO_RELEASIT_STAGE = 'releasit';
+const BONO_RELEASIT = 1000;
 
 const IMPORTANCE = [
   {id:'alta',  label:'🔴 Alta',  cls:'active-alta'},
@@ -2572,41 +2574,56 @@ function renderRanking(){
   const now = new Date();
   const fmtCLP = n => '$'+Math.round(n).toLocaleString('es-CL');
 
-  // Calcular período según modo
-  let filterFn, periodLabel;
+  // Calcular período según modo (acepta cualquier timestamp)
+  let periodLabel;
+  let tsCheck;
   if(rankingMode==='month'){
     const target = new Date(now.getFullYear(), now.getMonth() + rankingMonthOffset, 1);
     const targetKey = target.getFullYear()+'-'+String(target.getMonth()+1).padStart(2,'0');
     periodLabel = target.toLocaleDateString('es-CL',{month:'long',year:'numeric'});
-    filterFn = p => {
-      if(!p.bonusAt) return false;
-      const d = new Date(p.bonusAt);
+    tsCheck = ts => {
+      if(!ts) return false;
+      const d = new Date(ts);
       return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0') === targetKey;
     };
   } else if(rankingMode==='year'){
     const yr = now.getFullYear() + rankingMonthOffset;
     periodLabel = 'Año '+yr;
-    filterFn = p => {
-      if(!p.bonusAt) return false;
-      return new Date(p.bonusAt).getFullYear() === yr;
-    };
+    tsCheck = ts => ts && new Date(ts).getFullYear() === yr;
   } else {
     periodLabel = 'Todo el tiempo';
     rankingMonthOffset = 0;
-    filterFn = p => !!p.bonusAt;
+    tsCheck = ts => !!ts;
   }
 
   const bonusList = state.products.filter(p=>{
     if(!(p.stages||{})[BONO_STAGE]) return false;
     const owner = (p.bonusBy || p.owner || '').trim();
     if(!owner) return false;
-    return filterFn(p);
+    return tsCheck(p.bonusAt);
+  });
+
+  // Lista de productos con Releasit configurado en el período (para el bono extra)
+  const releasitList = state.products.filter(p=>{
+    if(!(p.stages||{})[BONO_RELEASIT_STAGE]) return false;
+    const owner = (p.releasitBonusBy || p.owner || '').trim();
+    if(!owner) return false;
+    return tsCheck(p.releasitBonusAt);
+  });
+  const releasitCounts = {};
+  releasitList.forEach(p=>{
+    const owner = (p.releasitBonusBy || p.owner || '').trim();
+    releasitCounts[owner] = (releasitCounts[owner]||0) + 1;
   });
 
   const counts = {};
   bonusList.forEach(p=>{
     const owner = (p.bonusBy || p.owner || '').trim();
     counts[owner] = (counts[owner]||0) + 1;
+  });
+  // Asegurar que owners con releasit pero sin landing también aparezcan
+  Object.keys(releasitCounts).forEach(owner => {
+    if(!(owner in counts)) counts[owner] = 0;
   });
 
   // Calcular bonos por meta semanal (sobre TODOS los productos, no solo el período)
@@ -2620,7 +2637,9 @@ function renderRanking(){
   const sorted = Object.entries(counts).sort((a,b)=>b[1]-a[1]);
   const maxCount = sorted.length ? sorted[0][1] : 1;
   const medals = ['🥇','🥈','🥉'];
-  const totalBonos = bonusList.length * BONO_POR_PRODUCTO + Object.values(metaBonus).reduce((s,v)=>s+v,0);
+  const totalBonos = bonusList.length * BONO_POR_PRODUCTO
+                   + releasitList.length * BONO_RELEASIT
+                   + Object.values(metaBonus).reduce((s,v)=>s+v,0);
 
   const canGoBack = rankingMode !== 'all';
   const canGoFwd  = rankingMode !== 'all' && rankingMonthOffset < 0;
@@ -2645,10 +2664,12 @@ function renderRanking(){
 
   const rows = sorted.map(([owner, count], i)=>{
     const oc = getOwnerColor(owner);
-    const barPct = Math.round((count/maxCount)*100);
+    const barPct = Math.round((count/(maxCount||1))*100);
     const gBase = count * BONO_POR_PRODUCTO;
     const gMeta = metaBonus[owner] || 0;
-    const gananciaTotal = gBase + gMeta;
+    const releasitN = releasitCounts[owner] || 0;
+    const gReleasit = releasitN * BONO_RELEASIT;
+    const gananciaTotal = gBase + gMeta + gReleasit;
     const metaSemanasGanadas = gMeta / BONO_META_SEMANAL;
     return `<div class="ranking-card" style="background:${oc.bg};border-color:${oc.border}">
       <div class="ranking-card-medal">${medals[i]||'🏅'}</div>
@@ -2657,6 +2678,7 @@ function renderRanking(){
       <div class="ranking-card-count">${count} landing${count!==1?'s':''} publicada${count!==1?'s':''}</div>
       <div class="ranking-card-amount" style="color:${oc.text}">${fmtCLP(gananciaTotal)}</div>
       ${gMeta>0?`<div style="font-size:10px;color:var(--green);font-family:'DM Mono',monospace;margin-top:2px">⭐ +${fmtCLP(gMeta)} meta semanal × ${metaSemanasGanadas}</div>`:''}
+      ${gReleasit>0?`<div style="font-size:10px;color:#F07070;font-family:'DM Mono',monospace;margin-top:2px">⚙️ +${fmtCLP(gReleasit)} · ${releasitN} releasit</div>`:''}
       <div style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">${fmtCLP(gBase)} base</div>
       <div class="ranking-card-bar"><div class="ranking-card-bar-fill" style="width:${barPct}%;background:${oc.border}"></div></div>
     </div>`;
@@ -5178,6 +5200,22 @@ function toggleStage(prodId, stageId){
     }
     if(stageId===BONO_STAGE && !stages[stageId]){
       return {...p, stages, bonusAt:null, bonusBy:null};
+    }
+
+    // Config Releasit → bono adicional de $1.000
+    if(stageId===BONO_RELEASIT_STAGE && stages[stageId]){
+      const owner = (p.owner||'').trim();
+      if(owner){
+        const fmtCLP = n => '$'+Math.round(n).toLocaleString('es-CL');
+        setTimeout(()=>{
+          showToast(`⚙️ <b>+${fmtCLP(BONO_RELEASIT)}</b> por configurar Releasit<br><i>${esc(p.name.substring(0,28))}${p.name.length>28?'...':''}</i>`, '💰', 'bono');
+        }, 300);
+        return {...p, stages, releasitBonusAt:Date.now(), releasitBonusBy:owner};
+      }
+      return {...p, stages};
+    }
+    if(stageId===BONO_RELEASIT_STAGE && !stages[stageId]){
+      return {...p, stages, releasitBonusAt:null, releasitBonusBy:null};
     }
 
     // Terminado → timestamp de cierre
