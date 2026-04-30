@@ -434,6 +434,13 @@
   .bk-tts-panel{margin-top:12px;background:var(--surface);border:1.5px solid var(--teal);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:10px}
   .bk-tts-detected{font-size:11px;color:var(--text);background:var(--teal-soft);border:1px solid var(--teal);border-radius:8px;padding:6px 10px;display:flex;align-items:center;gap:6px}
   .bk-tts-detected b{font-weight:600;color:#3A8B82}
+  .bk-tts-reco{font-size:12px;background:var(--accent-soft);border:1.5px solid var(--accent);border-radius:8px;padding:8px 12px;display:flex;flex-direction:column;gap:6px}
+  .bk-tts-reco-main{color:var(--text)}
+  .bk-tts-reco-main b{font-weight:700;color:var(--accent)}
+  .bk-tts-reco-why{color:var(--muted2);font-size:10.5px}
+  .bk-tts-reco-alts{font-size:10.5px;color:var(--muted);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .bk-tts-alt-btn{background:var(--surface);border:1px solid var(--accent);color:var(--accent);border-radius:14px;padding:3px 10px;font-size:11px;cursor:pointer;font-family:'DM Mono',monospace;transition:all .15s}
+  .bk-tts-alt-btn:hover{background:var(--accent);color:#fff}
   .bk-tts-controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
   .bk-tts-voice-select{flex:1;min-width:200px;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px 10px;border-radius:10px;font-size:11px;font-family:'DM Mono',monospace}
   .bk-tts-voice-select:focus{border-color:var(--teal);outline:none}
@@ -4853,7 +4860,13 @@ function parseTranscriptionResponse(text){
 }
 
 function pickElevenVoice(voz, voices){
-  if(!voices || !voices.length) return null;
+  const ranked = rankElevenVoices(voz, voices);
+  return ranked.length ? ranked[0].voice : null;
+}
+
+// Devuelve [{voice, score, reasons:[]}] ordenado de mejor a peor
+function rankElevenVoices(voz, voices){
+  if(!voices || !voices.length) return [];
   const TONO_TO_USECASE = {
     'firme':'advertisement','autoritario':'advertisement','persuasivo':'advertisement','publicitario':'advertisement',
     'serio':'narrative_story','dramático':'narrative_story','dramatico':'narrative_story','grave':'narrative_story','profundo':'narrative_story',
@@ -4861,26 +4874,34 @@ function pickElevenVoice(voz, voices){
     'energético':'social_media','energetico':'social_media','joven':'social_media','fresco':'social_media','juguetón':'social_media','jugueton':'social_media',
     'educativo':'informative_educational','informativo':'informative_educational',
   };
+  const EDAD_TO_AGE = {
+    'joven': 'young',
+    'adulto': 'middle_aged',
+    'mayor': 'old', 'anciano': 'old',
+  };
   const targetGender = (voz && voz.genero) ? voz.genero : '';
   const tono = (voz && voz.tono) ? voz.tono.toLowerCase() : '';
+  const edad = (voz && voz.edad) ? voz.edad.toLowerCase() : '';
   let targetUseCase = '';
   for(const k in TONO_TO_USECASE){ if(tono.includes(k)){ targetUseCase = TONO_TO_USECASE[k]; break; } }
+  const targetAge = EDAD_TO_AGE[edad] || '';
 
-  const score = (v)=>{
+  const evaluate = (v)=>{
     let s = 0;
+    const reasons = [];
     if(targetGender){
-      if(v.gender === targetGender) s += 50;
-      else if(v.gender === 'neutral') s += 10;
-      else s -= 30; // descarte parcial del género opuesto
+      if(v.gender === targetGender){ s += 50; reasons.push('género ✓'); }
+      else if(v.gender === 'neutral'){ s += 10; reasons.push('género neutro'); }
+      else { s -= 30; }
     }
-    if(targetUseCase && v.use_case === targetUseCase) s += 30;
-    if(v.accent === 'latin american') s += 8; // preferir neutro latam
-    if(v.accent === 'chilean') s += 4;
+    if(targetUseCase && v.use_case === targetUseCase){ s += 30; reasons.push('tono ' + tono + ' ✓'); }
+    if(targetAge && v.age === targetAge){ s += 20; reasons.push('edad ' + edad + ' ✓'); }
+    if(v.accent === 'latin american'){ s += 8; reasons.push('latam'); }
+    else if(v.accent === 'chilean'){ s += 4; reasons.push('chilena'); }
     if(v.category === 'professional') s += 2;
-    return s;
+    return { voice: v, score: s, reasons };
   };
-  const sorted = [...voices].sort((a,b)=>score(b)-score(a));
-  return sorted[0] || null;
+  return voices.map(evaluate).sort((a,b)=> b.score - a.score);
 }
 
 function describirVoz(voz){
@@ -4945,8 +4966,29 @@ async function renderTtsPanel(key, locText, voz){
   }
 
   const sel = document.getElementById('bk-tts-select-'+key);
-  const sugerida = pickElevenVoice(voz, voices);
-  // Ordenar: la sugerida primero, luego mismo género, luego el resto
+  const ranked = rankElevenVoices(voz, voices);
+  const sugerida = ranked.length ? ranked[0].voice : null;
+  const top3 = ranked.slice(0, 3);
+
+  // Banner con la recomendación + motivo + alternativas
+  const recoEl = document.createElement('div');
+  recoEl.className = 'bk-tts-reco';
+  if (sugerida && top3.length) {
+    const reasonsTxt = (top3[0].reasons || []).join(' · ') || 'mejor calce disponible';
+    let html = `<div class="bk-tts-reco-main">🎯 <span>Recomendada:</span> <b>${escapeHtml(sugerida.name)}</b> <span class="bk-tts-reco-why">— ${escapeHtml(reasonsTxt)}</span></div>`;
+    if (top3.length > 1) {
+      const alts = top3.slice(1).map(r =>
+        `<button type="button" class="bk-tts-alt-btn" data-voice-id="${r.voice.id}">${escapeHtml(r.voice.name)}</button>`
+      ).join('');
+      html += `<div class="bk-tts-reco-alts">o probar: ${alts}</div>`;
+    }
+    recoEl.innerHTML = html;
+  } else {
+    recoEl.innerHTML = '<div class="bk-tts-reco-main">Sin voces que calcen — elige manualmente</div>';
+  }
+  panel.insertBefore(recoEl, panel.querySelector('.bk-tts-controls'));
+
+  // Llenar dropdown completo (la sugerida primero, luego mismo género, luego resto)
   const ordered = [...voices].sort((a,b)=>{
     if(sugerida && a.id === sugerida.id) return -1;
     if(sugerida && b.id === sugerida.id) return 1;
@@ -4957,11 +4999,19 @@ async function renderTtsPanel(key, locText, voz){
     return a.name.localeCompare(b.name);
   });
   sel.innerHTML = ordered.map(v=>{
-    const meta = [v.gender, v.accent, v.use_case].filter(Boolean).join(' · ');
+    const meta = [v.gender, v.age, v.accent, v.use_case].filter(Boolean).join(' · ');
     const star = (sugerida && v.id === sugerida.id) ? '⭐ ' : '';
     return `<option value="${v.id}">${star}${escapeHtml(v.name)} — ${escapeHtml(meta)}</option>`;
   }).join('');
   if(sugerida) sel.value = sugerida.id;
+
+  // Click en un alternativa → cambia el dropdown
+  recoEl.querySelectorAll('.bk-tts-alt-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.voiceId;
+      if (id && sel) sel.value = id;
+    });
+  });
 
   const btn = document.getElementById('bk-tts-btn-'+key);
   btn.onclick = ()=>generateTts(key);

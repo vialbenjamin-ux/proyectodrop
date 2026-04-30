@@ -28,6 +28,7 @@ exports.handler = async (event) => {
       id: v.voice_id,
       name: v.name,
       gender: (v.labels && v.labels.gender) || '',
+      age: (v.labels && v.labels.age) || '',
       accent: (v.labels && v.labels.accent) || '',
       language: (v.labels && v.labels.language) || '',
       use_case: (v.labels && (v.labels.use_case || v.labels.useCase)) || '',
