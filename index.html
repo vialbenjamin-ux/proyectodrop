@@ -2836,20 +2836,50 @@ function render(){ renderHoyPanel(); renderRanking(); renderPriorityPanel(); ren
 function renderHoyPanel(){
   const panel = document.getElementById('hoy-panel');
   if(!panel) return;
+  // Solo admin (Benjamin) ve el panel de actividad actual
+  if(currentUser !== ADMIN_USER){ panel.style.display = 'none'; return; }
+  panel.style.display = '';
   const now = new Date();
   const dias = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
   const meses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
   const todayKey = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
-  const evs = (state.calEvents||[]).filter(e=>e.date===todayKey).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
+  const nowMin = now.getHours()*60 + now.getMinutes();
+  const parseT = t => { if(!t) return null; const [h,m] = t.split(':').map(Number); return h*60 + (m||0); };
 
-  const evHtml = evs.length
-    ? evs.map(e=>`
-        <div class="hoy-event-row">
-          <div class="hoy-dot" style="background:${CAL_COLORS[e.type]||'var(--accent)'}"></div>
-          <span style="font-weight:600">${esc(e.title)}</span>
-          ${e.time?`<span style="color:var(--muted)">· ${e.time}</span>`:e.timeStart?`<span style="color:var(--muted)">· ${e.timeStart}</span>`:''}
-        </div>`).join('')
-    : `<div class="hoy-empty">Sin eventos hoy — <span style="color:var(--accent);cursor:pointer" onclick="switchSection('calendario');calGoToday()">agregar en calendario ↗</span></div>`;
+  // Eventos de HOY ordenados por hora de inicio
+  const todays = (state.calEvents||[])
+    .filter(e => e.date === todayKey && e.timeStart)
+    .sort((a,b) => (a.timeStart||'').localeCompare(b.timeStart||''));
+
+  // Eventos que están sucediendo AHORA (start ≤ ahora < end)
+  const ahora = todays.filter(e => {
+    const s = parseT(e.timeStart);
+    let en = parseT(e.timeEnd);
+    if(en === null || en <= s) en = s + 30;
+    return nowMin >= s && nowMin < en;
+  });
+
+  // Próximo evento (start > ahora) — opcional para contexto
+  const proximo = todays.find(e => parseT(e.timeStart) > nowMin);
+
+  let evHtml = '';
+  if(ahora.length){
+    evHtml = ahora.map(e=>{
+      const fin = e.timeEnd ? ` – ${e.timeEnd}` : '';
+      return `<div class="hoy-event-row" style="font-size:13px">
+        <div class="hoy-dot" style="background:${CAL_COLORS[e.type]||'var(--accent)'};width:10px;height:10px"></div>
+        <span style="font-weight:700">${esc(e.title)}</span>
+        <span style="color:var(--muted);font-family:'DM Mono',monospace;font-size:11px">· ${e.timeStart}${fin}</span>
+      </div>`;
+    }).join('');
+    if(proximo){
+      evHtml += `<div style="font-size:10px;color:var(--muted2);margin-top:4px;font-family:'DM Mono',monospace">→ Próximo: ${esc(proximo.title)} a las ${proximo.timeStart}</div>`;
+    }
+  } else if(proximo){
+    evHtml = `<div class="hoy-empty">Sin actividad agendada ahora — <span style="color:var(--muted);font-family:'DM Mono',monospace">próximo: <b>${esc(proximo.title)}</b> a las ${proximo.timeStart}</span></div>`;
+  } else {
+    evHtml = `<div class="hoy-empty">Sin actividad agendada ahora — <span style="color:var(--accent);cursor:pointer" onclick="switchSection('calendario');calGoToday()">ver calendario ↗</span></div>`;
+  }
 
   panel.innerHTML=`
     <div class="hoy-card">
@@ -5921,9 +5951,24 @@ function enterApp(username){
   const adminBtn=document.getElementById('admin-nav-btn');
   if(adminBtn) adminBtn.style.display=username===ADMIN_USER?'':'none';
   applyPerms(username);
+  applyAdminOnlyVisibility();
   if(window._startSync) window._startSync();
   // Mostrar banner de respaldo solo para admin, una vez al día
   if(username===ADMIN_USER) setTimeout(checkBackupBanner, 2000);
+}
+
+// Oculta elementos admin-only (calendario, panel "Hoy") para usuarios no-admin
+function applyAdminOnlyVisibility(){
+  const isAdm = currentUser === ADMIN_USER;
+  // Tab del nav desktop
+  const calBtn = document.querySelector('[data-section="calendario"]');
+  if(calBtn) calBtn.style.display = isAdm ? '' : 'none';
+  // Sección del calendario
+  const calSection = document.getElementById('section-calendario');
+  if(calSection && !isAdm) calSection.classList.remove('active');
+  // Panel "Hoy" en la pantalla principal
+  const hoy = document.getElementById('hoy-panel');
+  if(hoy) hoy.style.display = isAdm ? '' : 'none';
 }
 
 const BACKUP_KEY = 'bkdrop_last_backup';
