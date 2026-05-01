@@ -1427,6 +1427,7 @@
         <button class="cal-nav" onclick="calWeekShift(1)">›</button>
         <button class="cal-nav" onclick="calWeekToday()">Hoy</button>
         <span id="cal-week-label" style="font-size:13px;color:var(--muted);font-family:'DM Mono',monospace;flex:1"></span>
+        <button class="cal-nav" onclick="fillWeekTemplate()" title="Rellenar lunes a viernes con la plantilla diaria">📋 Plantilla L-V</button>
       </div>
       <!-- VISTA SEMANAL -->
       <div style="overflow-x:auto">
@@ -6280,6 +6281,65 @@ function calWeekToday(){
 }
 
 function calGoToday(){ calWeekToday(); switchSection('calendario'); }
+
+// Plantilla diaria L-V (rutina del usuario)
+const CAL_TEMPLATE_DIA = [
+  {start:'08:30', end:'09:30', title:'Deporte / Ocio',                       type:'personal',     notes:''},
+  {start:'09:30', end:'10:30', title:'Búsqueda de productos + videos bases', type:'evento',       notes:''},
+  {start:'10:30', end:'11:30', title:'Resolución problemas + stock',         type:'evento',       notes:''},
+  {start:'11:30', end:'12:30', title:'Optimización y mejoras de procesos',   type:'evento',       notes:''},
+  {start:'12:30', end:'13:30', title:'Búsqueda de videos 2',                 type:'evento',       notes:''},
+  {start:'13:30', end:'14:00', title:'Almuerzo',                             type:'personal',     notes:''},
+  {start:'14:00', end:'14:30', title:'Análisis de batches',                  type:'evento',       notes:''},
+  {start:'14:30', end:'15:30', title:'Edición de videos',                    type:'evento',       notes:''},
+  {start:'16:00', end:'21:00', title:'Niños · Papi Ricky',                   type:'personal',     notes:''},
+  {start:'21:00', end:'22:00', title:'Edición de videos 2',                  type:'evento',       notes:''},
+  {start:'22:00', end:'23:00', title:'Subida campañas',                      type:'evento',       notes:''},
+  {start:'23:00', end:'23:59', title:'Programación día siguiente',           type:'recordatorio', notes:''},
+];
+
+function fillWeekTemplate(){
+  if(!_calWeekStart){ _calWeekStart = calGetWeekMonday(new Date()); }
+  // Pre-chequeo: si ya hay eventos en alguno de los 5 días, pedir confirmación
+  const monday = new Date(_calWeekStart);
+  const dias = [];
+  for(let i=0;i<5;i++){
+    const d = new Date(monday); d.setDate(d.getDate()+i);
+    dias.push(d);
+  }
+  const keys = dias.map(d => calKey(d.getFullYear(), d.getMonth(), d.getDate()));
+  const yaHay = (state.calEvents||[]).filter(e => keys.includes(e.date));
+  let ok = true;
+  if(yaHay.length){
+    ok = confirm(`Esta semana ya tiene ${yaHay.length} evento${yaHay.length!==1?'s':''} en L-V. ¿Agregar la plantilla igual? (no se borra nada, solo se suma)`);
+  } else {
+    ok = confirm(`Se agregarán ${CAL_TEMPLATE_DIA.length} bloques × 5 días = ${CAL_TEMPLATE_DIA.length*5} eventos a esta semana. ¿Continuar?`);
+  }
+  if(!ok) return;
+
+  if(!state.calEvents) state.calEvents = [];
+  let added = 0;
+  dias.forEach(d => {
+    const dateKey = calKey(d.getFullYear(), d.getMonth(), d.getDate());
+    CAL_TEMPLATE_DIA.forEach(t => {
+      state.calEvents.push({
+        id: genId(),
+        date: dateKey,
+        title: t.title,
+        timeStart: t.start,
+        timeEnd: t.end,
+        type: t.type,
+        notes: t.notes,
+        createdAt: Date.now()
+      });
+      added++;
+    });
+  });
+  save();
+  renderCalendar();
+  if(typeof renderHoyPanel === 'function') renderHoyPanel();
+  showToast(`✅ ${added} eventos agregados (L-V)`, '📋', 'success');
+}
 
 function openCalModal(dateKey, hour){
   _calModalDate = dateKey;
