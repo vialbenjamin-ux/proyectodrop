@@ -1449,6 +1449,14 @@
           <option value="deadline">🔴 Deadline</option>
           <option value="recordatorio">🔔 Recordatorio</option>
           <option value="personal">💛 Personal</option>
+          <option value="deporte">🏃 Deporte / Ocio</option>
+          <option value="research">🔍 Research</option>
+          <option value="operacion">⚙️ Operación</option>
+          <option value="creativo">🎨 Creativo</option>
+          <option value="publicidad">📈 Publicidad</option>
+          <option value="almuerzo">🍽️ Almuerzo</option>
+          <option value="ninos">👨‍👧 Niños</option>
+          <option value="programacion">🗓️ Planificación</option>
         </select>
         <textarea id="cal-ev-notes" placeholder="Notas (opcional)" rows="2" style="width:100%;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px 12px;border-radius:8px;font-size:12px;font-family:'DM Mono',monospace;resize:vertical;margin-bottom:12px"></textarea>
         <div style="display:flex;gap:8px">
@@ -6252,11 +6260,24 @@ var _calModalHour = null;
 
 const CAL_COLORS = {
   evento:'#5BA882', reunion:'#7ECEC4', deadline:'#E88A8A',
-  recordatorio:'#E8B840', personal:'#B07CDB'
+  recordatorio:'#E8B840', personal:'#B07CDB',
+  // Categorías para plantilla de rutina diaria
+  deporte:'#7AB8E8',      // azul claro — ocio/cuerpo
+  research:'#5BA882',     // verde — búsqueda/análisis
+  operacion:'#8CA3B8',    // gris azul — operativo
+  creativo:'#E89A4A',     // naranja — edición/contenido
+  publicidad:'#E25A5A',   // rojo — campañas/ads
+  almuerzo:'#E8B840',     // amarillo — comida
+  ninos:'#D687B8',        // rosa — familia
+  programacion:'#7B68EE'  // violeta — planificación
 };
 const CAL_LABELS = {
   evento:'📌 Evento', reunion:'👥 Reunión', deadline:'🔴 Deadline',
-  recordatorio:'🔔 Recordatorio', personal:'💛 Personal'
+  recordatorio:'🔔 Recordatorio', personal:'💛 Personal',
+  deporte:'🏃 Deporte / Ocio', research:'🔍 Research',
+  operacion:'⚙️ Operación', creativo:'🎨 Creativo',
+  publicidad:'📈 Publicidad', almuerzo:'🍽️ Almuerzo',
+  ninos:'👨‍👧 Niños', programacion:'🗓️ Planificación'
 };
 
 function calKey(y,m,d){ return `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`; }
@@ -6282,20 +6303,20 @@ function calWeekToday(){
 
 function calGoToday(){ calWeekToday(); switchSection('calendario'); }
 
-// Plantilla diaria L-V (rutina del usuario)
+// Plantilla diaria L-V (rutina del usuario) — cada bloque tiene su categoría/color propio
 const CAL_TEMPLATE_DIA = [
-  {start:'08:30', end:'09:30', title:'Deporte / Ocio',                       type:'personal',     notes:''},
-  {start:'09:30', end:'10:30', title:'Búsqueda de productos + videos bases', type:'evento',       notes:''},
-  {start:'10:30', end:'11:30', title:'Resolución problemas + stock',         type:'evento',       notes:''},
-  {start:'11:30', end:'12:30', title:'Optimización y mejoras de procesos',   type:'evento',       notes:''},
-  {start:'12:30', end:'13:30', title:'Búsqueda de videos 2',                 type:'evento',       notes:''},
-  {start:'13:30', end:'14:00', title:'Almuerzo',                             type:'personal',     notes:''},
-  {start:'14:00', end:'14:30', title:'Análisis de batches',                  type:'evento',       notes:''},
-  {start:'14:30', end:'15:30', title:'Edición de videos',                    type:'evento',       notes:''},
-  {start:'16:00', end:'21:00', title:'Niños · Papi Ricky',                   type:'personal',     notes:''},
-  {start:'21:00', end:'22:00', title:'Edición de videos 2',                  type:'evento',       notes:''},
-  {start:'22:00', end:'23:00', title:'Subida campañas',                      type:'evento',       notes:''},
-  {start:'23:00', end:'23:59', title:'Programación día siguiente',           type:'recordatorio', notes:''},
+  {start:'08:30', end:'09:30', title:'Deporte / Ocio',                       type:'deporte',      notes:''},
+  {start:'09:30', end:'10:30', title:'Búsqueda de productos + videos bases', type:'research',     notes:''},
+  {start:'10:30', end:'11:30', title:'Resolución problemas + stock',         type:'operacion',    notes:''},
+  {start:'11:30', end:'12:30', title:'Optimización y mejoras de procesos',   type:'operacion',    notes:''},
+  {start:'12:30', end:'13:30', title:'Búsqueda de videos 2',                 type:'research',     notes:''},
+  {start:'13:30', end:'14:00', title:'Almuerzo',                             type:'almuerzo',     notes:''},
+  {start:'14:00', end:'14:30', title:'Análisis de batches',                  type:'operacion',    notes:''},
+  {start:'14:30', end:'15:30', title:'Edición de videos',                    type:'creativo',     notes:''},
+  {start:'16:00', end:'21:00', title:'Niños · Papi Ricky',                   type:'ninos',        notes:''},
+  {start:'21:00', end:'22:00', title:'Edición de videos 2',                  type:'creativo',     notes:''},
+  {start:'22:00', end:'23:00', title:'Subida campañas',                      type:'publicidad',   notes:''},
+  {start:'23:00', end:'23:59', title:'Programación día siguiente',           type:'programacion', notes:''},
 ];
 
 function fillWeekTemplate(){
@@ -6424,29 +6445,51 @@ function renderCalendar(){
   });
   html += `</div>`;
 
-  // Cuerpo horas
+  // Cuerpo horas — eventos como bloques absolutos que ocupan su rango real
+  const HOUR_PX = 56;
+  const TOTAL_HEIGHT = HOURS.length * HOUR_PX;
+  const parseT = t => { const [h,m] = (t||'').split(':').map(Number); return (h*60 + (m||0)); };
+  const minToPx = mins => { const base = HOURS[0]*60; return ((mins - base) / 60) * HOUR_PX; };
+
   html += `<div style="display:grid;grid-template-columns:52px repeat(7,1fr);background:var(--surface);border:1.5px solid var(--border);border-top:none;border-radius:0 0 12px 12px;overflow:hidden;max-height:600px;overflow-y:auto">`;
 
-  HOURS.forEach(h=>{
+  // Columna de horas (izquierda)
+  html += `<div style="border-right:1px solid var(--border);position:relative;height:${TOTAL_HEIGHT}px">`;
+  HOURS.forEach((h,i)=>{
     const timeLabel = String(h).padStart(2,'0')+':00';
-    html += `<div style="font-size:10px;color:var(--muted2);font-family:'DM Mono',monospace;padding:4px 6px;border-right:1px solid var(--border);border-bottom:1px solid var(--border);text-align:right;vertical-align:top;min-height:54px">${timeLabel}</div>`;
-    weekDays.forEach(d=>{
-      const key = calKey(d.getFullYear(),d.getMonth(),d.getDate());
-      const isToday = d.getTime()===today.getTime();
-      const evs = (evsByDay[key]||[]).filter(e=>{
-        if(!e.timeStart) return false;
-        const evH = parseInt(e.timeStart.split(':')[0]);
-        return evH===h;
-      });
-      const evHtml = evs.map(e=>`
-        <div style="background:${CAL_COLORS[e.type]||'var(--accent)'};color:#fff;border-radius:6px;padding:2px 6px;font-size:10px;font-family:'DM Mono',monospace;margin-bottom:2px;cursor:pointer;display:flex;justify-content:space-between;align-items:flex-start;gap:4px" onclick="event.stopPropagation()">
-          <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700;flex:1">${esc(e.title)}${e.timeEnd?' – '+e.timeEnd:''}</span>
-          <span onclick="delCalEvent('${e.id}')" style="flex-shrink:0;opacity:.7;cursor:pointer;font-size:11px">✕</span>
-        </div>`).join('');
-      html+=`<div style="border-right:1px solid var(--border);border-bottom:1px solid var(--border);min-height:54px;padding:2px 3px;cursor:pointer;transition:background .1s;${isToday?'background:#f0faf5':''}" onclick="openCalModal('${key}',${h})" onmouseover="this.style.background='var(--accent-soft)'" onmouseout="this.style.background='${isToday?'#f0faf5':''}'">
-        ${evHtml}
+    html += `<div style="position:absolute;top:${i*HOUR_PX}px;left:0;right:0;height:${HOUR_PX}px;font-size:10px;color:var(--muted2);font-family:'DM Mono',monospace;padding:4px 6px;text-align:right;border-bottom:1px solid var(--border)">${timeLabel}</div>`;
+  });
+  html += `</div>`;
+
+  // Una columna por día con eventos absolutos
+  weekDays.forEach(d=>{
+    const key = calKey(d.getFullYear(),d.getMonth(),d.getDate());
+    const isToday = d.getTime()===today.getTime();
+    const dayEvents = (evsByDay[key]||[]).filter(e=>e.timeStart);
+
+    html += `<div style="position:relative;height:${TOTAL_HEIGHT}px;border-right:1px solid var(--border);${isToday?'background:#f0faf5':''}" onclick="openCalModal('${key}',null)">`;
+    // Líneas de hora (clicables para crear evento en esa hora)
+    HOURS.forEach((h,i)=>{
+      html += `<div style="position:absolute;top:${i*HOUR_PX}px;left:0;right:0;height:${HOUR_PX}px;border-bottom:1px solid var(--border);cursor:pointer" onclick="event.stopPropagation();openCalModal('${key}',${h})" onmouseover="this.style.background='rgba(146,196,180,.12)'" onmouseout="this.style.background='transparent'"></div>`;
+    });
+    // Eventos absolutos
+    dayEvents.forEach(e=>{
+      const startMin = parseT(e.timeStart);
+      let endMin = parseT(e.timeEnd || e.timeStart);
+      if(endMin <= startMin) endMin = startMin + 30;
+      const top = minToPx(startMin);
+      const height = Math.max(20, ((endMin - startMin) / 60) * HOUR_PX - 2);
+      const color = CAL_COLORS[e.type] || 'var(--accent)';
+      const showFull = height > 32;
+      html += `<div style="position:absolute;top:${top}px;left:3px;right:3px;height:${height}px;background:${color};color:#fff;border-radius:6px;padding:4px 7px;font-size:10px;font-family:'DM Mono',monospace;cursor:pointer;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-start;box-shadow:0 1px 2px rgba(0,0,0,.08);z-index:2" onclick="event.stopPropagation()">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:4px">
+          <div style="font-weight:700;line-height:1.2;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(e.title)}</div>
+          <span onclick="event.stopPropagation();delCalEvent('${e.id}')" style="flex-shrink:0;opacity:.7;cursor:pointer;font-size:12px;line-height:1">✕</span>
+        </div>
+        ${showFull ? `<div style="font-size:9px;opacity:.85;margin-top:2px">${e.timeStart}${e.timeEnd?'–'+e.timeEnd:''}</div>` : ''}
       </div>`;
     });
+    html += `</div>`;
   });
 
   // Eventos sin hora — al final
