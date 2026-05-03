@@ -759,10 +759,55 @@
   }
 
   /* Sub-tabs en Reportes (Shopify / Meta Ads) */
-  .report-subtabs{display:flex;gap:4px;margin-bottom:24px;border-bottom:1.5px solid var(--border)}
+  .report-subtabs{display:flex;gap:4px;margin-bottom:24px;border-bottom:1.5px solid var(--border);flex-wrap:wrap}
   .report-subtab{background:none;border:none;border-bottom:2px solid transparent;padding:10px 18px;font-size:12px;color:var(--muted);cursor:pointer;font-family:'DM Mono',monospace;letter-spacing:.8px;margin-bottom:-1.5px;transition:all .15s}
   .report-subtab:hover{color:var(--text)}
   .report-subtab.active{border-bottom-color:var(--accent);color:var(--accent);font-weight:600}
+
+  /* BKfit */
+  .bkfit-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+  .bkfit-stat-card{background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:14px 18px}
+  .bkfit-stat-label{font-size:9px;color:var(--muted);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:6px;font-family:'DM Mono',monospace}
+  .bkfit-stat-value{font-family:'Syne',sans-serif;font-weight:800;font-size:26px;color:var(--accent);line-height:1.1}
+  .bkfit-stat-sub{font-size:10px;color:var(--muted2);margin-top:4px;font-family:'DM Mono',monospace}
+  .bkfit-card{background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:18px}
+  .bkfit-card-title{font-family:'Syne',sans-serif;font-weight:800;font-size:14px;color:var(--text);margin-bottom:14px;letter-spacing:.3px}
+  .bkfit-field{display:flex;flex-direction:column;gap:5px}
+  .bkfit-field>span{font-size:10px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;font-family:'DM Mono',monospace}
+  .bkfit-field input,.bkfit-field select,.bkfit-field textarea{background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px 12px;border-radius:8px;font-size:12px;font-family:'DM Mono',monospace;outline:none}
+  .bkfit-field input:focus,.bkfit-field select:focus,.bkfit-field textarea:focus{border-color:var(--accent)}
+  .bkfit-rating{display:flex;gap:6px}
+  .bkfit-rating button{width:38px;height:38px;border-radius:8px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text);font-family:'DM Mono',monospace;font-size:13px;font-weight:700;cursor:pointer;transition:all .15s}
+  .bkfit-rating button:hover{border-color:var(--accent)}
+  .bkfit-rating button.selected{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .bkfit-table{width:100%;border-collapse:collapse;font-family:'DM Mono',monospace;font-size:12px}
+  .bkfit-table th{text-align:left;font-size:10px;color:var(--muted);letter-spacing:1.2px;padding:8px 10px;border-bottom:1.5px solid var(--border);font-weight:600}
+  .bkfit-table td{padding:10px;border-bottom:1px solid var(--border);color:var(--text)}
+  .bkfit-week-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:8px}
+  .bkfit-week-day{background:var(--surface2);border:1.5px solid var(--border);border-radius:10px;padding:12px 8px;text-align:center;min-height:88px;display:flex;flex-direction:column;justify-content:space-between}
+  .bkfit-week-day.done{background:#E8F5E9;border-color:#5BA882}
+  .bkfit-week-day.today{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+  .bkfit-week-day.rest{background:var(--surface2);opacity:0.6}
+  .bkfit-week-day-label{font-size:9px;color:var(--muted);letter-spacing:1.2px;font-family:'DM Mono',monospace}
+  .bkfit-week-day-num{font-family:'Syne',sans-serif;font-weight:800;font-size:18px;color:var(--text);line-height:1}
+  .bkfit-week-day-act{font-size:9px;color:var(--text);font-family:'DM Mono',monospace;margin-top:6px;line-height:1.3}
+  .bkfit-week-day-status{font-size:14px;margin-top:4px}
+  .bkfit-filter{background:var(--surface2);border:1.5px solid var(--border);border-radius:18px;padding:5px 12px;font-size:11px;color:var(--muted);cursor:pointer;font-family:'DM Mono',monospace}
+  .bkfit-filter:hover{color:var(--text)}
+  .bkfit-filter.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .bkfit-log-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);font-family:'DM Mono',monospace;font-size:12px}
+  .bkfit-log-row:last-child{border-bottom:none}
+  .bkfit-log-icon{font-size:18px;width:30px;text-align:center}
+  .bkfit-log-main{flex:1;color:var(--text)}
+  .bkfit-log-meta{font-size:10px;color:var(--muted);margin-top:2px}
+  .bkfit-log-kcal{color:var(--accent);font-weight:700}
+  .bkfit-log-del{background:none;border:none;color:var(--muted2);cursor:pointer;font-size:14px;padding:4px 8px;border-radius:6px}
+  .bkfit-log-del:hover{color:#E88A8A;background:rgba(232,138,138,.1)}
+  @media (max-width:780px){
+    #bkfit-dash-grid{grid-template-columns:1fr !important}
+    .bkfit-week-grid{grid-template-columns:repeat(7,minmax(60px,1fr));overflow-x:auto}
+    .bkfit-stat-value{font-size:22px}
+  }
 
   /* KPIs Meta Ads */
   .meta-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:24px}
@@ -1090,6 +1135,9 @@
   </button>
   <button class="tab-btn" data-section="calendario" onclick="switchSection('calendario')">
     📅 Calendario
+  </button>
+  <button class="tab-btn" data-section="bkfit" onclick="switchSection('bkfit')">
+    🏋️ BKfit
   </button>
   <div style="flex:1"></div>
 
@@ -2099,6 +2147,279 @@
     </div>
   </div>
 
+  <div id="section-bkfit" class="section">
+    <div style="max-width:1100px;margin:0 auto">
+
+      <!-- Header con datos del usuario -->
+      <div style="display:flex;align-items:center;gap:14px;margin-bottom:18px;flex-wrap:wrap">
+        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:22px;color:var(--text)">🏋️ BKfit</div>
+        <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;letter-spacing:1px">PLAN PERSONAL · LUN 04 MAY → DOM 26 JUL 2026</div>
+        <div style="flex:1"></div>
+        <button onclick="bkfitGenerarCalendario()" style="background:var(--accent);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-family:'DM Mono',monospace;cursor:pointer">📅 Cargar plan al calendario</button>
+      </div>
+
+      <!-- Sub-tabs -->
+      <div class="report-subtabs">
+        <button class="report-subtab active" data-tab="dashboard" onclick="switchBkfitTab('dashboard')">📊 Dashboard</button>
+        <button class="report-subtab" data-tab="entrenar" onclick="switchBkfitTab('entrenar')">🏃 Entrenar</button>
+        <button class="report-subtab" data-tab="checkin" onclick="switchBkfitTab('checkin')">✅ Check-in</button>
+        <button class="report-subtab" data-tab="comidas" onclick="switchBkfitTab('comidas')">🍽️ Comidas</button>
+        <button class="report-subtab" data-tab="plan" onclick="switchBkfitTab('plan')">📅 Mi plan</button>
+        <button class="report-subtab" data-tab="historial" onclick="switchBkfitTab('historial')">📜 Historial</button>
+      </div>
+
+      <!-- DASHBOARD -->
+      <div id="bkfit-tab-dashboard" class="bkfit-tab" style="display:block">
+        <div class="bkfit-stats">
+          <div class="bkfit-stat-card">
+            <div class="bkfit-stat-label">RACHA ACTUAL</div>
+            <div class="bkfit-stat-value" id="bkfit-streak">0</div>
+            <div class="bkfit-stat-sub">días seguidos</div>
+          </div>
+          <div class="bkfit-stat-card">
+            <div class="bkfit-stat-label">SEMANA ACTUAL</div>
+            <div class="bkfit-stat-value" id="bkfit-week-done">0/5</div>
+            <div class="bkfit-stat-sub">entrenamientos</div>
+          </div>
+          <div class="bkfit-stat-card">
+            <div class="bkfit-stat-label">KCAL QUEMADAS (7 días)</div>
+            <div class="bkfit-stat-value" id="bkfit-kcal-7d">0</div>
+            <div class="bkfit-stat-sub">≈ <span id="bkfit-kcal-pct">0</span>% del objetivo</div>
+          </div>
+          <div class="bkfit-stat-card">
+            <div class="bkfit-stat-label">TOTAL ENTRENAMIENTOS</div>
+            <div class="bkfit-stat-value" id="bkfit-total">0</div>
+            <div class="bkfit-stat-sub">desde el inicio</div>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1.2fr 1fr;gap:16px;margin-top:18px" id="bkfit-dash-grid">
+          <div class="bkfit-card">
+            <div class="bkfit-card-title">📈 Evolución "cómo me queda la ropa"</div>
+            <div id="bkfit-ropa-chart" style="min-height:180px;display:flex;align-items:center;justify-content:center;color:var(--muted2);font-size:12px">Sin check-ins aún. Hacé tu primer check-in semanal.</div>
+          </div>
+          <div class="bkfit-card">
+            <div class="bkfit-card-title">🔥 Próximo entrenamiento</div>
+            <div id="bkfit-proximo" style="font-size:13px;color:var(--text);font-family:'DM Mono',monospace;line-height:1.7"></div>
+          </div>
+        </div>
+
+        <div class="bkfit-card" style="margin-top:18px">
+          <div class="bkfit-card-title">📅 Esta semana</div>
+          <div id="bkfit-week-grid" class="bkfit-week-grid"></div>
+        </div>
+      </div>
+
+      <!-- ENTRENAR -->
+      <div id="bkfit-tab-entrenar" class="bkfit-tab" style="display:none">
+        <div class="bkfit-card">
+          <div class="bkfit-card-title">🏃 Registrar entrenamiento</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <label class="bkfit-field">
+              <span>Fecha</span>
+              <input type="date" id="bkfit-w-fecha">
+            </label>
+            <label class="bkfit-field">
+              <span>Tipo</span>
+              <select id="bkfit-w-tipo" onchange="bkfitCalcKcal()">
+                <option value="correr_moderado">🏃 Correr ritmo moderado</option>
+                <option value="correr_intervalos">🏃‍♂️ Correr intervalos</option>
+                <option value="bici_moderada">🚴 Bici estática moderada</option>
+                <option value="bici_larga">🚴‍♂️ Bici estática larga (suave)</option>
+                <option value="cuerda_hiit">⚡ Cuerda HIIT</option>
+                <option value="cuerda_continua">🪢 Cuerda continua</option>
+                <option value="caminata">🚶 Caminata</option>
+                <option value="combo">🔀 Combo (varios)</option>
+              </select>
+            </label>
+            <label class="bkfit-field">
+              <span>Duración (minutos)</span>
+              <input type="number" id="bkfit-w-min" min="1" max="180" value="35" oninput="bkfitCalcKcal()">
+            </label>
+            <label class="bkfit-field">
+              <span>Intensidad</span>
+              <select id="bkfit-w-int" onchange="bkfitCalcKcal()">
+                <option value="suave">🟢 Suave</option>
+                <option value="moderada" selected>🟡 Moderada</option>
+                <option value="alta">🔴 Alta</option>
+              </select>
+            </label>
+            <label class="bkfit-field" style="grid-column:1/-1">
+              <span>Notas (opcional)</span>
+              <input type="text" id="bkfit-w-notas" placeholder="Cómo te sentiste, distancia, etc.">
+            </label>
+          </div>
+          <div style="display:flex;align-items:center;gap:14px;margin-top:14px">
+            <div style="font-size:13px;color:var(--text);font-family:'DM Mono',monospace">
+              Kcal estimadas: <strong id="bkfit-w-kcal" style="color:var(--accent);font-size:18px">0</strong>
+            </div>
+            <div style="flex:1"></div>
+            <button onclick="bkfitGuardarWorkout()" style="background:var(--accent);color:#fff;border:none;border-radius:8px;padding:9px 18px;font-size:13px;font-family:'DM Mono',monospace;cursor:pointer">✓ Guardar entrenamiento</button>
+          </div>
+        </div>
+
+        <div class="bkfit-card" style="margin-top:14px">
+          <div class="bkfit-card-title">Últimos 7 días</div>
+          <div id="bkfit-w-recientes"></div>
+        </div>
+      </div>
+
+      <!-- CHECK-IN -->
+      <div id="bkfit-tab-checkin" class="bkfit-tab" style="display:none">
+        <div class="bkfit-card">
+          <div class="bkfit-card-title">✅ Check-in semanal</div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:12px">Hacé esto 1 vez por semana (ideal viernes o domingo). 30 segundos.</div>
+          <label class="bkfit-field">
+            <span>Fecha</span>
+            <input type="date" id="bkfit-c-fecha">
+          </label>
+          <div style="margin-top:14px">
+            <div style="font-size:12px;color:var(--text);font-family:'DM Mono',monospace;margin-bottom:6px">👖 Cómo me queda la ropa</div>
+            <div class="bkfit-rating" id="bkfit-c-ropa-r" data-field="ropa"></div>
+            <div style="font-size:10px;color:var(--muted2);margin-top:4px">1 = igual · 5 = notablemente más holgada</div>
+          </div>
+          <div style="margin-top:14px">
+            <div style="font-size:12px;color:var(--text);font-family:'DM Mono',monospace;margin-bottom:6px">⚡ Energía durante el día</div>
+            <div class="bkfit-rating" id="bkfit-c-energia-r" data-field="energia"></div>
+          </div>
+          <div style="margin-top:14px">
+            <div style="font-size:12px;color:var(--text);font-family:'DM Mono',monospace;margin-bottom:6px">😴 Calidad del sueño</div>
+            <div class="bkfit-rating" id="bkfit-c-sueno-r" data-field="sueno"></div>
+          </div>
+          <label class="bkfit-field" style="margin-top:14px">
+            <span>Notas (opcional)</span>
+            <textarea id="bkfit-c-nota" rows="2" placeholder="¿Cómo te fue esta semana?"></textarea>
+          </label>
+          <div style="display:flex;justify-content:flex-end;margin-top:14px">
+            <button onclick="bkfitGuardarCheckin()" style="background:var(--accent);color:#fff;border:none;border-radius:8px;padding:9px 18px;font-size:13px;font-family:'DM Mono',monospace;cursor:pointer">✓ Guardar check-in</button>
+          </div>
+        </div>
+
+        <div class="bkfit-card" style="margin-top:14px">
+          <div class="bkfit-card-title">Check-ins anteriores</div>
+          <div id="bkfit-c-recientes"></div>
+        </div>
+      </div>
+
+      <!-- COMIDAS -->
+      <div id="bkfit-tab-comidas" class="bkfit-tab" style="display:none">
+        <div class="bkfit-card">
+          <div class="bkfit-card-title">🍽️ Registrar comida</div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:10px">Objetivo diario: <strong style="color:var(--accent)">≤ 80g de carbos</strong> · ~150g proteína · ~2.000 kcal</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <label class="bkfit-field">
+              <span>Fecha</span>
+              <input type="date" id="bkfit-m-fecha">
+            </label>
+            <label class="bkfit-field">
+              <span>Comida</span>
+              <select id="bkfit-m-comida">
+                <option value="desayuno">🌅 Desayuno</option>
+                <option value="almuerzo">☀️ Almuerzo</option>
+                <option value="cena">🌙 Cena</option>
+                <option value="snack">🥑 Snack</option>
+              </select>
+            </label>
+            <label class="bkfit-field" style="grid-column:1/-1">
+              <span>Descripción</span>
+              <input type="text" id="bkfit-m-desc" placeholder="Ej: 2 huevos revueltos + palta + queso">
+            </label>
+            <label class="bkfit-field">
+              <span>Carbohidratos (g)</span>
+              <input type="number" id="bkfit-m-carbos" min="0" max="200" value="0" step="1">
+            </label>
+            <label class="bkfit-field">
+              <span>Calorías (estimadas)</span>
+              <input type="number" id="bkfit-m-kcal" min="0" max="2000" value="0" step="10">
+            </label>
+          </div>
+          <div style="display:flex;justify-content:flex-end;margin-top:14px">
+            <button onclick="bkfitGuardarComida()" style="background:var(--accent);color:#fff;border:none;border-radius:8px;padding:9px 18px;font-size:13px;font-family:'DM Mono',monospace;cursor:pointer">✓ Guardar comida</button>
+          </div>
+        </div>
+
+        <div class="bkfit-card" style="margin-top:14px">
+          <div class="bkfit-card-title" id="bkfit-m-hoy-title">📊 Hoy</div>
+          <div id="bkfit-m-hoy"></div>
+        </div>
+
+        <div class="bkfit-card" style="margin-top:14px">
+          <div class="bkfit-card-title">💡 Alimentos recomendados (low-carb)</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;font-family:'DM Mono',monospace;font-size:12px;line-height:1.8">
+            <div>
+              <div style="color:#5BA882;font-weight:700;margin-bottom:6px">✅ LIBRE</div>
+              <div style="color:var(--text)">Carnes, pescado, pollo, huevos<br>Quesos, palta, aceite oliva<br>Verduras de hoja, brócoli, coliflor<br>Frutos secos, almendras<br>Café, té, agua con gas</div>
+            </div>
+            <div>
+              <div style="color:#E88A8A;font-weight:700;margin-bottom:6px">❌ EVITAR</div>
+              <div style="color:var(--text)">Pan, arroz, pasta, papas<br>Azúcar, bebidas azucaradas, jugos<br>Cerveza, cocteles dulces<br>Galletas, dulces, postres<br>Frutas muy dulces (plátano, uva)</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- MI PLAN -->
+      <div id="bkfit-tab-plan" class="bkfit-tab" style="display:none">
+        <div class="bkfit-card">
+          <div class="bkfit-card-title">🎯 Tus datos y objetivo</div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;font-family:'DM Mono',monospace;font-size:12px">
+            <div><div style="color:var(--muted);font-size:10px">EDAD</div><div style="font-size:18px;font-weight:700;color:var(--text)">39 años</div></div>
+            <div><div style="color:var(--muted);font-size:10px">ALTURA</div><div style="font-size:18px;font-weight:700;color:var(--text)">1,73 m</div></div>
+            <div><div style="color:var(--muted);font-size:10px">PESO INICIAL</div><div style="font-size:18px;font-weight:700;color:var(--text)">80 kg</div></div>
+            <div><div style="color:var(--muted);font-size:10px">META</div><div style="font-size:18px;font-weight:700;color:var(--accent)">75 kg</div></div>
+          </div>
+          <div style="margin-top:12px;font-size:12px;color:var(--muted);font-family:'DM Mono',monospace">
+            Inicio: <strong style="color:var(--text)">lun 04 May 2026</strong> · Meta: <strong style="color:var(--text)">dom 26 Jul 2026</strong> (12 semanas, ~1,7 kg/mes)
+          </div>
+        </div>
+
+        <div class="bkfit-card" style="margin-top:14px">
+          <div class="bkfit-card-title">🏋️ Rutina semanal (08:30 - 09:30)</div>
+          <table class="bkfit-table">
+            <thead><tr><th>DÍA</th><th>EJERCICIO</th><th>DURACIÓN</th><th>KCAL</th></tr></thead>
+            <tbody>
+              <tr><td>Lun</td><td>🏃 Correr ritmo moderado</td><td>35 min</td><td>~400</td></tr>
+              <tr><td>Mar</td><td>🚴 Bici estática + 🪢 cuerda final</td><td>30 + 10 min</td><td>~450</td></tr>
+              <tr><td>Mié</td><td>⚡ Cuerda HIIT + 🚴 bici suave</td><td>20 + 25 min</td><td>~450</td></tr>
+              <tr><td>Jue</td><td>🏃‍♂️ Correr intervalos (1' fuerte / 2' suave)</td><td>30 min</td><td>~420</td></tr>
+              <tr><td>Vie</td><td>🚴‍♂️ Bici estática larga</td><td>45 min</td><td>~500</td></tr>
+              <tr><td colspan="4" style="color:var(--muted);text-align:center">Sáb–Dom: descanso total</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="bkfit-card" style="margin-top:14px">
+          <div class="bkfit-card-title">🍽️ Plan de alimentación low-carb</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;font-family:'DM Mono',monospace;font-size:12px;text-align:center">
+            <div style="background:var(--surface2);border-radius:10px;padding:14px"><div style="color:var(--muted);font-size:10px">PROTEÍNA</div><div style="font-size:20px;font-weight:800;color:var(--accent)">150 g</div><div style="color:var(--muted2);font-size:10px">~30%</div></div>
+            <div style="background:var(--surface2);border-radius:10px;padding:14px"><div style="color:var(--muted);font-size:10px">CARBOS</div><div style="font-size:20px;font-weight:800;color:#E88A8A">≤ 80 g</div><div style="color:var(--muted2);font-size:10px">~16%</div></div>
+            <div style="background:var(--surface2);border-radius:10px;padding:14px"><div style="color:var(--muted);font-size:10px">GRASAS</div><div style="font-size:20px;font-weight:800;color:#7ECEC4">120 g</div><div style="color:var(--muted2);font-size:10px">~54%</div></div>
+          </div>
+          <div style="margin-top:14px;font-size:12px;color:var(--text);line-height:1.7">
+            <div><strong style="color:#5BA882">✅ LIBRE:</strong> Carnes, pescados, huevos, queso, palta, verduras de hoja, aceite oliva, frutos secos.</div>
+            <div><strong style="color:#E8B840">⚠️ MODERAR:</strong> Frutas bajas en azúcar (frutillas, kiwi, arándanos), legumbres, lácteos enteros.</div>
+            <div><strong style="color:#E88A8A">❌ EVITAR:</strong> Pan, arroz, pasta, papas, azúcar, bebidas dulces, alcohol.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- HISTORIAL -->
+      <div id="bkfit-tab-historial" class="bkfit-tab" style="display:none">
+        <div class="bkfit-card">
+          <div class="bkfit-card-title">📜 Historial completo</div>
+          <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+            <button class="bkfit-filter active" data-f="all" onclick="bkfitFiltrarHist('all')">Todo</button>
+            <button class="bkfit-filter" data-f="entrenamientos" onclick="bkfitFiltrarHist('entrenamientos')">🏃 Entrenamientos</button>
+            <button class="bkfit-filter" data-f="checkins" onclick="bkfitFiltrarHist('checkins')">✅ Check-ins</button>
+            <button class="bkfit-filter" data-f="comidas" onclick="bkfitFiltrarHist('comidas')">🍽️ Comidas</button>
+          </div>
+          <div id="bkfit-historial-list"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
   <div id="section-archivo" class="section">
     <div class="filter-row">
       <div style="display:flex;align-items:center;gap:10px;flex:1;flex-wrap:wrap">
@@ -2437,7 +2758,7 @@ const PRIOS = [
   {id:'baja',  label:'Baja',  color:'#4ECDC4'},
 ];
 
-let state = {products:[], suppliers:[], todos:[], videos:[], videoTemas:[], promptTemas:[], creativos:[]};
+let state = {products:[], suppliers:[], todos:[], videos:[], videoTemas:[], promptTemas:[], creativos:[], bkfit_workouts:[], bkfit_checkins:[], bkfit_meals:[]};
 window._appState = state;
 let modalType=null, editId=null, prodFilter='all', todoFilter='all', ownerFilter='all';
 
@@ -2478,7 +2799,7 @@ function openMobileMenu(){
   const isAdm = currentUser===ADMIN_USER;
   links.innerHTML = ALL_SECTIONS.map(s=>{
     if(!isAdm && !perms.includes(s.id)) return '';
-    const icons = {productos:'📦',videos:'🎬',prompts:'✨',proveedores:'🏭',calculadora:'🧮',pendientes:'📋',archivo:'📁',calendario:'📅',reportes:'📊'};
+    const icons = {productos:'📦',videos:'🎬',prompts:'✨',proveedores:'🏭',calculadora:'🧮',pendientes:'📋',archivo:'📁',calendario:'📅',reportes:'📊',bkfit:'🏋️'};
     const activeSection = document.querySelector('.section.active');
     const activeId = activeSection ? activeSection.id.replace('section-','') : '';
     return `<button class="mobile-tab${activeId===s.id?' active':''}" onclick="closeMobileMenu();switchSection('${s.id}')">
@@ -2506,6 +2827,7 @@ function switchSection(s, silent){
   if(s==='prompts'){ renderPrompts(); loadBkVars(); }
   if(s==='reportes') initReportes();
   if(s==='creativos') renderCreativos();
+  if(s==='bkfit') bkfitInit();
 }
 
 function startRenameOwner(owner){
@@ -6023,6 +6345,7 @@ const ALL_SECTIONS = [
   {id:'calculadora', label:'Calculadora'},
   {id:'pendientes',  label:'Pendientes'},
   {id:'reportes',    label:'Reportes'},
+  {id:'bkfit',       label:'BKfit'},
   {id:'archivo',     label:'Archivo'},
 ];
 
@@ -6189,6 +6512,460 @@ function addUser(){
 }
 
 document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&document.getElementById('admin-panel').classList.contains('open')) closeAdmin(); });
+
+// ── BKFIT ────────────────────────────────────────────────────────────────────
+const BKFIT_PESO = 80;
+const BKFIT_FECHA_INICIO = '2026-05-04';
+const BKFIT_FECHA_FIN    = '2026-07-26';
+const BKFIT_KCAL_SEMANAL_META = 2000;
+
+const BKFIT_TIPOS = {
+  correr_moderado:   {label:'🏃 Correr ritmo moderado',          met:{suave:7.0,  moderada:8.3,  alta:10.0}},
+  correr_intervalos: {label:'🏃‍♂️ Correr intervalos',             met:{suave:8.0,  moderada:9.8,  alta:11.5}},
+  bici_moderada:     {label:'🚴 Bici estática moderada',          met:{suave:5.5,  moderada:7.0,  alta:10.0}},
+  bici_larga:        {label:'🚴‍♂️ Bici estática larga (suave)',    met:{suave:4.5,  moderada:5.5,  alta:7.0}},
+  cuerda_hiit:       {label:'⚡ Cuerda HIIT',                     met:{suave:8.8,  moderada:11.8, alta:12.3}},
+  cuerda_continua:   {label:'🪢 Cuerda continua',                 met:{suave:7.0,  moderada:8.8,  alta:10.0}},
+  caminata:          {label:'🚶 Caminata',                        met:{suave:2.8,  moderada:3.5,  alta:4.5}},
+  combo:             {label:'🔀 Combo (varios)',                  met:{suave:6.0,  moderada:7.5,  alta:9.0}}
+};
+
+// dia 1=Lun … 5=Vie. 0=Dom, 6=Sáb (descanso)
+const BKFIT_PLAN = {
+  1: {titulo:'🏃 Correr ritmo moderado 35 min',           tipo:'correr_moderado',   min:35},
+  2: {titulo:'🚴 Bici 30 min + 🪢 cuerda 10 min',          tipo:'combo',             min:40},
+  3: {titulo:'⚡ Cuerda HIIT 20 min + 🚴 bici 25 min',     tipo:'combo',             min:45},
+  4: {titulo:'🏃‍♂️ Correr intervalos 30 min',              tipo:'correr_intervalos', min:30},
+  5: {titulo:'🚴‍♂️ Bici estática larga 45 min',            tipo:'bici_larga',        min:45}
+};
+
+let _bkfitFilter = 'all';
+let _bkfitRatings = {ropa:0, energia:0, sueno:0};
+
+function bkfitTodayKey(){
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function bkfitFmtDate(key){
+  if(!key) return '';
+  const [y,m,d] = key.split('-');
+  const meses=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  return `${parseInt(d)} ${meses[parseInt(m)-1]} ${y}`;
+}
+
+function bkfitDayOfWeek(key){
+  const [y,m,d] = key.split('-').map(Number);
+  return new Date(y, m-1, d).getDay();
+}
+
+function bkfitMETKcal(tipo, intensidad, minutos){
+  const t = BKFIT_TIPOS[tipo];
+  if(!t) return 0;
+  const met = (t.met[intensidad] || t.met.moderada);
+  return Math.round(met * BKFIT_PESO * (minutos/60));
+}
+
+function bkfitCalcKcal(){
+  const tipo = document.getElementById('bkfit-w-tipo').value;
+  const min  = parseInt(document.getElementById('bkfit-w-min').value) || 0;
+  const intens = document.getElementById('bkfit-w-int').value;
+  const kcal = bkfitMETKcal(tipo, intens, min);
+  document.getElementById('bkfit-w-kcal').textContent = kcal;
+}
+
+function bkfitInit(){
+  if(!state.bkfit_workouts) state.bkfit_workouts = [];
+  if(!state.bkfit_checkins) state.bkfit_checkins = [];
+  if(!state.bkfit_meals)    state.bkfit_meals = [];
+  const today = bkfitTodayKey();
+  ['bkfit-w-fecha','bkfit-c-fecha','bkfit-m-fecha'].forEach(id=>{
+    const el = document.getElementById(id);
+    if(el && !el.value) el.value = today;
+  });
+  bkfitSetupRatings();
+  bkfitCalcKcal();
+  bkfitRenderDashboard();
+}
+
+function switchBkfitTab(tab){
+  document.querySelectorAll('#section-bkfit .report-subtab').forEach(b=>b.classList.toggle('active', b.dataset.tab===tab));
+  document.querySelectorAll('#section-bkfit .bkfit-tab').forEach(t=>t.style.display='none');
+  document.getElementById('bkfit-tab-'+tab).style.display='block';
+  if(tab==='dashboard') bkfitRenderDashboard();
+  if(tab==='entrenar')  bkfitRenderWorkoutsRecientes();
+  if(tab==='checkin')   bkfitRenderCheckinsRecientes();
+  if(tab==='comidas')   bkfitRenderComidasHoy();
+  if(tab==='historial') bkfitRenderHistorial();
+}
+
+function bkfitSetupRatings(){
+  ['ropa','energia','sueno'].forEach(field=>{
+    const wrap = document.getElementById('bkfit-c-'+field+'-r');
+    if(!wrap || wrap.dataset.ready) return;
+    wrap.dataset.ready = '1';
+    let html = '';
+    for(let i=1;i<=5;i++) html += `<button type="button" data-v="${i}" onclick="bkfitSetRating('${field}',${i})">${i}</button>`;
+    wrap.innerHTML = html;
+  });
+}
+
+function bkfitSetRating(field, val){
+  _bkfitRatings[field] = val;
+  const wrap = document.getElementById('bkfit-c-'+field+'-r');
+  wrap.querySelectorAll('button').forEach(b=>b.classList.toggle('selected', parseInt(b.dataset.v)===val));
+}
+
+function bkfitGuardarWorkout(){
+  const fecha = document.getElementById('bkfit-w-fecha').value;
+  const tipo  = document.getElementById('bkfit-w-tipo').value;
+  const min   = parseInt(document.getElementById('bkfit-w-min').value);
+  const intens= document.getElementById('bkfit-w-int').value;
+  const notas = document.getElementById('bkfit-w-notas').value.trim();
+  if(!fecha || !min || min<=0){ alert('Faltan datos del entrenamiento.'); return; }
+  const kcal = bkfitMETKcal(tipo, intens, min);
+  state.bkfit_workouts.push({id:genId(), fecha, tipo, min, intensidad:intens, kcal, notas, createdAt:Date.now()});
+  save();
+  document.getElementById('bkfit-w-notas').value='';
+  bkfitRenderWorkoutsRecientes();
+  bkfitRenderDashboard();
+  alert('✓ Entrenamiento guardado ('+kcal+' kcal)');
+}
+
+function bkfitDelWorkout(id){
+  if(!confirm('¿Eliminar este entrenamiento?')) return;
+  state.bkfit_workouts = state.bkfit_workouts.filter(w=>w.id!==id);
+  save();
+  bkfitRenderWorkoutsRecientes();
+  bkfitRenderDashboard();
+  bkfitRenderHistorial();
+}
+
+function bkfitGuardarCheckin(){
+  const fecha = document.getElementById('bkfit-c-fecha').value;
+  if(!fecha){ alert('Falta la fecha.'); return; }
+  if(!_bkfitRatings.ropa || !_bkfitRatings.energia || !_bkfitRatings.sueno){
+    alert('Marcá las 3 escalas (ropa, energía, sueño).'); return;
+  }
+  const nota = document.getElementById('bkfit-c-nota').value.trim();
+  state.bkfit_checkins.push({id:genId(), fecha, ropa:_bkfitRatings.ropa, energia:_bkfitRatings.energia, sueno:_bkfitRatings.sueno, nota, createdAt:Date.now()});
+  save();
+  _bkfitRatings = {ropa:0, energia:0, sueno:0};
+  ['ropa','energia','sueno'].forEach(f=>document.getElementById('bkfit-c-'+f+'-r').querySelectorAll('button').forEach(b=>b.classList.remove('selected')));
+  document.getElementById('bkfit-c-nota').value='';
+  bkfitRenderCheckinsRecientes();
+  bkfitRenderDashboard();
+  alert('✓ Check-in semanal guardado');
+}
+
+function bkfitDelCheckin(id){
+  if(!confirm('¿Eliminar este check-in?')) return;
+  state.bkfit_checkins = state.bkfit_checkins.filter(c=>c.id!==id);
+  save();
+  bkfitRenderCheckinsRecientes();
+  bkfitRenderDashboard();
+  bkfitRenderHistorial();
+}
+
+function bkfitGuardarComida(){
+  const fecha = document.getElementById('bkfit-m-fecha').value;
+  const comida= document.getElementById('bkfit-m-comida').value;
+  const desc  = document.getElementById('bkfit-m-desc').value.trim();
+  const carbos= parseInt(document.getElementById('bkfit-m-carbos').value) || 0;
+  const kcal  = parseInt(document.getElementById('bkfit-m-kcal').value) || 0;
+  if(!fecha || !desc){ alert('Falta fecha o descripción.'); return; }
+  state.bkfit_meals.push({id:genId(), fecha, comida, descripcion:desc, carbos, kcal, createdAt:Date.now()});
+  save();
+  document.getElementById('bkfit-m-desc').value='';
+  document.getElementById('bkfit-m-carbos').value='0';
+  document.getElementById('bkfit-m-kcal').value='0';
+  bkfitRenderComidasHoy();
+  alert('✓ Comida registrada');
+}
+
+function bkfitDelComida(id){
+  if(!confirm('¿Eliminar esta comida?')) return;
+  state.bkfit_meals = state.bkfit_meals.filter(m=>m.id!==id);
+  save();
+  bkfitRenderComidasHoy();
+  bkfitRenderHistorial();
+}
+
+function bkfitProximoEntrenamiento(){
+  const today = new Date(); today.setHours(0,0,0,0);
+  for(let i=0;i<14;i++){
+    const d = new Date(today); d.setDate(d.getDate()+i);
+    const dow = d.getDay();
+    if(BKFIT_PLAN[dow]){
+      const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      const yaHecho = (state.bkfit_workouts||[]).some(w=>w.fecha===key);
+      if(i===0 && yaHecho) continue;
+      const dias=['DOM','LUN','MAR','MIÉ','JUE','VIE','SÁB'];
+      return {fecha:key, dia:dias[dow], plan:BKFIT_PLAN[dow], esHoy:i===0, hecho:yaHecho};
+    }
+  }
+  return null;
+}
+
+function bkfitRenderDashboard(){
+  if(!state.bkfit_workouts) return;
+  const today = new Date(); today.setHours(0,0,0,0);
+  const todayKey = bkfitTodayKey();
+
+  // Racha
+  let racha = 0;
+  for(let i=0;i<60;i++){
+    const d = new Date(today); d.setDate(d.getDate()-i);
+    const dow = d.getDay();
+    const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    if(BKFIT_PLAN[dow]){
+      if(state.bkfit_workouts.some(w=>w.fecha===key)) racha++;
+      else if(i>0) break;
+      else continue;
+    }
+  }
+
+  // Semana actual (lun-vie)
+  const dow = today.getDay();
+  const diff = dow===0 ? -6 : 1-dow;
+  const lunes = new Date(today); lunes.setDate(lunes.getDate()+diff);
+  let weekDone = 0;
+  for(let i=0;i<5;i++){
+    const d = new Date(lunes); d.setDate(d.getDate()+i);
+    const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    if(state.bkfit_workouts.some(w=>w.fecha===key)) weekDone++;
+  }
+
+  // Kcal últimos 7 días
+  const since = new Date(today); since.setDate(since.getDate()-6);
+  const kcal7d = state.bkfit_workouts
+    .filter(w=>{const [y,m,d]=w.fecha.split('-').map(Number); return new Date(y,m-1,d) >= since;})
+    .reduce((s,w)=>s+(w.kcal||0),0);
+  const pct = Math.round((kcal7d / BKFIT_KCAL_SEMANAL_META)*100);
+
+  document.getElementById('bkfit-streak').textContent  = racha;
+  document.getElementById('bkfit-week-done').textContent = weekDone+'/5';
+  document.getElementById('bkfit-kcal-7d').textContent = kcal7d;
+  document.getElementById('bkfit-kcal-pct').textContent = pct;
+  document.getElementById('bkfit-total').textContent = state.bkfit_workouts.length;
+
+  // Próximo entrenamiento
+  const proximo = bkfitProximoEntrenamiento();
+  const proxEl = document.getElementById('bkfit-proximo');
+  if(proximo){
+    proxEl.innerHTML = `
+      <div style="font-size:11px;color:var(--muted);letter-spacing:1px">${proximo.esHoy?'HOY':proximo.dia} · ${bkfitFmtDate(proximo.fecha)}</div>
+      <div style="font-size:15px;color:var(--text);font-weight:700;margin-top:4px">${proximo.plan.titulo}</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px">⏱ ${proximo.plan.min} min · 🕘 08:30 - 09:30</div>
+      ${proximo.esHoy && !proximo.hecho ? '<div style="margin-top:10px"><button onclick="switchBkfitTab(\'entrenar\')" style="background:var(--accent);color:#fff;border:none;border-radius:6px;padding:7px 14px;font-size:11px;font-family:inherit;cursor:pointer">→ Registrar ahora</button></div>' : ''}
+    `;
+  } else {
+    proxEl.innerHTML = '<div style="color:var(--muted);font-size:12px">Sin próximo entrenamiento programado.</div>';
+  }
+
+  // Semana visual
+  const wkGrid = document.getElementById('bkfit-week-grid');
+  const dias = ['LUN','MAR','MIÉ','JUE','VIE','SÁB','DOM'];
+  let wkHtml = '';
+  for(let i=0;i<7;i++){
+    const d = new Date(lunes); d.setDate(d.getDate()+i);
+    const dKey = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    const dDow = d.getDay();
+    const plan = BKFIT_PLAN[dDow];
+    const isToday = dKey===todayKey;
+    const done = state.bkfit_workouts.some(w=>w.fecha===dKey);
+    const cls = ['bkfit-week-day'];
+    if(done) cls.push('done');
+    if(isToday) cls.push('today');
+    if(!plan) cls.push('rest');
+    const status = done ? '✅' : (isToday ? '🎯' : (plan ? '⏳' : '😴'));
+    const actText = plan ? plan.titulo.replace(/^[\W_]+/,'').slice(0,30) : 'Descanso';
+    wkHtml += `<div class="${cls.join(' ')}">
+      <div>
+        <div class="bkfit-week-day-label">${dias[i]}</div>
+        <div class="bkfit-week-day-num">${d.getDate()}</div>
+      </div>
+      <div>
+        <div class="bkfit-week-day-act">${actText}</div>
+        <div class="bkfit-week-day-status">${status}</div>
+      </div>
+    </div>`;
+  }
+  wkGrid.innerHTML = wkHtml;
+
+  // Gráfico ropa
+  const checkins = (state.bkfit_checkins||[]).slice().sort((a,b)=>a.fecha.localeCompare(b.fecha));
+  const chartEl = document.getElementById('bkfit-ropa-chart');
+  if(checkins.length===0){
+    chartEl.innerHTML = '<div style="color:var(--muted2);font-size:12px;text-align:center">Sin check-ins aún.<br>Hacé tu primer check-in semanal.</div>';
+  } else {
+    const max = 5; const W = 100; const H = 100;
+    const last = checkins.slice(-12);
+    const stepX = last.length>1 ? W/(last.length-1) : 0;
+    const pointsRopa = last.map((c,i)=>`${i*stepX},${H-(c.ropa/max)*H}`).join(' ');
+    const pointsEner = last.map((c,i)=>`${i*stepX},${H-(c.energia/max)*H}`).join(' ');
+    chartEl.innerHTML = `
+      <svg viewBox="0 0 100 110" preserveAspectRatio="none" style="width:100%;height:170px">
+        <polyline points="${pointsRopa}" fill="none" stroke="#5BA882" stroke-width="2"/>
+        <polyline points="${pointsEner}" fill="none" stroke="#E8B840" stroke-width="2" stroke-dasharray="2,2"/>
+        ${last.map((c,i)=>`<circle cx="${i*stepX}" cy="${H-(c.ropa/max)*H}" r="1.5" fill="#5BA882"/>`).join('')}
+        <text x="0" y="108" font-size="4" fill="#999" font-family="monospace">${last[0].fecha.slice(5)}</text>
+        <text x="100" y="108" font-size="4" fill="#999" text-anchor="end" font-family="monospace">${last[last.length-1].fecha.slice(5)}</text>
+      </svg>
+      <div style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;margin-top:6px;display:flex;gap:14px;justify-content:center">
+        <span><span style="color:#5BA882">━</span> Ropa</span>
+        <span><span style="color:#E8B840">┄</span> Energía</span>
+      </div>`;
+  }
+}
+
+function bkfitRenderWorkoutsRecientes(){
+  const since = new Date(); since.setHours(0,0,0,0); since.setDate(since.getDate()-7);
+  const list = (state.bkfit_workouts||[])
+    .filter(w=>{const [y,m,d]=w.fecha.split('-').map(Number); return new Date(y,m-1,d) >= since;})
+    .sort((a,b)=>b.fecha.localeCompare(a.fecha));
+  const el = document.getElementById('bkfit-w-recientes');
+  if(!list.length){ el.innerHTML = '<div style="color:var(--muted2);font-size:12px;text-align:center;padding:14px">Sin entrenamientos en los últimos 7 días.</div>'; return; }
+  el.innerHTML = list.map(w=>`
+    <div class="bkfit-log-row">
+      <div class="bkfit-log-icon">${(BKFIT_TIPOS[w.tipo]?.label||'').slice(0,2)}</div>
+      <div class="bkfit-log-main">
+        <div>${esc(BKFIT_TIPOS[w.tipo]?.label||w.tipo)} · <span style="color:var(--muted)">${w.min} min</span></div>
+        <div class="bkfit-log-meta">${bkfitFmtDate(w.fecha)} · intensidad ${w.intensidad}${w.notas?' · '+esc(w.notas):''}</div>
+      </div>
+      <div class="bkfit-log-kcal">${w.kcal} kcal</div>
+      <button class="bkfit-log-del" onclick="bkfitDelWorkout('${w.id}')">✕</button>
+    </div>`).join('');
+}
+
+function bkfitRenderCheckinsRecientes(){
+  const list = (state.bkfit_checkins||[]).slice().sort((a,b)=>b.fecha.localeCompare(a.fecha)).slice(0,10);
+  const el = document.getElementById('bkfit-c-recientes');
+  if(!list.length){ el.innerHTML = '<div style="color:var(--muted2);font-size:12px;text-align:center;padding:14px">Sin check-ins aún.</div>'; return; }
+  el.innerHTML = list.map(c=>`
+    <div class="bkfit-log-row">
+      <div class="bkfit-log-icon">✅</div>
+      <div class="bkfit-log-main">
+        <div>👖 Ropa: <strong>${c.ropa}/5</strong> · ⚡ Energía: <strong>${c.energia}/5</strong> · 😴 Sueño: <strong>${c.sueno}/5</strong></div>
+        <div class="bkfit-log-meta">${bkfitFmtDate(c.fecha)}${c.nota?' · '+esc(c.nota):''}</div>
+      </div>
+      <button class="bkfit-log-del" onclick="bkfitDelCheckin('${c.id}')">✕</button>
+    </div>`).join('');
+}
+
+function bkfitRenderComidasHoy(){
+  const today = bkfitTodayKey();
+  const hoy = (state.bkfit_meals||[]).filter(m=>m.fecha===today);
+  const totalCarbos = hoy.reduce((s,m)=>s+(m.carbos||0),0);
+  const totalKcal = hoy.reduce((s,m)=>s+(m.kcal||0),0);
+  document.getElementById('bkfit-m-hoy-title').innerHTML = `📊 Hoy · <span style="color:${totalCarbos>80?'#E88A8A':'#5BA882'}">${totalCarbos}g carbos</span> · ${totalKcal} kcal`;
+  const el = document.getElementById('bkfit-m-hoy');
+  if(!hoy.length){ el.innerHTML = '<div style="color:var(--muted2);font-size:12px;text-align:center;padding:14px">Sin comidas registradas hoy.</div>'; return; }
+  const labelComida = {desayuno:'🌅 Desayuno', almuerzo:'☀️ Almuerzo', cena:'🌙 Cena', snack:'🥑 Snack'};
+  el.innerHTML = hoy.sort((a,b)=>a.createdAt-b.createdAt).map(m=>`
+    <div class="bkfit-log-row">
+      <div class="bkfit-log-icon">${labelComida[m.comida]?.slice(0,2)||'🍽️'}</div>
+      <div class="bkfit-log-main">
+        <div>${esc(m.descripcion)}</div>
+        <div class="bkfit-log-meta">${labelComida[m.comida]||m.comida} · <strong style="color:${m.carbos>30?'#E88A8A':'var(--muted)'}">${m.carbos}g carbos</strong> · ${m.kcal} kcal</div>
+      </div>
+      <button class="bkfit-log-del" onclick="bkfitDelComida('${m.id}')">✕</button>
+    </div>`).join('');
+}
+
+function bkfitFiltrarHist(f){
+  _bkfitFilter = f;
+  document.querySelectorAll('#section-bkfit .bkfit-filter').forEach(b=>b.classList.toggle('active', b.dataset.f===f));
+  bkfitRenderHistorial();
+}
+
+function bkfitRenderHistorial(){
+  const items = [];
+  if(_bkfitFilter==='all' || _bkfitFilter==='entrenamientos'){
+    (state.bkfit_workouts||[]).forEach(w=>items.push({tipo:'workout', fecha:w.fecha, ts:w.createdAt, data:w}));
+  }
+  if(_bkfitFilter==='all' || _bkfitFilter==='checkins'){
+    (state.bkfit_checkins||[]).forEach(c=>items.push({tipo:'checkin', fecha:c.fecha, ts:c.createdAt, data:c}));
+  }
+  if(_bkfitFilter==='all' || _bkfitFilter==='comidas'){
+    (state.bkfit_meals||[]).forEach(m=>items.push({tipo:'meal', fecha:m.fecha, ts:m.createdAt, data:m}));
+  }
+  items.sort((a,b)=>b.fecha.localeCompare(a.fecha) || b.ts-a.ts);
+  const el = document.getElementById('bkfit-historial-list');
+  if(!items.length){ el.innerHTML='<div style="color:var(--muted2);font-size:12px;text-align:center;padding:24px">Sin registros aún.</div>'; return; }
+  const labelComida = {desayuno:'🌅 Desayuno', almuerzo:'☀️ Almuerzo', cena:'🌙 Cena', snack:'🥑 Snack'};
+  el.innerHTML = items.map(it=>{
+    if(it.tipo==='workout'){
+      const w = it.data;
+      return `<div class="bkfit-log-row">
+        <div class="bkfit-log-icon">🏃</div>
+        <div class="bkfit-log-main">
+          <div>${esc(BKFIT_TIPOS[w.tipo]?.label||w.tipo)} · ${w.min} min</div>
+          <div class="bkfit-log-meta">${bkfitFmtDate(w.fecha)} · ${w.intensidad}${w.notas?' · '+esc(w.notas):''}</div>
+        </div>
+        <div class="bkfit-log-kcal">${w.kcal} kcal</div>
+        <button class="bkfit-log-del" onclick="bkfitDelWorkout('${w.id}')">✕</button>
+      </div>`;
+    }
+    if(it.tipo==='checkin'){
+      const c = it.data;
+      return `<div class="bkfit-log-row">
+        <div class="bkfit-log-icon">✅</div>
+        <div class="bkfit-log-main">
+          <div>Check-in semanal · 👖 ${c.ropa}/5 · ⚡ ${c.energia}/5 · 😴 ${c.sueno}/5</div>
+          <div class="bkfit-log-meta">${bkfitFmtDate(c.fecha)}${c.nota?' · '+esc(c.nota):''}</div>
+        </div>
+        <button class="bkfit-log-del" onclick="bkfitDelCheckin('${c.id}')">✕</button>
+      </div>`;
+    }
+    if(it.tipo==='meal'){
+      const m = it.data;
+      return `<div class="bkfit-log-row">
+        <div class="bkfit-log-icon">🍽️</div>
+        <div class="bkfit-log-main">
+          <div>${esc(m.descripcion)}</div>
+          <div class="bkfit-log-meta">${bkfitFmtDate(m.fecha)} · ${labelComida[m.comida]||m.comida} · ${m.carbos}g carbos · ${m.kcal} kcal</div>
+        </div>
+        <button class="bkfit-log-del" onclick="bkfitDelComida('${m.id}')">✕</button>
+      </div>`;
+    }
+  }).join('');
+}
+
+function bkfitGenerarCalendario(){
+  if(!state.calEvents) state.calEvents = [];
+  const yaCargados = state.calEvents.filter(e=>e.type==='deporte' && (e.title||'').includes('BKfit'));
+  if(yaCargados.length>0){
+    if(!confirm(`Ya hay ${yaCargados.length} entrenamientos cargados. ¿Querés borrarlos y regenerar?`)) return;
+    state.calEvents = state.calEvents.filter(e=>!(e.type==='deporte' && (e.title||'').includes('BKfit')));
+  }
+  const [yI,mI,dI] = BKFIT_FECHA_INICIO.split('-').map(Number);
+  const [yF,mF,dF] = BKFIT_FECHA_FIN.split('-').map(Number);
+  const inicio = new Date(yI, mI-1, dI);
+  const fin    = new Date(yF, mF-1, dF);
+  let creados = 0;
+  for(let d = new Date(inicio); d <= fin; d.setDate(d.getDate()+1)){
+    const dow = d.getDay();
+    const plan = BKFIT_PLAN[dow];
+    if(!plan) continue;
+    const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    state.calEvents.push({
+      id: genId(),
+      date: key,
+      title: 'BKfit · ' + plan.titulo.replace(/^[\W_\s]+/,''),
+      timeStart: '08:30',
+      timeEnd: '09:30',
+      type: 'deporte',
+      notes: 'Plan BKfit (08:30 - 09:30)',
+      createdAt: Date.now()
+    });
+    creados++;
+  }
+  save();
+  alert(`✓ ${creados} entrenamientos cargados al calendario\n(lun 04 May → vie 24 Jul 2026)`);
+  if(typeof renderCalendar === 'function') renderCalendar();
+  if(typeof renderHoyPanel === 'function') renderHoyPanel();
+}
 
 // ── SPLASH ────────────────────────────────────────────────────────────────────
 (function(){
