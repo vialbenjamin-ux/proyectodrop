@@ -56,33 +56,30 @@ const USER_TOP_PRODUCTS = [
   "OLLAMIX AUTOMATICA - Olla Multifunción"
 ];
 
-// Keywords del ADN del usuario, en español, 27 totales cubriendo TODOS los pilares.
-// Priorizamos ángulos que el usuario AÚN NO vende (no replicar Hidrolavadora/KatanaBlade).
+// Keywords cortas (1-2 palabras) cubriendo los 10 pilares del ADN.
+// Meta Ad Library usa AND entre palabras: keywords largas devuelven 0 resultados.
+// Más cortas = más matches, después filtramos por ADN pattern + novelty.
 const KEYWORDS = [
   // 🚗 Auto (5)
-  'hidrolavadora portatil', 'limpia auto interior', 'dashcam auto 1080p',
-  'jump starter portatil bateria', 'inflador llantas portatil',
+  'hidrolavadora', 'lavado auto', 'dashcam', 'jump starter', 'inflador llantas',
   // 🧹 Limpieza (4)
-  'mopa vapor electrica', 'aspiradora sopladora portatil',
-  'destapa caños alta presion', 'limpiador alfombra portatil',
+  'mopa vapor', 'aspiradora portatil', 'destapa cañerías', 'limpiador alfombra',
   // 💡 Iluminación (4)
-  'luz solar exterior sensor', 'tira led inteligente rgb',
-  'ring light celular trípode', 'proyector estrellas dormitorio',
+  'luz solar', 'tira led', 'ring light', 'proyector estrellas',
   // 🍳 Cocina (4)
-  'picadora electrica usb', 'accesorios airfryer silicona',
-  'hervidor electrico portatil', 'cafetera portatil viaje',
+  'picadora electrica', 'accesorios airfryer', 'hervidor electrico', 'cafetera portatil',
   // 👔 Lifestyle (2)
-  'cojin lumbar oficina ergonomico', 'masajeador cuello cervical electrico',
+  'cojin lumbar', 'masajeador cuello',
   // 💪 Fitness (2)
-  'electroestimulador abdominal ems', 'masajeador percusion portatil',
+  'electroestimulador', 'masajeador percusion',
   // 🔊 Audio (1)
-  'parlante bluetooth resistente agua',
+  'parlante bluetooth',
   // 🔧 Herramientas (2)
-  'taladro impacto inalambrico mini', 'soldador portatil pluma usb',
+  'taladro inalambrico', 'soldador electrico',
   // 📦 Organización (2)
-  'organizador refrigerador apilable', 'zapatero giratorio plegable',
+  'organizador refrigerador', 'zapatero giratorio',
   // 📱 Móviles (1)
-  'power bank inalambrico magsafe'
+  'power bank inalambrico'
 ];
 const COUNTRIES = ['MX', 'AR', 'BR'];
 const LIMIT_PER_URL = 12;
@@ -112,7 +109,11 @@ const EXCLUDED = [
   /dog (food|treat|chew|bed|collar|bark)|cat (food|fountain|litter|treat)/i,
   /diaper|pacifier|breast.pump|nursing|baby/i,
   /supplement|vitamin|protein.powder|collagen/i,
-  /motorcycle.*battery|atv.*battery/i
+  /motorcycle.*battery|atv.*battery/i,
+  // Plataformas de contenido / audiolibros / novelas / pódcast (ruido frecuente en MX/AR/BR)
+  /pocket.?fm|pocketfm|noirpress|bestnovel|pasion ?novel|novelpasion|audiolibro|audionovela|story.?app|capítulo gratis|capitulo gratis|leer historia|escuchar historia/i,
+  /el despegue|elevate.*app|trader|crypto|forex|inversiones|trading|invest.*app/i,
+  /historia.*adicción|romance.*novela|fantasy.*novel|dramatic.*story/i
 ];
 
 function buildLibraryUrl(country, keyword) {
