@@ -56,31 +56,52 @@ const USER_TOP_PRODUCTS = [
   "OLLAMIX AUTOMATICA - Olla Multifunción"
 ];
 
-// Keywords del ADN del usuario, en español, 10 totales
+// Keywords del ADN del usuario, en español, 27 totales cubriendo TODOS los pilares.
+// Priorizamos ángulos que el usuario AÚN NO vende (no replicar Hidrolavadora/KatanaBlade).
 const KEYWORDS = [
-  // 🚗 Auto
-  'hidrolavadora portatil', 'limpia auto', 'fundas asiento auto', 'rayon auto remover',
-  // 🧹 Limpieza
+  // 🚗 Auto (5)
+  'hidrolavadora portatil', 'limpia auto interior', 'dashcam auto 1080p',
+  'jump starter portatil bateria', 'inflador llantas portatil',
+  // 🧹 Limpieza (4)
   'mopa vapor electrica', 'aspiradora sopladora portatil',
-  // 💡 Iluminación
-  'luz solar exterior sensor', 'lampara recargable led',
-  // 🍳 Cocina
-  'picadora electrica usb', 'cuchillo japones cocina'
+  'destapa caños alta presion', 'limpiador alfombra portatil',
+  // 💡 Iluminación (4)
+  'luz solar exterior sensor', 'tira led inteligente rgb',
+  'ring light celular trípode', 'proyector estrellas dormitorio',
+  // 🍳 Cocina (4)
+  'picadora electrica usb', 'accesorios airfryer silicona',
+  'hervidor electrico portatil', 'cafetera portatil viaje',
+  // 👔 Lifestyle (2)
+  'cojin lumbar oficina ergonomico', 'masajeador cuello cervical electrico',
+  // 💪 Fitness (2)
+  'electroestimulador abdominal ems', 'masajeador percusion portatil',
+  // 🔊 Audio (1)
+  'parlante bluetooth resistente agua',
+  // 🔧 Herramientas (2)
+  'taladro impacto inalambrico mini', 'soldador portatil pluma usb',
+  // 📦 Organización (2)
+  'organizador refrigerador apilable', 'zapatero giratorio plegable',
+  // 📱 Móviles (1)
+  'power bank inalambrico magsafe'
 ];
 const COUNTRIES = ['MX', 'AR', 'BR'];
 const LIMIT_PER_URL = 12;
+const PER_PILLAR_TOP = 5;  // máximo N capturas por pilar en el resultado final
+const FINAL_CAP = 30;
 
-// Filtros ADN (matchear título/copy contra estos pilares)
+// Filtros ADN (matchear título/copy contra estos pilares).
+// IMPORTANTE: orden importa, primer match gana. Los más específicos primero.
 const ADN_PATTERNS = [
-  { pillar:'🚗 Auto',         re:/auto|coche|vehiculo|carro|carplay|seat|asiento|hidrolavadora|tire|llanta|polish|rayon|wax|detail|jump.starter|pressure.washer|tire.foam|interior.cleaner/i },
-  { pillar:'🧹 Limpieza',     re:/mopa|vapor|aspirador|sopladora|hidrolavadora|limpia.*piso|limpieza.*profunda|scrubber|escoba|trapeador|stain remover|dryer.*vent/i },
-  { pillar:'💡 Iluminación',  re:/led|luz solar|luminaria|lampara|sensor.*movimiento|foco|linterna|recargable|outdoor.*light|garden.*light|under.*cabinet/i },
-  { pillar:'🍳 Cocina',       re:/cocina|cortador|picador|katana|cuchillo|pelador|rallador|olla|sarten|airfryer|freidora|blender|mixer|kettle|cooker/i },
-  { pillar:'👔 Lifestyle',    re:/cojin|gel.*ergonomic|memory.foam|billetera|wallet|cinturon/i },
-  { pillar:'💪 Fitness',      re:/fitness|entrenamiento|gimnasio|resistance.band|jump.rope|massage gun|foam roller/i },
-  { pillar:'🔊 Audio',        re:/altavoz|parlante|bluetooth.speaker|audifono/i },
-  { pillar:'🔧 Herramientas', re:/amoladora|taladro|perforador|destornillador|sierra/i },
-  { pillar:'📦 Organización', re:/organizador|estante|colgador|storage shelf|rack/i }
+  { pillar:'🚗 Auto',         re:/auto|coche|vehiculo|carro|carplay|funda asiento|asiento.*auto|hidrolavadora|tire|llanta|polish|rayon|wax|detail|jump.starter|pressure.washer|tire.foam|interior.cleaner|dashcam|inflador.*llanta|carga.*auto|cargador.*vehiculo|ozonizador.*auto|soporte.*celular.*auto/i },
+  { pillar:'🧹 Limpieza',     re:/mopa|vapor.*limpieza|aspirador|sopladora|destapa.*caño|destapa.*cano|limpia.*piso|limpieza.*profunda|scrubber|escoba.*electrica|trapeador|stain remover|dryer.*vent|alfombra.*limpia|desodorizador|polvo|extractor.*polvo/i },
+  { pillar:'💡 Iluminación',  re:/luz solar|luminaria|lampara|sensor.*movimiento|foco|linterna|outdoor.*light|garden.*light|under.*cabinet|tira.*led|ring.*light|proyector.*estrella|veladora|luz.*armario|night.*light|luz noche|spot.*led|mood.*light/i },
+  { pillar:'🍳 Cocina',       re:/cocina|cortador|picador|katana|cuchillo|pelador|rallador|olla|sarten|airfryer|freidora|blender|mixer|kettle|cooker|hervidor|cafetera|molde silicona|contenedor.*vacio|accesorio.*airfryer|tabla.*cocina|set cuchillos|exprimidor|licuadora portatil/i },
+  { pillar:'👔 Lifestyle',    re:/cojin|gel.*ergonomic|memory.foam|billetera|wallet|cinturon|lumbar|soporte espalda|postura|cojin masaje|silla.*ergonomica|reposacabeza|soporte cuello|almohada cervical/i },
+  { pillar:'💪 Fitness',      re:/fitness|entrenamiento|gimnasio|resistance.band|jump.rope|massage gun|foam roller|electroestimulador|ems|abdominal|masajeador.*percusion|plataforma.*vibratoria|elastico.*ejercicio|banda.*pilates|rodillo.*muscular|pistola.*masaje/i },
+  { pillar:'🔊 Audio',        re:/altavoz|parlante|bluetooth.speaker|audifono|auricular|headphone|earbud|bocina.*portatil|sound.*bar/i },
+  { pillar:'🔧 Herramientas', re:/amoladora|taladro|perforador|destornillador|sierra|soldador|llave.*impacto|martillo|atornillador|impacto.*inalambrico|set.*herramienta|caja.*herramienta|nivel.*laser|cinta metrica|remachadora|pistola.*calor|pistola.*silicona/i },
+  { pillar:'📦 Organización', re:/organizador|estante|colgador|storage shelf|rack|zapatero|plegable.*hogar|almacenaje|caja.*almacenaje|refrigerador.*organizador|cajonera|perchero|drawer.organizer|closet.*organizador/i },
+  { pillar:'📱 Móviles',      re:/cargador.*inalambrico|magsafe|power bank|powerbank|bateria.*portatil|bateria.*externa|soporte.*celular(?!.*auto)|case.*celular|funda.*celular|cargador.*rapido|usb.*c.*hub|adaptador.*celular/i }
 ];
 const EXCLUDED = [
   /skin.?care|crema.*piel|maquillaje|cosmetiquero|beauty|mascara|lipstick|moisturizer|wrinkle|anti.?aging|serum.*facial/i,
@@ -470,7 +491,25 @@ export default async (req) => {
   }
 
   console.log(`After dedup: ${dedup.length} candidates (was ${top.length})`);
-  top = dedup.slice(0, 30);
+
+  // ── ESTRATIFICACIÓN POR PILAR ──
+  // Asegurar variedad: tomar hasta PER_PILLAR_TOP capturas de cada pilar antes del cap.
+  // Sin esto, los pilares "fáciles" (Auto, Limpieza) acaparan todos los lugares.
+  const byPillar = new Map();
+  for (const c of dedup) {
+    const p = c.adn_match || 'otros';
+    if (!byPillar.has(p)) byPillar.set(p, []);
+    byPillar.get(p).push(c);
+  }
+  // dedup ya viene ordenado por score; cada bucket también queda ordenado
+  const stratified = [];
+  for (const [pillar, list] of byPillar) {
+    stratified.push(...list.slice(0, PER_PILLAR_TOP));
+  }
+  // Re-sort por score combinado, pero respetando que ya tenemos diversidad
+  stratified.sort((a, b) => b.adn_score - a.adn_score);
+  console.log(`Stratified by pillar: ${stratified.length} (pillars: ${[...byPillar.keys()].join(', ')})`);
+  top = stratified.slice(0, FINAL_CAP);
 
   // Adjuntar 2 videos extras del mismo advertiser por candidato
   for (const c of top) {
