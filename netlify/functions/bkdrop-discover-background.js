@@ -153,8 +153,9 @@ const EXCLUDED = [
   /\btarjeta de cr[eé]dito\b|\bcr[eé]dito personal\b|\bpr[eé]stamo\b|\brefinanciaci[oó]n\b/i,
   /\bplan funerario\b|\bservicios? funerarios?\b|\bsepelio\b/i,
   // Servicios de utilities / energía / suscripciones
-  /\bfactura.*(luz|electricidad|energ[íi]a|gas)\b|\bahorro.*factura\b|\bpaga menos.*luz\b/i,
-  /\binstal[aá] paneles\b|\binstalaci[oó]n.*solar.*hogar\b|\bsistema.*paneles solares\b/i,
+  /\bsistema solar residencial\b|\bpanel(es)? solar(es)?.*hogar\b|\binstalamos.*sistema solar\b|\bcotiz[áa].*panel(es)? solar\b/i,
+  /\b(reduce|reducir|baja|paga menos).*(factura|tarifa).*(luz|electricidad|energ[íi]a|gas)\b/i,
+  /\bahorro.*factura\b|\bgenera tu propia energ[íi]a\b/i,
   /\bplan.*(internet|telefon[íi]a|tv cable)\b|\bsuscripci[oó]n.*mensual\b/i,
   /\bdetailing|detalla(do|ndo) automotriz|estética automotriz|lavado.*a domicilio\b/i,
   /\b(consultor[íi]a|asesor[íi]a|capacitaci[oó]n|curso de|aprende a|gana dinero|ingresos pasivos)\b/i,
