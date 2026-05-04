@@ -1136,6 +1136,9 @@
   <button class="tab-btn" data-section="calendario" onclick="switchSection('calendario')">
     📅 Calendario
   </button>
+  <button class="tab-btn" data-section="investigacion" onclick="switchSection('investigacion')">
+    🔍 Investigación
+  </button>
   <button class="tab-btn" data-section="bkfit" onclick="switchSection('bkfit')">
     🏋️ BKfit
   </button>
@@ -2147,6 +2150,78 @@
     </div>
   </div>
 
+  <div id="section-investigacion" class="section">
+    <div style="max-width:1100px;margin:0 auto">
+
+      <!-- Header -->
+      <div style="display:flex;align-items:center;gap:14px;margin-bottom:18px;flex-wrap:wrap">
+        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:22px;color:var(--text)">🔍 Investigación</div>
+        <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;letter-spacing:1px">DESCUBRIMIENTO LATAM → CHILE</div>
+        <div style="flex:1"></div>
+        <button onclick="bkInvSync()" style="background:var(--accent);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-family:'DM Mono',monospace;cursor:pointer">🔄 Sincronizar</button>
+      </div>
+
+      <!-- Sub-tabs -->
+      <div class="report-subtabs">
+        <button class="report-subtab active" data-tab="capturas" onclick="switchInvTab('capturas')">📥 Capturas</button>
+        <button class="report-subtab" data-tab="pipeline" onclick="switchInvTab('pipeline')">🎯 Pipeline</button>
+        <button class="report-subtab" data-tab="adn" onclick="switchInvTab('adn')">📋 Mi ADN</button>
+        <button class="report-subtab" data-tab="install" onclick="switchInvTab('install')">📌 Instalar bookmarklet</button>
+      </div>
+
+      <!-- INSTALL -->
+      <div id="inv-tab-install" class="inv-tab" style="display:none">
+        <div class="bkfit-card">
+          <div class="bkfit-card-title">📌 Bookmarklet de captura — pasos para instalar</div>
+          <ol style="font-size:13px;color:var(--text);line-height:1.8;padding-left:20px;margin:0">
+            <li>Mostrá la barra de favoritos del navegador (<code style="background:var(--surface2);padding:2px 6px;border-radius:4px">Ctrl+Shift+B</code>).</li>
+            <li>Click derecho en la barra → <strong>Agregar página…</strong> (o <em>Add bookmark</em>).</li>
+            <li>Nombre: <code style="background:var(--surface2);padding:2px 6px;border-radius:4px">📥 BK</code> · URL: pegá lo que copiaste con el botón de abajo.</li>
+            <li>Abrí <a href="https://www.facebook.com/ads/library" target="_blank" rel="noopener" style="color:var(--accent);font-weight:700">Meta Ad Library</a>, filtrá por país (México/Argentina/Brasil/Colombia/etc), keyword en español y media=video.</li>
+            <li>Cuando veas un ad bueno → click en <code style="background:var(--surface2);padding:2px 6px;border-radius:4px">📥 BK</code> en la barra de favoritos.</li>
+            <li>Volvé acá → <strong>Sincronizar</strong>. Las capturas aparecen en la pestaña Capturas.</li>
+          </ol>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:18px">
+            <button onclick="bkInvCopyBookmarklet()" style="background:var(--accent);color:#fff;border:none;border-radius:8px;padding:10px 18px;font-size:13px;font-family:'DM Mono',monospace;cursor:pointer;font-weight:700">📋 Copiar bookmarklet</button>
+            <span id="inv-bm-status" style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace"></span>
+          </div>
+          <div style="margin-top:14px;font-size:10px;color:var(--muted2);font-family:'DM Mono',monospace;line-height:1.5">
+            <strong>Nota:</strong> El bookmarklet captura los ads visibles en pantalla. Si no encuentra ads, hacé scroll para que carguen.
+            Funciona en cualquier país de Meta Ad Library, no solo LATAM.
+          </div>
+        </div>
+      </div>
+
+      <!-- CAPTURAS -->
+      <div id="inv-tab-capturas" class="inv-tab" style="display:block">
+        <div class="bkfit-card">
+          <div class="bkfit-card-title">📥 Capturas (<span id="inv-cap-count">0</span>)</div>
+          <div id="inv-capturas-list"></div>
+        </div>
+      </div>
+
+      <!-- PIPELINE -->
+      <div id="inv-tab-pipeline" class="inv-tab" style="display:none">
+        <div class="bkfit-card">
+          <div class="bkfit-card-title">🎯 Pipeline (próximamente)</div>
+          <div style="color:var(--muted);font-size:12px;line-height:1.6">
+            En la próxima sesión: kanban con columnas Investigación → En test → Ganador → Archivado.
+            Se conectará con tu sección Productos existente para que un ganador pase a la pipeline kanban completa.
+          </div>
+        </div>
+      </div>
+
+      <!-- ADN -->
+      <div id="inv-tab-adn" class="inv-tab" style="display:none">
+        <div class="bkfit-card">
+          <div class="bkfit-card-title">📋 Tu ADN del catálogo</div>
+          <div id="inv-adn-content"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
   <div id="section-bkfit" class="section">
     <div style="max-width:1100px;margin:0 auto">
 
@@ -2758,7 +2833,7 @@ const PRIOS = [
   {id:'baja',  label:'Baja',  color:'#4ECDC4'},
 ];
 
-let state = {products:[], suppliers:[], todos:[], videos:[], videoTemas:[], promptTemas:[], creativos:[], bkfit_workouts:[], bkfit_checkins:[], bkfit_meals:[]};
+let state = {products:[], suppliers:[], todos:[], videos:[], videoTemas:[], promptTemas:[], creativos:[], bkfit_workouts:[], bkfit_checkins:[], bkfit_meals:[], investigacion_capturas:[], investigacion_pipeline:[]};
 window._appState = state;
 let modalType=null, editId=null, prodFilter='all', todoFilter='all', ownerFilter='all';
 
@@ -2799,7 +2874,7 @@ function openMobileMenu(){
   const isAdm = currentUser===ADMIN_USER;
   links.innerHTML = ALL_SECTIONS.map(s=>{
     if(!isAdm && !perms.includes(s.id)) return '';
-    const icons = {productos:'📦',videos:'🎬',prompts:'✨',proveedores:'🏭',calculadora:'🧮',pendientes:'📋',archivo:'📁',calendario:'📅',reportes:'📊',bkfit:'🏋️'};
+    const icons = {productos:'📦',videos:'🎬',prompts:'✨',proveedores:'🏭',calculadora:'🧮',pendientes:'📋',archivo:'📁',calendario:'📅',reportes:'📊',bkfit:'🏋️',investigacion:'🔍'};
     const activeSection = document.querySelector('.section.active');
     const activeId = activeSection ? activeSection.id.replace('section-','') : '';
     return `<button class="mobile-tab${activeId===s.id?' active':''}" onclick="closeMobileMenu();switchSection('${s.id}')">
@@ -2828,6 +2903,7 @@ function switchSection(s, silent){
   if(s==='reportes') initReportes();
   if(s==='creativos') renderCreativos();
   if(s==='bkfit') bkfitInit();
+  if(s==='investigacion') bkInvInit();
 }
 
 function startRenameOwner(owner){
@@ -6338,15 +6414,16 @@ function checkAuth(){
 // ── PERMISOS ──────────────────────────────────────────────────────────────────
 
 const ALL_SECTIONS = [
-  {id:'productos',   label:'Productos'},
-  {id:'videos',      label:'Tutorial BK'},
-  {id:'prompts',     label:'Prompts'},
-  {id:'proveedores', label:'Proveedores'},
-  {id:'calculadora', label:'Calculadora'},
-  {id:'pendientes',  label:'Pendientes'},
-  {id:'reportes',    label:'Reportes'},
-  {id:'bkfit',       label:'BKfit'},
-  {id:'archivo',     label:'Archivo'},
+  {id:'productos',     label:'Productos'},
+  {id:'videos',        label:'Tutorial BK'},
+  {id:'prompts',       label:'Prompts'},
+  {id:'proveedores',   label:'Proveedores'},
+  {id:'calculadora',   label:'Calculadora'},
+  {id:'pendientes',    label:'Pendientes'},
+  {id:'reportes',      label:'Reportes'},
+  {id:'investigacion', label:'Investigación'},
+  {id:'bkfit',         label:'BKfit'},
+  {id:'archivo',       label:'Archivo'},
 ];
 
 function getDefaultPerms(){ return ALL_SECTIONS.map(s=>s.id); }
@@ -6512,6 +6589,160 @@ function addUser(){
 }
 
 document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&document.getElementById('admin-panel').classList.contains('open')) closeAdmin(); });
+
+// ── INVESTIGACIÓN ────────────────────────────────────────────────────────────
+const BK_INV_TOKEN = '79fefc735686e87bdc97525fdde50fbf93615f096b6db955';
+const BK_INV_BOOKMARKLET = `javascript:(function%20()%20%7B'use%20strict'%3Bvar%20ENDPOINT%20%3D%20'https%3A%2F%2Fbkdrop.netlify.app%2Fapi%2Fbkdrop-capture'%3Bvar%20TOKEN%20%3D%20'79fefc735686e87bdc97525fdde50fbf93615f096b6db955'%3Bfunction%20toast(msg%2C%20isError)%20%7Bvar%20t%20%3D%20document.getElementById('bk-toast')%3Bif%20(t)%20t.remove()%3Bt%20%3D%20document.createElement('div')%3Bt.id%20%3D%20'bk-toast'%3Bt.style.cssText%20%3D%20%5B'position%3Afixed'%2C%20'top%3A20px'%2C%20'right%3A20px'%2C%20'z-index%3A2147483647'%2C'background%3A'%20%2B%20(isError%20%3F%20'%23E88A8A'%20%3A%20'%235BA882')%2C%20'color%3A%23fff'%2C'padding%3A14px%2018px'%2C%20'border-radius%3A10px'%2C%20'font-family%3Asystem-ui%2Csans-serif'%2C'font-size%3A14px'%2C%20'font-weight%3A600'%2C%20'box-shadow%3A0%206px%2024px%20rgba(0%2C0%2C0%2C.25)'%2C'max-width%3A340px'%2C%20'line-height%3A1.4'%5D.join('%3B')%3Bt.textContent%20%3D%20msg%3Bdocument.body.appendChild(t)%3BsetTimeout(function%20()%20%7B%20t.style.opacity%20%3D%20'0'%3B%20t.style.transition%20%3D%20'opacity%20.4s'%3B%20%7D%2C%203500)%3BsetTimeout(function%20()%20%7B%20try%20%7B%20t.remove()%3B%20%7D%20catch%20(e)%20%7B%7D%20%7D%2C%204200)%3B%7Dif%20(!%2Ffacebook%5C.com%5C%2Fads%5C%2Flibrary%2Fi.test(location.href))%20%7Btoast('Abr%C3%AD%20esto%20en%20facebook.com%2Fads%2Flibrary'%2C%20true)%3Breturn%3B%7Dfunction%20getCountry()%20%7Bvar%20m%20%3D%20location.search.match(%2F%5B%3F%26%5Dcountry%3D(%5BA-Z%5D%7B2%7D)%2Fi)%3Breturn%20m%20%3F%20m%5B1%5D.toUpperCase()%20%3A%20''%3B%7Dvar%20country%20%3D%20getCountry()%3Bfunction%20extractFromBlock(el)%20%7Bvar%20text%20%3D%20(el.innerText%20%7C%7C%20el.textContent%20%7C%7C%20'').trim()%3Bif%20(!text)%20return%20null%3Bvar%20libMatch%20%3D%20text.match(%2F(%3F%3ALibrary%20ID%7CID%20de%20biblioteca%7CIdentificador%20de%20la%20biblioteca)%5B%3A%5Cs%5D%2B(%5Cd%7B6%2C%7D)%2Fi)%3Bvar%20library_id%20%3D%20libMatch%20%3F%20libMatch%5B1%5D%20%3A%20''%3Bvar%20startedMatch%20%3Dtext.match(%2F(%3F%3AStarted%20running%20on%7CEmpez(%3F%3A%C3%B3%7Co)%20a%20publicarse%20el%7CComenzou%20a%20ser%20veiculado%20em)%5B%3A%5Cs%5D%2B(%5B%5E%5Cn%C2%B7%5D%2B%3F)(%3F%3D%5Cs*%5B%C2%B7%5Cn%5D%7C%24)%2Fi)%20%7C%7Ctext.match(%2F(%3F%3AActive%7CActivo)%5B%3A%5Cs%5D%2B(%5Cd%2B%5Cs%2B%5Cw%2B)%2Fi)%3Bvar%20started%20%3D%20startedMatch%20%3F%20startedMatch%5B1%5D.trim().slice(0%2C%2060)%20%3A%20''%3Bvar%20page_name%20%3D%20''%3Bvar%20page_url%20%3D%20''%3Bvar%20links%20%3D%20el.querySelectorAll('a%5Bhref*%3D%22facebook.com%22%5D')%3Bfor%20(var%20i%20%3D%200%3B%20i%20%3C%20links.length%3B%20i%2B%2B)%20%7Bvar%20a%20%3D%20links%5Bi%5D%3Bvar%20t%20%3D%20(a.innerText%20%7C%7C%20a.textContent%20%7C%7C%20'').trim()%3Bif%20(!t%20%7C%7C%20t.length%20%3C%202%20%7C%7C%20t.length%20%3E%2080)%20continue%3Bif%20(%2Fsponsored%7Cpatrocinado%7Clibrary%20id%2Fi.test(t))%20continue%3Bpage_name%20%3D%20t%3Bpage_url%20%3D%20a.href%3Bbreak%3B%7Dvar%20thumb_url%20%3D%20''%3Bvar%20media_url%20%3D%20''%3Bvar%20media_type%20%3D%20''%3Bvar%20img%20%3D%20el.querySelector('img%5Bsrc*%3D%22scontent%22%5D%2C%20img%5Bsrc*%3D%22fbcdn%22%5D')%3Bif%20(img)%20thumb_url%20%3D%20img.src%3Bvar%20vid%20%3D%20el.querySelector('video')%3Bif%20(vid)%20%7Bmedia_type%20%3D%20'video'%3Bmedia_url%20%3D%20vid.src%20%7C%7C%20(vid.querySelector('source')%20%26%26%20vid.querySelector('source').src)%20%7C%7C%20''%3Bif%20(!thumb_url%20%26%26%20vid.poster)%20thumb_url%20%3D%20vid.poster%3B%7D%20else%20if%20(thumb_url)%20%7Bmedia_type%20%3D%20'image'%3B%7Dreturn%20%7Blibrary_id%3A%20library_id%2Cpage_name%3A%20page_name%2Cpage_url%3A%20page_url%2Cstarted%3A%20started%2Ctext%3A%20text.slice(0%2C%201500)%2Cthumb_url%3A%20thumb_url%2Cmedia_url%3A%20media_url%2Cmedia_type%3A%20media_type%2Csource_url%3A%20location.href%2Ccountry%3A%20country%2Craw_excerpt%3A%20text.slice(0%2C%201200)%7D%3B%7Dfunction%20findAdCards()%20%7Bvar%20bodyText%20%3D%20(document.body.innerText%20%7C%7C%20'').toLowerCase()%3Bvar%20hasIds%20%3D%20%2F(library%20id%7Cid%20de%20biblioteca%7Cidentificador%20de%20la%20biblioteca)%2F.test(bodyText)%3Bif%20(!hasIds)%20return%20%5B%5D%3Bvar%20all%20%3D%20document.querySelectorAll('div')%3Bvar%20seen%20%3D%20new%20Set()%3Bvar%20cards%20%3D%20%5B%5D%3Bfor%20(var%20i%20%3D%200%3B%20i%20%3C%20all.length%3B%20i%2B%2B)%20%7Bvar%20d%20%3D%20all%5Bi%5D%3Bvar%20t%20%3D%20(d.innerText%20%7C%7C%20'').slice(0%2C%20200).toLowerCase()%3Bif%20(!%2F(library%20id%7Cid%20de%20biblioteca%7Cidentificador%20de%20la%20biblioteca)%2F.test(t))%20continue%3Bvar%20el%20%3D%20d%3Bwhile%20(el%20%26%26%20el%20!%3D%3D%20document.body)%20%7Bvar%20r%20%3D%20el.getBoundingClientRect()%3Bif%20(r.height%20%3E%20200%20%26%26%20r.height%20%3C%201800%20%26%26%20r.width%20%3E%20200)%20break%3Bel%20%3D%20el.parentElement%3B%7Dif%20(!el%20%7C%7C%20el%20%3D%3D%3D%20document.body)%20continue%3Bif%20(seen.has(el))%20continue%3Bseen.add(el)%3Bcards.push(el)%3B%7Dreturn%20cards%3B%7Dvar%20cards%20%3D%20findAdCards()%3Bif%20(!cards.length)%20%7Btoast('No%20encontr%C3%A9%20ads%20en%20pantalla.%20Hac%C3%A9%20scroll%20y%20volv%C3%A9%20a%20clickear.'%2C%20true)%3Breturn%3B%7Dvar%20ads%20%3D%20%5B%5D%3Bfor%20(var%20i%20%3D%200%3B%20i%20%3C%20cards.length%3B%20i%2B%2B)%20%7Bvar%20data%20%3D%20extractFromBlock(cards%5Bi%5D)%3Bif%20(data%20%26%26%20(data.library_id%20%7C%7C%20data.page_name))%20ads.push(data)%3B%7Dif%20(!ads.length)%20%7Btoast('No%20pude%20extraer%20datos%20de%20los%20ads%20visibles.'%2C%20true)%3Breturn%3B%7Dtoast('%F0%9F%93%A4%20Enviando%20'%20%2B%20ads.length%20%2B%20'%20ad'%20%2B%20(ads.length%20%3E%201%20%3F%20's'%20%3A%20'')%20%2B%20'%20a%20BKDROP...')%3Bfetch(ENDPOINT%2C%20%7Bmethod%3A%20'POST'%2Cheaders%3A%20%7B%20'Content-Type'%3A%20'application%2Fjson'%2C%20'X-BK-Capture-Token'%3A%20TOKEN%20%7D%2Cbody%3A%20JSON.stringify(%7B%20ads%3A%20ads%20%7D)%7D).then(function%20(r)%20%7B%20return%20r.json().then(function%20(j)%20%7B%20return%20%7B%20ok%3A%20r.ok%2C%20j%3A%20j%20%7D%3B%20%7D)%3B%20%7D).then(function%20(res)%20%7Bif%20(res.ok)%20toast('%E2%9C%85%20'%20%2B%20res.j.saved%20%2B%20'%20ads%20guardados.%20Abr%C3%AD%20BKDROP%20%E2%86%92%20Investigaci%C3%B3n%20%E2%86%92%20Sincronizar.')%3Belse%20toast('%E2%9D%8C%20Error%3A%20'%20%2B%20(res.j.error%20%7C%7C%20'desconocido')%2C%20true)%3B%7D).catch(function%20(e)%20%7B%20toast('%E2%9D%8C%20Network%3A%20'%20%2B%20e.message%2C%20true)%3B%20%7D)%3B%7D)()%3B`;
+
+const BK_ADN = {
+  pilares: [
+    { emoji:'🚗', label:'Auto y Vehículo',     share:35.6, ej:['Pack Fundas Auto','Pantalla Smart 10"','Hidrolavadora Portátil','Cojín Gel'] },
+    { emoji:'🧹', label:'Limpieza Hogar',      share:18.1, ej:['Mopa Vapor Pro','Aspiradora Sopladora 2 en 1','TurboSoplador PRO'] },
+    { emoji:'💡', label:'Iluminación',         share:12.0, ej:['4x1 Luminaria Solar LED 30 luces','Sensor Movimiento'] },
+    { emoji:'🍳', label:'Cocina y Gadgets',    share:10.4, ej:['CocinaPro 22 Cortes','Katana Blade','Picadora Eléctrica'] },
+    { emoji:'👔', label:'Lifestyle/Confort',   share: 9.5, ej:['Cojín Gel','Billetera Moderna','Cinturón'] },
+    { emoji:'💪', label:'Fitness',             share: 4.5, ej:['FitPro','Bandas PRO','Rodillo Fitness'] },
+    { emoji:'🔊', label:'Audio',               share: 2.7, ej:['Altavoz Magnético'] },
+    { emoji:'📦', label:'Organización',        share: 1.8, ej:['EasyStick Vinilo','Pinza Broches'] },
+    { emoji:'🔧', label:'Herramientas',        share: 1.1, ej:['Amoladora Angular','PerfilExacto'] },
+    { emoji:'📱', label:'Accesorios Móviles',  share: 1.0, ej:['MagPro','Cargador Inalámbrico'] }
+  ],
+  excluidos: [
+    { emoji:'💄', label:'Belleza/Skincare' },
+    { emoji:'🦠', label:'Tratamientos corporales (verrugas, hongos, hemorroides, uñas, reductoras)' },
+    { emoji:'🧸', label:'Juguetes/Niños' },
+    { emoji:'👓', label:'Óptica/Lentes' },
+    { emoji:'🧣', label:'Frío/Invierno' }
+  ],
+  sweet_spot_clp: '$15.000 - $80.000 CLP',
+  pattern: 'wow factor visual + soluciona problema cotidiano + demo en 15 segundos',
+  base: '15.413 pedidos · 300 productos · $656M CLP revenue del último año'
+};
+
+function bkInvInit(){
+  if(!state.investigacion_capturas) state.investigacion_capturas = [];
+  if(!state.investigacion_pipeline) state.investigacion_pipeline = [];
+  bkInvRenderCapturas();
+  bkInvRenderADN();
+}
+
+function switchInvTab(tab){
+  document.querySelectorAll('#section-investigacion .report-subtab').forEach(b=>b.classList.toggle('active', b.dataset.tab===tab));
+  document.querySelectorAll('#section-investigacion .inv-tab').forEach(t=>t.style.display='none');
+  document.getElementById('inv-tab-'+tab).style.display='block';
+  if(tab==='capturas') bkInvRenderCapturas();
+  if(tab==='adn')      bkInvRenderADN();
+}
+
+function bkInvCopyBookmarklet(){
+  const s = document.getElementById('inv-bm-status');
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(BK_INV_BOOKMARKLET).then(()=>{
+      s.textContent = '✅ Copiado. Pegalo como URL del favorito.';
+      s.style.color = 'var(--accent)';
+      setTimeout(()=>s.textContent='', 6000);
+    }).catch(e=>{
+      s.textContent = '❌ No se pudo copiar: ' + e.message;
+    });
+  } else {
+    // Fallback: textarea
+    const ta = document.createElement('textarea');
+    ta.value = BK_INV_BOOKMARKLET;
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); s.textContent='✅ Copiado.'; }
+    catch(e){ s.textContent='❌ Tu navegador no soporta copiar. Seleccioná manualmente.'; }
+    ta.remove();
+  }
+}
+
+async function bkInvSync(){
+  const btn = event && event.target;
+  const oldText = btn ? btn.textContent : '';
+  if(btn){ btn.disabled = true; btn.textContent = '⏳ Sincronizando...'; }
+  try {
+    const r = await fetch('/api/bkdrop-captures-drain', {
+      method:'POST',
+      headers:{ 'X-BK-Capture-Token': BK_INV_TOKEN }
+    });
+    const j = await r.json();
+    if(!r.ok){ alert('Error: ' + (j.error || r.status)); return; }
+    if(!j.count){ alert('Sin nuevas capturas en la cola.'); return; }
+    if(!state.investigacion_capturas) state.investigacion_capturas = [];
+    const existingIds = new Set(state.investigacion_capturas.map(c=>c.id));
+    const newOnes = j.items.filter(c=>!existingIds.has(c.id));
+    state.investigacion_capturas.push(...newOnes);
+    save();
+    bkInvRenderCapturas();
+    alert('✅ ' + newOnes.length + ' capturas sincronizadas.');
+  } catch(e){
+    alert('Error de red: ' + e.message);
+  } finally {
+    if(btn){ btn.disabled = false; btn.textContent = oldText; }
+  }
+}
+
+function bkInvRenderCapturas(){
+  const list = (state.investigacion_capturas || []).slice().sort((a,b)=>b.captured_at - a.captured_at);
+  const cnt = document.getElementById('inv-cap-count');
+  if(cnt) cnt.textContent = list.length;
+  const el = document.getElementById('inv-capturas-list');
+  if(!el) return;
+  if(!list.length){
+    el.innerHTML = '<div style="color:var(--muted2);font-size:12px;text-align:center;padding:24px">Sin capturas todavía. Andá a "Instalar bookmarklet" → seguí los pasos → empezá a capturar desde Meta Ad Library.</div>';
+    return;
+  }
+  el.innerHTML = list.map(c => `
+    <div style="border:1.5px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px;background:var(--surface2)">
+      <div style="display:flex;gap:12px">
+        ${c.thumb_url ? `<img src="${esc(c.thumb_url)}" style="width:80px;height:80px;object-fit:cover;border-radius:8px;flex-shrink:0" onerror="this.style.display='none'">` : '<div style="width:80px;height:80px;background:var(--border);border-radius:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:24px">📷</div>'}
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:700;color:var(--text);font-family:'DM Mono',monospace">${esc(c.page_name || 'Sin nombre')}${c.country?' · '+esc(c.country):''}</div>
+          <div style="font-size:11px;color:var(--muted);margin:4px 0;font-family:'DM Mono',monospace">${esc(c.started || 'Sin fecha')}${c.library_id ? ' · ID '+esc(c.library_id) : ''}</div>
+          <div style="font-size:11px;color:var(--text);line-height:1.4;max-height:60px;overflow:hidden">${esc((c.text||'').slice(0,260))}${c.text && c.text.length>260 ? '…' : ''}</div>
+        </div>
+        <button onclick="bkInvDelCaptura('${c.id}')" style="background:none;border:none;color:var(--muted2);cursor:pointer;font-size:14px;padding:4px 8px;border-radius:6px;align-self:flex-start" title="Eliminar">✕</button>
+      </div>
+      ${c.source_url ? `<div style="margin-top:8px;display:flex;gap:12px;flex-wrap:wrap"><a href="${esc(c.source_url)}" target="_blank" rel="noopener" style="font-size:10px;color:var(--accent);font-family:'DM Mono',monospace;text-decoration:none">↗ Ver en Meta Ad Library</a>${c.page_url ? `<a href="${esc(c.page_url)}" target="_blank" rel="noopener" style="font-size:10px;color:var(--accent);font-family:'DM Mono',monospace;text-decoration:none">↗ Ver página</a>` : ''}</div>` : ''}
+    </div>
+  `).join('');
+}
+
+function bkInvDelCaptura(id){
+  if(!confirm('¿Eliminar esta captura?')) return;
+  state.investigacion_capturas = (state.investigacion_capturas || []).filter(c=>c.id!==id);
+  save();
+  bkInvRenderCapturas();
+}
+
+function bkInvRenderADN(){
+  const el = document.getElementById('inv-adn-content');
+  if(!el) return;
+  el.innerHTML = `
+    <div style="font-size:12px;color:var(--muted);font-family:'DM Mono',monospace;margin-bottom:14px;padding:10px;background:var(--surface2);border-radius:8px">
+      <strong>Base:</strong> ${BK_ADN.base}<br>
+      <strong>Sweet spot:</strong> ${BK_ADN.sweet_spot_clp}<br>
+      <strong>Patrón ganador:</strong> ${BK_ADN.pattern}
+    </div>
+    <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:13px;margin:12px 0 6px;color:var(--text)">✅ Categorías que SÍ buscamos</div>
+    ${BK_ADN.pilares.map(p => `
+      <div style="display:flex;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
+        <div style="font-size:18px;width:30px;text-align:center">${p.emoji}</div>
+        <div style="flex:1">
+          <div style="font-size:13px;color:var(--text);font-family:'DM Mono',monospace;font-weight:700">${esc(p.label)}</div>
+          <div style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">${p.ej.join(' · ')}</div>
+        </div>
+        <div style="font-size:14px;color:var(--accent);font-weight:700;font-family:'DM Mono',monospace">${p.share}%</div>
+      </div>
+    `).join('')}
+    <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:13px;margin:18px 0 6px;color:var(--text)">❌ Categorías excluidas</div>
+    ${BK_ADN.excluidos.map(e => `
+      <div style="display:flex;gap:10px;align-items:center;padding:6px 0">
+        <div style="font-size:16px;width:30px;text-align:center">${e.emoji}</div>
+        <div style="font-size:12px;color:var(--muted);font-family:'DM Mono',monospace">${esc(e.label)}</div>
+      </div>
+    `).join('')}
+  `;
+}
 
 // ── BKFIT ────────────────────────────────────────────────────────────────────
 const BKFIT_PESO = 80;

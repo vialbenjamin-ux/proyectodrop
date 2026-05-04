@@ -1,0 +1,74 @@
+// Endpoint que recibe ads capturados desde el bookmarklet de Meta Ad Library.
+// Cola: cada captura se guarda como un blob en el store "bk-captures".
+// BKDROP UI llama luego a /api/bkdrop-captures-list para drenar la cola y persistirlas en Firestore.
+
+import { getStore } from '@netlify/blobs';
+
+function corsHeaders() {
+  return {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, X-BK-Capture-Token',
+  };
+}
+function jsonResponse(status, payload) {
+  return new Response(JSON.stringify(payload), {
+    status,
+    headers: { 'Content-Type': 'application/json', ...corsHeaders() },
+  });
+}
+function genId() {
+  return Math.random().toString(36).slice(2, 11) + Date.now().toString(36);
+}
+
+export default async (request) => {
+  if (request.method === 'OPTIONS') return new Response('', { status: 204, headers: corsHeaders() });
+  if (request.method !== 'POST')   return jsonResponse(405, { error: 'Method not allowed' });
+
+  const expected = Netlify.env.get('BKDROP_CAPTURE_TOKEN');
+  if (!expected) return jsonResponse(500, { error: 'BKDROP_CAPTURE_TOKEN no configurado' });
+  const got = request.headers.get('x-bk-capture-token');
+  if (got !== expected) return jsonResponse(401, { error: 'Token inválido' });
+
+  let body;
+  try { body = await request.json(); }
+  catch { return jsonResponse(400, { error: 'JSON inválido' }); }
+
+  const ads = Array.isArray(body.ads) ? body.ads : [body];
+  if (!ads.length) return jsonResponse(400, { error: 'Faltan ads' });
+
+  const now = Date.now();
+  const cleaned = ads.map(a => ({
+    id:           genId(),
+    captured_at:  now,
+    source_url:   String(a.source_url || '').slice(0, 600),
+    page_url:     String(a.page_url   || '').slice(0, 600),
+    library_id:   String(a.library_id || '').slice(0, 80),
+    page_name:    String(a.page_name  || '').slice(0, 200),
+    country:      String(a.country    || '').slice(0, 4),
+    started:      String(a.started    || '').slice(0, 60),
+    media_type:   String(a.media_type || '').slice(0, 20),
+    text:         String(a.text       || '').slice(0, 2000),
+    media_url:    String(a.media_url  || '').slice(0, 600),
+    thumb_url:    String(a.thumb_url  || '').slice(0, 600),
+    raw_excerpt:  String(a.raw_excerpt|| '').slice(0, 1500),
+    status:       'new',
+    adn_score:    null,
+    adn_match:    null,
+    saturation_chile: null,
+    notes:        ''
+  }));
+
+  try {
+    const store = getStore('bk-captures');
+    for (const c of cleaned) {
+      await store.setJSON(c.id, c);
+    }
+  } catch (e) {
+    return jsonResponse(500, { error: 'Blob store: ' + e.message });
+  }
+
+  return jsonResponse(200, { ok: true, saved: cleaned.length, ids: cleaned.map(c => c.id) });
+};
+
+export const config = { path: '/api/bkdrop-capture' };
