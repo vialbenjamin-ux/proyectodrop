@@ -1,6 +1,8 @@
-// Lista las ad accounts disponibles con el token configurado.
+// Lista las ad accounts disponibles con los tokens configurados.
+// Soporta hasta 2 tokens (META_ACCESS_TOKEN y META_ACCESS_TOKEN_2) para
+// poder mostrar cuentas de dos perfiles distintos en el mismo dropdown.
 // Endpoint: GET /.netlify/functions/meta-ad-accounts
-// Responde: { accounts: [{ id, name, currency, status }] }
+// Responde: { accounts: [{ id, name, currency, status, tokenIdx }] }
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') {
@@ -10,31 +12,52 @@ exports.handler = async (event) => {
     return respond(405, { error: 'Method not allowed' });
   }
 
-  const token = process.env.META_ACCESS_TOKEN;
-  if (!token) {
+  const tokens = [
+    { tenant: 'chile', token: process.env.META_ACCESS_TOKEN },
+    { tenant: 'gt',    token: process.env.META_ACCESS_TOKEN_GT },
+  ].filter(t => t.token);
+
+  if (!tokens.length) {
     return respond(500, { error: 'META_ACCESS_TOKEN no configurada en el servidor' });
   }
 
-  const url = `https://graph.facebook.com/v19.0/me/adaccounts?fields=id,name,account_status,currency&limit=200&access_token=${encodeURIComponent(token)}`;
+  const allAccounts = [];
+  const errors = [];
 
-  try {
-    const resp = await fetch(url);
-    const data = await resp.json();
-    if (!resp.ok) {
-      return respond(resp.status, { error: data?.error?.message || 'Error consultando Meta' });
+  // Permite filtrar a un solo tenant si viene ?tenant=gt|chile
+  const params = event.queryStringParameters || {};
+  const filterTenant = (params.tenant || '').toLowerCase();
+  const tokensToUse = filterTenant ? tokens.filter(t => t.tenant === filterTenant) : tokens;
+
+  for (const { tenant, token } of tokensToUse) {
+    const url = `https://graph.facebook.com/v19.0/me/adaccounts?fields=id,name,account_status,currency&limit=200&access_token=${encodeURIComponent(token)}`;
+    try {
+      const resp = await fetch(url);
+      const data = await resp.json();
+      if (!resp.ok) {
+        errors.push({ tenant, error: data?.error?.message || ('HTTP ' + resp.status) });
+        continue;
+      }
+      (data.data || []).forEach(a => {
+        allAccounts.push({
+          id: a.id,
+          name: a.name,
+          currency: a.currency,
+          status: a.account_status,
+          tenant,
+        });
+      });
+    } catch (err) {
+      errors.push({ tenant, error: err.message || 'Error consultando Meta' });
     }
-    const accounts = (data.data || []).map(a => ({
-      id: a.id,
-      name: a.name,
-      currency: a.currency,
-      // 1=ACTIVE, 2=DISABLED, 3=UNSETTLED, 7=PENDING_RISK_REVIEW, 8=PENDING_SETTLEMENT,
-      // 9=IN_GRACE_PERIOD, 100=PENDING_CLOSURE, 101=CLOSED, 201=ANY_ACTIVE, 202=ANY_CLOSED
-      status: a.account_status,
-    }));
-    return respond(200, { accounts });
-  } catch (err) {
-    return respond(500, { error: err.message || 'Error consultando Meta' });
   }
+
+  // Si TODOS los tokens fallaron, devolver error
+  if (allAccounts.length === 0 && errors.length > 0) {
+    return respond(500, { error: errors.map(e => `${e.tenant.toUpperCase()}: ${e.error}`).join(' · ') });
+  }
+
+  return respond(200, { accounts: allAccounts, errors });
 };
 
 function corsHeaders() {

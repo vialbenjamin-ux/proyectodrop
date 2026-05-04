@@ -2,11 +2,13 @@
 // observando los productos vendidos en los últimos 30 días en Shopify.
 // Devuelve mediana de mult 1u/2u/3u y umbrales de costo para 2x1/3x1.
 
-exports.handler = async function () {
-  const token = process.env.SHOPIFY_TOKEN;
-  const domain = process.env.SHOPIFY_DOMAIN;
+exports.handler = async function (event) {
+  const tenant = String(((event && event.queryStringParameters || {}).tenant || 'chile')).toLowerCase();
+  const isGT = (tenant === 'gt');
+  const token  = isGT ? process.env.SHOPIFY_TOKEN_GT  : process.env.SHOPIFY_TOKEN;
+  const domain = isGT ? process.env.SHOPIFY_DOMAIN_GT : process.env.SHOPIFY_DOMAIN;
   if (!token || !domain) {
-    return respond(500, { error: 'Faltan credenciales de Shopify' });
+    return respond(500, { error: 'Faltan credenciales de Shopify' + (isGT ? ' GT' : '') });
   }
 
   const now = new Date();

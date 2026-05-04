@@ -1,12 +1,14 @@
 exports.handler = async function (event) {
-  const token = process.env.SHOPIFY_TOKEN;
-  const domain = process.env.SHOPIFY_DOMAIN;
+  const tenant = String(((event.queryStringParameters || {}).tenant || 'chile')).toLowerCase();
+  const isGT = (tenant === 'gt');
+  const token  = isGT ? process.env.SHOPIFY_TOKEN_GT  : process.env.SHOPIFY_TOKEN;
+  const domain = isGT ? process.env.SHOPIFY_DOMAIN_GT : process.env.SHOPIFY_DOMAIN;
 
   if (!token || !domain) {
     return {
       statusCode: 500,
       headers: { 'Access-Control-Allow-Origin': '*' },
-      body: JSON.stringify({ error: 'Faltan credenciales de Shopify' })
+      body: JSON.stringify({ error: 'Faltan credenciales de Shopify' + (isGT ? ' GT' : '') })
     };
   }
 

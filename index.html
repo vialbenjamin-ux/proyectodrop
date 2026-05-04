@@ -780,6 +780,9 @@
   }
 
   /* Sub-tabs en Reportes (Shopify / Meta Ads) */
+  .tenant-btn{background:var(--surface);border:1.5px solid var(--border);color:var(--muted);border-radius:18px;padding:5px 14px;font-size:11px;cursor:pointer;font-family:'DM Mono',monospace;letter-spacing:.3px;transition:all .15s}
+  .tenant-btn:hover{border-color:var(--accent);color:var(--text)}
+  .tenant-btn.active{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
   .report-subtabs{display:flex;gap:4px;margin-bottom:24px;border-bottom:1.5px solid var(--border);flex-wrap:wrap}
   .report-subtab{background:none;border:none;border-bottom:2px solid transparent;padding:10px 18px;font-size:12px;color:var(--muted);cursor:pointer;font-family:'DM Mono',monospace;letter-spacing:.8px;margin-bottom:-1.5px;transition:all .15s}
   .report-subtab:hover{color:var(--text)}
@@ -1576,6 +1579,14 @@
 
   <div id="section-reportes" class="section">
     <div style="max-width:1100px;margin:0 auto">
+
+      <!-- Selector de tenant (Chile / GT) -->
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+        <span style="font-size:10px;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;font-family:'DM Mono',monospace">Reporte:</span>
+        <button id="tenant-btn-chile" class="tenant-btn active" onclick="switchTenant('chile')">🇨🇱 Chile</button>
+        <button id="tenant-btn-gt" class="tenant-btn" onclick="switchTenant('gt')">🇬🇹 Reporte GT</button>
+        <span id="tenant-current-label" style="font-size:11px;color:var(--muted2);font-family:'DM Mono',monospace;margin-left:8px"></span>
+      </div>
 
       <!-- Sub-tabs Shopify / Meta Ads / Cruce -->
       <div class="report-subtabs">
@@ -7910,7 +7921,10 @@ async function fetchShopifyReport() {
     params = '?date_from=' + dateFrom + '&date_to=' + dateTo;
   } else if (dateFrom) {
     params = '?date=' + dateFrom;
+  } else {
+    params = '?';
   }
+  params += tenantParam();
 
   try {
     var res = await fetch('/.netlify/functions/shopify-report' + params);
@@ -8074,6 +8088,7 @@ function initReportes() {
   document.getElementById('reporte-date-to').value = today;
   document.getElementById('reporte-fecha').textContent =
     '📅 ' + new Date().toLocaleDateString('es-CL', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  refreshTenantUI();
   // Restaurar última tab elegida
   const lastTab = localStorage.getItem('bkdrop_report_tab') || 'shopify';
   switchReportTab(lastTab);
@@ -8258,6 +8273,39 @@ function preciosRow(label, price, hint, perUnitNote, primary, etiqueta) {
 
 // ── REPORTES — sub-tabs Shopify / Meta Ads ────────────────────────────────────
 
+function switchTenant(t){
+  if (t !== 'chile' && t !== 'gt') return;
+  setCurrentTenant(t);
+  // Toggle visual de los botones
+  const btnC = document.getElementById('tenant-btn-chile');
+  const btnG = document.getElementById('tenant-btn-gt');
+  if (btnC) btnC.classList.toggle('active', t === 'chile');
+  if (btnG) btnG.classList.toggle('active', t === 'gt');
+  const lbl = document.getElementById('tenant-current-label');
+  if (lbl) lbl.textContent = '· ' + (t === 'gt' ? 'datos de Guatemala' : 'datos de Chile');
+  // Invalidar cachés que dependen del tenant
+  _metaAccountsLoaded = false;
+  _tfAccountsLoaded = false;
+  try { _crossAccountsLoaded = false; } catch(_) {}
+  // Re-ejecutar la sub-tab activa con el nuevo tenant
+  const activeTab = localStorage.getItem('bkdrop_report_tab') || 'shopify';
+  if (activeTab === 'shopify') fetchShopifyReport();
+  if (activeTab === 'meta') initMetaTab();
+  if (activeTab === 'cross') initCrossTab();
+  if (activeTab === 'topflop') initTopFlopTab();
+}
+
+// Refresca el label del tenant al inicializar reportes (lee de localStorage)
+function refreshTenantUI(){
+  const t = getCurrentTenant();
+  const btnC = document.getElementById('tenant-btn-chile');
+  const btnG = document.getElementById('tenant-btn-gt');
+  if (btnC) btnC.classList.toggle('active', t === 'chile');
+  if (btnG) btnG.classList.toggle('active', t === 'gt');
+  const lbl = document.getElementById('tenant-current-label');
+  if (lbl) lbl.textContent = '· ' + (t === 'gt' ? 'datos de Guatemala' : 'datos de Chile');
+}
+
 function switchReportTab(tab){
   document.querySelectorAll('.report-subtab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
   document.getElementById('report-tab-shopify').style.display = tab === 'shopify' ? '' : 'none';
@@ -8332,9 +8380,9 @@ async function fetchTopFlopReport(){
     const since = document.getElementById('tf-date-from').value;
     const until = document.getElementById('tf-date-to').value;
     if (!since || !until) { showTfError('Completa el rango de fechas'); return; }
-    url = `/.netlify/functions/cross-report?account_id=${encodeURIComponent(accountId)}&since=${since}&until=${until}`;
+    url = `/.netlify/functions/cross-report?account_id=${encodeURIComponent(accountId)}&since=${since}&until=${until}${metaTokenParam(accountId)}`;
   } else {
-    url = `/.netlify/functions/cross-report?account_id=${encodeURIComponent(accountId)}&date_preset=${encodeURIComponent(preset)}`;
+    url = `/.netlify/functions/cross-report?account_id=${encodeURIComponent(accountId)}&date_preset=${encodeURIComponent(preset)}${metaTokenParam(accountId)}`;
   }
   document.getElementById('tf-loading').style.display = '';
   document.getElementById('tf-loading').textContent = 'Cargando ranking…';
@@ -8459,29 +8507,57 @@ async function initMetaTab(){
 
 // Trae las ad accounts con cache de 1h en localStorage. Evita pegarle al
 // endpoint Meta cada vez que se cambia de tab o se refresca.
+// Tenant actual ('chile' | 'gt'). Persistido para mantener la selección
+// entre recargas. Cuando es 'gt' las funciones del backend usan las
+// credenciales GT (Shopify GT + Meta GT).
+function getCurrentTenant(){
+  return localStorage.getItem('bkdrop_tenant') || 'chile';
+}
+function setCurrentTenant(t){
+  localStorage.setItem('bkdrop_tenant', t);
+}
+function tenantParam(){
+  const t = getCurrentTenant();
+  return (t && t !== 'chile') ? '&tenant=' + t : '';
+}
+
+// Mapping account_id → tenant ('chile' o 'gt') en base a meta-ad-accounts
+window._metaTenantByAccount = window._metaTenantByAccount || {};
+
+// Compat: muchas URLs ya tienen un metaTokenParam(accountId) — lo redirijo
+// a tenantParam() ignorando el accountId (siempre usa el tenant actual).
+function metaTokenParam(_accountId){ return tenantParam(); }
+
 async function getAdAccountsCached(){
-  const CACHE_KEY = 'bkdrop_meta_accounts_cache_v2';
+  const tenant = getCurrentTenant();
+  const CACHE_KEY = 'bkdrop_meta_accounts_cache_v4_' + tenant;
   const TTL = 3600000; // 1 hora
+  let accounts = null;
   try {
     const raw = localStorage.getItem(CACHE_KEY);
     if (raw){
       const c = JSON.parse(raw);
       if (c.at && (Date.now() - c.at) < TTL && Array.isArray(c.accounts) && c.accounts.length){
-        return c.accounts;
+        accounts = c.accounts;
       }
     }
   } catch {}
-  const resp = await fetch('/.netlify/functions/meta-ad-accounts');
-  const data = await resp.json();
-  if (!resp.ok) throw new Error(data.error || 'HTTP '+resp.status);
-  const accounts = data.accounts || [];
-  if (accounts.length) localStorage.setItem(CACHE_KEY, JSON.stringify({ at: Date.now(), accounts }));
+  if (!accounts){
+    const resp = await fetch('/.netlify/functions/meta-ad-accounts?tenant=' + encodeURIComponent(tenant));
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'HTTP '+resp.status);
+    accounts = data.accounts || [];
+    if (accounts.length) localStorage.setItem(CACHE_KEY, JSON.stringify({ at: Date.now(), accounts }));
+  }
+  // Mapping global account → tenant (todas serán del tenant actual)
+  window._metaTenantByAccount = {};
+  accounts.forEach(a => { if (a.tenant) window._metaTenantByAccount[a.id] = a.tenant; });
   return accounts;
 }
 
 function fillAccountSelect(sel, accounts){
   if (!accounts.length){ sel.innerHTML = '<option value="">Sin cuentas</option>'; return; }
-  const saved = localStorage.getItem('bkdrop_meta_account') || accounts[0].id;
+  const saved = localStorage.getItem('bkdrop_meta_account_' + getCurrentTenant()) || accounts[0].id;
   sel.innerHTML = accounts.map(a=>{
     const isActive = a.status === 1;
     const label = `${a.name} (${a.currency})${isActive ? '' : ' · inactiva'}`;
@@ -8860,7 +8936,7 @@ async function cargarCampañasCruce(){
   if (!accountId){ if (list) list.innerHTML = '<div class="creativo-campaña-error">Selecciona una cuenta</div>'; return; }
   if (list) list.innerHTML = '<div class="creativo-campaña-loading">Consultando Cruce real… (puede tardar 5-15s)</div>';
   try {
-    const r = await fetch(`/.netlify/functions/cross-report?account_id=${encodeURIComponent(accountId)}&date_preset=${encodeURIComponent(preset)}`);
+    const r = await fetch(`/.netlify/functions/cross-report?account_id=${encodeURIComponent(accountId)}&date_preset=${encodeURIComponent(preset)}${metaTokenParam(accountId)}`);
     const data = await r.json();
     if (!r.ok) throw new Error(data.error || 'error');
     const camps = (data.byCampaign || []).filter(c => c.spend > 0);
@@ -8924,7 +9000,7 @@ async function refrescarCruce(){
   const btn = document.getElementById('cre-btn-refresh');
   if (btn){ btn.disabled = true; btn.textContent = '↻ Cargando…'; }
   try {
-    const r = await fetch(`/.netlify/functions/cross-report?account_id=${encodeURIComponent(src.accountId)}&date_preset=${encodeURIComponent(src.datePreset)}`);
+    const r = await fetch(`/.netlify/functions/cross-report?account_id=${encodeURIComponent(src.accountId)}&date_preset=${encodeURIComponent(src.datePreset)}${metaTokenParam(src.accountId)}`);
     const data = await r.json();
     if (!r.ok) throw new Error(data.error || 'error');
     const c = (data.byCampaign || []).find(x => x.id === src.campaignId);
@@ -8981,7 +9057,7 @@ async function generarBackupMeta(scope){
       const id = accountIds[i];
       if (status) status.textContent = `Cuenta ${i+1}/${accountIds.length}: ${id}…`;
       try {
-        const r = await fetch('/.netlify/functions/meta-backup?account_id=' + encodeURIComponent(id));
+        const r = await fetch('/.netlify/functions/meta-backup?account_id=' + encodeURIComponent(id) + metaTokenParam(id));
         const text = await r.text();
         let data;
         try { data = JSON.parse(text); }
@@ -9180,8 +9256,8 @@ async function fetchMetaAds(){
     // Fetch en paralelo: Meta insights (rápido) y cross-report (incluye Shopify, más lento).
     // Si cross-report falla, igualmente mostramos Meta solo.
     const [metaResp, crossResp] = await Promise.all([
-      fetch(`/.netlify/functions/meta-ads-insights?account_id=${encodeURIComponent(accountId)}&date_preset=${encodeURIComponent(preset)}`),
-      fetch(`/.netlify/functions/cross-report?account_id=${encodeURIComponent(accountId)}&date_preset=${encodeURIComponent(preset)}`).catch(()=>null),
+      fetch(`/.netlify/functions/meta-ads-insights?account_id=${encodeURIComponent(accountId)}&date_preset=${encodeURIComponent(preset)}${metaTokenParam(accountId)}`),
+      fetch(`/.netlify/functions/cross-report?account_id=${encodeURIComponent(accountId)}&date_preset=${encodeURIComponent(preset)}${metaTokenParam(accountId)}`).catch(()=>null),
     ]);
     const data = await metaResp.json();
     if (!metaResp.ok) throw new Error(data.error || 'HTTP '+metaResp.status);
@@ -9332,7 +9408,8 @@ async function toggleAdsets(campaignId){
 
   wrap.innerHTML = '<div class="meta-adsets-loading"><span class="bk-spinner"></span> Cargando conjuntos de anuncios…</div>';
   try {
-    const resp = await fetch(`/.netlify/functions/meta-adsets?campaign_id=${encodeURIComponent(campaignId)}&date_preset=${encodeURIComponent(preset)}`);
+    const accId = document.getElementById('meta-account-select')?.value || '';
+    const resp = await fetch(`/.netlify/functions/meta-adsets?campaign_id=${encodeURIComponent(campaignId)}&date_preset=${encodeURIComponent(preset)}${metaTokenParam(accId)}`);
     const data = await resp.json();
     if (!resp.ok) throw new Error(data.error || 'HTTP '+resp.status);
     const rows = data.rows || [];
@@ -9930,7 +10007,7 @@ async function fetchCrossReport(){
     const since = document.getElementById('cross-date-from')?.value;
     const until = document.getElementById('cross-date-to')?.value;
     if (!since || !until) { if (loading) loading.textContent = 'Elegí Desde y Hasta para el rango personalizado'; return; }
-    currentUrl = `/.netlify/functions/cross-report?account_id=${encodeURIComponent(accountId)}&since=${since}&until=${until}`;
+    currentUrl = `/.netlify/functions/cross-report?account_id=${encodeURIComponent(accountId)}&since=${since}&until=${until}${metaTokenParam(accountId)}`;
     // Período anterior de igual duración (días totales)
     const days = Math.round((new Date(until + 'T12:00:00Z') - new Date(since + 'T12:00:00Z')) / 86400000) + 1;
     prevRange = {
@@ -9939,7 +10016,7 @@ async function fetchCrossReport(){
       label: `${days} día${days === 1 ? '' : 's'} anteriores`
     };
   } else {
-    currentUrl = `/.netlify/functions/cross-report?account_id=${encodeURIComponent(accountId)}&date_preset=${encodeURIComponent(preset)}`;
+    currentUrl = `/.netlify/functions/cross-report?account_id=${encodeURIComponent(accountId)}&date_preset=${encodeURIComponent(preset)}${metaTokenParam(accountId)}`;
     prevRange = getPreviousRangeForPreset(preset);
   }
 
@@ -10309,7 +10386,8 @@ async function toggleCrossCamp(idx){
     const cid = adsetsWrap.dataset.cid;
     const preset = document.getElementById('cross-date-preset')?.value || 'last_7d';
     try {
-      const resp = await fetch(`/.netlify/functions/meta-adsets?campaign_id=${encodeURIComponent(cid)}&date_preset=${encodeURIComponent(preset)}`);
+      const accId = document.getElementById('cross-account-select')?.value || '';
+      const resp = await fetch(`/.netlify/functions/meta-adsets?campaign_id=${encodeURIComponent(cid)}&date_preset=${encodeURIComponent(preset)}${metaTokenParam(accId)}`);
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.error || 'HTTP '+resp.status);
       adsetsWrap.dataset.loaded = '1';

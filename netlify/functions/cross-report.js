@@ -17,13 +17,15 @@ exports.handler = async (event) => {
     return respond(405, { error: 'Method not allowed' });
   }
 
-  const shopifyDomain = process.env.SHOPIFY_DOMAIN;
-  const shopifyToken  = process.env.SHOPIFY_TOKEN;
-  const metaToken     = process.env.META_ACCESS_TOKEN;
-  if (!shopifyDomain || !shopifyToken) return respond(500, { error: 'Faltan credenciales de Shopify' });
-  if (!metaToken) return respond(500, { error: 'Falta META_ACCESS_TOKEN' });
-
   const params = event.queryStringParameters || {};
+  const tenant = String(params.tenant || 'chile').toLowerCase();
+  const isGT = (tenant === 'gt');
+  const shopifyDomain = isGT ? process.env.SHOPIFY_DOMAIN_GT : process.env.SHOPIFY_DOMAIN;
+  const shopifyToken  = isGT ? process.env.SHOPIFY_TOKEN_GT  : process.env.SHOPIFY_TOKEN;
+  const metaToken     = isGT ? process.env.META_ACCESS_TOKEN_GT : process.env.META_ACCESS_TOKEN;
+  if (!shopifyDomain || !shopifyToken) return respond(500, { error: 'Faltan credenciales de Shopify' + (isGT ? ' GT' : '') });
+  if (!metaToken) return respond(500, { error: 'Falta META_ACCESS_TOKEN' + (isGT ? '_GT' : '') });
+
   const accountId = (params.account_id || '').trim();
   if (!/^act_\d+$/.test(accountId)) return respond(400, { error: 'account_id inválido' });
 

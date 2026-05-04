@@ -11,10 +11,13 @@ exports.handler = async (event) => {
     return respond(405, { error: 'Method not allowed' });
   }
 
-  const token = process.env.META_ACCESS_TOKEN;
-  if (!token) return respond(500, { error: 'META_ACCESS_TOKEN no configurada' });
-
   const params = event.queryStringParameters || {};
+  const tenant = String(params.tenant || 'chile').toLowerCase();
+  const token = (tenant === 'gt')
+    ? process.env.META_ACCESS_TOKEN_GT
+    : process.env.META_ACCESS_TOKEN;
+  if (!token) return respond(500, { error: 'META_ACCESS_TOKEN' + (tenant === 'gt' ? '_GT' : '') + ' no configurada' });
+
   const accountId = (params.account_id || '').trim();
   if (!/^act_\d+$/.test(accountId)) {
     return respond(400, { error: 'account_id inválido (esperado: act_xxxxx)' });

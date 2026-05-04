@@ -10,10 +10,13 @@ exports.handler = async (event) => {
     return respond(405, { error: 'Method not allowed' });
   }
 
-  const token = process.env.META_ACCESS_TOKEN;
-  if (!token) return respond(500, { error: 'META_ACCESS_TOKEN no configurada' });
-
   const params = event.queryStringParameters || {};
+  const tenant = String(params.tenant || 'chile').toLowerCase();
+  const token = (tenant === 'gt')
+    ? process.env.META_ACCESS_TOKEN_GT
+    : process.env.META_ACCESS_TOKEN;
+  if (!token) return respond(500, { error: 'META_ACCESS_TOKEN' + (tenant === 'gt' ? '_GT' : '') + ' no configurada' });
+
   const campaignId = (params.campaign_id || '').trim();
   if (!/^\d+$/.test(campaignId)) return respond(400, { error: 'campaign_id inválido' });
 
