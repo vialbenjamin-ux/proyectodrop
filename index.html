@@ -2156,8 +2156,9 @@
       <!-- Header -->
       <div style="display:flex;align-items:center;gap:14px;margin-bottom:18px;flex-wrap:wrap">
         <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:22px;color:var(--text)">🔍 Investigación</div>
-        <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;letter-spacing:1px">DESCUBRIMIENTO LATAM → CHILE</div>
+        <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;letter-spacing:1px">DESCUBRIMIENTO LATAM → CHILE · Auto Lun/Mié/Vie 7AM</div>
         <div style="flex:1"></div>
+        <button onclick="bkInvBuscarAhora()" style="background:none;color:var(--text);border:1.5px solid var(--border);border-radius:8px;padding:7px 12px;font-size:12px;font-family:'DM Mono',monospace;cursor:pointer" title="Disparar el descubrimiento ahora (sin esperar al cron). Tarda ~3 min.">🤖 Buscar ahora</button>
         <button onclick="bkInvSync()" style="background:var(--accent);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-family:'DM Mono',monospace;cursor:pointer">🔄 Sincronizar</button>
       </div>
 
@@ -6655,6 +6656,25 @@ function bkInvCopyBookmarklet(){
   }
 }
 
+async function bkInvBuscarAhora(){
+  const btn = event && event.target;
+  const oldText = btn ? btn.textContent : '';
+  if(!confirm('Esto dispara el descubrimiento automático ahora mismo (Apify + filtrado).\n\nTarda ~3 minutos y consume ~$0.30 USD del crédito Apify.\n\nDespués hacé click en "🔄 Sincronizar" para ver los resultados.\n\n¿Continuar?')) return;
+  if(btn){ btn.disabled = true; btn.textContent = '⏳ Disparando...'; }
+  try {
+    const r = await fetch('/.netlify/functions/bkdrop-discover-background', { method:'POST' });
+    if (r.status === 202 || r.ok){
+      alert('✅ Búsqueda iniciada. En ~3 minutos hacé click en "🔄 Sincronizar" para traer los nuevos winners.');
+    } else {
+      alert('Error: HTTP ' + r.status);
+    }
+  } catch(e){
+    alert('Error de red: ' + e.message);
+  } finally {
+    if(btn){ btn.disabled = false; btn.textContent = oldText; }
+  }
+}
+
 async function bkInvSync(){
   const btn = event && event.target;
   const oldText = btn ? btn.textContent : '';
@@ -6681,30 +6701,59 @@ async function bkInvSync(){
   }
 }
 
+function bkInvScoreColor(s){
+  if(s == null) return 'var(--muted)';
+  if(s >= 85) return '#5BA882';
+  if(s >= 70) return '#E8B840';
+  return '#E88A8A';
+}
+
 function bkInvRenderCapturas(){
-  const list = (state.investigacion_capturas || []).slice().sort((a,b)=>b.captured_at - a.captured_at);
+  // Por defecto ordenamos por score descendente (los winners arriba)
+  const list = (state.investigacion_capturas || []).slice().sort((a,b)=>{
+    const sa = a.adn_score == null ? -1 : a.adn_score;
+    const sb = b.adn_score == null ? -1 : b.adn_score;
+    if (sa !== sb) return sb - sa;
+    return (b.captured_at||0) - (a.captured_at||0);
+  });
   const cnt = document.getElementById('inv-cap-count');
   if(cnt) cnt.textContent = list.length;
   const el = document.getElementById('inv-capturas-list');
   if(!el) return;
   if(!list.length){
-    el.innerHTML = '<div style="color:var(--muted2);font-size:12px;text-align:center;padding:24px">Sin capturas todavía. Andá a "Instalar bookmarklet" → seguí los pasos → empezá a capturar desde Meta Ad Library.</div>';
+    el.innerHTML = '<div style="color:var(--muted2);font-size:12px;text-align:center;padding:24px">Sin capturas todavía. El descubrimiento automático corre Lun/Mié/Vie 7 AM. También podés hacer "Sincronizar" si ya hay nuevas en cola, o instalar el bookmarklet para captura manual.</div>';
     return;
   }
-  el.innerHTML = list.map(c => `
-    <div style="border:1.5px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px;background:var(--surface2)">
+  el.innerHTML = list.map(c => {
+    const score = c.adn_score;
+    const scoreColor = bkInvScoreColor(score);
+    const days = c.days_active;
+    const sourceIcon = c.source === 'apify-discover' ? '🤖' : '📥';
+    const sourceLabel = c.source === 'apify-discover' ? 'Auto' : 'Manual';
+    return `
+    <div style="border:1.5px solid ${score && score>=85?'#5BA882':'var(--border)'};border-radius:10px;padding:12px;margin-bottom:10px;background:var(--surface2);position:relative">
+      <div style="position:absolute;top:8px;right:36px;display:flex;gap:6px;align-items:center">
+        ${c.adn_match ? `<span style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:2px 10px;font-size:10px;color:var(--text);font-family:'DM Mono',monospace">${esc(c.adn_match)}</span>` : ''}
+        ${score != null ? `<span style="background:${scoreColor};color:#fff;border-radius:14px;padding:2px 10px;font-size:10px;font-weight:700;font-family:'DM Mono',monospace">${score}/100</span>` : ''}
+      </div>
       <div style="display:flex;gap:12px">
         ${c.thumb_url ? `<img src="${esc(c.thumb_url)}" style="width:80px;height:80px;object-fit:cover;border-radius:8px;flex-shrink:0" onerror="this.style.display='none'">` : '<div style="width:80px;height:80px;background:var(--border);border-radius:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:24px">📷</div>'}
         <div style="flex:1;min-width:0">
-          <div style="font-size:13px;font-weight:700;color:var(--text);font-family:'DM Mono',monospace">${esc(c.page_name || 'Sin nombre')}${c.country?' · '+esc(c.country):''}</div>
-          <div style="font-size:11px;color:var(--muted);margin:4px 0;font-family:'DM Mono',monospace">${esc(c.started || 'Sin fecha')}${c.library_id ? ' · ID '+esc(c.library_id) : ''}</div>
+          <div style="font-size:13px;font-weight:700;color:var(--text);font-family:'DM Mono',monospace;padding-right:120px">${esc(c.page_name || 'Sin nombre')} · 🌎 ${esc(c.country || '?')} · <span style="color:var(--muted);font-weight:400">${sourceIcon} ${sourceLabel}</span></div>
+          <div style="font-size:10px;color:var(--muted);margin:4px 0;font-family:'DM Mono',monospace;display:flex;gap:10px;flex-wrap:wrap">
+            ${c.started ? '📅 '+esc(c.started) : ''}
+            ${days != null ? `<span style="color:${days>=7&&days<=50?'var(--accent)':'var(--muted)'}">⏱ ${days}d activos</span>` : ''}
+            ${c.collation_count > 1 ? `<span style="color:#E89A4A">🔁 ${c.collation_count} variantes</span>` : ''}
+            ${c.library_id ? '🆔 '+esc(c.library_id) : ''}
+          </div>
           <div style="font-size:11px;color:var(--text);line-height:1.4;max-height:60px;overflow:hidden">${esc((c.text||'').slice(0,260))}${c.text && c.text.length>260 ? '…' : ''}</div>
+          ${c.cta_text || c.link_url ? `<div style="margin-top:6px;font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">${c.cta_text ? '🎯 CTA: '+esc(c.cta_text) : ''}${c.link_url ? ' · 🔗 <a href="'+esc(c.link_url)+'" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none">'+esc(c.link_url.slice(0,40))+'…</a>' : ''}</div>` : ''}
         </div>
         <button onclick="bkInvDelCaptura('${c.id}')" style="background:none;border:none;color:var(--muted2);cursor:pointer;font-size:14px;padding:4px 8px;border-radius:6px;align-self:flex-start" title="Eliminar">✕</button>
       </div>
-      ${c.source_url ? `<div style="margin-top:8px;display:flex;gap:12px;flex-wrap:wrap"><a href="${esc(c.source_url)}" target="_blank" rel="noopener" style="font-size:10px;color:var(--accent);font-family:'DM Mono',monospace;text-decoration:none">↗ Ver en Meta Ad Library</a>${c.page_url ? `<a href="${esc(c.page_url)}" target="_blank" rel="noopener" style="font-size:10px;color:var(--accent);font-family:'DM Mono',monospace;text-decoration:none">↗ Ver página</a>` : ''}</div>` : ''}
-    </div>
-  `).join('');
+      ${c.source_url ? `<div style="margin-top:8px;display:flex;gap:12px;flex-wrap:wrap"><a href="${esc(c.source_url)}" target="_blank" rel="noopener" style="font-size:10px;color:var(--accent);font-family:'DM Mono',monospace;text-decoration:none">↗ Ver en Meta Ad Library</a>${c.page_url ? `<a href="${esc(c.page_url)}" target="_blank" rel="noopener" style="font-size:10px;color:var(--accent);font-family:'DM Mono',monospace;text-decoration:none">↗ Ver página</a>` : ''}${c.media_url ? `<a href="${esc(c.media_url)}" target="_blank" rel="noopener" style="font-size:10px;color:var(--accent);font-family:'DM Mono',monospace;text-decoration:none">▶ Ver video</a>` : ''}</div>` : ''}
+    </div>`;
+  }).join('');
 }
 
 function bkInvDelCaptura(id){
