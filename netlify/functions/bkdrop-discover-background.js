@@ -140,6 +140,25 @@ const EXCLUDED = [
   /pocket.?fm|pocketfm|noirpress|bestnovel|pasion ?novel|novelpasion|audiolibro|audionovela|story.?app|capítulo gratis|capitulo gratis|leer historia|escuchar historia/i,
   /el despegue|elevate.*app|trader|crypto|forex|inversiones|trading|invest.*app/i,
   /historia.*adicción|romance.*novela|fantasy.*novel|dramatic.*story/i,
+  // SERVICIOS LOCALES — no son productos físicos para dropshipping
+  /\bservicio.*(auto|car|domicilio|m[oó]vil|profesional|hogar|integral)\b/i,
+  /\bservicios? de\b.*\b(limpieza|detallado|lavado|reparaci[oó]n|instalaci[oó]n|mantenci[oó]n|mantenimiento|afinaci[oó]n)\b/i,
+  /\b(atendemos en|cobertura.*tu zona|cotiz[ao].*whatsapp|agenda.*cita|agenda.*servicio|agenda.*consulta|agenda.*visita|agenda tu)\b/i,
+  /\b(afinaci[oó]n|mantenci[oó]n|reparaci[oó]n|instalaci[oó]n).*(auto|veh[ií]culo|hogar|profesional)\b/i,
+  // Seguros y financieros (más estricto)
+  /\b(cotiza|cotizar|cotizaci[oó]n) (tu )?seguro\b/i,
+  /\bp[oó]liza\b|\bseguros? para auto\b|\bseguros? de auto\b|\bseguros? vehicular\b/i,
+  /\bcorredora? de seguros\b|\bagente de seguros\b|\baseguradora\b|\bcompañ[íi]a de seguros\b/i,
+  /\bcobertura (24\/7|completa|total) (de )?(auto|veh[ií]culo|tu coche)\b/i,
+  /\btarjeta de cr[eé]dito\b|\bcr[eé]dito personal\b|\bpr[eé]stamo\b|\brefinanciaci[oó]n\b/i,
+  /\bplan funerario\b|\bservicios? funerarios?\b|\bsepelio\b/i,
+  /\bdetailing|detalla(do|ndo) automotriz|estética automotriz|lavado.*a domicilio\b/i,
+  /\b(consultor[íi]a|asesor[íi]a|capacitaci[oó]n|curso de|aprende a|gana dinero|ingresos pasivos)\b/i,
+  /\bfree.*quote\b|\bbook.*appointment\b|\bschedule.*consultation\b|\bwe come to you\b|\bmobile.*service\b/i,
+  /\bclínica|consultorio|veterinaria|peluquería|barber|spa\b/i,
+  /\bbienes ra[ií]ces|inmobiliaria|propiedades en venta|departamentos en venta\b/i,
+  /\b(restaurante|delivery|comida a domicilio|pedidos por)\b/i,
+  /\bgimnasio.*membres[ií]a|clases.*online|membres[ií]a anual\b/i,
   // Ruido típico US: Mother's Day / regalos generic / TV remotes / pet-only
   /mother'?s? day|father'?s? day|valentine's? day|easter|halloween|christmas decoration|world cup|fifa|sticker collection/i,
   /tv remote|samsung remote|lg remote|roku remote|hisense remote|fire stick|streaming stick replacement/i,
@@ -191,6 +210,38 @@ function matchPillar(text) {
 function isExcluded(text) {
   if (!text) return false;
   return EXCLUDED.some(re => re.test(text));
+}
+
+// Umbral de precio MAX por país. Productos arriba de esto = fuera de rango dropshipping.
+const PRICE_LIMIT = { MX: 1700, AR: 90000, BR: 500, US: 90, CL: 90000 };
+
+function extractPrices(text) {
+  const prices = [];
+  const re = /\$\s?([\d]{1,3}(?:[.,]\d{3})*(?:[.,]\d{1,2})?)\b|\b([\d]{1,3}(?:[.,]\d{3})+(?:[.,]\d{1,2})?)\s*(pesos|peso|MXN|ARS|BRL|USD|CLP|mil)\b/gi;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    const raw = m[1] || m[2];
+    if (!raw) continue;
+    const lastSep = raw.match(/[.,](\d+)$/);
+    let n;
+    if (lastSep && lastSep[1].length <= 2) {
+      const noThousands = raw.slice(0, raw.lastIndexOf(lastSep[0])).replace(/[.,]/g, '');
+      n = parseFloat(noThousands + '.' + lastSep[1]);
+    } else {
+      n = parseInt(raw.replace(/[.,]/g, ''), 10);
+    }
+    if (m[3] && m[3].toLowerCase() === 'mil') n *= 1000;
+    if (Number.isFinite(n) && n >= 50) prices.push(n);
+  }
+  return prices;
+}
+
+function isOverPriced(text, country) {
+  const limit = PRICE_LIMIT[country];
+  if (!limit) return false;
+  const prices = extractPrices(text);
+  if (!prices.length) return false;
+  return Math.min(...prices) > limit;
 }
 
 function detectCountry(ad) {
@@ -453,18 +504,21 @@ export default async (req) => {
   }
 
   const candidates = [];
+  let droppedByPrice = 0;
   for (const ad of raw) {
     const t = transformAd(ad);
     if (!t.text) continue;
     if (isExcluded(t.text)) continue;
     const pillar = matchPillar(t.text);
     if (!pillar) continue;
-    if (t.days_active != null && t.days_active > 90) continue; // descarta ads viejos
-    if (t.days_active != null && t.days_active < 3) continue;  // descarta ads ultra nuevos sin track record
+    if (t.days_active != null && t.days_active > 90) continue;
+    if (t.days_active != null && t.days_active < 3) continue;
+    if (isOverPriced(t.text, t.country)) { droppedByPrice++; continue; }
     t.adn_match = pillar;
     t.adn_score = scoreAd(t, pillar);
     candidates.push(t);
   }
+  console.log(`Dropped by price (>umbral): ${droppedByPrice}`);
 
   console.log(`Filtered: ${candidates.length} candidates`);
   candidates.sort((a, b) => b.adn_score - a.adn_score);
