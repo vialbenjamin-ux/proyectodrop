@@ -2245,6 +2245,29 @@
 
       <!-- CAPTURAS -->
       <div id="inv-tab-capturas" class="inv-tab" style="display:block">
+        <!-- Leyenda explicando los badges -->
+        <details class="bkfit-card" style="margin-bottom:14px">
+          <summary style="cursor:pointer;font-family:'Syne',sans-serif;font-weight:800;font-size:13px;color:var(--text);list-style:none;display:flex;align-items:center;gap:8px">
+            <span style="font-size:14px">❓</span> Cómo leer estas recomendaciones
+          </summary>
+          <div style="margin-top:14px;font-size:12px;color:var(--text);line-height:1.7">
+            <p style="margin:0 0 10px"><strong>Cada captura muestra 3 badges arriba a la derecha:</strong></p>
+            <div style="display:flex;flex-direction:column;gap:8px;font-family:'DM Mono',monospace;font-size:11px;line-height:1.6">
+              <div style="display:flex;gap:10px;align-items:flex-start"><span style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:2px 10px;font-size:10px;color:var(--text);white-space:nowrap">🚗 Auto</span><span><strong>Pilar del ADN.</strong> A qué categoría tuya pertenece (Auto / Limpieza / Iluminación / Cocina / Lifestyle / Fitness / Audio / Herramientas / Organización).</span></div>
+              <div style="display:flex;gap:10px;align-items:flex-start"><span style="background:#5BA882;color:#fff;border-radius:14px;padding:2px 10px;font-size:10px;font-weight:700;white-space:nowrap">🆕 95</span><span><strong>Novelty (0-100).</strong> Qué tan distinto es de tu catálogo actual. <strong>Verde (≥85)</strong> = producto nuevo, NO lo vendés. <strong>Amarillo (70-84)</strong> = parecido pero con ángulo distinto. <strong>Rojo (&lt;70)</strong> = ya vendés algo similar (precaución).</span></div>
+              <div style="display:flex;gap:10px;align-items:flex-start"><span style="background:#5BA882;color:#fff;border-radius:14px;padding:2px 10px;font-size:10px;font-weight:700;white-space:nowrap">81/100</span><span><strong>Score final.</strong> Combina match con tu nicho × novedad × días activos × variantes del creativo. <strong>≥85 = winner sólido para testear</strong>.</span></div>
+            </div>
+            <p style="margin:14px 0 6px"><strong>Otros indicadores en cada card:</strong></p>
+            <ul style="margin:0;padding-left:20px;color:var(--muted)">
+              <li><strong>📅 Started + ⏱ días activos</strong> — el ad lleva X días corriendo. Sweet spot 7-50 días = el advertiser ya validó que funciona pero no está saturado.</li>
+              <li><strong>🔁 N variantes</strong> — cuántas versiones del mismo creativo está corriendo el advertiser. Más variantes = más confianza en el producto.</li>
+              <li><strong>🎯 CTA / 🔗 link</strong> — el call-to-action y el link de destino del ad.</li>
+              <li><strong>⚠️ Similar a tu X</strong> — si Gemini detectó solapamiento con un producto que ya vendés, te lo avisa.</li>
+              <li><strong>🎬 Otros videos</strong> — cuando hay más ads del mismo advertiser/producto, te dejo 2 alternativos como variaciones del mismo creativo.</li>
+            </ul>
+          </div>
+        </details>
+
         <div class="bkfit-card">
           <div class="bkfit-card-title">📥 Capturas (<span id="inv-cap-count">0</span>)</div>
           <div id="inv-capturas-list"></div>
@@ -6825,6 +6848,8 @@ function bkInvRenderCapturas(){
     const days = c.days_active;
     const sourceIcon = c.source === 'apify-discover' ? '🤖' : '📥';
     const sourceLabel = c.source === 'apify-discover' ? 'Auto' : 'Manual';
+    const productName = c.product_name || c.page_name || 'Sin nombre';
+    const searchQuery = encodeURIComponent(productName);
     return `
     <div style="border:1.5px solid ${score && score>=85?'#5BA882':'var(--border)'};border-radius:10px;padding:12px;margin-bottom:10px;background:var(--surface2);position:relative">
       <div style="position:absolute;top:8px;right:36px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end;max-width:60%">
@@ -6833,10 +6858,15 @@ function bkInvRenderCapturas(){
         ${score != null ? `<span style="background:${scoreColor};color:#fff;border-radius:14px;padding:2px 10px;font-size:10px;font-weight:700;font-family:'DM Mono',monospace">${score}/100</span>` : ''}
       </div>
       <div style="display:flex;gap:12px">
-        ${c.thumb_url ? `<img src="${esc(c.thumb_url)}" style="width:80px;height:80px;object-fit:cover;border-radius:8px;flex-shrink:0" onerror="this.style.display='none'">` : '<div style="width:80px;height:80px;background:var(--border);border-radius:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:24px">📷</div>'}
-        <div style="flex:1;min-width:0">
-          <div style="font-size:13px;font-weight:700;color:var(--text);font-family:'DM Mono',monospace;padding-right:120px">${esc(c.page_name || 'Sin nombre')} · 🌎 ${esc(c.country || '?')} · <span style="color:var(--muted);font-weight:400">${sourceIcon} ${sourceLabel}</span></div>
-          <div style="font-size:10px;color:var(--muted);margin:4px 0;font-family:'DM Mono',monospace;display:flex;gap:10px;flex-wrap:wrap">
+        ${c.thumb_url ? `<img src="${esc(c.thumb_url)}" style="width:90px;height:90px;object-fit:cover;border-radius:8px;flex-shrink:0" onerror="this.style.display='none'">` : '<div style="width:90px;height:90px;background:var(--border);border-radius:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:24px">📷</div>'}
+        <div style="flex:1;min-width:0;padding-right:130px">
+          ${c.product_name ? `<div style="font-family:'Syne',sans-serif;font-weight:800;font-size:17px;color:var(--text);line-height:1.2;margin-bottom:4px;display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span>🎁 ${esc(c.product_name)}</span><button onclick="bkInvBuscar(decodeURIComponent('${encodeURIComponent(c.product_name)}'))" title="Buscar este producto" style="background:none;border:1px solid var(--border);border-radius:14px;padding:2px 8px;font-size:10px;color:var(--muted);cursor:pointer;font-family:'DM Mono',monospace">🔍 Buscar</button></div>` : ''}
+          <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <span>${esc(c.page_name || '?')}</span>
+            <span>· 🌎 ${esc(c.country || '?')}</span>
+            <span>· ${sourceIcon} ${sourceLabel}</span>
+          </div>
+          <div style="font-size:10px;color:var(--muted);margin:6px 0;font-family:'DM Mono',monospace;display:flex;gap:10px;flex-wrap:wrap">
             ${c.started ? '📅 '+esc(c.started) : ''}
             ${days != null ? `<span style="color:${days>=7&&days<=50?'var(--accent)':'var(--muted)'}">⏱ ${days}d activos</span>` : ''}
             ${c.collation_count > 1 ? `<span style="color:#E89A4A">🔁 ${c.collation_count} variantes</span>` : ''}
@@ -6849,8 +6879,52 @@ function bkInvRenderCapturas(){
         <button onclick="bkInvDelCaptura('${c.id}')" style="background:none;border:none;color:var(--muted2);cursor:pointer;font-size:14px;padding:4px 8px;border-radius:6px;align-self:flex-start" title="Eliminar">✕</button>
       </div>
       ${c.source_url ? `<div style="margin-top:8px;display:flex;gap:12px;flex-wrap:wrap"><a href="${esc(c.source_url)}" target="_blank" rel="noopener" style="font-size:10px;color:var(--accent);font-family:'DM Mono',monospace;text-decoration:none">↗ Ver en Meta Ad Library</a>${c.page_url ? `<a href="${esc(c.page_url)}" target="_blank" rel="noopener" style="font-size:10px;color:var(--accent);font-family:'DM Mono',monospace;text-decoration:none">↗ Ver página</a>` : ''}${c.media_url ? `<a href="${esc(c.media_url)}" target="_blank" rel="noopener" style="font-size:10px;color:var(--accent);font-family:'DM Mono',monospace;text-decoration:none">▶ Ver video</a>` : ''}</div>` : ''}
+      ${c.extra_videos && c.extra_videos.length ? `
+        <div style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--border)">
+          <div style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;letter-spacing:1px;margin-bottom:6px">🎬 OTROS VIDEOS DEL MISMO PRODUCTO (${c.extra_videos.length})</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            ${c.extra_videos.map(v => `
+              <a href="${esc(v.source_url || v.media_url || '#')}" target="_blank" rel="noopener" style="display:flex;gap:8px;align-items:center;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px;text-decoration:none;flex:1;min-width:200px;max-width:48%">
+                ${v.thumb_url ? `<img src="${esc(v.thumb_url)}" style="width:50px;height:50px;object-fit:cover;border-radius:6px;flex-shrink:0" onerror="this.style.display='none'">` : '<div style="width:50px;height:50px;background:var(--border);border-radius:6px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:18px">▶</div>'}
+                <div style="font-size:10px;color:var(--text);font-family:'DM Mono',monospace;flex:1;line-height:1.3;min-width:0">
+                  <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--muted)">${esc(v.started || '')}${v.days_active != null ? ' · '+v.days_active+'d' : ''}</div>
+                  <div style="margin-top:2px;color:var(--text);font-weight:700;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${esc((v.text||'').slice(0,80))}</div>
+                </div>
+              </a>
+            `).join('')}
+          </div>
+        </div>` : ''}
     </div>`;
   }).join('');
+}
+
+function bkInvBuscar(productName){
+  // Helper: copiar al clipboard y abrir buscadores en pestañas nuevas
+  const name = String(productName || '').trim();
+  if(!name) return;
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(name).catch(()=>{});
+  }
+  const q = encodeURIComponent(name);
+  // Mostrar opciones de búsqueda
+  const html = `Producto: <strong>${name}</strong>\n\nElegí dónde buscar:\n
+1. Google Imágenes (validación visual)
+2. AliExpress (sourcing/precio)
+3. Meta Ad Library Chile (saturación local)
+4. Mercado Libre Chile (saturación local)
+5. Amazon US (referencia precio)`;
+  const choice = prompt(html + '\n\nElegí 1-5 (o cancelar):', '1');
+  if(!choice) return;
+  let url = '';
+  switch(String(choice).trim()){
+    case '1': url = 'https://www.google.com/search?tbm=isch&q=' + q; break;
+    case '2': url = 'https://es.aliexpress.com/wholesale?SearchText=' + q; break;
+    case '3': url = 'https://www.facebook.com/ads/library/?country=CL&q=' + q + '&active_status=active&ad_type=all'; break;
+    case '4': url = 'https://listado.mercadolibre.cl/' + q.replace(/%20/g,'-'); break;
+    case '5': url = 'https://www.amazon.com/s?k=' + q; break;
+    default: alert('Opción inválida.'); return;
+  }
+  window.open(url, '_blank', 'noopener');
 }
 
 function bkInvDelCaptura(id){

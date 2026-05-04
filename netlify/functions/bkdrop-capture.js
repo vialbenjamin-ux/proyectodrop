@@ -63,6 +63,16 @@ export default async (request) => {
     novelty_score:  (a.novelty_score != null ? Number(a.novelty_score) : null),
     similar_to:     String(a.similar_to    || '').slice(0, 200) || null,
     novelty_reason: String(a.novelty_reason || '').slice(0, 240) || null,
+    product_name:   String(a.product_name  || '').slice(0, 120) || null,
+    extra_videos:   Array.isArray(a.extra_videos) ? a.extra_videos.slice(0, 5).map(v => ({
+      library_id: String(v.library_id || '').slice(0, 80),
+      thumb_url:  String(v.thumb_url  || '').slice(0, 600),
+      media_url:  String(v.media_url  || '').slice(0, 600),
+      source_url: String(v.source_url || '').slice(0, 600),
+      started:    String(v.started    || '').slice(0, 60),
+      days_active:(v.days_active != null ? Number(v.days_active) : null),
+      text:       String(v.text       || '').slice(0, 240)
+    })) : [],
     saturation_chile: null,
     notes:        ''
   }));

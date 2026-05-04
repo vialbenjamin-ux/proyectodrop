@@ -163,6 +163,7 @@ function transformAd(ad) {
   const days = daysSince(ad.start_date);
   return {
     library_id: String(ad.ad_archive_id || ''),
+    page_id: String(ad.page_id || snap.page_id || ''),
     page_name: snap.page_name || '',
     page_url: snap.page_profile_uri || '',
     country: detectCountry(ad),
@@ -179,6 +180,42 @@ function transformAd(ad) {
     raw_excerpt: text.slice(0, 1200),
     source: 'apify-discover'
   };
+}
+
+function findExtraVideos(candidate, byPage) {
+  const all = byPage.get(candidate.page_id) || [];
+  const others = all.filter(a =>
+    a.library_id && a.library_id !== candidate.library_id &&
+    (a.media_url || a.thumb_url)
+  );
+  if (!others.length) return [];
+  // Rangos progresivos: probar 7-30, después 7-50, 7-90, y por último cualquier fecha.
+  const RANGES = [[7, 30], [7, 50], [7, 90], [0, 9999]];
+  for (const [min, max] of RANGES) {
+    const matches = others.filter(a =>
+      a.days_active != null && a.days_active >= min && a.days_active <= max
+    );
+    if (matches.length >= 2) {
+      return matches.slice(0, 2).map(a => ({
+        library_id: a.library_id,
+        thumb_url: a.thumb_url,
+        media_url: a.media_url,
+        source_url: a.source_url,
+        started: a.started,
+        days_active: a.days_active,
+        text: (a.text || '').slice(0, 200)
+      }));
+    }
+  }
+  return others.slice(0, 2).map(a => ({
+    library_id: a.library_id,
+    thumb_url: a.thumb_url,
+    media_url: a.media_url,
+    source_url: a.source_url,
+    started: a.started,
+    days_active: a.days_active,
+    text: (a.text || '').slice(0, 200)
+  }));
 }
 
 function scoreAd(ad, pillar) {
@@ -205,7 +242,9 @@ async function checkNoveltyBatch(geminiKey, candidates, indexOffset) {
   const prompt = `Catálogo del usuario (productos YA vendidos):
 ${catalog}
 
-Evaluá cada uno de los ${candidates.length} candidatos nuevos. Para cada uno:
+Evaluá cada uno de los ${candidates.length} candidatos nuevos. Para cada uno extraé:
+- product_name: nombre corto y buscable del producto (3-7 palabras, sin marca de la tienda).
+  Ej: "Hidrolavadora portátil 4200 PSI", "Cuchillo japonés Matsato", "Lámpara LED táctil recargable"
 - novelty: 0-100 (100=nuevo total, 0=mismo producto exacto)
 - similar_to: número del producto del catálogo más parecido (1-${USER_TOP_PRODUCTS.length}) o null
 - reason: 1 frase muy corta (<60 chars)
@@ -220,7 +259,7 @@ Candidatos:
 ${candList}
 
 JSON solamente, sin markdown:
-[{"idx":0,"novelty":NUM,"similar_to":NUM_O_NULL,"reason":"..."}]`;
+[{"idx":0,"product_name":"...","novelty":NUM,"similar_to":NUM_O_NULL,"reason":"..."}]`;
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`;
   const r = await fetch(url, {
@@ -324,6 +363,15 @@ export default async (req) => {
     return new Response('Apify error: ' + e.message, { status: 500 });
   }
 
+  // Construir mapa byPage para encontrar más ads del mismo advertiser después
+  const byPage = new Map();
+  for (const ad of raw) {
+    const t = transformAd(ad);
+    if (!t.page_id) continue;
+    if (!byPage.has(t.page_id)) byPage.set(t.page_id, []);
+    byPage.get(t.page_id).push(t);
+  }
+
   const candidates = [];
   for (const ad of raw) {
     const t = transformAd(ad);
@@ -363,6 +411,7 @@ export default async (req) => {
             top[i].similar_to = (n.similar_to != null && n.similar_to >= 1 && n.similar_to <= USER_TOP_PRODUCTS.length)
               ? USER_TOP_PRODUCTS[n.similar_to - 1] : '';
             top[i].novelty_reason = String(n.reason || '').slice(0, 200);
+            top[i].product_name = String(n.product_name || '').slice(0, 120);
           } else {
             top[i].novelty_score = 50; // default si Gemini no scoreó este
           }
@@ -422,6 +471,12 @@ export default async (req) => {
 
   console.log(`After dedup: ${dedup.length} candidates (was ${top.length})`);
   top = dedup.slice(0, 30);
+
+  // Adjuntar 2 videos extras del mismo advertiser por candidato
+  for (const c of top) {
+    c.extra_videos = findExtraVideos(c, byPage);
+  }
+  console.log('Extra videos attached. Sample counts:', top.slice(0,3).map(c => c.extra_videos?.length || 0));
 
   if (!top.length) {
     console.log('No candidates passed novelty filter.');
