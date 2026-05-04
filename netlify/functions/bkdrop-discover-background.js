@@ -86,19 +86,21 @@ const LIMIT_PER_URL = 12;
 const PER_PILLAR_TOP = 5;  // máximo N capturas por pilar en el resultado final
 const FINAL_CAP = 30;
 
-// Filtros ADN (matchear título/copy contra estos pilares).
-// IMPORTANTE: orden importa, primer match gana. Los más específicos primero.
+// Filtros ADN. ORDEN: pilares específicos PRIMERO, los genéricos al final.
+// Auto/Limpieza/Iluminación son demasiado amplios y absorben productos de otros pilares
+// si se evalúan primero (ej. "Sistema solar residencial" → matchea "auto" porque dice
+// "automático" en la descripción).
 const ADN_PATTERNS = [
-  { pillar:'🚗 Auto',         re:/auto|coche|vehiculo|carro|carplay|funda asiento|asiento.*auto|hidrolavadora|tire|llanta|polish|rayon|wax|detail|jump.starter|pressure.washer|tire.foam|interior.cleaner|dashcam|inflador.*llanta|carga.*auto|cargador.*vehiculo|ozonizador.*auto|soporte.*celular.*auto/i },
-  { pillar:'🧹 Limpieza',     re:/mopa|vapor.*limpieza|aspirador|sopladora|destapa.*caño|destapa.*cano|limpia.*piso|limpieza.*profunda|scrubber|escoba.*electrica|trapeador|stain remover|dryer.*vent|alfombra.*limpia|desodorizador|polvo|extractor.*polvo/i },
-  { pillar:'💡 Iluminación',  re:/luz solar|luminaria|lampara|sensor.*movimiento|foco|linterna|outdoor.*light|garden.*light|under.*cabinet|tira.*led|ring.*light|proyector.*estrella|veladora|luz.*armario|night.*light|luz noche|spot.*led|mood.*light/i },
-  { pillar:'🍳 Cocina',       re:/cocina|cortador|picador|katana|cuchillo|pelador|rallador|olla|sarten|airfryer|freidora|blender|mixer|kettle|cooker|hervidor|cafetera|molde silicona|contenedor.*vacio|accesorio.*airfryer|tabla.*cocina|set cuchillos|exprimidor|licuadora portatil/i },
-  { pillar:'👔 Lifestyle',    re:/cojin|gel.*ergonomic|memory.foam|billetera|wallet|cinturon|lumbar|soporte espalda|postura|cojin masaje|silla.*ergonomica|reposacabeza|soporte cuello|almohada cervical/i },
-  { pillar:'💪 Fitness',      re:/fitness|entrenamiento|gimnasio|resistance.band|jump.rope|massage gun|foam roller|electroestimulador|ems|abdominal|masajeador.*percusion|plataforma.*vibratoria|elastico.*ejercicio|banda.*pilates|rodillo.*muscular|pistola.*masaje/i },
-  { pillar:'🔊 Audio',        re:/altavoz|parlante|bluetooth.speaker|audifono|auricular|headphone|earbud|bocina.*portatil|sound.*bar/i },
-  { pillar:'🔧 Herramientas', re:/amoladora|taladro|perforador|destornillador|sierra|soldador|llave.*impacto|martillo|atornillador|impacto.*inalambrico|set.*herramienta|caja.*herramienta|nivel.*laser|cinta metrica|remachadora|pistola.*calor|pistola.*silicona/i },
-  { pillar:'📦 Organización', re:/organizador|estante|colgador|storage shelf|rack|zapatero|plegable.*hogar|almacenaje|caja.*almacenaje|refrigerador.*organizador|cajonera|perchero|drawer.organizer|closet.*organizador/i },
-  { pillar:'📱 Móviles',      re:/cargador.*inalambrico|magsafe|power bank|powerbank|bateria.*portatil|bateria.*externa|soporte.*celular(?!.*auto)|case.*celular|funda.*celular|cargador.*rapido|usb.*c.*hub|adaptador.*celular/i }
+  { pillar:'📱 Móviles',      re:/magsafe|power bank|powerbank|bateria.*portatil|bateria.*externa|cargador.*inalambrico|cargador.*celular|cargador.*rapido|case.*celular|funda.*celular|usb.*c.*hub|adaptador.*celular|estacion.*carga.*celular/i },
+  { pillar:'🔧 Herramientas', re:/amoladora|taladro|perforador.*electric|destornillador|soldador|llave.*impacto|atornillador|impacto.*inalambrico|set.*herramienta|caja.*herramienta|nivel.*laser|cinta metrica|remachadora|pistola.*calor|pistola.*silicona|kit.*reparacion/i },
+  { pillar:'🔊 Audio',        re:/altavoz|parlante|bluetooth.speaker|audifono|auricular|headphone|earbud|bocina.*portatil|sound.*bar|wireless.*earbud/i },
+  { pillar:'💪 Fitness',      re:/electroestimulador|ems.*abdominal|masajeador.*percusion|pistola.*masaje|plataforma.*vibratoria|fitpro|fitness|gimnasio.*casa|resistance.band|jump.rope|massage gun|foam roller|elastico.*ejercicio|banda.*pilates|rodillo.*muscular|abdominal.*entrena/i },
+  { pillar:'👔 Lifestyle',    re:/cojin.*lumbar|cojin.*gel|memory.foam|lumbar.*soporte|soporte.*espalda|soporte.*cervical|postura.*correctora|cojin.*masaje|reposacabeza|almohada cervical|masajeador.*cuello|silla.*ergonomica|billetera|wallet|cinturon antirobo/i },
+  { pillar:'📦 Organización', re:/organizador.*refrigerador|organizador.*armario|organizador.*cocina|organizador.*ropa|estante.*plegable|colgador.*pared|zapatero|caja.*almacenaje|perchero|cajonera|drawer.organizer|closet.*organizador|easystick.*vinilo/i },
+  { pillar:'🍳 Cocina',       re:/cuchillo|katana|picador|cortador.*vegetal|pelador.*electric|rallador|airfryer|freidora|blender|mixer|kettle|cooker|hervidor|cafetera.*portatil|molde silicona|contenedor.*vacio|tabla.*cocina|set cuchillos|exprimidor|licuadora portatil|olla.*electrica|sarten.*ceramica|gadget.*cocina|utensilio.*cocina/i },
+  { pillar:'💡 Iluminación',  re:/luz solar|luminaria.*solar|lampara.*recargable|sensor.*movimiento.*luz|foco.*led|linterna.*led|outdoor.*light|garden.*light|under.*cabinet|tira.*led|ring.*light|proyector.*estrella|veladora.*led|luz.*armario|night.*light|luz noche|sistema.*solar|panel.*solar/i },
+  { pillar:'🧹 Limpieza',     re:/mopa.*vapor|aspirador|sopladora.*sin cable|destapa.*caño|destapa.*cano|destapa.*cañeria|limpia.*piso|limpieza.*profunda|scrubber|escoba.*electrica|trapeador|stain remover|dryer.*vent|alfombra.*limpia|desodorizador|extractor.*polvo|cepillo.*limpieza/i },
+  { pillar:'🚗 Auto',         re:/(\bauto\b|\bcoche\b|\bvehiculo\b|\bcarro\b|carplay|funda.*asiento|asiento.*auto|hidrolavadora|llanta|polish|rayon|wax|jump.starter|pressure.washer|tire.foam|interior.cleaner|dashcam|inflador.*llanta|carga.*auto|cargador.*vehiculo|ozonizador.*auto|soporte.*celular.*auto|lava.*auto|tu auto|del auto|para auto|en el auto|del coche|para coche)/i }
 ];
 const EXCLUDED = [
   /skin.?care|crema.*piel|maquillaje|cosmetiquero|beauty|mascara|lipstick|moisturizer|wrinkle|anti.?aging|serum.*facial/i,
