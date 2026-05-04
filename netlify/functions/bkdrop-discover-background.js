@@ -343,9 +343,46 @@ export default async (req) => {
 
   // Re-rank por adn_score combinado y dejar top 30
   top.sort((a, b) => b.adn_score - a.adn_score);
-  // Filtrar candidatos demasiado similares (novelty < 25 = ya tiene casi exacto el producto)
+  // Filtrar candidatos demasiado similares al catálogo (novelty < 25)
   top = top.filter(c => c.novelty_score == null || c.novelty_score >= 25);
-  top = top.slice(0, 30);
+
+  // ── DEDUPLICACIÓN ──
+  // Mismo advertiser + mismo producto = 1 sola entry (mantenemos la de score más alto).
+  // Diferentes advertisers vendiendo el MISMO producto también colapsan via Gemini similar_to.
+  function dedupeKey(c) {
+    const text = (c.text || '').toLowerCase()
+      .replace(/[^a-z0-9áéíóúñü ]/gi, ' ')
+      .replace(/\s+/g, ' ').trim();
+    // primeras 6 palabras significativas del texto
+    const words = text.split(' ').filter(w => w.length > 2).slice(0, 6).join(' ');
+    return [(c.page_name || '').toLowerCase().trim(), words].join('||');
+  }
+  function productKey(c) {
+    // Detectar mismo producto entre advertisers distintos: tomar primeras 4 palabras
+    // significativas (>3 chars) — ej. "hidrolavadora portatil inalambrica..." matchean
+    const text = (c.text || '').toLowerCase()
+      .replace(/[^a-z0-9áéíóúñü ]/gi, ' ').replace(/\s+/g, ' ').trim();
+    const words = text.split(' ').filter(w => w.length > 3).slice(0, 4).join(' ');
+    return words;
+  }
+
+  const seen = new Set();
+  const seenProduct = new Map();  // productKey -> count
+  const PRODUCT_CAP = 2; // máx 2 advertisers diferentes mostrando el mismo producto
+  const dedup = [];
+  for (const c of top) {
+    const dk = dedupeKey(c);
+    if (seen.has(dk)) continue;
+    seen.add(dk);
+    const pk = productKey(c);
+    const pCount = seenProduct.get(pk) || 0;
+    if (pk && pCount >= PRODUCT_CAP) continue;
+    if (pk) seenProduct.set(pk, pCount + 1);
+    dedup.push(c);
+  }
+
+  console.log(`After dedup: ${dedup.length} candidates (was ${top.length})`);
+  top = dedup.slice(0, 30);
 
   if (!top.length) {
     console.log('No candidates passed novelty filter.');
