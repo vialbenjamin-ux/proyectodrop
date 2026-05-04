@@ -60,6 +60,9 @@ export default async (request) => {
     status:       'new',
     adn_score:    (a.adn_score != null ? Number(a.adn_score) : null),
     adn_match:    String(a.adn_match  || '').slice(0, 60) || null,
+    novelty_score:  (a.novelty_score != null ? Number(a.novelty_score) : null),
+    similar_to:     String(a.similar_to    || '').slice(0, 200) || null,
+    novelty_reason: String(a.novelty_reason || '').slice(0, 240) || null,
     saturation_chile: null,
     notes:        ''
   }));

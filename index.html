@@ -6732,8 +6732,9 @@ function bkInvRenderCapturas(){
     const sourceLabel = c.source === 'apify-discover' ? 'Auto' : 'Manual';
     return `
     <div style="border:1.5px solid ${score && score>=85?'#5BA882':'var(--border)'};border-radius:10px;padding:12px;margin-bottom:10px;background:var(--surface2);position:relative">
-      <div style="position:absolute;top:8px;right:36px;display:flex;gap:6px;align-items:center">
+      <div style="position:absolute;top:8px;right:36px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end;max-width:60%">
         ${c.adn_match ? `<span style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:2px 10px;font-size:10px;color:var(--text);font-family:'DM Mono',monospace">${esc(c.adn_match)}</span>` : ''}
+        ${c.novelty_score != null ? `<span title="${esc(c.novelty_reason||'')}" style="background:${bkInvScoreColor(c.novelty_score)};color:#fff;border-radius:14px;padding:2px 10px;font-size:10px;font-weight:700;font-family:'DM Mono',monospace;opacity:0.85">🆕 ${c.novelty_score}</span>` : ''}
         ${score != null ? `<span style="background:${scoreColor};color:#fff;border-radius:14px;padding:2px 10px;font-size:10px;font-weight:700;font-family:'DM Mono',monospace">${score}/100</span>` : ''}
       </div>
       <div style="display:flex;gap:12px">
@@ -6748,6 +6749,7 @@ function bkInvRenderCapturas(){
           </div>
           <div style="font-size:11px;color:var(--text);line-height:1.4;max-height:60px;overflow:hidden">${esc((c.text||'').slice(0,260))}${c.text && c.text.length>260 ? '…' : ''}</div>
           ${c.cta_text || c.link_url ? `<div style="margin-top:6px;font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">${c.cta_text ? '🎯 CTA: '+esc(c.cta_text) : ''}${c.link_url ? ' · 🔗 <a href="'+esc(c.link_url)+'" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none">'+esc(c.link_url.slice(0,40))+'…</a>' : ''}</div>` : ''}
+          ${c.similar_to ? `<div style="margin-top:6px;font-size:10px;color:#E89A4A;font-family:'DM Mono',monospace;background:rgba(232,154,74,.1);padding:4px 8px;border-radius:6px;display:inline-block">⚠️ Similar a tu "${esc(c.similar_to.slice(0,80))}"${c.novelty_reason ? ' — '+esc(c.novelty_reason.slice(0,100)) : ''}</div>` : ''}
         </div>
         <button onclick="bkInvDelCaptura('${c.id}')" style="background:none;border:none;color:var(--muted2);cursor:pointer;font-size:14px;padding:4px 8px;border-radius:6px;align-self:flex-start" title="Eliminar">✕</button>
       </div>
