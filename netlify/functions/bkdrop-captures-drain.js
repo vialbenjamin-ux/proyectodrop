@@ -30,7 +30,7 @@ export default async (request) => {
   const peek = url.searchParams.get('peek') === '1' || request.method === 'GET';
 
   try {
-    const store = getStore('bk-captures');
+    const store = getStore({ name: 'bk-captures', consistency: 'strong' });
     const list = await store.list();
     const keys = (list.blobs || list || []).map(b => b.key || b);
     const items = [];

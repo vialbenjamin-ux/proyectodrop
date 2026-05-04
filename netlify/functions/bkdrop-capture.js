@@ -78,7 +78,8 @@ export default async (request) => {
   }));
 
   try {
-    const store = getStore('bk-captures');
+    // strong consistency para que el drain lea inmediatamente lo que escribimos
+    const store = getStore({ name: 'bk-captures', consistency: 'strong' });
     for (const c of cleaned) {
       await store.setJSON(c.id, c);
     }
