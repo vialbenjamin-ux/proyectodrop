@@ -152,6 +152,10 @@ const EXCLUDED = [
   /\bcobertura (24\/7|completa|total) (de )?(auto|veh[ií]culo|tu coche)\b/i,
   /\btarjeta de cr[eé]dito\b|\bcr[eé]dito personal\b|\bpr[eé]stamo\b|\brefinanciaci[oó]n\b/i,
   /\bplan funerario\b|\bservicios? funerarios?\b|\bsepelio\b/i,
+  // Servicios de utilities / energía / suscripciones
+  /\bfactura.*(luz|electricidad|energ[íi]a|gas)\b|\bahorro.*factura\b|\bpaga menos.*luz\b/i,
+  /\binstal[aá] paneles\b|\binstalaci[oó]n.*solar.*hogar\b|\bsistema.*paneles solares\b/i,
+  /\bplan.*(internet|telefon[íi]a|tv cable)\b|\bsuscripci[oó]n.*mensual\b/i,
   /\bdetailing|detalla(do|ndo) automotriz|estética automotriz|lavado.*a domicilio\b/i,
   /\b(consultor[íi]a|asesor[íi]a|capacitaci[oó]n|curso de|aprende a|gana dinero|ingresos pasivos)\b/i,
   /\bfree.*quote\b|\bbook.*appointment\b|\bschedule.*consultation\b|\bwe come to you\b|\bmobile.*service\b/i,
