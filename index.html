@@ -2261,6 +2261,7 @@
             <ul style="margin:0;padding-left:20px;color:var(--muted)">
               <li><strong>📅 Started + ⏱ días activos</strong> — el ad lleva X días corriendo. Sweet spot 7-50 días = el advertiser ya validó que funciona pero no está saturado.</li>
               <li><strong>🔁 N variantes</strong> — cuántas versiones del mismo creativo está corriendo el advertiser. Más variantes = más confianza en el producto.</li>
+              <li><strong>👁 N runs</strong> — apareció en N runs distintos (Lun/Mié/Vie). Si lo viste varias veces = winner consistente, todavía corriendo. Si solo 1 vez = recién detectado.</li>
               <li><strong>🎯 CTA / 🔗 link</strong> — el call-to-action y el link de destino del ad.</li>
               <li><strong>⚠️ Similar a tu X</strong> — si Gemini detectó solapamiento con un producto que ya vendés, te lo avisa.</li>
               <li><strong>🎬 Otros videos</strong> — cuando hay más ads del mismo advertiser/producto, te dejo 2 alternativos como variaciones del mismo creativo.</li>
@@ -6806,12 +6807,52 @@ async function bkInvSync(){
     if(!r.ok){ alert('Error: ' + (j.error || r.status)); return; }
     if(!j.count){ alert('Sin nuevas capturas en la cola.'); return; }
     if(!state.investigacion_capturas) state.investigacion_capturas = [];
-    const existingIds = new Set(state.investigacion_capturas.map(c=>c.id));
-    const newOnes = j.items.filter(c=>!existingIds.has(c.id));
+
+    // Dedupe entre runs: si una captura tiene library_id que ya existe
+    // (= mismo ad de Meta), no la duplicamos. Marcamos last_seen en vez de eso.
+    const byLibId = new Map();
+    state.investigacion_capturas.forEach(c => {
+      if (c.library_id) byLibId.set(c.library_id, c);
+    });
+    const existingInternalIds = new Set(state.investigacion_capturas.map(c=>c.id));
+
+    const newOnes = [];
+    let dupes = 0;
+    let updated = 0;
+    const now = Date.now();
+    for (const c of j.items) {
+      if (existingInternalIds.has(c.id)) continue;
+      if (c.library_id && byLibId.has(c.library_id)) {
+        // Ya lo teníamos → solo actualizamos last_seen y contador
+        const existing = byLibId.get(c.library_id);
+        existing.last_seen_at = now;
+        existing.times_seen = (existing.times_seen || 1) + 1;
+        // Actualizamos days_active si llega más fresco
+        if (c.days_active != null) existing.days_active = c.days_active;
+        // Si los extra_videos vienen mejor, los actualizamos
+        if (Array.isArray(c.extra_videos) && c.extra_videos.length > (existing.extra_videos?.length || 0)) {
+          existing.extra_videos = c.extra_videos;
+        }
+        dupes++;
+        updated++;
+        continue;
+      }
+      // Nueva captura
+      c.last_seen_at = now;
+      c.times_seen = 1;
+      newOnes.push(c);
+      if (c.library_id) byLibId.set(c.library_id, c);
+    }
+
     state.investigacion_capturas.push(...newOnes);
     save();
     bkInvRenderCapturas();
-    alert('✅ ' + newOnes.length + ' capturas sincronizadas.');
+
+    const parts = [];
+    if (newOnes.length) parts.push(`✅ ${newOnes.length} nueva${newOnes.length>1?'s':''}`);
+    if (dupes > 0) parts.push(`🔁 ${dupes} ya las tenías (actualizadas)`);
+    if (!parts.length) parts.push('Sin novedades');
+    alert(parts.join('\n'));
   } catch(e){
     alert('Error de red: ' + e.message);
   } finally {
@@ -6870,6 +6911,7 @@ function bkInvRenderCapturas(){
             ${c.started ? '📅 '+esc(c.started) : ''}
             ${days != null ? `<span style="color:${days>=7&&days<=50?'var(--accent)':'var(--muted)'}">⏱ ${days}d activos</span>` : ''}
             ${c.collation_count > 1 ? `<span style="color:#E89A4A">🔁 ${c.collation_count} variantes</span>` : ''}
+            ${c.times_seen > 1 ? `<span style="color:#5BA882;font-weight:700" title="Detectado en ${c.times_seen} runs distintos = winner consistente">👁 ${c.times_seen} runs</span>` : ''}
             ${c.library_id ? '🆔 '+esc(c.library_id) : ''}
           </div>
           <div style="font-size:11px;color:var(--text);line-height:1.4;max-height:60px;overflow:hidden">${esc((c.text||'').slice(0,260))}${c.text && c.text.length>260 ? '…' : ''}</div>
