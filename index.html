@@ -65,6 +65,10 @@
   .nav-dropdown .ng-item{padding:8px 14px;border-radius:6px;border:none;border-bottom:none;text-align:left;letter-spacing:1px;font-size:11px;display:flex;align-items:center;gap:6px;justify-content:flex-start}
   .nav-dropdown .ng-item:hover{background:var(--surface2)}
   .nav-dropdown .ng-item.active{background:var(--accent-soft);color:var(--accent);border-bottom:none}
+  /* Standalone tabs (sin grupo) — mismo estilo que tab-group-btn */
+  .ng-standalone{padding:10px 16px;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent}
+  .ng-standalone:hover{color:var(--text)}
+  .ng-standalone.active{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
   @media (max-width: 780px){
     #nav .nav-group{ display:none }
   }
@@ -1158,9 +1162,6 @@
       <button class="tab-btn ng-item" data-section="reportes" onclick="switchSection('reportes')">
         📊 Reportes
       </button>
-      <button class="tab-btn ng-item" data-section="calculadora" onclick="switchSection('calculadora')">
-        🧮 Calculadora
-      </button>
       <button class="tab-btn ng-item" data-section="investigacion" onclick="switchSection('investigacion')">
         🔍 Investigación
       </button>
@@ -1183,6 +1184,10 @@
       </button>
     </div>
   </div>
+
+  <button class="tab-btn ng-standalone" data-section="calculadora" onclick="switchSection('calculadora')">
+    🧮 Calculadora
+  </button>
 
   <div class="nav-group" data-group="personal">
     <button class="tab-group-btn" onclick="toggleNavGroup('personal', event)">
