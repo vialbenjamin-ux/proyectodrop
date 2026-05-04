@@ -91,7 +91,20 @@ function isExcluded(text) {
   return EXCLUDED.some(re => re.test(text));
 }
 
-function transformAd(ad, country) {
+function detectCountry(ad) {
+  // 1. Direct field
+  const tc = ad.targeted_or_reached_countries;
+  if (Array.isArray(tc) && tc.length) return tc[0];
+  // 2. From URL params (ad_library_url o url)
+  const urls = [ad.ad_library_url, ad.url].filter(Boolean);
+  for (const u of urls) {
+    const m = String(u).match(/[?&]country=([A-Z]{2})/i);
+    if (m) return m[1].toUpperCase();
+  }
+  return '';
+}
+
+function transformAd(ad) {
   const snap = ad.snapshot || {};
   const card = (snap.cards && snap.cards[0]) || {};
   const text = [
@@ -104,7 +117,7 @@ function transformAd(ad, country) {
     library_id: String(ad.ad_archive_id || ''),
     page_name: snap.page_name || '',
     page_url: snap.page_profile_uri || '',
-    country,
+    country: detectCountry(ad),
     started: ad.start_date_formatted || '',
     days_active: days,
     media_type: card.video_hd_url || card.video_sd_url ? 'video' : (card.original_image_url ? 'image' : ''),
@@ -115,7 +128,8 @@ function transformAd(ad, country) {
     cta_text: card.cta_text || '',
     link_url: card.link_url || '',
     collation_count: ad.collation_count || 1,
-    raw_excerpt: text.slice(0, 1200)
+    raw_excerpt: text.slice(0, 1200),
+    source: 'apify-discover'
   };
 }
 
@@ -168,14 +182,9 @@ export default async (req) => {
     return new Response('Apify error: ' + e.message, { status: 500 });
   }
 
-  // Match country back from URL pattern (Apify devuelve ads, no su URL origen, así que matcheamos por targeted_or_reached_countries)
   const candidates = [];
   for (const ad of raw) {
-    let country = '';
-    const tc = ad.targeted_or_reached_countries;
-    if (Array.isArray(tc) && tc.length === 1) country = tc[0];
-    else if (Array.isArray(tc) && tc.length) country = tc[0]; // mejor que nada
-    const t = transformAd(ad, country);
+    const t = transformAd(ad);
     if (!t.text) continue;
     if (isExcluded(t.text)) continue;
     const pillar = matchPillar(t.text);
