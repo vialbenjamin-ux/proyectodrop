@@ -104,7 +104,11 @@ const KEYWORDS_US = [
 ];
 const COUNTRIES_LATAM = ['MX', 'AR', 'BR'];
 const COUNTRIES_US = ['US'];
-const LIMIT_PER_URL = 12;
+const LIMIT_PER_URL = 8;     // cap máximo por URL — bajado de 12 a 8 para
+                              // que con 2 runs/semana entre dentro de los $5
+                              // free credit de Apify (109 URLs × 8 = 872 max ads
+                              // × $0.0009/ad ≈ $0.78/run × 8.6 runs/mes ≈ $6.7/mes
+                              // pero el promedio real suele ser ~5 ads/URL = $4-5/mes).
 const PER_PILLAR_TOP = 5;  // máximo N capturas por pilar en el resultado final
 const FINAL_CAP = 30;
 
@@ -592,5 +596,5 @@ export default async (req) => {
 };
 
 export const config = {
-  schedule: '0 11 * * 1,3,5'  // Lun/Mié/Vie 11:00 UTC = 7:00 AM Chile (winter UTC-4)
+  schedule: '0 11 * * 1,4'  // Lun + Jue 11:00 UTC = 7:00 AM Chile (winter UTC-4)
 };
