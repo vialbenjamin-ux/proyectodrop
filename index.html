@@ -48,9 +48,26 @@
   #nav{border-bottom:1px solid var(--border);padding:14px 28px;display:flex;align-items:center;gap:4px;position:sticky;top:0;background:var(--surface);z-index:100;box-shadow:0 1px 12px rgba(0,0,0,.04)}
   .logo{font-family:'Syne',sans-serif;font-weight:800;font-size:20px;letter-spacing:-1px;color:var(--accent);margin-right:20px;border:none;background:none}
   .logo span{color:var(--text)}
-  .tab-btn{background:none;border:none;border-bottom:2px solid transparent;padding:10px 16px;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);position:relative}
+  .tab-btn{background:none;border:none;border-bottom:2px solid transparent;padding:10px 16px;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);position:relative;cursor:pointer}
   .tab-btn.active{border-bottom:2px solid var(--accent);color:var(--accent)}
   .badge{margin-left:6px;background:var(--peach);color:#fff;border-radius:10px;padding:1px 6px;font-size:9px;font-weight:700}
+
+  /* Nav grupos con dropdown */
+  .nav-group{position:relative;display:inline-block}
+  .tab-group-btn{background:none;border:none;padding:10px 16px;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);cursor:pointer;font-family:inherit;border-bottom:2px solid transparent;display:flex;align-items:center;gap:6px;transition:color .15s}
+  .tab-group-btn:hover{color:var(--text)}
+  .nav-group.has-active > .tab-group-btn{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
+  .nav-group.open > .tab-group-btn{color:var(--text);background:var(--surface2)}
+  .ng-arrow{font-size:9px;opacity:.7;transition:transform .2s}
+  .nav-group.open .ng-arrow{transform:rotate(180deg)}
+  .nav-dropdown{display:none;position:absolute;top:calc(100% + 1px);left:0;background:var(--surface);border:1.5px solid var(--border);border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.12);padding:6px;min-width:200px;z-index:200;flex-direction:column;gap:2px}
+  .nav-group.open .nav-dropdown{display:flex}
+  .nav-dropdown .ng-item{padding:8px 14px;border-radius:6px;border:none;border-bottom:none;text-align:left;letter-spacing:1px;font-size:11px;display:flex;align-items:center;gap:6px;justify-content:flex-start}
+  .nav-dropdown .ng-item:hover{background:var(--surface2)}
+  .nav-dropdown .ng-item.active{background:var(--accent-soft);color:var(--accent);border-bottom:none}
+  @media (max-width: 780px){
+    #nav .nav-group{ display:none }
+  }
 
   #content{padding:28px}
   .section{display:none}.section.active{display:block}
@@ -1110,38 +1127,74 @@
   <button id="hamburger" onclick="openMobileMenu()" aria-label="Menú">
     <span></span><span></span><span></span>
   </button>
-  <button class="tab-btn active" data-section="productos" onclick="switchSection('productos')">
-    Productos <span class="badge" id="badge-productos" style="display:none">0</span>
-  </button>
-  <button class="tab-btn" data-section="creativos" onclick="switchSection('creativos')">
-    🎯 Creativos <span class="badge" id="badge-creativos" style="display:none">0</span>
-  </button>
-  <button class="tab-btn" data-section="videos" onclick="switchSection('videos')">
-    🎬 Tutorial BK
-  </button>
-  <button class="tab-btn" data-section="prompts" onclick="switchSection('prompts')">
-    ✨ Prompts
-  </button>
-  <button class="tab-btn" data-section="proveedores" onclick="switchSection('proveedores')">
-    Proveedores <span class="badge" id="badge-proveedores" style="display:none">0</span>
-  </button>
-  <button class="tab-btn" data-section="calculadora" onclick="switchSection('calculadora')">
-    🧮 Calculadora
-  </button>
-  <button class="tab-btn" data-section="pendientes" onclick="switchSection('pendientes')">
-    Pendientes <span class="badge" id="badge-pendientes" style="display:none">0</span>
-  </button>
-  <button class="tab-btn" data-section="reportes" onclick="switchSection('reportes')">📊 Reportes
-  </button>
-  <button class="tab-btn" data-section="calendario" onclick="switchSection('calendario')">
-    📅 Calendario
-  </button>
-  <button class="tab-btn" data-section="investigacion" onclick="switchSection('investigacion')">
-    🔍 Investigación
-  </button>
-  <button class="tab-btn" data-section="bkfit" onclick="switchSection('bkfit')">
-    🏋️ BKfit
-  </button>
+  <div class="nav-group" data-group="operacion">
+    <button class="tab-group-btn" onclick="toggleNavGroup('operacion', event)">
+      📦 Operación <span class="ng-arrow">▾</span>
+    </button>
+    <div class="nav-dropdown">
+      <button class="tab-btn ng-item" data-section="productos" onclick="switchSection('productos')">
+        📦 Productos <span class="badge" id="badge-productos" style="display:none">0</span>
+      </button>
+      <button class="tab-btn ng-item" data-section="pendientes" onclick="switchSection('pendientes')">
+        📋 Pendientes <span class="badge" id="badge-pendientes" style="display:none">0</span>
+      </button>
+      <button class="tab-btn ng-item" data-section="proveedores" onclick="switchSection('proveedores')">
+        🏭 Proveedores <span class="badge" id="badge-proveedores" style="display:none">0</span>
+      </button>
+      <button class="tab-btn ng-item" data-section="calendario" onclick="switchSection('calendario')">
+        📅 Calendario
+      </button>
+      <button class="tab-btn ng-item" data-section="archivo" onclick="switchSection('archivo')">
+        📁 Archivo <span class="badge" id="badge-archivo" style="display:none;background:var(--teal)">0</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="nav-group" data-group="analisis">
+    <button class="tab-group-btn" onclick="toggleNavGroup('analisis', event)">
+      📊 Análisis <span class="ng-arrow">▾</span>
+    </button>
+    <div class="nav-dropdown">
+      <button class="tab-btn ng-item" data-section="reportes" onclick="switchSection('reportes')">
+        📊 Reportes
+      </button>
+      <button class="tab-btn ng-item" data-section="calculadora" onclick="switchSection('calculadora')">
+        🧮 Calculadora
+      </button>
+      <button class="tab-btn ng-item" data-section="investigacion" onclick="switchSection('investigacion')">
+        🔍 Investigación
+      </button>
+    </div>
+  </div>
+
+  <div class="nav-group" data-group="optimiza">
+    <button class="tab-group-btn" onclick="toggleNavGroup('optimiza', event)">
+      🧠 BK OPTIMIZA <span class="ng-arrow">▾</span>
+    </button>
+    <div class="nav-dropdown">
+      <button class="tab-btn ng-item" data-section="videos" onclick="switchSection('videos')">
+        🎬 Tutorial BK
+      </button>
+      <button class="tab-btn ng-item" data-section="prompts" onclick="switchSection('prompts')">
+        ✨ Prompts
+      </button>
+      <button class="tab-btn ng-item" data-section="creativos" onclick="switchSection('creativos')">
+        🎯 Creativos <span class="badge" id="badge-creativos" style="display:none">0</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="nav-group" data-group="personal">
+    <button class="tab-group-btn" onclick="toggleNavGroup('personal', event)">
+      🎯 Personal <span class="ng-arrow">▾</span>
+    </button>
+    <div class="nav-dropdown">
+      <button class="tab-btn ng-item" data-section="bkfit" onclick="switchSection('bkfit')">
+        🏋️ BKfit
+      </button>
+    </div>
+  </div>
+
   <div style="flex:1"></div>
 
   <!-- Stock alert bell -->
@@ -1175,9 +1228,6 @@
   <button id="admin-nav-btn" onclick="openAdmin()" title="Administrar accesos" style="display:none;background:none;border:1px solid var(--border);border-radius:20px;padding:5px 12px;font-size:11px;color:var(--muted);margin-right:6px">⚙️ Admin</button>
   <button id="login-user-chip" onclick="doLogout()" title="Cerrar sesión">
     <span id="nav-user-name">—</span> · salir
-  </button>
-  <button class="tab-btn" data-section="archivo" onclick="switchSection('archivo')" style="font-size:10px;color:var(--muted2);letter-spacing:1px;opacity:0.7;margin-left:4px">
-    📁 archivo <span class="badge" id="badge-archivo" style="display:none;background:var(--teal)">0</span>
   </button>
 </div>
 
@@ -2898,6 +2948,12 @@ function switchSection(s, silent){
   document.getElementById('section-'+s).classList.add('active');
   const tab = document.querySelector(`[data-section="${s}"]`);
   if(tab && !silent){ document.querySelectorAll('.tab-btn').forEach(e=>e.classList.remove('active')); tab.classList.add('active'); }
+  // Refresh nav groups: highlight parent + close all dropdowns
+  document.querySelectorAll('.nav-group').forEach(g=>{
+    g.classList.remove('open');
+    const has = g.querySelector('.tab-btn.active');
+    g.classList.toggle('has-active', !!has);
+  });
   if(s==='videos') renderVideos();
   if(s==='calendario') renderCalendar();
   if(s==='prompts'){ renderPrompts(); loadBkVars(); }
@@ -2906,6 +2962,38 @@ function switchSection(s, silent){
   if(s==='bkfit') bkfitInit();
   if(s==='investigacion') bkInvInit();
 }
+
+// Toggle dropdown de un grupo del nav. Cierra los demás.
+function toggleNavGroup(group, ev){
+  if(ev) ev.stopPropagation();
+  const all = document.querySelectorAll('.nav-group');
+  const target = document.querySelector('.nav-group[data-group="'+group+'"]');
+  const wasOpen = target && target.classList.contains('open');
+  all.forEach(g=>g.classList.remove('open'));
+  if(target && !wasOpen) target.classList.add('open');
+}
+
+// Click fuera de cualquier nav-group → cerrar todos
+document.addEventListener('click', function(ev){
+  if(!ev.target.closest('.nav-group')){
+    document.querySelectorAll('.nav-group.open').forEach(g=>g.classList.remove('open'));
+  }
+});
+// Escape → cerrar todos
+document.addEventListener('keydown', function(ev){
+  if(ev.key==='Escape') document.querySelectorAll('.nav-group.open').forEach(g=>g.classList.remove('open'));
+});
+// Inicializar has-active en el grupo del tab activo al cargar la página
+(function initNavGroupActive(){
+  const apply = () => {
+    document.querySelectorAll('.nav-group').forEach(g=>{
+      const has = g.querySelector('.tab-btn.active');
+      g.classList.toggle('has-active', !!has);
+    });
+  };
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', apply);
+  else apply();
+})();
 
 function startRenameOwner(owner){
   const safeKey = owner.replace(/\s+/g,'-');
@@ -6446,6 +6534,13 @@ function applyPerms(username){
     // Tab del nav
     const tab = document.querySelector(`[data-section="${s.id}"]`);
     if(tab) tab.style.display = allowed ? '' : 'none';
+  });
+  // Ocultar grupos del nav que no tienen items visibles
+  document.querySelectorAll('.nav-group').forEach(g=>{
+    const items = g.querySelectorAll('.ng-item');
+    let anyVisible = false;
+    items.forEach(it => { if(it.style.display !== 'none') anyVisible = true; });
+    g.style.display = anyVisible ? '' : 'none';
   });
   // Si la sección activa fue revocada, redirigir a la primera permitida
   const activeSection = document.querySelector('.section.active');
