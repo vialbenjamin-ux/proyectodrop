@@ -334,19 +334,44 @@ JSON solamente, sin markdown:
   }
 }
 
+async function checkNoveltyBatchWithRetry(geminiKey, batch, indexOffset, maxRetries = 3) {
+  // Retry con backoff exponencial para errores 429/transitorios.
+  let last;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const r = await checkNoveltyBatch(geminiKey, batch, indexOffset);
+      if (r && r.length) return r;
+      last = null;
+    } catch (e) {
+      console.error('Batch attempt failed:', e.message);
+      last = e;
+    }
+    if (attempt < maxRetries) {
+      const wait = [4000, 12000, 30000][attempt] || 30000;
+      console.log(`Backoff ${wait}ms before retry...`);
+      await new Promise(rs => setTimeout(rs, wait));
+    }
+  }
+  if (last) console.error('All retries failed:', last.message);
+  return null;
+}
+
 async function checkNovelty(geminiKey, candidates) {
-  // Procesa en batches de 15 para evitar truncamiento (la respuesta de Gemini Flash
-  // a veces se corta a ~1500 chars con responseMimeType ausente).
-  const BATCH_SIZE = 15;
+  // Procesa en batches de 20 con delay entre llamadas para no pegar el rate limit.
+  // Gemini 2.5 Flash free tier = 15 RPM. Con delay de 5s estamos bajo el límite.
+  const BATCH_SIZE = 20;
   const all = [];
+  const numBatches = Math.ceil(candidates.length / BATCH_SIZE);
   for (let i = 0; i < candidates.length; i += BATCH_SIZE) {
     const batch = candidates.slice(i, i + BATCH_SIZE);
-    console.log(`Novelty batch ${i / BATCH_SIZE + 1}: candidates ${i}-${i+batch.length-1}`);
-    try {
-      const result = await checkNoveltyBatch(geminiKey, batch, i);
-      if (result && result.length) all.push(...result);
-    } catch (e) {
-      console.error('Batch failed:', e.message);
+    const batchNum = i / BATCH_SIZE + 1;
+    console.log(`Novelty batch ${batchNum}/${numBatches}: candidates ${i}-${i+batch.length-1}`);
+    const result = await checkNoveltyBatchWithRetry(geminiKey, batch, i);
+    if (result && result.length) all.push(...result);
+    // Delay entre batches para evitar rate limit (excepto el último)
+    if (i + BATCH_SIZE < candidates.length) {
+      console.log('Waiting 5s before next batch...');
+      await new Promise(rs => setTimeout(rs, 5000));
     }
   }
   return all.length ? all : null;
@@ -410,8 +435,9 @@ export default async (req) => {
 
   console.log(`Filtered: ${candidates.length} candidates`);
   candidates.sort((a, b) => b.adn_score - a.adn_score);
-  // Tomamos hasta 40 candidatos para mandarle a Gemini, después dejamos 30 después del scoring de novedad
-  let top = candidates.slice(0, 40);
+  // Hasta 60 candidatos a Gemini para tener variedad después de la estratificación.
+  // Costo Gemini: 60 candidatos = 3 batches de 20 = ~$0.001/run. Negligible.
+  let top = candidates.slice(0, 60);
 
   if (!top.length) {
     console.log('No candidates passed filter.');
