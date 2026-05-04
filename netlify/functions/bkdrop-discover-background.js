@@ -162,10 +162,10 @@ async function apifyRun(token, urls, limit) {
     'scrapePageAds.activeStatus': 'active',
     'scrapePageAds.sortBy': 'impressions_desc'
   };
-  // run-sync con timeout=600s = 10min para que de tiempo a procesar 100+ URLs.
-  // memory=4096 para que el actor tenga RAM y no se ralentice.
+  // run-sync con timeout=600s = 10min, memory=4096MB, maxItems=1500 (cap de cobro).
+  // El actor está en PAY_PER_EVENT y exige maxItems explícito.
   const r = await fetch(
-    `https://api.apify.com/v2/acts/${APIFY_ACTOR}/run-sync-get-dataset-items?token=${token}&clean=true&timeout=600&memory=4096`,
+    `https://api.apify.com/v2/acts/${APIFY_ACTOR}/run-sync-get-dataset-items?token=${token}&clean=true&timeout=600&memory=4096&maxItems=1500`,
     { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(input) }
   );
   if (!r.ok) throw new Error('Apify HTTP ' + r.status + ': ' + (await r.text()).slice(0,300));
