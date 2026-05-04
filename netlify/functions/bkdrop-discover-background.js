@@ -56,51 +56,71 @@ const USER_TOP_PRODUCTS = [
   "OLLAMIX AUTOMATICA - Olla Multifunción"
 ];
 
-// Keywords cortas (1-2 palabras) cubriendo los 10 pilares del ADN.
+// Keywords en español para LATAM (MX/AR/BR) + en inglés para US.
 // Meta Ad Library usa AND entre palabras: keywords largas devuelven 0 resultados.
-// Más cortas = más matches, después filtramos por ADN pattern + novelty.
-const KEYWORDS = [
-  // 🚗 Auto (5)
+const KEYWORDS_LATAM = [
+  // 🚗 Auto
   'hidrolavadora', 'lavado auto', 'dashcam', 'jump starter', 'inflador llantas',
-  // 🧹 Limpieza (4)
+  // 🧹 Limpieza
   'mopa vapor', 'aspiradora portatil', 'destapa cañerías', 'limpiador alfombra',
-  // 💡 Iluminación (4)
+  // 💡 Iluminación
   'luz solar', 'tira led', 'ring light', 'proyector estrellas',
-  // 🍳 Cocina (4)
+  // 🍳 Cocina
   'picadora electrica', 'accesorios airfryer', 'hervidor electrico', 'cafetera portatil',
-  // 👔 Lifestyle (2)
+  // 👔 Lifestyle
   'cojin lumbar', 'masajeador cuello',
-  // 💪 Fitness (2)
+  // 💪 Fitness
   'electroestimulador', 'masajeador percusion',
-  // 🔊 Audio (1)
+  // 🔊 Audio
   'parlante bluetooth',
-  // 🔧 Herramientas (2)
+  // 🔧 Herramientas
   'taladro inalambrico', 'soldador electrico',
-  // 📦 Organización (2)
+  // 📦 Organización
   'organizador refrigerador', 'zapatero giratorio',
-  // 📱 Móviles (1)
+  // 📱 Móviles
   'power bank inalambrico'
 ];
-const COUNTRIES = ['MX', 'AR', 'BR'];
+const KEYWORDS_US = [
+  // 🚗 Auto
+  'pressure washer car', 'car detailer', 'dashcam', 'jump starter portable', 'tire inflator',
+  // 🧹 Limpieza
+  'steam mop', 'cordless shop vac', 'drain cleaner electric', 'carpet stain remover',
+  // 💡 Iluminación
+  'solar lights outdoor', 'led strip lights', 'ring light tripod', 'star projector', 'motion sensor light',
+  // 🍳 Cocina
+  'electric chopper', 'airfryer accessories', 'electric kettle portable', 'portable coffee maker',
+  // 👔 Lifestyle
+  'lumbar cushion', 'neck massager',
+  // 💪 Fitness
+  'ems abs trainer', 'massage gun',
+  // 🔊 Audio
+  'bluetooth speaker waterproof',
+  // 🔧 Herramientas
+  'cordless drill mini', 'soldering iron portable',
+  // 📦 Organización
+  'fridge organizer', 'shoe rack rotating',
+  // 📱 Móviles
+  'magsafe power bank wireless'
+];
+const COUNTRIES_LATAM = ['MX', 'AR', 'BR'];
+const COUNTRIES_US = ['US'];
 const LIMIT_PER_URL = 12;
 const PER_PILLAR_TOP = 5;  // máximo N capturas por pilar en el resultado final
 const FINAL_CAP = 30;
 
-// Filtros ADN. ORDEN: pilares específicos PRIMERO, los genéricos al final.
-// Auto/Limpieza/Iluminación son demasiado amplios y absorben productos de otros pilares
-// si se evalúan primero (ej. "Sistema solar residencial" → matchea "auto" porque dice
-// "automático" en la descripción).
+// Filtros ADN. ORDEN: pilares específicos PRIMERO, genéricos al final.
+// Patterns reconocen español Y inglés (ahora scrapeamos US también).
 const ADN_PATTERNS = [
-  { pillar:'📱 Móviles',      re:/magsafe|power bank|powerbank|bateria.*portatil|bateria.*externa|cargador.*inalambrico|cargador.*celular|cargador.*rapido|case.*celular|funda.*celular|usb.*c.*hub|adaptador.*celular|estacion.*carga.*celular/i },
-  { pillar:'🔧 Herramientas', re:/amoladora|taladro|perforador.*electric|destornillador|soldador|llave.*impacto|atornillador|impacto.*inalambrico|set.*herramienta|caja.*herramienta|nivel.*laser|cinta metrica|remachadora|pistola.*calor|pistola.*silicona|kit.*reparacion/i },
-  { pillar:'🔊 Audio',        re:/altavoz|parlante|bluetooth.speaker|audifono|auricular|headphone|earbud|bocina.*portatil|sound.*bar|wireless.*earbud/i },
-  { pillar:'💪 Fitness',      re:/electroestimulador|ems.*abdominal|masajeador.*percusion|pistola.*masaje|plataforma.*vibratoria|fitpro|fitness|gimnasio.*casa|resistance.band|jump.rope|massage gun|foam roller|elastico.*ejercicio|banda.*pilates|rodillo.*muscular|abdominal.*entrena/i },
-  { pillar:'👔 Lifestyle',    re:/cojin.*lumbar|cojin.*gel|memory.foam|lumbar.*soporte|soporte.*espalda|soporte.*cervical|postura.*correctora|cojin.*masaje|reposacabeza|almohada cervical|masajeador.*cuello|silla.*ergonomica|billetera|wallet|cinturon antirobo/i },
-  { pillar:'📦 Organización', re:/organizador.*refrigerador|organizador.*armario|organizador.*cocina|organizador.*ropa|estante.*plegable|colgador.*pared|zapatero|caja.*almacenaje|perchero|cajonera|drawer.organizer|closet.*organizador|easystick.*vinilo/i },
-  { pillar:'🍳 Cocina',       re:/cuchillo|katana|picador|cortador.*vegetal|pelador.*electric|rallador|airfryer|freidora|blender|mixer|kettle|cooker|hervidor|cafetera.*portatil|molde silicona|contenedor.*vacio|tabla.*cocina|set cuchillos|exprimidor|licuadora portatil|olla.*electrica|sarten.*ceramica|gadget.*cocina|utensilio.*cocina/i },
-  { pillar:'💡 Iluminación',  re:/luz solar|luminaria.*solar|lampara.*recargable|sensor.*movimiento.*luz|foco.*led|linterna.*led|outdoor.*light|garden.*light|under.*cabinet|tira.*led|ring.*light|proyector.*estrella|veladora.*led|luz.*armario|night.*light|luz noche|sistema.*solar|panel.*solar/i },
-  { pillar:'🧹 Limpieza',     re:/mopa.*vapor|aspirador|sopladora.*sin cable|destapa.*caño|destapa.*cano|destapa.*cañeria|limpia.*piso|limpieza.*profunda|scrubber|escoba.*electrica|trapeador|stain remover|dryer.*vent|alfombra.*limpia|desodorizador|extractor.*polvo|cepillo.*limpieza/i },
-  { pillar:'🚗 Auto',         re:/(\bauto\b|\bcoche\b|\bvehiculo\b|\bcarro\b|carplay|funda.*asiento|asiento.*auto|hidrolavadora|llanta|polish|rayon|wax|jump.starter|pressure.washer|tire.foam|interior.cleaner|dashcam|inflador.*llanta|carga.*auto|cargador.*vehiculo|ozonizador.*auto|soporte.*celular.*auto|lava.*auto|tu auto|del auto|para auto|en el auto|del coche|para coche)/i }
+  { pillar:'📱 Móviles',      re:/magsafe|power.?bank|bateria.*portatil|bateria.*externa|cargador.*inalambrico|cargador.*celular|cargador.*rapido|case.*celular|funda.*celular|usb.*c.*hub|adaptador.*celular|estacion.*carga.*celular|wireless charger|portable charger|phone mount(?!.*car)|phone stand|phone holder|charging station/i },
+  { pillar:'🔧 Herramientas', re:/amoladora|taladro|perforador.*electric|destornillador|soldador|llave.*impacto|atornillador|impacto.*inalambrico|set.*herramienta|caja.*herramienta|nivel.*laser|cinta metrica|remachadora|pistola.*calor|pistola.*silicona|kit.*reparacion|cordless drill|soldering iron|screwdriver set|impact driver|tool kit|laser level|stud finder|multitool/i },
+  { pillar:'🔊 Audio',        re:/altavoz|parlante|bluetooth.speaker|audifono|auricular|headphone|earbud|bocina.*portatil|sound.*bar|wireless.*earbud|bluetooth speaker|wireless headphones|portable speaker|noise cancel/i },
+  { pillar:'💪 Fitness',      re:/electroestimulador|ems.*abdominal|masajeador.*percusion|pistola.*masaje|plataforma.*vibratoria|fitpro|fitness|gimnasio.*casa|resistance.band|jump.rope|massage gun|foam roller|elastico.*ejercicio|banda.*pilates|rodillo.*muscular|abdominal.*entrena|ems abs|abs trainer|workout|exercise band|home gym|pilates ring|massage tool|trigger point/i },
+  { pillar:'👔 Lifestyle',    re:/cojin.*lumbar|cojin.*gel|memory.foam|lumbar.*soporte|soporte.*espalda|soporte.*cervical|postura.*correctora|cojin.*masaje|reposacabeza|almohada cervical|masajeador.*cuello|silla.*ergonomica|billetera|wallet|cinturon antirobo|lumbar cushion|neck massager|posture corrector|memory foam|seat cushion|back support|ergonomic.*chair|orthopedic/i },
+  { pillar:'📦 Organización', re:/organizador.*refrigerador|organizador.*armario|organizador.*cocina|organizador.*ropa|estante.*plegable|colgador.*pared|zapatero|caja.*almacenaje|perchero|cajonera|drawer.organizer|closet.*organizador|easystick.*vinilo|fridge organizer|kitchen organizer|closet organizer|shoe rack|drawer divider|over.door|under.bed.*storage|stackable.*container|storage box/i },
+  { pillar:'🍳 Cocina',       re:/cuchillo|katana|picador|cortador.*vegetal|pelador.*electric|rallador|airfryer|freidora|blender|mixer|kettle|cooker|hervidor|cafetera.*portatil|molde silicona|contenedor.*vacio|tabla.*cocina|set cuchillos|exprimidor|licuadora portatil|olla.*electrica|sarten.*ceramica|gadget.*cocina|utensilio.*cocina|knife set|kitchen shears|food chopper|vegetable peeler|airfryer accessories|electric kettle|portable coffee|silicone food|salad spinner|garlic press|electric can opener/i },
+  { pillar:'💡 Iluminación',  re:/luz solar|luminaria.*solar|lampara.*recargable|sensor.*movimiento.*luz|foco.*led|linterna.*led|outdoor.*light|garden.*light|under.*cabinet|tira.*led|ring.*light|proyector.*estrella|veladora.*led|luz.*armario|night.*light|luz noche|sistema.*solar|panel.*solar|solar lights|led strip|motion sensor light|star projector|closet light|puck light|landscape light|pathway light|string lights/i },
+  { pillar:'🧹 Limpieza',     re:/mopa.*vapor|aspirador|sopladora.*sin cable|destapa.*caño|destapa.*cano|destapa.*cañeria|limpia.*piso|limpieza.*profunda|scrubber|escoba.*electrica|trapeador|stain remover|dryer.*vent|alfombra.*limpia|desodorizador|extractor.*polvo|cepillo.*limpieza|steam mop|shop vac|wet dry vac|drain cleaner|carpet cleaner|power scrubber|cordless vacuum/i },
+  { pillar:'🚗 Auto',         re:/(\bauto\b|\bcoche\b|\bvehiculo\b|\bcarro\b|\bcar\b|carplay|funda.*asiento|asiento.*auto|hidrolavadora|llanta|polish|rayon|wax|jump.starter|pressure.washer|tire.foam|interior.cleaner|dashcam|inflador.*llanta|carga.*auto|cargador.*vehiculo|ozonizador.*auto|soporte.*celular.*auto|lava.*auto|tu auto|del auto|para auto|en el auto|del coche|para coche|car wash|car detail|tire inflator|car vacuum|car seat cover|car charger|truck|vehicle|automotive)/i }
 ];
 const EXCLUDED = [
   /skin.?care|crema.*piel|maquillaje|cosmetiquero|beauty|mascara|lipstick|moisturizer|wrinkle|anti.?aging|serum.*facial/i,
@@ -115,7 +135,12 @@ const EXCLUDED = [
   // Plataformas de contenido / audiolibros / novelas / pódcast (ruido frecuente en MX/AR/BR)
   /pocket.?fm|pocketfm|noirpress|bestnovel|pasion ?novel|novelpasion|audiolibro|audionovela|story.?app|capítulo gratis|capitulo gratis|leer historia|escuchar historia/i,
   /el despegue|elevate.*app|trader|crypto|forex|inversiones|trading|invest.*app/i,
-  /historia.*adicción|romance.*novela|fantasy.*novel|dramatic.*story/i
+  /historia.*adicción|romance.*novela|fantasy.*novel|dramatic.*story/i,
+  // Ruido típico US: Mother's Day / regalos generic / TV remotes / pet-only
+  /mother'?s? day|father'?s? day|valentine's? day|easter|halloween|christmas decoration|world cup|fifa|sticker collection/i,
+  /tv remote|samsung remote|lg remote|roku remote|hisense remote|fire stick|streaming stick replacement/i,
+  /dog (treat|food|chew|bed|collar|bark|rake|brush|waste bag)|cat (treat|food|fountain|litter|collar)|fish oil.*pet|omega.*pet/i,
+  /book|kindle|magazine|movie/i
 ];
 
 function buildLibraryUrl(country, keyword) {
@@ -399,8 +424,9 @@ export default async (req) => {
 
   console.log('Building search URLs...');
   const urls = [];
-  for (const c of COUNTRIES) for (const k of KEYWORDS) urls.push(buildLibraryUrl(c, k));
-  console.log(`Total URLs: ${urls.length} (${COUNTRIES.length} countries × ${KEYWORDS.length} keywords)`);
+  for (const c of COUNTRIES_LATAM) for (const k of KEYWORDS_LATAM) urls.push(buildLibraryUrl(c, k));
+  for (const c of COUNTRIES_US)    for (const k of KEYWORDS_US)    urls.push(buildLibraryUrl(c, k));
+  console.log(`Total URLs: ${urls.length} (${COUNTRIES_LATAM.length} LATAM × ${KEYWORDS_LATAM.length} ES + ${COUNTRIES_US.length} US × ${KEYWORDS_US.length} EN)`);
 
   let raw;
   try {
