@@ -197,31 +197,30 @@ function scoreAd(ad, pillar) {
   return Math.min(100, score);
 }
 
-async function checkNovelty(geminiKey, candidates) {
-  // Llamada única a Gemini para evaluar todos los candidatos contra el catálogo del usuario.
-  // Output esperado: array JSON [{idx, novelty, similar_to, reason}]
+async function checkNoveltyBatch(geminiKey, candidates, indexOffset) {
+  // Una llamada a Gemini con un batch de candidatos. indexOffset permite reconstruir
+  // los idx originales cuando hacemos varios batches.
   const catalog = USER_TOP_PRODUCTS.map((t, i) => `${i+1}. ${t}`).join('\n');
-  const candList = candidates.map((c, i) => `[${i}] "${(c.text||'').slice(0, 280).replace(/\n/g,' ').replace(/\s+/g,' ')}" (page: ${c.page_name||''})`).join('\n\n');
-  const prompt = `Eres un analista experto en dropshipping. El usuario tiene este catálogo de productos que YA HA VENDIDO:
-
+  const candList = candidates.map((c, i) => `[${i}] page="${c.page_name || ''}" text="${(c.text || '').slice(0, 220).replace(/\n/g,' ').replace(/\s+/g,' ').replace(/"/g,"'")}"`).join('\n');
+  const prompt = `Catálogo del usuario (productos YA vendidos):
 ${catalog}
 
-Te paso ${candidates.length} candidatos nuevos (ads de Meta Ad Library en LATAM). Para cada uno, evaluá:
-- novelty: 0-100 → 100 = producto/ángulo COMPLETAMENTE NUEVO (no se parece a nada del catálogo). 0 = es básicamente el mismo producto que ya vende.
-- similar_to: número del producto del catálogo más parecido (1-${USER_TOP_PRODUCTS.length}), o null si no hay match razonable.
-- reason: 1 frase MUY corta (<80 chars) explicando.
+Evaluá cada uno de los ${candidates.length} candidatos nuevos. Para cada uno:
+- novelty: 0-100 (100=nuevo total, 0=mismo producto exacto)
+- similar_to: número del producto del catálogo más parecido (1-${USER_TOP_PRODUCTS.length}) o null
+- reason: 1 frase muy corta (<60 chars)
 
-REGLAS:
-- Mismo producto exacto (ej. otro vendedor del MISMO katana japonés) → novelty 5-20
-- Misma categoría con mismo ángulo (ej. otro cuchillo cocina premium) → novelty 25-45
-- Misma categoría con ángulo distinto (ej. cuchillo eléctrico vs manual) → novelty 60-75
-- Producto nuevo aunque sea del mismo nicho amplio → novelty 80-100
+REGLAS de novelty:
+- Mismo producto exacto: 5-20
+- Misma categoría/ángulo: 25-45
+- Mismo nicho, ángulo distinto: 60-75
+- Producto nuevo en el nicho: 80-100
 
-Candidatos a evaluar:
+Candidatos:
 ${candList}
 
-Respondé EXCLUSIVAMENTE un array JSON válido (sin markdown, sin texto extra, sin \`\`\`):
-[{"idx":0,"novelty":NUM,"similar_to":NUM_O_NULL,"reason":"..."}, ...]`;
+JSON solamente, sin markdown:
+[{"idx":0,"novelty":NUM,"similar_to":NUM_O_NULL,"reason":"..."}]`;
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`;
   const r = await fetch(url, {
@@ -229,27 +228,67 @@ Respondé EXCLUSIVAMENTE un array JSON válido (sin markdown, sin texto extra, s
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.4, maxOutputTokens: 8192 }
+      generationConfig: {
+        temperature: 0.3,
+        maxOutputTokens: 32000,
+        responseMimeType: 'application/json'
+      }
     })
   });
   if (!r.ok) {
-    console.error('Gemini error:', r.status, await r.text());
+    console.error('Gemini HTTP error:', r.status, (await r.text()).slice(0,300));
     return null;
   }
   const json = await r.json();
+  const finishReason = json.candidates?.[0]?.finishReason;
   const txt = (json.candidates?.[0]?.content?.parts?.[0]?.text || '').trim();
+  console.log(`Gemini batch: finish=${finishReason}, output=${txt.length}c`);
   let clean = txt.replace(/^```json\s*/i, '').replace(/^```\s*/, '').replace(/\s*```$/, '').trim();
-  // Tomar desde el primer [ hasta el último ] por si hay texto extra
   const start = clean.indexOf('[');
   const end = clean.lastIndexOf(']');
   if (start >= 0 && end > start) clean = clean.slice(start, end + 1);
   try {
-    return JSON.parse(clean);
+    const arr = JSON.parse(clean);
+    // Reasignar idx con offset
+    return arr.map(x => ({ ...x, idx: (Number(x.idx) || 0) + indexOffset }));
   } catch (e) {
     console.error('Gemini parse failed:', e.message);
-    console.error('Raw output:', clean.slice(0, 500));
+    console.error('Last 200 chars:', clean.slice(-200));
+    // Fallback: parse parcial — extraer todos los JSON objects válidos
+    const partial = [];
+    const objMatches = clean.match(/\{[^{}]*"idx"[^{}]*\}/g);
+    if (objMatches) {
+      for (const m of objMatches) {
+        try {
+          const obj = JSON.parse(m);
+          partial.push({ ...obj, idx: (Number(obj.idx) || 0) + indexOffset });
+        } catch {}
+      }
+    }
+    if (partial.length) {
+      console.log('Partial recovery:', partial.length, 'items');
+      return partial;
+    }
     return null;
   }
+}
+
+async function checkNovelty(geminiKey, candidates) {
+  // Procesa en batches de 15 para evitar truncamiento (la respuesta de Gemini Flash
+  // a veces se corta a ~1500 chars con responseMimeType ausente).
+  const BATCH_SIZE = 15;
+  const all = [];
+  for (let i = 0; i < candidates.length; i += BATCH_SIZE) {
+    const batch = candidates.slice(i, i + BATCH_SIZE);
+    console.log(`Novelty batch ${i / BATCH_SIZE + 1}: candidates ${i}-${i+batch.length-1}`);
+    try {
+      const result = await checkNoveltyBatch(geminiKey, batch, i);
+      if (result && result.length) all.push(...result);
+    } catch (e) {
+      console.error('Batch failed:', e.message);
+    }
+  }
+  return all.length ? all : null;
 }
 
 async function postCapture(captureUrl, captureToken, ads) {
