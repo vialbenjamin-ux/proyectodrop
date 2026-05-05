@@ -10328,9 +10328,9 @@ function computeRecomendacion(row, veredicto){
   switch (veredicto.tipo) {
     case 'escalar':
       if (freq > 4)        return '⚡ Antes de subir presupuesto, inyecta batch nuevo (frecuencia alta — saturada)';
-      if (spend < 50000)   return '⬆️ Subir presupuesto +30/50% gradual (NO doblar de un saque, resetea aprendizaje)';
-      if (spend < 100000)  return '⬆️ Duplicar adset (copia con +20% bid) o subir +30% diario';
-      return '🚀 Lanzar adsets gemelos con creativos nuevos o LAL ampliada (1-3% → 3-5%)';
+      if (spend < 50000)   return '⬆️ Subir presupuesto +20%, máximo +30% gradual (NO doblar de un saque, resetea aprendizaje)';
+      if (spend < 100000)  return '⬆️ Subir presupuesto +20-30% diario o duplicar adset con +20% bid';
+      return '🚀 Lanzar adsets gemelos con creativos nuevos o LAL ampliada (1-3% → 3-5%) · subir presupuesto +20% del actual';
 
     case 'mantener':
       if (freq > 3)        return '🎬 Refresh: agregar 2-3 creativos nuevos al adset esta semana';
