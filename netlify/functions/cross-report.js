@@ -45,13 +45,19 @@ exports.handler = async (event) => {
   const { startUTC, endUTC, dateFrom, dateTo } = range;
 
   try {
-    const [orders, insightsRaw, campaignsRaw, accountRaw] = await Promise.all([
+    const [orders, insightsRaw, campaignsRaw, accountRaw, lastSpendByCampaign] = await Promise.all([
       fetchShopifyOrders(shopifyDomain, shopifyToken, startUTC, endUTC),
       useCustom
         ? fetchMetaInsightsRange(accountId, metaToken, customSince, customUntil)
         : fetchMetaInsights(accountId, metaToken, datePreset),
       fetchMetaCampaigns(accountId, metaToken),
       fetchMetaAccount(accountId, metaToken),
+      fetchMetaLastSpendByCampaign(
+        accountId, metaToken,
+        useCustom ? null : datePreset,
+        useCustom ? customSince : null,
+        useCustom ? customUntil : null,
+      ),
     ]);
 
     // Traer costos de las variantes presentes en las órdenes (Shopify GraphQL)
@@ -232,6 +238,7 @@ exports.handler = async (event) => {
         roasReal,
         deltaPct,
         attributedProducts: shop.byProduct,
+        lastSpendDate: lastSpendByCampaign[cid] || null, // YYYY-MM-DD del último día con spend>0
       });
     }
 
@@ -578,6 +585,34 @@ async function fetchMetaInsightsByDay(accountId, token, datePreset, since, until
 
 function getSantiagoDate(isoString) {
   return new Date(isoString).toLocaleDateString('en-CA', { timeZone: 'America/Santiago' });
+}
+
+// Última fecha con spend>0 por campaña, durante el período. Sirve para
+// detectar campañas que están técnicamente "ACTIVE" pero hace días sin gasto
+// (todos los adsets pausados, etc).
+async function fetchMetaLastSpendByCampaign(accountId, token, datePreset, since, until) {
+  const fields = 'campaign_id,spend';
+  const rangeParam = since && until
+    ? `time_range=${encodeURIComponent(JSON.stringify({ since, until }))}`
+    : `date_preset=${datePreset}`;
+  const url = `https://graph.facebook.com/v19.0/${accountId}/insights?fields=${fields}&${rangeParam}&time_increment=1&level=campaign&limit=500&access_token=${encodeURIComponent(token)}`;
+  try {
+    const resp = await fetch(url);
+    const data = await resp.json();
+    if (!resp.ok) return {};
+    const result = {};
+    for (const r of (data.data || [])) {
+      if (!r.campaign_id || !r.date_start) continue;
+      const spend = parseFloat(r.spend || 0);
+      if (spend <= 0) continue;
+      if (!result[r.campaign_id] || r.date_start > result[r.campaign_id]) {
+        result[r.campaign_id] = r.date_start;
+      }
+    }
+    return result;
+  } catch (_) {
+    return {};
+  }
 }
 
 async function fetchMetaCampaigns(accountId, token) {

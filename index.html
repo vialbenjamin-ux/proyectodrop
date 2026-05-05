@@ -10490,12 +10490,20 @@ function onCrossShowPausedChange(){
 function renderCrossCampaignsTable(data){
   const tbody = document.getElementById('cross-camp-tbody');
   const count = document.getElementById('cross-camp-count');
-  // Filtro por defecto: solo ACTIVE para que el veredicto sea accionable.
-  // El checkbox "Mostrar pausadas" levanta el filtro.
+  // Filtro por defecto: solo campañas ACTIVAS y que hayan gastado en las
+  // últimas 48h. Esto excluye casos donde Meta marca la campaña ACTIVE pero
+  // todos los adsets están pausados (no entrega hace días).
   const showPaused = document.getElementById('cross-show-paused')?.checked || false;
   const allRows = (data.byCampaign || []).filter(r => r.spend > 0);
-  const hiddenCount = showPaused ? 0 : allRows.filter(r => (r.status || '').toUpperCase() !== 'ACTIVE').length;
-  const rows = showPaused ? allRows : allRows.filter(r => (r.status || '').toUpperCase() === 'ACTIVE');
+  const cutoff = Date.now() - 48 * 3600 * 1000; // 48h atrás
+  const isLive = (r) => {
+    if ((r.status || '').toUpperCase() !== 'ACTIVE') return false;
+    if (!r.lastSpendDate) return true; // si no hay data de fecha, no excluir
+    const ts = new Date(r.lastSpendDate + 'T23:59:59Z').getTime();
+    return isFinite(ts) && ts >= cutoff;
+  };
+  const hiddenCount = showPaused ? 0 : allRows.filter(r => !isLive(r)).length;
+  const rows = showPaused ? allRows : allRows.filter(isLive);
   // Adjuntar gananciaReal y veredicto a cada campaña usando applyCodMetrics
   const byProd = data.byProduct || [];
   rows.forEach(r => {
@@ -10512,15 +10520,15 @@ function renderCrossCampaignsTable(data){
   });
   renderVeredictoBanner(rows, 'campaign');
   if (count) {
-    let txt = `${rows.length} ${rows.length === 1 ? 'campaña activa' : 'campañas activas'}`;
-    if (hiddenCount > 0) txt += ` · ${hiddenCount} pausada${hiddenCount !== 1 ? 's' : ''} oculta${hiddenCount !== 1 ? 's' : ''}`;
+    let txt = `${rows.length} ${rows.length === 1 ? 'campaña entregando' : 'campañas entregando'} (últimas 48h)`;
+    if (hiddenCount > 0) txt += ` · ${hiddenCount} inactiva${hiddenCount !== 1 ? 's' : ''} oculta${hiddenCount !== 1 ? 's' : ''}`;
     count.textContent = txt;
   }
   if (rows.length === 0){
     const msg = showPaused
       ? 'Sin campañas con gasto en este período'
       : (allRows.length > 0
-          ? `Todas las campañas con gasto están pausadas (${allRows.length}). Marca "Mostrar pausadas" para verlas.`
+          ? `Ninguna campaña activa entregando en últimas 48h (${allRows.length} totales). Marca "Mostrar pausadas" para ver todas.`
           : 'Sin campañas con gasto en este período');
     tbody.innerHTML = `<tr><td colspan="10" style="padding:24px;text-align:center;color:var(--muted2)">${msg}</td></tr>`;
     return;
