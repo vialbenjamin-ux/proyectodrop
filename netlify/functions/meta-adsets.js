@@ -31,11 +31,15 @@ exports.handler = async (event) => {
 
   const insightsUrl = `https://graph.facebook.com/v19.0/${campaignId}/insights?fields=${fields}&date_preset=${datePreset}&level=adset&limit=200&access_token=${encodeURIComponent(token)}`;
   const adsetsUrl   = `https://graph.facebook.com/v19.0/${campaignId}/adsets?fields=id,name,status,effective_status,daily_budget,lifetime_budget,optimization_goal,bid_strategy&limit=200&access_token=${encodeURIComponent(token)}`;
+  // Ads de la campaña con created_time + adset_id para determinar el creativo
+  // más reciente por adset (alerta de "batch viejo" en frontend).
+  const adsUrl       = `https://graph.facebook.com/v19.0/${campaignId}/ads?fields=id,adset_id,created_time,status&limit=500&access_token=${encodeURIComponent(token)}`;
 
   try {
-    const [insightsR, adsetsR] = await Promise.all([fetch(insightsUrl), fetch(adsetsUrl)]);
+    const [insightsR, adsetsR, adsR] = await Promise.all([fetch(insightsUrl), fetch(adsetsUrl), fetch(adsUrl)]);
     const insightsData = await insightsR.json();
     const adsetsData   = await adsetsR.json();
+    const adsData      = await adsR.json();
     if (!insightsR.ok) return respond(insightsR.status, { error: insightsData?.error?.message || 'Error en insights' });
 
     const metaById = {};
@@ -47,6 +51,17 @@ exports.handler = async (event) => {
         optimizationGoal: a.optimization_goal,
         bidStrategy: a.bid_strategy,
       };
+    }
+
+    // Mapping adset_id → ISO del último creativo activo creado (max created_time)
+    const lastAdByAdset = {};
+    for (const ad of (adsData?.data || [])) {
+      if (!ad.adset_id || !ad.created_time) continue;
+      const ts = new Date(ad.created_time).getTime();
+      if (!isFinite(ts)) continue;
+      if (!lastAdByAdset[ad.adset_id] || ts > lastAdByAdset[ad.adset_id]) {
+        lastAdByAdset[ad.adset_id] = ts;
+      }
     }
 
     const rows = (insightsData.data || []).map(r => {
@@ -74,6 +89,7 @@ exports.handler = async (event) => {
         purchaseValue: pVal ? parseFloat(pVal.value) : 0,
         cpa: cpa ? parseFloat(cpa.value) : null,
         roas: roas ? parseFloat(roas.value) : null,
+        lastAdCreatedAt: lastAdByAdset[r.adset_id] ? new Date(lastAdByAdset[r.adset_id]).toISOString() : null,
       };
     });
 

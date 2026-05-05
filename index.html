@@ -1865,6 +1865,9 @@
             <div id="cross-recs"></div>
           </div>
 
+          <!-- Banner de veredictos (escalar / mantener / optimizar / apagar / esperar) -->
+          <div id="cross-veredicto-banner" style="display:none;background:var(--surface);border:1.5px solid var(--border);border-radius:12px;padding:10px 14px;margin-bottom:12px;font-size:11px;font-family:'DM Mono',monospace;display:flex;align-items:center;gap:14px;flex-wrap:wrap"></div>
+
           <!-- Tabla por campaña -->
           <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:14px">
             <div style="padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px">
@@ -1875,6 +1878,7 @@
               <thead>
                 <tr style="border-bottom:1px solid var(--border);background:var(--surface2)">
                   <th style="text-align:left;padding:10px 14px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">CAMPAÑA</th>
+                  <th style="text-align:left;padding:10px 8px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">VEREDICTO</th>
                   <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">GASTO</th>
                   <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500" title="Compras según el pixel/CAPI de Meta">META</th>
                   <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--accent);font-weight:600" title="Órdenes únicas en Shopify atribuidas a esta campaña">ÓRDENES</th>
@@ -9438,6 +9442,7 @@ function renderAdsetsInline(campaignId, rows){
         <tr>
           <th>NOMBRE</th>
           <th style="text-align:center">ESTADO</th>
+          <th>ÚLT. BATCH</th>
           <th>PPTO/DÍA</th>
           <th>GASTO</th>
           <th>COMPRAS</th>
@@ -9460,6 +9465,7 @@ function renderAdsetsInline(campaignId, rows){
             <tr>
               <td title="${esc(r.name)}">${esc(r.name)}</td>
               <td style="text-align:center"><span class="meta-badge ${bcl}">${blab}</span></td>
+              <td>${adsetBatchCellHtml(r)}</td>
               <td>${r.dailyBudget ? fmtMoney(r.dailyBudget, currency) : '—'}</td>
               <td><b>${fmtMoney(r.spend, currency)}</b></td>
               <td>${fmtNum(r.purchases)}</td>
@@ -10305,13 +10311,153 @@ function renderCrossRecs(data){
   `).join('');
 }
 
+// Calcula veredicto + acción recomendada para una campaña o adset.
+// row debe tener: spend, realPurchases (o purchases), realRevenue (o revenue),
+// roasReal (o roas), cpaReal (o cpa), name, opcionalmente totalCost.
+// scope = 'campaign' | 'adset' (campaign tiene más data como gananciaReal).
+function computeVeredicto(row, scope){
+  const spend       = row.spend || 0;
+  const purchases   = row.realPurchases ?? row.purchases ?? 0;
+  const roas        = row.roasReal ?? row.roas;
+  const cpa         = row.cpaReal  ?? row.cpa;
+  const name        = (row.name || '').toUpperCase();
+  // Detecta variantes BIDCAP / BDCAP / BCAP, o el patrón de rango numérico
+  // típico que el usuario usa en estas campañas (ej. "3500-4500", "2000 - 3000")
+  const isBidcap    = /\b(?:BIDCAP|BDCAP|BCAP)\b/.test(name) || /\d{3,5}\s*-\s*\d{3,5}/.test(name);
+  const ganancia    = (typeof row.gananciaReal === 'number') ? row.gananciaReal : null;
+
+  // Sin data significativa
+  if (spend < 10000) {
+    return { tipo:'esperar', label:'⏳ Esperar', color:'#8896A6', reason:`Gasto bajo ($${Math.round(spend).toLocaleString('es-CL')}) — sin data significativa aún` };
+  }
+
+  // BIDCAP con CPA acumulado alto → apagar (regla específica del usuario)
+  if (isBidcap && cpa && cpa > 5000) {
+    return { tipo:'apagar', label:'🔴 Apagar', color:'#C0392B', reason:`Campaña BIDCAP-style con CPA $${Math.round(cpa).toLocaleString('es-CL')} > $5.000 acumulado` };
+  }
+
+  // 0 ventas con gasto medio/alto → apagar (regla del usuario: $11k)
+  if (purchases === 0 && spend >= 11000) {
+    return { tipo:'apagar', label:'🔴 Apagar', color:'#C0392B', reason:`$${Math.round(spend).toLocaleString('es-CL')} gastados sin ventas` };
+  }
+
+  // Si tenemos ganancia real (solo a nivel campaña): es la métrica más fuerte
+  if (ganancia !== null) {
+    if (ganancia < -30000 && spend >= 30000) {
+      return { tipo:'apagar', label:'🔴 Apagar', color:'#C0392B', reason:`Pierde $${Math.round(Math.abs(ganancia)).toLocaleString('es-CL')} (post-COD, post-ads)` };
+    }
+    if (ganancia < 0) {
+      return { tipo:'optimizar', label:'⚠️ Optimizar', color:'#D88A2A', reason:`Pierde $${Math.round(Math.abs(ganancia)).toLocaleString('es-CL')} — break-even cercano, ajustar` };
+    }
+    if (ganancia > 30000 && roas && roas >= 8 && spend >= 30000) {
+      return { tipo:'escalar', label:'🟢 Escalar', color:'#2C8B5C', reason:`Gana $${Math.round(ganancia).toLocaleString('es-CL')} · ROAS ${roas.toFixed(2)}x — escalable` };
+    }
+    return { tipo:'mantener', label:'✅ Mantener', color:'#3F7F5C', reason:`Gana $${Math.round(ganancia).toLocaleString('es-CL')} (post-COD, post-ads)` };
+  }
+
+  // Fallback con ROAS/CPA cuando no hay costo cargado
+  if (roas) {
+    if (roas < 3 && spend >= 30000) {
+      return { tipo:'apagar', label:'🔴 Apagar', color:'#C0392B', reason:`ROAS ${roas.toFixed(2)}x con $${Math.round(spend).toLocaleString('es-CL')} gastados` };
+    }
+    if (roas >= 8 && spend >= 30000) {
+      return { tipo:'escalar', label:'🟢 Escalar', color:'#2C8B5C', reason:`ROAS ${roas.toFixed(2)}x — duplicar presupuesto` };
+    }
+    if (roas >= 6) {
+      return { tipo:'mantener', label:'✅ Mantener', color:'#3F7F5C', reason:`ROAS ${roas.toFixed(2)}x estable` };
+    }
+    if (roas >= 3) {
+      return { tipo:'optimizar', label:'⚠️ Optimizar', color:'#D88A2A', reason:`ROAS ${roas.toFixed(2)}x — cambiar creativo o ajustar bid` };
+    }
+    return { tipo:'optimizar', label:'⚠️ Optimizar', color:'#D88A2A', reason:`ROAS ${roas.toFixed(2)}x bajo — revisar funnel` };
+  }
+
+  return { tipo:'esperar', label:'⏳ Esperar', color:'#8896A6', reason:'Sin métricas suficientes para veredicto' };
+}
+
+// Renderiza el banner-resumen con el conteo por veredicto
+function renderVeredictoBanner(rows, scope){
+  const banner = document.getElementById('cross-veredicto-banner');
+  if (!banner) return;
+  if (!rows.length) { banner.style.display = 'none'; return; }
+  const counts = { escalar:0, mantener:0, optimizar:0, apagar:0, esperar:0 };
+  rows.forEach(r => { counts[r.veredicto?.tipo || 'esperar']++; });
+  const items = [
+    { tipo:'escalar',    label:'🟢 Escalar',     color:'#2C8B5C' },
+    { tipo:'mantener',   label:'✅ Mantener',    color:'#3F7F5C' },
+    { tipo:'optimizar',  label:'⚠️ Optimizar',   color:'#D88A2A' },
+    { tipo:'apagar',     label:'🔴 Apagar',      color:'#C0392B' },
+    { tipo:'esperar',    label:'⏳ Esperar',     color:'#8896A6' },
+  ];
+  banner.style.display = 'flex';
+  banner.innerHTML = '<span style="color:var(--muted);text-transform:uppercase;letter-spacing:1px;font-weight:600">Acciones recomendadas:</span>' +
+    items.map(it => `<span style="color:${it.color};font-weight:600">${it.label}: ${counts[it.tipo]}</span>`).join('<span style="color:var(--muted2)">·</span>');
+}
+
+// Devuelve HTML para la celda "Último batch" del adset.
+// Si el último creativo se agregó hace >48h, alerta en naranja/rojo.
+function adsetBatchCellHtml(a){
+  if (!a.lastAdCreatedAt) {
+    return '<span style="color:var(--muted2);font-style:italic">sin data</span>';
+  }
+  const ts   = new Date(a.lastAdCreatedAt).getTime();
+  const diff = Date.now() - ts;
+  const hours = diff / 3600000;
+  const days  = diff / 86400000;
+  let label, color, bg, border;
+  if (hours < 48){
+    color = '#2C8B5C'; bg = '#2C8B5C1A'; border = '#2C8B5C66';
+    label = hours < 24 ? `🟢 hace ${Math.max(1, Math.round(hours))}h` : `🟢 hace ${Math.round(hours)}h`;
+  } else if (hours < 96){ // 48-96h
+    color = '#D88A2A'; bg = '#D88A2A1A'; border = '#D88A2A66';
+    label = `⚠️ hace ${Math.round(hours)}h sin batch`;
+  } else { // >96h
+    color = '#C0392B'; bg = '#C0392B1A'; border = '#C0392B66';
+    label = `🔴 hace ${Math.round(days)}d sin batch`;
+  }
+  const dateStr = new Date(a.lastAdCreatedAt).toLocaleString('es-CL', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' });
+  return `<span style="background:${bg};color:${color};border:1px solid ${border};border-radius:12px;padding:2px 8px;font-size:10px;font-weight:600;white-space:nowrap" title="Último creativo creado: ${dateStr}">${label}</span>`;
+}
+
+// Calcula totalCost agregado de una campaña a partir de byProduct (matching por nombre)
+function getCampaignTotalCost(campRow, byProductArr){
+  if (!byProductArr || !byProductArr.length) return null;
+  const byName = {};
+  byProductArr.forEach(p => { byName[p.name] = p; });
+  let total = 0;
+  let any = false;
+  Object.entries(campRow.attributedProducts || {}).forEach(([name, p]) => {
+    const bp = byName[name];
+    if (bp && bp.unitCost != null && p.qty > 0){
+      total += bp.unitCost * p.qty;
+      any = true;
+    }
+  });
+  return any ? total : null;
+}
+
 function renderCrossCampaignsTable(data){
   const tbody = document.getElementById('cross-camp-tbody');
   const count = document.getElementById('cross-camp-count');
   const rows = (data.byCampaign || []).filter(r => r.spend > 0);
+  // Adjuntar gananciaReal y veredicto a cada campaña usando applyCodMetrics
+  const byProd = data.byProduct || [];
+  rows.forEach(r => {
+    const totalCost = getCampaignTotalCost(r, byProd);
+    const cod = applyCodMetrics({
+      realPurchases: r.realPurchases,
+      realRevenue: r.realRevenue,
+      qty: r.realUnits || 0,
+      totalCost,
+      attributedSpend: r.spend
+    });
+    r.gananciaReal = cod.gananciaReal;
+    r.veredicto = computeVeredicto(r, 'campaign');
+  });
+  renderVeredictoBanner(rows, 'campaign');
   if (count) count.textContent = `${rows.length} ${rows.length === 1 ? 'campaña' : 'campañas'}`;
   if (rows.length === 0){
-    tbody.innerHTML = '<tr><td colspan="9" style="padding:24px;text-align:center;color:var(--muted2)">Sin campañas con gasto en este período</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10" style="padding:24px;text-align:center;color:var(--muted2)">Sin campañas con gasto en este período</td></tr>';
     return;
   }
   const cur = data.currency;
@@ -10320,9 +10466,14 @@ function renderCrossCampaignsTable(data){
     const products = r.attributedProducts || {};
     const productKeys = Object.keys(products);
     const hasProducts = productKeys.length > 0;
+    const v = r.veredicto;
+    const veredictoBadge = v
+      ? `<span style="background:${v.color}1A;color:${v.color};border:1px solid ${v.color}66;border-radius:14px;padding:3px 8px;font-size:10px;font-weight:700;white-space:nowrap" title="${esc(v.reason)}">${v.label}</span>`
+      : '—';
     return `
       <tr class="cross-camp-row" data-idx="${idx}" onclick="toggleCrossCamp(${idx})" style="border-bottom:1px solid var(--border);cursor:pointer">
         <td style="padding:9px 14px;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.name)}"><span class="cross-chevron">▶</span>${esc(r.name)}</td>
+        <td style="padding:9px 8px">${veredictoBadge}</td>
         <td style="text-align:right;padding:9px 10px"><b>${fmtMoney(r.spend, cur)}</b></td>
         <td style="text-align:right;padding:9px 10px;color:var(--muted)" title="Compras del pixel/CAPI de Meta">${fmtNum(r.metaPurchases)}</td>
         <td style="text-align:right;padding:9px 10px;color:var(--accent);font-weight:600" title="Órdenes únicas en Shopify">${fmtNum(r.realPurchases)}</td>
@@ -10333,7 +10484,7 @@ function renderCrossCampaignsTable(data){
         <td style="text-align:right;padding:9px 10px;color:${r.frequency > 4 ? '#A6862A' : 'var(--muted)'}">${r.frequency ? r.frequency.toFixed(2) : '—'}</td>
       </tr>
       <tr class="cross-camp-products-row" id="cross-camp-products-${idx}" style="display:none;background:var(--surface2)">
-        <td colspan="9" style="padding:0">
+        <td colspan="10" style="padding:0">
           <div style="padding:14px 20px 18px;background:linear-gradient(180deg,#F0EDE8 0%,var(--surface2) 100%);border-bottom:1px solid var(--border);display:grid;grid-template-columns:1fr 1fr;gap:14px">
             ${hasProducts ? `
             <div>
@@ -10404,6 +10555,7 @@ async function toggleCrossCamp(idx){
         <table style="width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden">
           <thead><tr style="background:var(--surface2)">
             <th style="text-align:left;padding:8px 12px;font-size:9px;letter-spacing:.8px;text-transform:uppercase;color:var(--muted);font-weight:600">ADSET</th>
+            <th style="text-align:left;padding:8px 12px;font-size:9px;letter-spacing:.8px;text-transform:uppercase;color:var(--muted);font-weight:600" title="Último creativo agregado al adset (alerta si >48h)">ÚLT. BATCH</th>
             <th style="text-align:right;padding:8px 12px;font-size:9px;letter-spacing:.8px;text-transform:uppercase;color:var(--muted);font-weight:600">GASTO</th>
             <th style="text-align:right;padding:8px 12px;font-size:9px;letter-spacing:.8px;text-transform:uppercase;color:var(--muted);font-weight:600">COMPRAS</th>
             <th style="text-align:right;padding:8px 12px;font-size:9px;letter-spacing:.8px;text-transform:uppercase;color:var(--accent);font-weight:600">CPA</th>
@@ -10414,8 +10566,10 @@ async function toggleCrossCamp(idx){
             ${adsets.map(a => {
               const st = (a.status || '').toUpperCase();
               const isActive = st === 'ACTIVE';
+              const batchCell = adsetBatchCellHtml(a);
               return `<tr style="border-top:1px solid var(--border);${isActive ? '' : 'opacity:.6'}">
                 <td style="padding:7px 12px;font-size:11px;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(a.name)}">${esc(a.name)}${!isActive ? ` <span style="font-size:9px;color:var(--muted2)">· ${st.toLowerCase()}</span>` : ''}</td>
+                <td style="padding:7px 12px;font-size:11px">${batchCell}</td>
                 <td style="text-align:right;padding:7px 12px;font-size:11px"><b>${fmtMoney(a.spend, cur)}</b></td>
                 <td style="text-align:right;padding:7px 12px;font-size:11px">${fmtNum(a.purchases)}</td>
                 <td style="text-align:right;padding:7px 12px;font-size:11px;color:var(--accent)">${a.cpa ? fmtMoney(a.cpa, cur) : '—'}</td>
