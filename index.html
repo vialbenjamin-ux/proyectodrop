@@ -3679,10 +3679,13 @@ function renderProducts(){
     const imp = IMPORTANCE.find(i=>i.id===p.importance);
     const isDone       = !!stages.done;
     const isAds        = !!stages.ads && !isDone;
-    const isReleasit   = !!stages.releasit && !isDone && !isAds;
-    const isVideos     = !!stages.videos && !isDone && !isAds && !isReleasit;
-    const isLandingPub = !!stages.landingpub && !isDone && !isAds && !isReleasit && !isVideos;
-    const isLandingWip = !!stages.landing && !isLandingPub && !isDone && !isAds && !isReleasit && !isVideos;
+    // Pipeline: landing → landingpub → releasit → videos → ads → done.
+    // El color refleja la etapa MÁS AVANZADA marcada, así que priorizamos
+    // de derecha a izquierda del pipeline.
+    const isVideos     = !!stages.videos && !isDone && !isAds;
+    const isReleasit   = !!stages.releasit && !isDone && !isAds && !isVideos;
+    const isLandingPub = !!stages.landingpub && !isDone && !isAds && !isVideos && !isReleasit;
+    const isLandingWip = !!stages.landing && !isLandingPub && !isDone && !isAds && !isVideos && !isReleasit;
     const isEmpty      = !stages.landing;
 
     const oc = p.owner ? getOwnerColor(p.owner) : null;
