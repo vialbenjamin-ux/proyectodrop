@@ -10376,9 +10376,18 @@ function computeVeredicto(row, scope){
     return { tipo:'esperar', label:'⏳ Esperar', color:'#8896A6', reason:`Gasto bajo ($${Math.round(spend).toLocaleString('es-CL')}) — sin data significativa aún` };
   }
 
-  // BIDCAP con CPA acumulado alto → apagar (regla específica del usuario)
+  // BIDCAP con CPA acumulado alto Y no rentable → apagar.
+  // Si la campaña tiene ROAS ≥6 o ganancia positiva, NO apagar aunque
+  // el CPA sea alto (ticket alto justifica CPA alto).
   if (isBidcap && cpa && cpa > 5000) {
-    return { tipo:'apagar', label:'🔴 Apagar', color:'#C0392B', reason:`Campaña BIDCAP-style con CPA $${Math.round(cpa).toLocaleString('es-CL')} > $5.000 acumulado` };
+    const isRentable = (ganancia !== null && ganancia > 0) || (roas && roas >= 6);
+    if (!isRentable) {
+      return { tipo:'apagar', label:'🔴 Apagar', color:'#C0392B', reason:`Campaña BIDCAP-style con CPA $${Math.round(cpa).toLocaleString('es-CL')} > $5.000 y no rentable` };
+    }
+    // Si es rentable con CPA alto pero BIDCAP, igual avisamos
+    if (roas && roas >= 6) {
+      return { tipo:'mantener', label:'✅ Mantener', color:'#3F7F5C', reason:`BIDCAP con CPA alto $${Math.round(cpa).toLocaleString('es-CL')} pero ROAS ${roas.toFixed(2)}x rentable` };
+    }
   }
 
   // 0 ventas con gasto medio/alto → apagar (regla del usuario: $11k)
