@@ -1547,7 +1547,12 @@
             </div>
             <div class="bk-prompt-output-body">
               <div style="font-size:10px;color:var(--muted);letter-spacing:.5px;text-transform:uppercase;margin-bottom:4px;font-weight:600">Hook (editable)</div>
-              <input type="text" id="imgad-hook" oninput="renderImgAdAll()" style="width:100%;background:var(--surface2);border:1.5px solid var(--accent);color:var(--text);padding:9px 12px;border-radius:8px;font-size:13px;font-family:'Syne',sans-serif;font-weight:700;outline:none;margin-bottom:14px">
+              <input type="text" id="imgad-hook" oninput="renderImgAdAll()" style="width:100%;background:var(--surface2);border:1.5px solid var(--accent);color:var(--text);padding:9px 12px;border-radius:8px;font-size:13px;font-family:'Syne',sans-serif;font-weight:700;outline:none;margin-bottom:10px">
+              <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
+                <button id="bk-imgad-ai-btn" onclick="mejorarFrameConAI()" style="background:#7B5BB5;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer;display:flex;align-items:center;gap:6px">🎨 Mejorar fondo con AI</button>
+                <button onclick="restaurarFrameOriginal()" style="background:var(--surface);color:var(--muted);border:1.5px solid var(--border);border-radius:8px;padding:7px 12px;font-size:10px;font-family:'DM Mono',monospace;cursor:pointer">↺ Frame original</button>
+                <span id="imgad-ai-status" style="font-size:10px;color:var(--muted2);font-family:'DM Mono',monospace"></span>
+              </div>
               <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px">
                 <div>
                   <div style="font-size:9px;letter-spacing:1px;color:var(--muted);text-align:center;margin-bottom:4px;font-family:'DM Mono',monospace">CUADRADO 1080×1080</div>
@@ -5621,6 +5626,76 @@ function wrapTextLines(ctx, text, maxWidth){
   }
   if (line) lines.push(line);
   return lines;
+}
+
+// Pide a Gemini Image (Nano Banana) que regenere el frame elegido como
+// foto publicitaria profesional, manteniendo el mismo producto pero con
+// iluminación / fondo / nitidez de calidad de revista.
+async function mejorarFrameConAI(){
+  const state = _imgAdState;
+  if (!state.frame) { showToast('Genera primero las imágenes con un video', '⚠️', 'warn'); return; }
+  const btn = document.getElementById('bk-imgad-ai-btn');
+  const status = document.getElementById('imgad-ai-status');
+  // Guardamos el frame original para poder restaurar
+  if (!state.frameOriginalDataUrl) state.frameOriginalDataUrl = state.frame.dataUrl;
+
+  const orig = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="bk-spinner"></span>Generando…';
+  if (status) status.textContent = 'Esto tarda 10-20s…';
+
+  try {
+    const frameBase64 = state.frame.dataUrl.split(',')[1];
+    const images = [{ mimeType: 'image/jpeg', data: frameBase64 }];
+    if (state.refDataUrl){
+      images.push({ mimeType: 'image/jpeg', data: state.refDataUrl.split(',')[1] });
+    }
+    const prompt = `Recreate this image as a professional advertising photograph for an e-commerce product ad.
+
+REQUIREMENTS:
+- Keep the SAME product visible, in the same scene/use as in the input image
+- Improve dramatically: studio-quality lighting, sharp focus, vibrant clean colors, high resolution magazine look
+- Background: clean, slight blur (bokeh), not distracting
+- Composition: product is the hero, well-centered or rule-of-thirds
+- Style: premium dropshipping winner-ad aesthetic, eye-catching, scroll-stopping
+- NO text or logos in the image (text will be added separately as overlay)
+- Output: high quality, photorealistic, square aspect ratio if possible
+
+${state.refDataUrl ? 'Use the second image as a reference for what the product looks like in the actual landing page.' : ''}
+
+Generate the improved advertising image now.`;
+
+    const resp = await fetch('/.netlify/functions/gemini-image-gen', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt, images })
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'HTTP ' + resp.status);
+    if (!data.data) throw new Error('Sin imagen generada');
+
+    // Reemplazar el frame con el generado y re-renderizar las 3 medidas
+    const newDataUrl = `data:${data.mimeType || 'image/png'};base64,${data.data}`;
+    state.frame = { ...state.frame, dataUrl: newDataUrl };
+    renderImgAdAll();
+    if (status) status.textContent = '✓ Mejorado con AI';
+    showToast('🎨 Fondo regenerado con AI', '✨', 'success');
+  } catch (err) {
+    if (status) status.textContent = '⚠️ ' + (err.message || 'Error');
+    showToast('No se pudo mejorar: ' + (err.message || '?'), '⚠️', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = orig;
+  }
+}
+
+function restaurarFrameOriginal(){
+  const state = _imgAdState;
+  if (!state.frameOriginalDataUrl) return;
+  state.frame = { ...state.frame, dataUrl: state.frameOriginalDataUrl };
+  const status = document.getElementById('imgad-ai-status');
+  if (status) status.textContent = '';
+  renderImgAdAll();
 }
 
 function downloadImgAd(sizeId){
