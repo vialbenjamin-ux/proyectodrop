@@ -5393,6 +5393,43 @@ async function fileToDataUrl(file){
   });
 }
 
+// Sube un blob a Gemini File API y devuelve { fileUri, fileName, mimeType }
+// listo para pasar a gemini-vision como fileUri reference.
+async function subirAudioGemini(audioBlob, displayName){
+  // 1. init upload
+  const initResp = await fetch('/.netlify/functions/gemini-upload-init', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ mimeType: audioBlob.type || 'audio/webm', sizeBytes: audioBlob.size, displayName: displayName || 'audio.webm' })
+  });
+  const initData = await initResp.json().catch(()=>({error:'Respuesta inválida'}));
+  if (!initResp.ok) throw new Error('Audio init: ' + (initData.error || 'HTTP ' + initResp.status));
+  const uploadUrl = initData.uploadUrl;
+  if (!uploadUrl) throw new Error('Audio init: sin uploadUrl');
+  // 2. upload chunk
+  const chunkResp = await fetch('/.netlify/functions/gemini-upload-chunk', {
+    method: 'POST',
+    headers: { 'Content-Type':'application/octet-stream', 'X-BK-Upload-Url': uploadUrl },
+    body: audioBlob
+  });
+  const chunkData = await chunkResp.json().catch(()=>({error:'?'}));
+  if (!chunkResp.ok) throw new Error('Audio upload: ' + (chunkData.error || 'HTTP ' + chunkResp.status));
+  const fileMeta = chunkData.file || chunkData;
+  let fileName = fileMeta.name, fileUri = fileMeta.uri, state = fileMeta.state || 'PROCESSING';
+  if (!fileName) throw new Error('Sin fileName de Gemini');
+  // 3. wait until ACTIVE (max 30s)
+  let attempts = 0;
+  while (state === 'PROCESSING' && attempts < 15){
+    await new Promise(r => setTimeout(r, 2000));
+    const sResp = await fetch('/.netlify/functions/gemini-file-status?name=' + encodeURIComponent(fileName));
+    const sData = await sResp.json().catch(()=>({}));
+    if (sResp.ok){ state = sData.state; if (sData.uri) fileUri = sData.uri; }
+    attempts++;
+  }
+  if (state !== 'ACTIVE') throw new Error('Audio no procesó (state=' + state + ')');
+  return { fileUri, fileName, mimeType: audioBlob.type || 'audio/webm' };
+}
+
 async function ejecutarImagenPublicitaria(){
   const fileInput = document.getElementById('imgad-file');
   const file = fileInput?.files?.[0];
@@ -5422,22 +5459,41 @@ async function ejecutarImagenPublicitaria(){
       _imgAdState.refDataUrl = null;
     }
 
-    setBtn('Eligiendo mejor frame con AI…');
-    const prompt = `Estás analizando frames de un video publicitario ganador para crear una imagen publicitaria estática.
+    // Extraer audio del video y subirlo a Gemini File API para que pueda
+    // capturar el HOOK EXACTO que dice el speaker en los primeros segundos.
+    let audioFileUri = null, audioMime = null;
+    try {
+      setBtn('Extrayendo audio…');
+      const audioBlob = await extraerAudioDeVideo(file, () => {});
+      setBtn('Subiendo audio a Gemini…');
+      const upRes = await subirAudioGemini(audioBlob, 'imgad-audio.webm');
+      audioFileUri = upRes.fileUri;
+      audioMime = upRes.mimeType;
+    } catch (audioErr) {
+      // Si el audio falla, seguimos solo con frames (Gemini inventará un hook)
+      console.warn('Audio no disponible, generando hook desde visual:', audioErr.message);
+    }
 
-INSTRUCCIONES:
-1. La PRIMERA imagen es una grilla con 8 frames numerados (1-8) extraídos del video, ordenados de izquierda a derecha y arriba a abajo.
-${refBase64 ? '2. La SEGUNDA imagen es una referencia del producto en la landing — úsala para entender qué producto destacar.\n' : ''}${refBase64 ? '3' : '2'}. Tu trabajo:
-   a) Elegir el FRAME (número 1-8) que mejor sirve como imagen publicitaria estática:
-      - Producto bien visible y centrado
-      - En uso si aplica al producto
-      - Buena iluminación, no borroso
-      - Composición atractiva, sin gente con expresiones raras
-   b) Escribir un HOOK publicitario en español neutro latinoamericano:
-      - Entre 4 y 7 palabras
-      - Persuasivo, gancho inmediato (curiosidad, problema, transformación)
-      - NO menciones la marca o el nombre propio del producto
-      - Estilo "winner ad" de dropshipping, en MAYÚSCULAS
+    setBtn('Eligiendo frame + extrayendo hook…');
+    const prompt = `Estás analizando un video publicitario ganador (winner ad) para crear una imagen publicitaria estática.
+
+ENTRADAS:
+1. Una grilla con 8 frames numerados (1-8) del video, ordenados de izquierda a derecha y arriba a abajo.
+${refBase64 ? '2. Una imagen de referencia del producto en la landing — úsala para entender qué producto destacar.\n' : ''}${audioFileUri ? (refBase64 ? '3' : '2') + '. El AUDIO del video (adjunto). De ahí extrae el HOOK exacto que dice el speaker en los primeros 2-3 segundos.\n' : ''}
+TU TRABAJO:
+a) Elegir el FRAME (número 1-8) que mejor sirve como imagen publicitaria estática:
+   - Producto bien visible y centrado
+   - En uso si aplica al producto
+   - Buena iluminación, no borroso
+   - Composición atractiva
+
+b) Devolver el HOOK que se va a poner como texto sobre la imagen:
+   ${audioFileUri ? `- PRIORIDAD ABSOLUTA: extrae el HOOK exacto que dice el speaker en los primeros segundos del audio. Es el gancho que ya probó funcionar — no lo inventes, transcríbelo del audio.
+   - Si el hook está en otro idioma o tiene modismos, traducir/adaptar a español neutro latinoamericano manteniendo el sentido.
+   - Si el speaker arranca con relleno (ej. "ok ok mira esto…"), saltar y tomar la frase clave que sigue.` : `- Como no hay audio disponible, genera uno corto basado en lo visual.`}
+   - Entre 4 y 9 palabras (corto, impactante)
+   - NO menciones marca ni nombre propio del producto
+   - DEVUELVE EN MAYÚSCULAS
 
 FORMATO DE RESPUESTA EXACTO (sin nada antes ni después):
 [FRAME] N
@@ -5446,10 +5502,13 @@ FORMATO DE RESPUESTA EXACTO (sin nada antes ni después):
     const images = [{ mimeType: 'image/jpeg', data: grillaBase64 }];
     if (refBase64) images.push({ mimeType: 'image/jpeg', data: refBase64 });
 
+    const reqBody = { prompt, images };
+    if (audioFileUri) { reqBody.fileUri = audioFileUri; reqBody.fileMimeType = audioMime; }
+
     const resp = await fetch('/.netlify/functions/gemini-vision', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt, images })
+      body: JSON.stringify(reqBody)
     });
     const data = await resp.json();
     if (!resp.ok) throw new Error(data.error || 'HTTP ' + resp.status);
@@ -5469,7 +5528,8 @@ FORMATO DE RESPUESTA EXACTO (sin nada antes ni después):
     out.classList.add('open');
     renderImgAdAll();
     setBtn('▶ Generar imágenes', false);
-    showToast(`✅ Frame ${idx + 1}/8 elegido por AI`, '🖼️', 'success');
+    const sourceTag = audioFileUri ? 'hook del audio' : 'hook visual (sin audio)';
+    showToast(`✅ Frame ${idx + 1}/8 + ${sourceTag}`, '🖼️', 'success');
   } catch (err) {
     setBtn('▶ Generar imágenes', false);
     showToast('Error: ' + (err.message || '?'), '⚠️', 'error');

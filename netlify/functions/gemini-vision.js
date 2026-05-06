@@ -26,6 +26,10 @@ exports.handler = async (event) => {
       }
     }
   }
+  // Soporte para un archivo de audio/video subido vía Gemini File API
+  if (body.fileUri && body.fileMimeType) {
+    parts.push({ fileData: { mimeType: body.fileMimeType, fileUri: body.fileUri } });
+  }
   parts.push({ text: prompt });
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${apiKey}`;
