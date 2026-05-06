@@ -2042,6 +2042,16 @@
 
         <div id="tf-loading" style="padding:24px;text-align:center;color:var(--muted2);font-size:12px">Selecciona una cuenta y rango y presiona Actualizar</div>
         <div id="tf-error" style="display:none;padding:18px;background:var(--surface);border:1.5px solid var(--peach);border-radius:14px;color:var(--peach);font-size:12px;margin-bottom:14px"></div>
+        <!-- Acciones recomendadas — sección de campañas con veredicto, ventana fija 4 días -->
+        <div id="tf-acciones-section" style="display:none;background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:14px 18px;margin-bottom:18px">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
+            <span style="font-size:13px;font-weight:700;letter-spacing:.5px;color:var(--text)">🎯 Acciones recomendadas</span>
+            <span style="font-size:10px;color:var(--muted2);font-family:'DM Mono',monospace;letter-spacing:.3px">campañas activas · últimos 4 días · independiente del rango de arriba</span>
+            <span id="tf-acciones-status" style="font-size:10px;color:var(--muted2);font-family:'DM Mono',monospace;margin-left:auto"></span>
+          </div>
+          <div id="tf-acciones-list" style="display:flex;flex-direction:column;gap:8px"></div>
+        </div>
+
         <div id="tf-content" style="display:none">
           <div id="tf-meta" style="font-size:10px;color:var(--muted2);margin-bottom:14px;letter-spacing:.3px"></div>
           <div id="tf-block-revenue" style="margin-bottom:18px"></div>
@@ -8888,7 +8898,107 @@ function showTfError(msg){
   errEl.textContent = '⚠️ ' + msg;
 }
 
+// Acciones recomendadas — ventana fija de 4 días (hoy y 3 días atrás).
+// Reusa la lógica de veredicto de Cruce real, filtrada a campañas activas
+// que entregaron en últimas 48h.
+async function fetchTfAcciones(){
+  const accountId = document.getElementById('tf-account-select')?.value;
+  if (!accountId) return;
+  const section = document.getElementById('tf-acciones-section');
+  const list = document.getElementById('tf-acciones-list');
+  const status = document.getElementById('tf-acciones-status');
+  section.style.display = '';
+  status.textContent = 'Cargando…';
+  list.innerHTML = '';
+
+  // Calcular ventana 4 días en Santiago
+  const today = new Date();
+  const fmt = d => d.toLocaleDateString('en-CA', { timeZone: 'America/Santiago' });
+  const since = fmt(new Date(today.getTime() - 3 * 86400000));
+  const until = fmt(today);
+
+  try {
+    const url = `/.netlify/functions/cross-report?account_id=${encodeURIComponent(accountId)}&since=${since}&until=${until}${tenantParam()}`;
+    const r = await fetch(url);
+    const text = await r.text();
+    let data;
+    try { data = JSON.parse(text); }
+    catch (_) { throw new Error('Respuesta inválida'); }
+    if (!r.ok) throw new Error(data.error || 'HTTP ' + r.status);
+
+    // Filtrar campañas activas que entregaron en últimas 48h
+    const cutoff = Date.now() - 48 * 3600 * 1000;
+    const isLive = (c) => {
+      if ((c.status || '').toUpperCase() !== 'ACTIVE') return false;
+      if (!c.lastSpendDate) return true;
+      const ts = new Date(c.lastSpendDate + 'T23:59:59Z').getTime();
+      return isFinite(ts) && ts >= cutoff;
+    };
+    const allCamps = (data.byCampaign || []).filter(c => c.spend > 0 && isLive(c));
+
+    // Calcular gananciaReal y veredicto para cada una
+    const byProd = data.byProduct || [];
+    allCamps.forEach(c => {
+      const totalCost = getCampaignTotalCost(c, byProd);
+      const cod = applyCodMetrics({
+        realPurchases: c.realPurchases,
+        realRevenue: c.realRevenue,
+        qty: c.realUnits || 0,
+        totalCost,
+        attributedSpend: c.spend,
+      });
+      c.gananciaReal = cod.gananciaReal;
+      c.veredicto = computeVeredicto(c, 'campaign');
+    });
+
+    // Agrupar por veredicto, mostrar primero los críticos (apagar / escalar)
+    const buckets = { apagar:[], escalar:[], optimizar:[], mantener:[], esperar:[] };
+    allCamps.forEach(c => { (buckets[c.veredicto?.tipo] || buckets.esperar).push(c); });
+    // Ordenar dentro de cada bucket por gasto descendente
+    Object.values(buckets).forEach(arr => arr.sort((a,b) => (b.spend||0) - (a.spend||0)));
+
+    // Mostrar máximo 3 por categoría para no saturar
+    const order = [
+      { key:'apagar',    label:'🔴 Apagar inmediato' },
+      { key:'escalar',   label:'🟢 Escalar' },
+      { key:'optimizar', label:'⚠️ Optimizar' },
+      { key:'mantener',  label:'✅ Mantener' },
+    ];
+    const cur = data.currency || 'CLP';
+    let html = '';
+    let totalShown = 0;
+    for (const grp of order){
+      const items = buckets[grp.key].slice(0, 3);
+      if (items.length === 0) continue;
+      totalShown += items.length;
+      html += `<div style="margin-bottom:6px"><div style="font-size:11px;letter-spacing:.5px;color:var(--muted);margin-bottom:4px;font-weight:600">${grp.label} (${buckets[grp.key].length})</div>`;
+      for (const c of items){
+        const v = c.veredicto;
+        const reco = computeRecomendacion(c, v);
+        html += `<div style="display:flex;align-items:flex-start;gap:10px;padding:8px 10px;background:${v.color}0F;border-left:3px solid ${v.color};border-radius:6px;margin-bottom:4px">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:12px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(c.name)}">${esc(c.name)}</div>
+            <div style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;margin-top:2px">${fmtMoney(c.spend, cur)} gastado · ${c.realPurchases || 0} órdenes · ROAS ${c.roasReal ? c.roasReal.toFixed(2)+'x' : '—'}</div>
+            <div style="font-size:10.5px;color:${v.color};margin-top:3px;line-height:1.3">${esc(reco)}</div>
+          </div>
+        </div>`;
+      }
+      html += '</div>';
+    }
+    if (totalShown === 0){
+      html = '<div style="font-size:11px;color:var(--muted2);font-style:italic;padding:8px">No hay campañas con acciones urgentes en los últimos 4 días.</div>';
+    }
+    list.innerHTML = html;
+    status.textContent = `${allCamps.length} campañas evaluadas`;
+  } catch (err) {
+    status.textContent = '⚠️ ' + (err.message || 'Error');
+    list.innerHTML = '<div style="font-size:11px;color:var(--peach);padding:8px">No se pudieron cargar las acciones recomendadas: ' + esc(err.message || '?') + '</div>';
+  }
+}
+
 async function fetchTopFlopReport(){
+  // Disparar también las acciones recomendadas (independiente del rango)
+  fetchTfAcciones();
   const accountId = document.getElementById('tf-account-select')?.value;
   if (!accountId) { showTfError('Selecciona una cuenta'); return; }
   const preset = document.getElementById('tf-date-preset').value;
