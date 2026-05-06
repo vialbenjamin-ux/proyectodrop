@@ -122,17 +122,33 @@ exports.handler = async function (event) {
       + '&limit=250&fields=' + (light ? FIELDS_LIGHT : FIELDS);
   }
 
-  async function fetchAllOrders(startUrl) {
+  async function fetchWithTimeout(url, opts, ms) {
+    const ac = new AbortController();
+    const t = setTimeout(() => ac.abort(), ms);
+    try {
+      return await fetch(url, { ...opts, signal: ac.signal });
+    } finally {
+      clearTimeout(t);
+    }
+  }
+
+  // perPageMs: timeout por página (cada llamada paginada a Shopify)
+  // totalMs: deadline total del fetch — si se excede, lanzamos error
+  async function fetchAllOrders(startUrl, perPageMs = 7000, totalMs = Infinity) {
     let allOrders = [];
     let pageUrl = startUrl;
+    const start = Date.now();
     while (pageUrl) {
+      const remaining = totalMs - (Date.now() - start);
+      if (remaining <= 0) throw new Error('Timeout total alcanzado');
       let response;
       try {
-        response = await fetch(pageUrl, {
+        response = await fetchWithTimeout(pageUrl, {
           headers: { 'X-Shopify-Access-Token': token, 'Content-Type': 'application/json' }
-        });
+        }, Math.min(perPageMs, remaining));
       } catch (err) {
-        throw new Error(err.message);
+        if (err.name === 'AbortError') throw new Error('Shopify timeout (>' + perPageMs + 'ms)');
+        throw new Error(err.message || 'fetch error');
       }
       if (!response.ok) throw new Error('Shopify API error ' + response.status);
       const data = await response.json();
@@ -169,9 +185,10 @@ exports.handler = async function (event) {
 
     let allOrders;
     try {
-      allOrders = await fetchAllOrders(buildUrl(rangeStart, rangeEnd));
+      // Modo rango: deadline total 8.5s (margen sobre los 10s de Netlify)
+      allOrders = await fetchAllOrders(buildUrl(rangeStart, rangeEnd), 6000, 8500);
     } catch (err) {
-      return { statusCode: 502, headers: { 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify({ error: err.message }) };
+      return { statusCode: 502, headers: { 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify({ error: 'Rango muy amplio o Shopify lento. Reduce el rango. (' + err.message + ')' }) };
     }
 
     const dayMap = {};
@@ -237,26 +254,32 @@ exports.handler = async function (event) {
     ? new Date(todayEndUTC.getTime() - 24 * 3600000)
     : new Date(now.getTime() - 24 * 3600000);
 
-  const [todayResult, yesterdayResult] = await Promise.allSettled([
-    fetchAllOrders(buildUrl(todayStartUTC, todayEndUTC, false)),
-    fetchAllOrders(buildUrl(yesterdayStartUTC, yesterdayEndUTC, true)),
-  ]);
+  // "Hoy" es crítico: deadline 7s. "Ayer" es secundario: deadline 5s — si
+  // se queda sin tiempo, devolvemos null y NO bloqueamos la respuesta de
+  // hoy. Así evitamos el 502 cuando Shopify se pone lento.
+  const todayPromise = fetchAllOrders(buildUrl(todayStartUTC, todayEndUTC, false), 6000, 7000);
+  const yesterdayPromise = fetchAllOrders(buildUrl(yesterdayStartUTC, yesterdayEndUTC, true), 4000, 5000)
+    .catch(() => null);
 
-  if (todayResult.status === 'rejected') {
-    return { statusCode: 502, headers: { 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify({ error: todayResult.reason?.message || 'Error fetching orders' }) };
+  let allOrders;
+  try {
+    allOrders = await todayPromise;
+  } catch (err) {
+    return { statusCode: 502, headers: { 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify({ error: 'Shopify tardó demasiado. Reintenta. (' + (err.message || '?') + ')' }) };
   }
-  const allOrders = todayResult.value;
+  // En este punto "yesterday" puede seguir corriendo. Le damos hasta 1.5s
+  // extra después de que hoy ya terminó. Si no llega, lo dejamos null.
+  const yOrders = await Promise.race([
+    yesterdayPromise,
+    new Promise(resolve => setTimeout(() => resolve(null), 1500)),
+  ]);
   const proc = processOrders(allOrders, true);
   const products = Object.values(proc.byProduct).sort(function(a, b) { return b.qty - a.qty; });
 
-  let previousDay = null;
-  if (yesterdayResult.status === 'fulfilled') {
-    const yOrders = yesterdayResult.value;
-    previousDay = {
-      totalOrders: yOrders.length,
-      totalRevenue: sumRevenue(yOrders)
-    };
-  }
+  const previousDay = yOrders ? {
+    totalOrders: yOrders.length,
+    totalRevenue: sumRevenue(yOrders)
+  } : null;
 
   return {
     statusCode: 200,

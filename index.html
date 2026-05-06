@@ -8449,15 +8449,36 @@ async function fetchShopifyReport() {
   }
   params += tenantParam();
 
-  try {
-    var res = await fetch('/.netlify/functions/shopify-report' + params);
-    var text = await res.text();
-    var data;
-    try { data = JSON.parse(text); }
-    catch (_) {
-      throw new Error('Servidor respondió ' + res.status + ' ' + (res.statusText || '') + ' (probable timeout, cuerpo vacío). Reintenta en 30s.');
+  // Reintento automático silencioso en caso de 502/504 (timeout de Netlify)
+  async function fetchReporteWithRetry(url, attempts) {
+    var lastErr;
+    for (var i = 0; i < attempts; i++) {
+      try {
+        var res = await fetch(url);
+        var text = await res.text();
+        var data;
+        try { data = JSON.parse(text); }
+        catch (_) {
+          if ((res.status === 502 || res.status === 504) && i < attempts - 1) {
+            // Timeout silencioso → reintenta tras 2s
+            await new Promise(r => setTimeout(r, 2000));
+            continue;
+          }
+          throw new Error('Servidor respondió ' + res.status + ' ' + (res.statusText || '') + ' (probable timeout, cuerpo vacío). Reintenta en 30s.');
+        }
+        if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+        return data;
+      } catch (err) {
+        lastErr = err;
+        if (i === attempts - 1) throw err;
+        await new Promise(r => setTimeout(r, 2000));
+      }
     }
-    if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+    throw lastErr;
+  }
+
+  try {
+    var data = await fetchReporteWithRetry('/.netlify/functions/shopify-report' + params, 2);
 
     if (data.mode === 'range') {
       ['reporte-by-source-loading','reporte-detail-loading'].forEach(function(id) {
