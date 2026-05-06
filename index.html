@@ -446,6 +446,10 @@
   .bk-prompt-card.tone-transcripcion::before{background:var(--teal)}
   .bk-prompt-card.tone-transcripcion .bk-prompt-card-icon{background:var(--teal-soft);border-color:var(--teal);color:#3A8B82}
   .bk-prompt-card.tone-transcripcion .bk-prompt-copy-big{background:var(--teal);color:#fff}
+  .bk-prompt-card.tone-imgad{border-color:#FFD9C9}
+  .bk-prompt-card.tone-imgad::before{background:#E89A4A}
+  .bk-prompt-card.tone-imgad .bk-prompt-card-icon{background:#FFE8DC;border-color:#E89A4A;color:#9C4520}
+  .bk-prompt-card.tone-imgad .bk-prompt-copy-big{background:#E89A4A;color:#fff}
   .bk-prompt-card.tone-analisis{border-color:#C5E5D2}
   .bk-prompt-card.tone-analisis::before{background:#5BA882}
   .bk-prompt-card.tone-analisis .bk-prompt-card-icon{background:var(--green-soft);border-color:#5BA882;color:#3A6B4F}
@@ -1513,6 +1517,55 @@
               <button class="bk-prompt-output-close" onclick="closeBkOutput('analisis')" title="Cerrar">✕</button>
             </div>
             <div class="bk-prompt-output-body" id="bk-output-body-analisis"></div>
+          </div>
+        </div>
+
+        <div class="bk-prompt-card tone-imgad">
+          <div class="bk-prompt-card-head">
+            <div class="bk-prompt-card-icon">🖼️</div>
+            <div>
+              <div class="bk-prompt-card-tag">Imagen estática</div>
+              <div class="bk-prompt-card-title">Imagen Publicitaria</div>
+            </div>
+          </div>
+          <div class="bk-prompt-card-desc">Sube un winner ad. La AI elige el mejor frame y genera 3 imágenes publicitarias (cuadrado, story, feed) con hook + descuento + envío gratis editables.</div>
+          <input type="file" accept="video/*" id="imgad-file" class="bk-video-input" onchange="updateImgAdLabel('file')">
+          <label for="imgad-file" class="bk-video-label" id="imgad-file-label">📁 Video MP4 (winner ad)</label>
+          <input type="file" accept="image/*" id="imgad-ref" class="bk-video-input" onchange="updateImgAdLabel('ref')">
+          <label for="imgad-ref" class="bk-video-label" id="imgad-ref-label" style="margin-top:6px">📷 Imagen de referencia (opcional)</label>
+          <div style="display:flex;gap:6px;margin-top:8px">
+            <input type="text" id="imgad-descuento" value="30% OFF" placeholder="Descuento" style="flex:1;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px 10px;border-radius:8px;font-size:11px;font-family:'DM Mono',monospace">
+            <input type="text" id="imgad-envio" value="🚚 ENVÍO GRATIS" placeholder="Envío" style="flex:1.3;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px 10px;border-radius:8px;font-size:11px;font-family:'DM Mono',monospace">
+          </div>
+          <div class="bk-prompt-card-actions" style="margin-top:10px">
+            <button class="bk-prompt-copy-big" id="bk-imgad-btn" onclick="ejecutarImagenPublicitaria()">▶ Generar imágenes</button>
+          </div>
+          <div class="bk-prompt-output" id="bk-imgad-output">
+            <div class="bk-prompt-output-head">
+              <span class="bk-prompt-output-label" id="bk-imgad-label">Imágenes generadas</span>
+              <button class="bk-prompt-output-close" onclick="document.getElementById('bk-imgad-output').classList.remove('open')" title="Cerrar">✕</button>
+            </div>
+            <div class="bk-prompt-output-body">
+              <div style="font-size:10px;color:var(--muted);letter-spacing:.5px;text-transform:uppercase;margin-bottom:4px;font-weight:600">Hook (editable)</div>
+              <input type="text" id="imgad-hook" oninput="renderImgAdAll()" style="width:100%;background:var(--surface2);border:1.5px solid var(--accent);color:var(--text);padding:9px 12px;border-radius:8px;font-size:13px;font-family:'Syne',sans-serif;font-weight:700;outline:none;margin-bottom:14px">
+              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px">
+                <div>
+                  <div style="font-size:9px;letter-spacing:1px;color:var(--muted);text-align:center;margin-bottom:4px;font-family:'DM Mono',monospace">CUADRADO 1080×1080</div>
+                  <canvas id="imgad-canvas-square" width="1080" height="1080" style="width:100%;border:1px solid var(--border);border-radius:6px;background:#eee"></canvas>
+                  <button onclick="downloadImgAd('square')" style="width:100%;margin-top:6px;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:8px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer">⬇ Descargar JPG</button>
+                </div>
+                <div>
+                  <div style="font-size:9px;letter-spacing:1px;color:var(--muted);text-align:center;margin-bottom:4px;font-family:'DM Mono',monospace">STORY 1080×1920</div>
+                  <canvas id="imgad-canvas-story" width="1080" height="1920" style="width:100%;border:1px solid var(--border);border-radius:6px;background:#eee"></canvas>
+                  <button onclick="downloadImgAd('story')" style="width:100%;margin-top:6px;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:8px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer">⬇ Descargar JPG</button>
+                </div>
+                <div>
+                  <div style="font-size:9px;letter-spacing:1px;color:var(--muted);text-align:center;margin-bottom:4px;font-family:'DM Mono',monospace">HORIZONTAL 1200×628</div>
+                  <canvas id="imgad-canvas-feed" width="1200" height="628" style="width:100%;border:1px solid var(--border);border-radius:6px;background:#eee"></canvas>
+                  <button onclick="downloadImgAd('feed')" style="width:100%;margin-top:6px;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:8px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer">⬇ Descargar JPG</button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -5246,6 +5299,278 @@ async function comprimirVideoEnNavegador(file, onProgress){
     cleanup();
     throw err;
   }
+}
+
+// ── IMAGEN PUBLICITARIA desde video ──────────────────────────────────────
+let _imgAdState = { frame: null, hook: '', descuento: '30% OFF', envio: '🚚 ENVÍO GRATIS', refDataUrl: null };
+
+function updateImgAdLabel(which){
+  if (which === 'file') {
+    const inp = document.getElementById('imgad-file');
+    const lbl = document.getElementById('imgad-file-label');
+    const f = inp?.files?.[0];
+    if (f) { lbl.textContent = `🎬 ${f.name} (${(f.size/1024/1024).toFixed(1)} MB)`; lbl.classList.add('has-file'); }
+    else { lbl.textContent = '📁 Video MP4 (winner ad)'; lbl.classList.remove('has-file'); }
+  } else {
+    const inp = document.getElementById('imgad-ref');
+    const lbl = document.getElementById('imgad-ref-label');
+    const f = inp?.files?.[0];
+    if (f) { lbl.textContent = `📷 ${f.name}`; lbl.classList.add('has-file'); }
+    else { lbl.textContent = '📷 Imagen de referencia (opcional)'; lbl.classList.remove('has-file'); }
+  }
+}
+
+// Extrae N frames espaciados del video usando canvas. Devuelve array de
+// { time, dataUrl, base64 (sin prefijo) }.
+async function extraerFramesDeVideo(file, count = 8){
+  const video = document.createElement('video');
+  video.preload = 'metadata';
+  video.muted = true;
+  video.playsInline = true;
+  const url = URL.createObjectURL(file);
+  video.src = url;
+  await new Promise((resolve, reject) => {
+    video.addEventListener('loadedmetadata', resolve, { once: true });
+    video.addEventListener('error', () => reject(new Error('Video inválido')), { once: true });
+  });
+  const W = video.videoWidth, H = video.videoHeight;
+  const canvas = document.createElement('canvas');
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  const frames = [];
+  for (let i = 1; i <= count; i++){
+    const t = (i / (count + 1)) * video.duration;
+    video.currentTime = t;
+    await new Promise((resolve) => video.addEventListener('seeked', resolve, { once: true }));
+    ctx.drawImage(video, 0, 0);
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+    frames.push({ time: t, dataUrl, base64: dataUrl.split(',')[1], width: W, height: H });
+  }
+  URL.revokeObjectURL(url);
+  return frames;
+}
+
+// Construye una grilla 4x2 con los frames numerados (1-8) en una sola
+// imagen. Más eficiente que enviar 8 imágenes separadas a Gemini.
+async function construirGrillaFrames(frames){
+  const cols = 4, rows = Math.ceil(frames.length / cols);
+  const cellW = 320, cellH = 180;
+  const gap = 4;
+  const W = cols * cellW + (cols + 1) * gap;
+  const H = rows * cellH + (rows + 1) * gap;
+  const canvas = document.createElement('canvas');
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+  const loadImg = (src) => new Promise((res, rej) => {
+    const img = new Image(); img.onload = () => res(img); img.onerror = rej; img.src = src;
+  });
+  for (let i = 0; i < frames.length; i++){
+    const col = i % cols, row = Math.floor(i / cols);
+    const x = gap + col * (cellW + gap);
+    const y = gap + row * (cellH + gap);
+    const img = await loadImg(frames[i].dataUrl);
+    const ratio = Math.min(cellW / img.width, cellH / img.height);
+    const w = img.width * ratio, h = img.height * ratio;
+    const dx = x + (cellW - w) / 2, dy = y + (cellH - h) / 2;
+    ctx.drawImage(img, dx, dy, w, h);
+    ctx.fillStyle = 'rgba(0,0,0,.78)';
+    ctx.fillRect(x + 4, y + 4, 38, 30);
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 19px sans-serif';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    ctx.fillText(String(i + 1), x + 13, y + 9);
+  }
+  return canvas.toDataURL('image/jpeg', 0.85);
+}
+
+async function fileToDataUrl(file){
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(r.result);
+    r.onerror = rej;
+    r.readAsDataURL(file);
+  });
+}
+
+async function ejecutarImagenPublicitaria(){
+  const fileInput = document.getElementById('imgad-file');
+  const file = fileInput?.files?.[0];
+  if (!file) { showToast('Sube un video primero', '⚠️', 'warn'); return; }
+
+  const refFile = document.getElementById('imgad-ref')?.files?.[0];
+  const descuento = document.getElementById('imgad-descuento').value || '30% OFF';
+  const envio = document.getElementById('imgad-envio').value || '🚚 ENVÍO GRATIS';
+
+  const btn = document.getElementById('bk-imgad-btn');
+  const out = document.getElementById('bk-imgad-output');
+  const setBtn = (txt, busy=true) => { btn.disabled = busy; btn.innerHTML = busy ? `<span class="bk-spinner"></span>${txt}` : txt; };
+
+  setBtn('Extrayendo frames…');
+  try {
+    const frames = await extraerFramesDeVideo(file, 8);
+    setBtn('Construyendo grilla…');
+    const grillaDataUrl = await construirGrillaFrames(frames);
+    const grillaBase64 = grillaDataUrl.split(',')[1];
+
+    let refBase64 = null;
+    if (refFile){
+      const refUrl = await fileToDataUrl(refFile);
+      _imgAdState.refDataUrl = refUrl;
+      refBase64 = refUrl.split(',')[1];
+    } else {
+      _imgAdState.refDataUrl = null;
+    }
+
+    setBtn('Eligiendo mejor frame con AI…');
+    const prompt = `Estás analizando frames de un video publicitario ganador para crear una imagen publicitaria estática.
+
+INSTRUCCIONES:
+1. La PRIMERA imagen es una grilla con 8 frames numerados (1-8) extraídos del video, ordenados de izquierda a derecha y arriba a abajo.
+${refBase64 ? '2. La SEGUNDA imagen es una referencia del producto en la landing — úsala para entender qué producto destacar.\n' : ''}${refBase64 ? '3' : '2'}. Tu trabajo:
+   a) Elegir el FRAME (número 1-8) que mejor sirve como imagen publicitaria estática:
+      - Producto bien visible y centrado
+      - En uso si aplica al producto
+      - Buena iluminación, no borroso
+      - Composición atractiva, sin gente con expresiones raras
+   b) Escribir un HOOK publicitario en español neutro latinoamericano:
+      - Entre 4 y 7 palabras
+      - Persuasivo, gancho inmediato (curiosidad, problema, transformación)
+      - NO menciones la marca o el nombre propio del producto
+      - Estilo "winner ad" de dropshipping, en MAYÚSCULAS
+
+FORMATO DE RESPUESTA EXACTO (sin nada antes ni después):
+[FRAME] N
+[HOOK] TEXTO DEL HOOK`;
+
+    const images = [{ mimeType: 'image/jpeg', data: grillaBase64 }];
+    if (refBase64) images.push({ mimeType: 'image/jpeg', data: refBase64 });
+
+    const resp = await fetch('/.netlify/functions/gemini-vision', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt, images })
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'HTTP ' + resp.status);
+
+    const text = data.text || '';
+    const frameMatch = text.match(/\[FRAME\]\s*(\d+)/i);
+    const hookMatch = text.match(/\[HOOK\]\s*([^\n\[]+)/i);
+    const idx = frameMatch ? Math.min(8, Math.max(1, parseInt(frameMatch[1], 10))) - 1 : Math.floor(frames.length / 2);
+    const hook = hookMatch ? hookMatch[1].trim() : 'TRANSFORMA TU CASA HOY';
+
+    _imgAdState.frame = frames[idx];
+    _imgAdState.hook = hook;
+    _imgAdState.descuento = descuento;
+    _imgAdState.envio = envio;
+
+    document.getElementById('imgad-hook').value = hook;
+    out.classList.add('open');
+    renderImgAdAll();
+    setBtn('▶ Generar imágenes', false);
+    showToast(`✅ Frame ${idx + 1}/8 elegido por AI`, '🖼️', 'success');
+  } catch (err) {
+    setBtn('▶ Generar imágenes', false);
+    showToast('Error: ' + (err.message || '?'), '⚠️', 'error');
+  }
+}
+
+const IMGAD_SIZES = [
+  { id: 'square', w: 1080, h: 1080 },
+  { id: 'story',  w: 1080, h: 1920 },
+  { id: 'feed',   w: 1200, h: 628  },
+];
+
+function renderImgAdAll(){
+  const state = _imgAdState;
+  if (!state.frame) return;
+  const hook = (document.getElementById('imgad-hook')?.value || state.hook || '').toUpperCase();
+  const descuento = (document.getElementById('imgad-descuento')?.value || state.descuento).toUpperCase();
+  const envio = (document.getElementById('imgad-envio')?.value || state.envio).toUpperCase();
+  const img = new Image();
+  img.onload = () => {
+    IMGAD_SIZES.forEach(s => renderImgAdSize(s, img, hook, descuento, envio));
+  };
+  img.src = state.frame.dataUrl;
+}
+
+function renderImgAdSize(s, img, hook, descuento, envio){
+  const canvas = document.getElementById('imgad-canvas-' + s.id);
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  // Fondo: imagen cover
+  const cR = W / H, iR = img.width / img.height;
+  let sx, sy, sw, sh;
+  if (iR > cR){ sh = img.height; sw = img.height * cR; sx = (img.width - sw)/2; sy = 0; }
+  else        { sw = img.width;  sh = img.width / cR;  sx = 0; sy = (img.height - sh)/2; }
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+  ctx.drawImage(img, sx, sy, sw, sh, 0, 0, W, H);
+  // Top gradient
+  const topH = Math.round(H * (s.id === 'feed' ? 0.30 : 0.24));
+  const grad = ctx.createLinearGradient(0, 0, 0, topH);
+  grad.addColorStop(0, 'rgba(0,0,0,.88)');
+  grad.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, topH);
+  // Hook
+  const hookFs = Math.round(W * (s.id === 'feed' ? 0.06 : 0.075));
+  ctx.fillStyle = '#fff';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = `900 ${hookFs}px 'Arial Black', Impact, sans-serif`;
+  const lines = wrapTextLines(ctx, hook, W * 0.88);
+  const lineH = hookFs * 1.15;
+  const startY = topH * 0.5 - ((lines.length - 1) * lineH) / 2;
+  ctx.shadowColor = 'rgba(0,0,0,.6)'; ctx.shadowBlur = 8;
+  lines.forEach((l, i) => ctx.fillText(l, W / 2, startY + i * lineH));
+  ctx.shadowBlur = 0;
+  // Bottom bar
+  const botH = Math.round(H * (s.id === 'feed' ? 0.22 : 0.14));
+  const botY = H - botH;
+  ctx.fillStyle = '#E25A5A';
+  ctx.fillRect(0, botY, W, botH);
+  // Descuento (izquierda) — en amarillo
+  const descFs = Math.round(W * (s.id === 'feed' ? 0.07 : 0.085));
+  ctx.font = `900 ${descFs}px 'Arial Black', Impact, sans-serif`;
+  ctx.fillStyle = '#FFEB3B';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(descuento, W * 0.04, botY + botH / 2);
+  // Envío (derecha)
+  const envFs = Math.round(W * (s.id === 'feed' ? 0.04 : 0.045));
+  ctx.font = `bold ${envFs}px Arial, sans-serif`;
+  ctx.fillStyle = '#fff';
+  ctx.textAlign = 'right';
+  ctx.fillText(envio, W * 0.96, botY + botH / 2);
+}
+
+function wrapTextLines(ctx, text, maxWidth){
+  const words = text.split(/\s+/);
+  const lines = [];
+  let line = '';
+  for (const w of words){
+    const test = line ? line + ' ' + w : w;
+    if (ctx.measureText(test).width > maxWidth){
+      if (line) lines.push(line);
+      line = w;
+    } else {
+      line = test;
+    }
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+
+function downloadImgAd(sizeId){
+  const canvas = document.getElementById('imgad-canvas-' + sizeId);
+  if (!canvas) return;
+  const link = document.createElement('a');
+  const ts = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+  link.download = `imgad_${sizeId}_${ts}.jpg`;
+  link.href = canvas.toDataURL('image/jpeg', 0.92);
+  link.click();
 }
 
 function updateBkVideoLabel(key){
