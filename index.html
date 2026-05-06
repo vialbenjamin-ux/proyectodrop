@@ -5660,20 +5660,42 @@ async function mejorarFrameConAI(){
     if (state.refDataUrl){
       images.push({ mimeType: 'image/jpeg', data: state.refDataUrl.split(',')[1] });
     }
-    const prompt = `Recreate this image as a professional advertising photograph for an e-commerce product ad.
+    // Estilo publicitario heredado de BK_PROMPTS.imagenes (master prompt
+    // de imágenes del usuario). Bajamos las reglas de texto-en-imagen
+    // (porque agregamos el hook como overlay vía canvas).
+    const prompt = `Recrea esta imagen como una FOTOGRAFÍA PUBLICITARIA PREMIUM para Meta Ads y TikTok Ads, siguiendo este estilo exacto:
 
-REQUIREMENTS:
-- Keep the SAME product visible, in the same scene/use as in the input image
-- Improve dramatically: studio-quality lighting, sharp focus, vibrant clean colors, high resolution magazine look
-- Background: clean, slight blur (bokeh), not distracting
-- Composition: product is the hero, well-centered or rule-of-thirds
-- Style: premium dropshipping winner-ad aesthetic, eye-catching, scroll-stopping
-- NO text or logos in the image (text will be added separately as overlay)
-- Output: high quality, photorealistic, square aspect ratio if possible
+🎯 ESPECIFICACIONES TÉCNICAS:
+- Fotografía publicitaria de calidad premium 8K
+- Formato cuadrado 1:1, optimizada para Meta Ads y TikTok Ads
+- Foto cinematográfica, ultra realista, fotorealista
 
-${state.refDataUrl ? 'Use the second image as a reference for what the product looks like in the actual landing page.' : ''}
+🔍 PRIMER PLANO:
+- Producto perfectamente enfocado y nítido
+- Iluminación de estudio con sombras suaves y reflejos realistas
+- Materiales reales respetados (plástico, metal, tela, madera, etc. — según corresponda al producto visible en la imagen de entrada)
+- Mantener el MISMO producto que aparece en la imagen de entrada
 
-Generate the improved advertising image now.`;
+🌅 FONDO:
+- Escena aspiracional ligeramente desenfocada (bokeh)
+- Persona del público objetivo (35-60 años) usando o interactuando con el producto si aplica
+- Expresión de satisfacción, alivio o confianza — natural, nunca exagerada
+- Atmósfera hogareña, cálida y creíble
+
+🎨 ESTILO VISUAL:
+- Luz cálida y profesional
+- Profundidad de campo
+- Colores acordes al producto, vibrantes pero realistas
+- Composición que detiene el scroll
+- Estética premium, ultra realista, calidad de revista
+
+⚠️ REGLAS DE OUTPUT:
+- NO incluyas TEXTO, LOGOS, MARCAS DE AGUA, CINTAS, BADGES NI ETIQUETAS GRÁFICAS de ningún tipo en la imagen — el copy publicitario se agregará después como overlay externo
+- NO añadas elementos exagerados o irreales (no caricaturizar)
+- La escena debe sentirse natural, no posada de stock
+${state.refDataUrl ? '- Usa la segunda imagen como REFERENCIA del producto exacto en la landing\n' : ''}
+
+Genera ahora la imagen publicitaria mejorada (solo la imagen, sin texto sobre ella).`;
 
     const resp = await fetch('/.netlify/functions/gemini-image-gen', {
       method: 'POST',
