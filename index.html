@@ -10327,16 +10327,19 @@ function computeRecomendacion(row, veredicto){
 
   switch (veredicto.tipo) {
     case 'escalar':
+      if (isBidcap)        return '🚫 BIDCAP no se escala · dejar correr mientras funcione';
       if (freq > 4)        return '⚡ Antes de subir presupuesto, inyecta batch nuevo (frecuencia alta — saturada)';
       if (spend < 50000)   return '⬆️ Subir presupuesto +20%, máximo +30% gradual (NO doblar de un saque, resetea aprendizaje)';
       if (spend < 100000)  return '⬆️ Subir presupuesto +20-30% diario o duplicar adset con +20% bid';
       return '🚀 Lanzar adsets gemelos con creativos nuevos o LAL ampliada (1-3% → 3-5%) · subir presupuesto +20% del actual';
 
     case 'mantener':
+      if (isBidcap)        return '🎯 BIDCAP rentable · NO subir presupuesto · dejar correr mientras gane';
       if (freq > 3)        return '🎬 Refresh: agregar 2-3 creativos nuevos al adset esta semana';
       return '👀 Monitorear · si baja ROAS o sube frecuencia, inyectar batch nuevo';
 
     case 'optimizar':
+      if (isBidcap)        return '🎯 BIDCAP en zona gris · probar BIDCAP nueva con bid +$500-1000 más alto';
       if (roas && roas < 1.5) return '🎬 Cambiar creativo completo (hook + CTA) — el actual no convierte';
       if (freq > 4)        return '🎬 Fatiga de audiencia: renovar batch o ampliar audiencia';
       if (cpa && cpa > 5000) return '💰 Bajar bid 10-15% o probar otra audiencia (CPA muy alto)';
@@ -10344,7 +10347,7 @@ function computeRecomendacion(row, veredicto){
       return '🧪 Variar creativo / ajustar audiencia / probar otro placement';
 
     case 'apagar':
-      if (isBidcap)        return '⛔ Pausar · probar misma audiencia con bid manual en otro adset';
+      if (isBidcap)        return '⛔ Pausar BIDCAP · lanzar BIDCAP nueva con bid más alto (+$500-1000)';
       if ((row.realPurchases ?? row.purchases ?? 0) === 0) return '⛔ Pausar inmediato · 0 conversiones, no insistir con esta combinación';
       return '⛔ Pausar · documenta el motivo para no repetir el mismo error';
 
@@ -10403,6 +10406,10 @@ function computeVeredicto(row, scope){
     if (ganancia < 0) {
       return { tipo:'optimizar', label:'⚠️ Optimizar', color:'#D88A2A', reason:`Pierde $${Math.round(Math.abs(ganancia)).toLocaleString('es-CL')} — break-even cercano, ajustar` };
     }
+    // BIDCAP rentable: NO se escala, se deja correr mientras gane
+    if (isBidcap) {
+      return { tipo:'mantener', label:'✅ Mantener', color:'#3F7F5C', reason:`BIDCAP rentable · gana $${Math.round(ganancia).toLocaleString('es-CL')} (BIDCAP no se escala)` };
+    }
     if (ganancia > 30000 && roas && roas >= 8 && spend >= 30000) {
       return { tipo:'escalar', label:'🟢 Escalar', color:'#2C8B5C', reason:`Gana $${Math.round(ganancia).toLocaleString('es-CL')} · ROAS ${roas.toFixed(2)}x — escalable` };
     }
@@ -10413,6 +10420,10 @@ function computeVeredicto(row, scope){
   if (roas) {
     if (roas < 3 && spend >= 30000) {
       return { tipo:'apagar', label:'🔴 Apagar', color:'#C0392B', reason:`ROAS ${roas.toFixed(2)}x con $${Math.round(spend).toLocaleString('es-CL')} gastados` };
+    }
+    // BIDCAP con ROAS bueno: mantener (no escalar nunca)
+    if (isBidcap && roas >= 6) {
+      return { tipo:'mantener', label:'✅ Mantener', color:'#3F7F5C', reason:`BIDCAP con ROAS ${roas.toFixed(2)}x · BIDCAP no se escala, se deja correr` };
     }
     if (roas >= 8 && spend >= 30000) {
       return { tipo:'escalar', label:'🟢 Escalar', color:'#2C8B5C', reason:`ROAS ${roas.toFixed(2)}x — duplicar presupuesto` };
