@@ -17,7 +17,18 @@ exports.handler = async (event) => {
   const prompt = (body.prompt || '').trim();
   if (!prompt) return respond(400, { error: 'Falta el campo prompt' });
 
-  const model = body.model || 'gemini-2.5-flash-image-preview';
+  // Modelos a probar en orden. Los nombres de modelos de imagen cambian
+  // seguido en la API de Gemini. Probamos varios y usamos el primero que
+  // responde sin 'not found'.
+  const MODEL_CANDIDATES = body.model
+    ? [body.model]
+    : [
+        'gemini-2.5-flash-image',
+        'gemini-2.0-flash-exp-image-generation',
+        'gemini-2.0-flash-preview-image-generation',
+        'gemini-2.5-flash-image-preview',
+      ];
+
   const parts = [];
   if (Array.isArray(body.images)) {
     for (const img of body.images) {
@@ -28,7 +39,6 @@ exports.handler = async (event) => {
   }
   parts.push({ text: prompt });
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${apiKey}`;
   const reqBody = JSON.stringify({
     contents: [{ parts }],
     generationConfig: {
@@ -38,36 +48,57 @@ exports.handler = async (event) => {
   });
 
   const BACKOFF = [2000, 4000];
-  for (let attempt = 0; attempt <= BACKOFF.length; attempt++) {
-    let resp;
-    try {
-      resp = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: reqBody,
-      });
-    } catch (err) {
-      if (attempt < BACKOFF.length) { await new Promise(r => setTimeout(r, BACKOFF[attempt])); continue; }
-      return respond(502, { error: 'Network: ' + (err.message || '?') });
-    }
-    if (resp.ok) {
-      const data = await resp.json();
-      const imgPart = data?.candidates?.[0]?.content?.parts?.find(p => p?.inlineData?.data);
-      if (!imgPart) {
-        const txt = data?.candidates?.[0]?.content?.parts?.find(p => p.text)?.text || '';
-        return respond(502, { error: 'Gemini no devolvió imagen' + (txt ? (': ' + txt.slice(0, 200)) : '') });
+  let lastErrMsg = null;
+  let lastStatus = null;
+
+  for (const model of MODEL_CANDIDATES) {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${apiKey}`;
+    for (let attempt = 0; attempt <= BACKOFF.length; attempt++) {
+      let resp;
+      try {
+        resp = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: reqBody,
+        });
+      } catch (err) {
+        lastErrMsg = 'Network: ' + (err.message || '?');
+        if (attempt < BACKOFF.length) { await new Promise(r => setTimeout(r, BACKOFF[attempt])); continue; }
+        break;
       }
-      return respond(200, { mimeType: imgPart.inlineData.mimeType || 'image/png', data: imgPart.inlineData.data });
+      if (resp.ok) {
+        const data = await resp.json();
+        const imgPart = data?.candidates?.[0]?.content?.parts?.find(p => p?.inlineData?.data);
+        if (!imgPart) {
+          const txt = data?.candidates?.[0]?.content?.parts?.find(p => p.text)?.text || '';
+          lastErrMsg = 'Gemini no devolvió imagen' + (txt ? (': ' + txt.slice(0, 200)) : '');
+          break;
+        }
+        return respond(200, {
+          mimeType: imgPart.inlineData.mimeType || 'image/png',
+          data: imgPart.inlineData.data,
+          modelUsed: model,
+        });
+      }
+      const errText = await resp.text();
+      let errMsg = errText;
+      try { const j = JSON.parse(errText); errMsg = j?.error?.message || errText; } catch {}
+      lastErrMsg = errMsg;
+      lastStatus = resp.status;
+      // Si el modelo no existe, ir al siguiente sin gastar reintentos
+      if (resp.status === 404 || /not found|is not supported/i.test(errMsg)) {
+        break;
+      }
+      const transient = resp.status === 503 || resp.status === 429
+        || /high demand|overloaded|temporarily|try again/i.test(errMsg);
+      if (transient && attempt < BACKOFF.length) {
+        await new Promise(r => setTimeout(r, BACKOFF[attempt]));
+        continue;
+      }
+      break;
     }
-    const errText = await resp.text();
-    let errMsg = errText;
-    try { const j = JSON.parse(errText); errMsg = j?.error?.message || errText; } catch {}
-    const transient = resp.status === 503 || resp.status === 429
-      || /high demand|overloaded|temporarily|try again/i.test(errMsg);
-    if (transient && attempt < BACKOFF.length) { await new Promise(r => setTimeout(r, BACKOFF[attempt])); continue; }
-    return respond(resp.status, { error: 'Gemini Image: ' + String(errMsg).slice(0, 400) });
   }
-  return respond(503, { error: 'Gemini Image saturado' });
+  return respond(lastStatus || 502, { error: 'Gemini Image: ' + String(lastErrMsg || 'todos los modelos fallaron').slice(0, 400) });
 };
 
 function cors() {
