@@ -5552,7 +5552,16 @@ function rankElevenVoices(voz, voices){
     'adulto': 'middle_aged',
     'mayor': 'old', 'anciano': 'old',
   };
-  const targetGender = (voz && voz.genero) ? voz.genero : '';
+  // ElevenLabs etiqueta el género en inglés ('male'/'female'/'neutral')
+  // pero el prompt detecta en español ('masculino'/'femenino'/'neutro').
+  // Mapeamos antes de comparar para que el match funcione.
+  const GENERO_TO_GENDER = {
+    'masculino': 'male',
+    'femenino':  'female',
+    'neutro':    'neutral',
+  };
+  const generoEs = (voz && voz.genero) ? voz.genero.toLowerCase().trim() : '';
+  const targetGender = GENERO_TO_GENDER[generoEs] || generoEs;
   const tono = (voz && voz.tono) ? voz.tono.toLowerCase() : '';
   const edad = (voz && voz.edad) ? voz.edad.toLowerCase() : '';
   let targetUseCase = '';
@@ -5662,12 +5671,14 @@ async function renderTtsPanel(key, locText, voz){
   panel.insertBefore(recoEl, panel.querySelector('.bk-tts-controls'));
 
   // Llenar dropdown completo (la sugerida primero, luego mismo género, luego resto)
+  const _gMap = { 'masculino':'male', 'femenino':'female', 'neutro':'neutral' };
+  const targetG = voz && voz.genero ? (_gMap[voz.genero.toLowerCase().trim()] || voz.genero.toLowerCase().trim()) : '';
   const ordered = [...voices].sort((a,b)=>{
     if(sugerida && a.id === sugerida.id) return -1;
     if(sugerida && b.id === sugerida.id) return 1;
-    if(voz && voz.genero){
-      if(a.gender === voz.genero && b.gender !== voz.genero) return -1;
-      if(b.gender === voz.genero && a.gender !== voz.genero) return 1;
+    if(targetG){
+      if(a.gender === targetG && b.gender !== targetG) return -1;
+      if(b.gender === targetG && a.gender !== targetG) return 1;
     }
     return a.name.localeCompare(b.name);
   });
