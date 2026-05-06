@@ -5660,42 +5660,41 @@ async function mejorarFrameConAI(){
     if (state.refDataUrl){
       images.push({ mimeType: 'image/jpeg', data: state.refDataUrl.split(',')[1] });
     }
-    // Estilo publicitario heredado de BK_PROMPTS.imagenes (master prompt
-    // de imágenes del usuario). Bajamos las reglas de texto-en-imagen
-    // (porque agregamos el hook como overlay vía canvas).
-    const prompt = `Recrea esta imagen como una FOTOGRAFÍA PUBLICITARIA PREMIUM para Meta Ads y TikTok Ads, siguiendo este estilo exacto:
+    // Prompt auto-contenido: funciona con modelos multimodales (Gemini Image,
+    // que ven la imagen de referencia) Y con modelos text-to-image puros
+    // (Imagen 3, que solo leen texto). Estilo heredado de BK_PROMPTS.imagenes.
+    const hookText = (document.getElementById('imgad-hook')?.value || _imgAdState.hook || '').toLowerCase();
+    const prompt = `Generate a PREMIUM ADVERTISING PHOTOGRAPH for an e-commerce product ad (Meta Ads / TikTok Ads), inspired by the input reference images${state.refDataUrl ? ' (the second is the product on the actual landing)' : ''}.
 
-🎯 ESPECIFICACIONES TÉCNICAS:
-- Fotografía publicitaria de calidad premium 8K
-- Formato cuadrado 1:1, optimizada para Meta Ads y TikTok Ads
-- Foto cinematográfica, ultra realista, fotorealista
+CONTEXT (hook of the original ad): "${hookText}"
 
-🔍 PRIMER PLANO:
-- Producto perfectamente enfocado y nítido
-- Iluminación de estudio con sombras suaves y reflejos realistas
-- Materiales reales respetados (plástico, metal, tela, madera, etc. — según corresponda al producto visible en la imagen de entrada)
-- Mantener el MISMO producto que aparece en la imagen de entrada
+TECHNICAL SPECS:
+- Premium 8K advertising photography
+- Square 1:1 format optimized for social ads
+- Cinematographic, ultra-realistic, photorealistic
 
-🌅 FONDO:
-- Escena aspiracional ligeramente desenfocada (bokeh)
-- Persona del público objetivo (35-60 años) usando o interactuando con el producto si aplica
-- Expresión de satisfacción, alivio o confianza — natural, nunca exagerada
-- Atmósfera hogareña, cálida y creíble
+FOREGROUND:
+- Product perfectly focused and sharp (same product as in the reference image, materials respected: plastic, metal, fabric, wood, etc.)
+- Studio-quality lighting with soft shadows and realistic reflections
 
-🎨 ESTILO VISUAL:
-- Luz cálida y profesional
-- Profundidad de campo
-- Colores acordes al producto, vibrantes pero realistas
-- Composición que detiene el scroll
-- Estética premium, ultra realista, calidad de revista
+BACKGROUND:
+- Aspirational scene slightly out of focus (bokeh)
+- A person from the target audience (35-60 years old) using or interacting with the product if applicable
+- Expression of satisfaction, relief, or confidence — natural, never exaggerated
+- Warm, homey, believable atmosphere
 
-⚠️ REGLAS DE OUTPUT:
-- NO incluyas TEXTO, LOGOS, MARCAS DE AGUA, CINTAS, BADGES NI ETIQUETAS GRÁFICAS de ningún tipo en la imagen — el copy publicitario se agregará después como overlay externo
-- NO añadas elementos exagerados o irreales (no caricaturizar)
-- La escena debe sentirse natural, no posada de stock
-${state.refDataUrl ? '- Usa la segunda imagen como REFERENCIA del producto exacto en la landing\n' : ''}
+VISUAL STYLE:
+- Warm professional lighting
+- Depth of field
+- Colors matching the product, vibrant but realistic
+- Scroll-stopping composition
+- Magazine-quality, premium e-commerce ad aesthetic
 
-Genera ahora la imagen publicitaria mejorada (solo la imagen, sin texto sobre ella).`;
+OUTPUT RULES:
+- DO NOT include any TEXT, LOGOS, WATERMARKS, BANNERS, BADGES OR GRAPHIC LABELS in the image — ad copy will be added later as external overlay
+- DO NOT add exaggerated or unrealistic elements (no cartoon style)
+- The scene must feel natural, not posed stock photo
+- Output ONLY the image (no text on it)`;
 
     const resp = await fetch('/.netlify/functions/gemini-image-gen', {
       method: 'POST',

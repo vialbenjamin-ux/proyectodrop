@@ -1,7 +1,9 @@
-// Generación / edición de imágenes con Gemini 2.5 Flash Image (Nano Banana).
+// Generación de imágenes vía Gemini Image (multimodal con referencia) o
+// Imagen 3 (text-to-image puro). Probamos varios modelos en cascada para
+// soportar cuentas con distintos niveles de acceso.
 // Endpoint: POST /.netlify/functions/gemini-image-gen
-// Body: { prompt: string, images?: [{ mimeType, data (base64) }, ...] }
-// Respuesta: { mimeType, data } (imagen generada en base64) o { error }
+// Body: { prompt: string, images?: [{mimeType, data}], model?: string }
+// Respuesta: { mimeType, data, modelUsed } o { error }
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: cors(), body: '' };
@@ -15,11 +17,10 @@ exports.handler = async (event) => {
   catch { return respond(400, { error: 'JSON inválido' }); }
 
   const prompt = (body.prompt || '').trim();
-  if (!prompt) return respond(400, { error: 'Falta el campo prompt' });
+  if (!prompt) return respond(400, { error: 'Falta prompt' });
 
-  // Modelos a probar en orden. Los nombres de modelos de imagen cambian
-  // seguido en la API de Gemini. Probamos varios y usamos el primero que
-  // responde sin 'not found'.
+  // Modelos en orden de preferencia. Los gemini-* permiten imagen de referencia
+  // (multimodal). Los imagen-* son text-to-image puro pero más estables/disponibles.
   const MODEL_CANDIDATES = body.model
     ? [body.model]
     : [
@@ -27,66 +28,88 @@ exports.handler = async (event) => {
         'gemini-2.0-flash-exp-image-generation',
         'gemini-2.0-flash-preview-image-generation',
         'gemini-2.5-flash-image-preview',
+        'imagen-3.0-fast-generate-001',
+        'imagen-3.0-generate-002',
+        'imagen-3.0-generate-001',
       ];
 
-  const parts = [];
-  if (Array.isArray(body.images)) {
-    for (const img of body.images) {
-      if (img && img.mimeType && img.data) {
-        parts.push({ inlineData: { mimeType: img.mimeType, data: img.data } });
-      }
-    }
-  }
-  parts.push({ text: prompt });
+  const referenceImages = Array.isArray(body.images) ? body.images.filter(i => i && i.mimeType && i.data) : [];
 
-  const reqBody = JSON.stringify({
-    contents: [{ parts }],
-    generationConfig: {
-      responseModalities: ['IMAGE'],
-      temperature: 0.8,
-    },
-  });
-
-  const BACKOFF = [2000, 4000];
   let lastErrMsg = null;
   let lastStatus = null;
 
   for (const model of MODEL_CANDIDATES) {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${apiKey}`;
+    const isImagen = /^imagen-/i.test(model);
+    const endpoint = isImagen ? 'predict' : 'generateContent';
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:${endpoint}?key=${apiKey}`;
+
+    let payload;
+    if (isImagen) {
+      // Imagen 3: text-to-image. Ignora imágenes de referencia (no soporta).
+      payload = JSON.stringify({
+        instances: [{ prompt }],
+        parameters: { sampleCount: 1, aspectRatio: '1:1', personGeneration: 'allow_adult' },
+      });
+    } else {
+      const parts = [];
+      for (const img of referenceImages) {
+        parts.push({ inlineData: { mimeType: img.mimeType, data: img.data } });
+      }
+      parts.push({ text: prompt });
+      payload = JSON.stringify({
+        contents: [{ parts }],
+        generationConfig: { responseModalities: ['IMAGE'], temperature: 0.8 },
+      });
+    }
+
+    const BACKOFF = [2000, 4000];
+    let modelFinalErr = null;
     for (let attempt = 0; attempt <= BACKOFF.length; attempt++) {
       let resp;
       try {
         resp = await fetch(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: reqBody,
+          body: payload,
         });
       } catch (err) {
-        lastErrMsg = 'Network: ' + (err.message || '?');
+        modelFinalErr = 'Network: ' + (err.message || '?');
         if (attempt < BACKOFF.length) { await new Promise(r => setTimeout(r, BACKOFF[attempt])); continue; }
         break;
       }
+
       if (resp.ok) {
         const data = await resp.json();
-        const imgPart = data?.candidates?.[0]?.content?.parts?.find(p => p?.inlineData?.data);
-        if (!imgPart) {
-          const txt = data?.candidates?.[0]?.content?.parts?.find(p => p.text)?.text || '';
-          lastErrMsg = 'Gemini no devolvió imagen' + (txt ? (': ' + txt.slice(0, 200)) : '');
-          break;
+        let img = null;
+        if (isImagen) {
+          const pred = data?.predictions?.[0];
+          if (pred?.bytesBase64Encoded) {
+            img = { mimeType: pred.mimeType || 'image/png', data: pred.bytesBase64Encoded };
+          }
+        } else {
+          const p = data?.candidates?.[0]?.content?.parts?.find(p => p?.inlineData?.data);
+          if (p) img = { mimeType: p.inlineData.mimeType || 'image/png', data: p.inlineData.data };
         }
-        return respond(200, {
-          mimeType: imgPart.inlineData.mimeType || 'image/png',
-          data: imgPart.inlineData.data,
-          modelUsed: model,
-        });
+        if (img) {
+          return respond(200, { ...img, modelUsed: model });
+        }
+        const txt = data?.candidates?.[0]?.content?.parts?.find(p => p.text)?.text || '';
+        modelFinalErr = 'Sin imagen' + (txt ? ': ' + txt.slice(0, 200) : '');
+        break;
       }
+
       const errText = await resp.text();
       let errMsg = errText;
       try { const j = JSON.parse(errText); errMsg = j?.error?.message || errText; } catch {}
-      lastErrMsg = errMsg;
+      modelFinalErr = errMsg;
       lastStatus = resp.status;
-      // Si el modelo no existe, ir al siguiente sin gastar reintentos
-      if (resp.status === 404 || /not found|is not supported/i.test(errMsg)) {
+
+      // 404 / not found / not supported → ir al siguiente modelo sin reintentar
+      if (resp.status === 404 || /not found|is not supported|not enabled/i.test(errMsg)) {
+        break;
+      }
+      // 403 (permiso denegado) → probar otro modelo
+      if (resp.status === 403) {
         break;
       }
       const transient = resp.status === 503 || resp.status === 429
@@ -97,8 +120,12 @@ exports.handler = async (event) => {
       }
       break;
     }
+    lastErrMsg = `[${model}] ${modelFinalErr || '?'}`;
   }
-  return respond(lastStatus || 502, { error: 'Gemini Image: ' + String(lastErrMsg || 'todos los modelos fallaron').slice(0, 400) });
+
+  return respond(lastStatus || 502, {
+    error: 'Ningún modelo de imagen disponible. Último: ' + String(lastErrMsg || '?').slice(0, 400)
+  });
 };
 
 function cors() {
