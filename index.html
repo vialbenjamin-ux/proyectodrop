@@ -8064,8 +8064,12 @@ async function fetchShopifyReport() {
           '<td style="padding:10px 16px;font-size:12px;color:var(--text);text-align:right">$' + Math.round(p.revenue).toLocaleString('es-CL') + '</td>' +
           colsHtml + '</tr>';
       }).join('');
+      // Las columnas META/TIKTOK/DIRECTO en la fila TOTAL ahora SUMAN
+      // la columna (cuántas veces cada producto apareció en órdenes de
+      // esa fuente). Así la suma cuadra visualmente. Para conocer las
+      // órdenes únicas por fuente, ver la tabla "Por fuente UTM" arriba.
       var dSrcCols = activeSources.map(function(s) {
-        var v = (data.bySource && data.bySource[s] && data.bySource[s].orders) || 0;
+        var v = products.reduce(function(acc, p) { return acc + ((p.bySource && p.bySource[s]) || 0); }, 0);
         return '<td style="padding:10px 14px;font-size:12px;color:' + (sourceColors[s]||'var(--muted)') + ';font-weight:700;text-align:right">' + (v || '—') + '</td>';
       }).join('');
       document.getElementById('reporte-detail-totals').innerHTML =
