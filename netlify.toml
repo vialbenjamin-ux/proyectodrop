@@ -2,12 +2,22 @@
   publish = "."
   functions = "netlify/functions"
 
-# Headers para la página del generador de WebP. Son obligatorios para
-# que ffmpeg.wasm pueda usar SharedArrayBuffer. Se aplican SOLO a
-# /webp-gen.html para no afectar el resto de la app (Firebase, Gemini,
-# imágenes externas, etc.).
+# Cross-origin isolation para habilitar SharedArrayBuffer (necesario por
+# ffmpeg.wasm en el generador de GIF/WebP).
+#
+# Se aplica a TODA la app porque para que un iframe tenga SAB, el documento
+# top-level (index.html) también necesita estar isolated. Por eso los
+# headers van a "/*" no solo a "/webp-gen.html".
+#
+# Usamos COEP `credentialless` (no `require-corp`) por seguridad:
+#   - Permite cargar recursos cross-origin sin que cada CDN devuelva
+#     Cross-Origin-Resource-Policy. Solo descarta credenciales (cookies,
+#     auth básico) en cross-origin requests.
+#   - Firebase usa Bearer tokens en headers (no cookies), así que
+#     credentialless NO afecta auth ni Firestore.
+#   - Google Fonts, jsdelivr (Firebase SDK) cargan sin problema.
 [[headers]]
-  for = "/webp-gen.html"
+  for = "/*"
   [headers.values]
     Cross-Origin-Opener-Policy = "same-origin"
-    Cross-Origin-Embedder-Policy = "require-corp"
+    Cross-Origin-Embedder-Policy = "credentialless"
