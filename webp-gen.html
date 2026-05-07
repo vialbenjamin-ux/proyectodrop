@@ -48,6 +48,36 @@
       }
     })();
 
+    // Tope de tamaño objetivo: 1.5MB. Si el primer encode lo supera,
+    // reintentamos con calidad/fps más bajos hasta entrar.
+    const MAX_BYTES = 1.5 * 1024 * 1024;
+    const ATTEMPTS = [
+      { fps: 24, q: 75, label: '720×720 24fps · alta' },
+      { fps: 24, q: 60, label: '720×720 24fps · media' },
+      { fps: 20, q: 50, label: '720×720 20fps · media' },
+      { fps: 18, q: 40, label: '720×720 18fps · ajustada' },
+      { fps: 15, q: 30, label: '720×720 15fps · comprimida' },
+      { fps: 12, q: 22, label: '720×720 12fps · mínima' },
+    ];
+
+    async function encodeOnce(inName, outName, startSec, fps, q) {
+      try { ffmpeg.FS('unlink', outName); } catch(_){}
+      // Filtro fijo: scale a 720 LLENANDO el cuadrado (increase) +
+      // crop centrado. Nunca produce bandas negras.
+      await ffmpeg.run(
+        '-ss', String(Number(startSec) || 0),
+        '-t', '3',
+        '-i', inName,
+        '-vf', 'fps=' + fps + ',scale=720:720:force_original_aspect_ratio=increase,crop=720:720',
+        '-loop', '0',
+        '-an',
+        '-q:v', String(q),
+        outName
+      );
+      const data = ffmpeg.FS('readFile', outName);
+      return new Blob([data.buffer], { type: 'image/webp' });
+    }
+
     window.addEventListener('message', async (e) => {
       const m = e.data || {};
       if (m.type !== 'process') return;
@@ -69,31 +99,23 @@
         $('status').textContent = 'Leyendo video…';
         ffmpeg.FS('writeFile', inName, await fetchFile(file));
 
-        $('status').textContent = 'Codificando WebP…';
-        // -ss antes de -i: seek rápido. -t 3: 3 segundos exactos.
-        // fps=24, scale+crop a 720×720 SIEMPRE LLENANDO el cuadrado
-        // (force_original_aspect_ratio=increase asegura que la dimensión
-        // menor llegue a 720, y luego crop=720:720 recorta centrado).
-        // Esto NUNCA deja bandas negras.
-        await ffmpeg.run(
-          '-ss', String(Number(startSec) || 0),
-          '-t', '3',
-          '-i', inName,
-          '-vf', 'fps=24,scale=720:720:force_original_aspect_ratio=increase,crop=720:720',
-          '-loop', '0',
-          '-an',
-          '-q:v', '75',
-          outName
-        );
-
-        const data = ffmpeg.FS('readFile', outName);
-        const blob = new Blob([data.buffer], { type: 'image/webp' });
+        let blob = null;
+        let attemptUsed = null;
+        for (let i = 0; i < ATTEMPTS.length; i++) {
+          const a = ATTEMPTS[i];
+          $('status').textContent = 'Codificando ' + a.label + ' (intento ' + (i+1) + '/' + ATTEMPTS.length + ')…';
+          send({ type: 'progress-attempt', index: i, total: ATTEMPTS.length, label: a.label });
+          blob = await encodeOnce(inName, outName, startSec, a.fps, a.q);
+          attemptUsed = a;
+          if (blob.size <= MAX_BYTES) break;
+        }
 
         try { ffmpeg.FS('unlink', inName); } catch(_){}
         try { ffmpeg.FS('unlink', outName); } catch(_){}
 
-        $('status').textContent = '✅ Listo · ' + Math.round(blob.size / 1024) + ' KB';
-        send({ type: 'result', blob });
+        const kb = Math.round(blob.size / 1024);
+        $('status').textContent = '✅ Listo · ' + (kb >= 1024 ? (kb/1024).toFixed(2)+' MB' : kb+' KB') + ' · ' + attemptUsed.label;
+        send({ type: 'result', blob, attempt: attemptUsed.label, sizeBytes: blob.size });
       } catch (err) {
         $('status').textContent = '⚠️ ' + (err && err.message || 'error');
         send({ type: 'error', message: err && err.message || 'process error' });

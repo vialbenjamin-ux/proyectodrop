@@ -1590,7 +1590,7 @@
               <div class="bk-prompt-card-title">GIF / WebP de Producto</div>
             </div>
           </div>
-          <div class="bk-prompt-card-desc">Sube un video del producto en uso. Elige los 3 segundos clave con el slider y descarga un WebP animado 720×720 a 24fps. Ideal para fichas de Shopify.</div>
+          <div class="bk-prompt-card-desc">Sube un video del producto en uso. Elige los 3 segundos clave con el slider y descarga un WebP animado 720×720, garantizado bajo 1.5 MB. Ideal para fichas de Shopify.</div>
           <input type="file" accept="video/*" id="webpgen-file" class="bk-video-input" onchange="onWebpGenFile()">
           <label for="webpgen-file" class="bk-video-label" id="webpgen-file-label">📁 Video del producto</label>
 
@@ -5832,8 +5832,13 @@ function processVideoInIframe(file, startSec, onProgress){
     const handler = (e) => {
       if (e.source !== _webpIframe.contentWindow) return;
       const m = e.data || {};
-      if (m.type === 'progress') {
-        onProgress && onProgress('Codificando WebP… ' + Math.round((m.ratio || 0) * 100) + '%');
+      if (m.type === 'progress-attempt') {
+        // intento actual de re-encode con calidad ajustada para <1.5MB
+        onProgress && onProgress('Codificando ' + m.label + ' (' + (m.index+1) + '/' + m.total + ')…');
+      } else if (m.type === 'progress') {
+        // fallback: progreso fino dentro de un intento (ratio 0-1)
+        const pct = Math.round((m.ratio || 0) * 100);
+        if (pct > 0 && pct < 100) onProgress && onProgress('Codificando WebP… ' + pct + '%');
       } else if (m.type === 'result') {
         window.removeEventListener('message', handler);
         resolve(m.blob);
