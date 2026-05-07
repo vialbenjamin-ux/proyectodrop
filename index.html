@@ -454,6 +454,10 @@
   .bk-prompt-card.tone-webp::before{background:#4F65D8}
   .bk-prompt-card.tone-webp .bk-prompt-card-icon{background:#DCE5F8;border-color:#4F65D8;color:#2F45A8}
   .bk-prompt-card.tone-webp .bk-prompt-copy-big{background:#4F65D8;color:#fff}
+  .bk-prompt-card.tone-photo{border-color:#F5C9DD}
+  .bk-prompt-card.tone-photo::before{background:#D85B95}
+  .bk-prompt-card.tone-photo .bk-prompt-card-icon{background:#FAE3F0;border-color:#D85B95;color:#9E3666}
+  .bk-prompt-card.tone-photo .bk-prompt-copy-big{background:#D85B95;color:#fff}
   .bk-prompt-card.tone-analisis{border-color:#C5E5D2}
   .bk-prompt-card.tone-analisis::before{background:#5BA882}
   .bk-prompt-card.tone-analisis .bk-prompt-card-icon{background:var(--green-soft);border-color:#5BA882;color:#3A6B4F}
@@ -1612,6 +1616,43 @@
           <div id="webpgen-output" style="display:none;margin-top:12px">
             <img id="webpgen-preview" style="width:100%;border-radius:8px;border:1.5px solid var(--border);background:#eee">
             <button id="webpgen-download" onclick="downloadWebpGen()" style="width:100%;margin-top:8px;background:#4F65D8;color:#fff;border:none;border-radius:8px;padding:9px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer">⬇ Descargar WebP</button>
+          </div>
+        </div>
+
+        <div class="bk-prompt-card tone-photo">
+          <div class="bk-prompt-card-head">
+            <div class="bk-prompt-card-icon">📸</div>
+            <div>
+              <div class="bk-prompt-card-tag">Foto HD</div>
+              <div class="bk-prompt-card-title">Foto HD del Producto</div>
+            </div>
+          </div>
+          <div class="bk-prompt-card-desc">Sube un video, elige el segundo a capturar, la AI mejora la calidad y descargas la imagen siempre bajo 1.5 MB. Ideal para fichas de producto sin sesión fotográfica.</div>
+          <input type="file" accept="video/*" id="photoHd-file" class="bk-video-input" onchange="onPhotoHdFile()">
+          <label for="photoHd-file" class="bk-video-label" id="photoHd-file-label">📁 Video del producto</label>
+
+          <div id="photoHd-controls" style="display:none;margin-top:10px">
+            <video id="photoHd-video" muted playsinline style="width:100%;border-radius:8px;border:1.5px solid var(--border);background:#000;max-height:260px"></video>
+            <div style="margin-top:10px;font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;display:flex;justify-content:space-between">
+              <span>Segundo a capturar</span>
+              <span id="photoHd-time-label">0.0s</span>
+            </div>
+            <input type="range" id="photoHd-time" min="0" max="0" step="0.05" value="0" oninput="onPhotoHdSeek()" style="width:100%;margin-top:6px;accent-color:#D85B95">
+          </div>
+
+          <div class="bk-prompt-card-actions" style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
+            <button class="bk-prompt-copy-big" id="photoHd-capture-btn" onclick="capturarFotoHd()" disabled style="flex:1">📸 Capturar foto</button>
+          </div>
+
+          <div id="photoHd-status" style="margin-top:8px;font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;text-align:center;min-height:14px"></div>
+
+          <div id="photoHd-output" style="display:none;margin-top:12px">
+            <canvas id="photoHd-canvas" style="width:100%;border-radius:8px;border:1.5px solid var(--border);background:#eee;display:block"></canvas>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
+              <button id="photoHd-ai-btn" onclick="mejorarFotoHdConAI()" style="flex:1;background:#7B5BB5;color:#fff;border:none;border-radius:8px;padding:9px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer">✨ Mejorar con AI</button>
+              <button id="photoHd-restore-btn" onclick="restaurarFotoHdOriginal()" style="background:var(--surface);color:var(--muted);border:1.5px solid var(--border);border-radius:8px;padding:9px 12px;font-size:10px;font-family:'DM Mono',monospace;cursor:pointer;display:none">↺ Original</button>
+            </div>
+            <button id="photoHd-download" onclick="downloadFotoHd()" style="width:100%;margin-top:6px;background:#D85B95;color:#fff;border:none;border-radius:8px;padding:9px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer">⬇ Descargar JPG HD (≤1.5 MB)</button>
           </div>
         </div>
       </div>
@@ -5951,6 +5992,230 @@ function downloadWebpGen(){
   document.body.appendChild(a);
   a.click();
   setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+}
+
+// ── FOTO HD DEL PRODUCTO (frame de video → AI → JPG ≤1.5MB) ────────────
+let _photoHdState = {
+  file: null,
+  videoUrl: null,
+  capturedDataUrl: null,    // primer captura (frame original)
+  currentDataUrl: null,     // última versión (puede ser AI)
+};
+
+function onPhotoHdFile(){
+  const file = document.getElementById('photoHd-file').files[0];
+  const label = document.getElementById('photoHd-file-label');
+  const controls = document.getElementById('photoHd-controls');
+  const video = document.getElementById('photoHd-video');
+  const slider = document.getElementById('photoHd-time');
+  const captureBtn = document.getElementById('photoHd-capture-btn');
+  const out = document.getElementById('photoHd-output');
+  const status = document.getElementById('photoHd-status');
+
+  out.style.display = 'none';
+  status.textContent = '';
+  _photoHdState.capturedDataUrl = null;
+  _photoHdState.currentDataUrl = null;
+
+  if (!file) {
+    label.textContent = '📁 Video del producto';
+    controls.style.display = 'none';
+    captureBtn.disabled = true;
+    return;
+  }
+  const mb = (file.size / 1024 / 1024).toFixed(1);
+  label.textContent = '📁 ' + file.name + ' (' + mb + ' MB)';
+  _photoHdState.file = file;
+
+  if (_photoHdState.videoUrl) URL.revokeObjectURL(_photoHdState.videoUrl);
+  _photoHdState.videoUrl = URL.createObjectURL(file);
+  video.src = _photoHdState.videoUrl;
+  video.onloadedmetadata = () => {
+    const dur = video.duration || 0;
+    slider.max = dur.toFixed(2);
+    slider.value = '0';
+    controls.style.display = 'block';
+    captureBtn.disabled = false;
+    onPhotoHdSeek();
+  };
+}
+
+function onPhotoHdSeek(){
+  const slider = document.getElementById('photoHd-time');
+  const video = document.getElementById('photoHd-video');
+  const label = document.getElementById('photoHd-time-label');
+  const t = parseFloat(slider.value || '0');
+  if (!isNaN(video.duration)) video.currentTime = Math.min(t, video.duration - 0.05);
+  label.textContent = t.toFixed(1) + 's';
+}
+
+function capturarFotoHd(){
+  const video = document.getElementById('photoHd-video');
+  const canvas = document.getElementById('photoHd-canvas');
+  const out = document.getElementById('photoHd-output');
+  const status = document.getElementById('photoHd-status');
+  const restoreBtn = document.getElementById('photoHd-restore-btn');
+
+  if (!video.videoWidth || !video.videoHeight) {
+    status.textContent = '⚠️ El video aún no terminó de cargar';
+    return;
+  }
+  // Capturar a la resolución NATIVA del video (no perdemos detalle)
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+  const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
+  _photoHdState.capturedDataUrl = dataUrl;
+  _photoHdState.currentDataUrl = dataUrl;
+
+  out.style.display = 'block';
+  restoreBtn.style.display = 'none';
+  status.textContent = '✓ Frame capturado · ' + canvas.width + '×' + canvas.height + ' · click "Mejorar con AI" o descarga directo';
+}
+
+async function mejorarFotoHdConAI(){
+  if (!_photoHdState.capturedDataUrl) {
+    showToast('Captura una foto primero', '⚠️', 'warn');
+    return;
+  }
+  const btn = document.getElementById('photoHd-ai-btn');
+  const status = document.getElementById('photoHd-status');
+  const restoreBtn = document.getElementById('photoHd-restore-btn');
+
+  const orig = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="bk-spinner"></span>Mejorando con AI…';
+  status.textContent = 'Llamando a Gemini Image · 10-20s…';
+
+  try {
+    const base = _photoHdState.capturedDataUrl;
+    const frameBase64 = base.split(',')[1];
+    const images = [{ mimeType: 'image/jpeg', data: frameBase64 }];
+
+    // Prompt enfocado en MEJORAR la imagen tal cual, no reinventarla.
+    // Heredado del estilo de BK_PROMPTS.imagenes pero pidiendo
+    // explícitamente preservar producto y composición.
+    const prompt = `Take the input image (a frame extracted from a product video) and produce a HIGH-DEFINITION premium product photograph.
+
+REQUIREMENTS:
+- Keep the EXACT same product, composition, framing and angle as the input
+- Improve sharpness, lighting, contrast and color accuracy to professional studio level
+- Remove any motion blur, compression artifacts or noise
+- Preserve all product details, materials and texture (plastic, metal, fabric, wood, etc.) accurately
+- Output as a clean, sharp, magazine-quality e-commerce product photo
+- 1:1 or original aspect ratio, premium 8K photographic quality
+- Background should be clean and aspirational, slightly out of focus if applicable
+
+OUTPUT RULES:
+- DO NOT add any TEXT, LOGOS, WATERMARKS, BANNERS, BADGES OR GRAPHIC LABELS
+- DO NOT add cartoon style or unrealistic effects
+- DO NOT change the product itself
+- Output ONLY the improved image, photo-realistic`;
+
+    const resp = await fetch('/.netlify/functions/gemini-image-gen', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt, images }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'HTTP ' + resp.status);
+    if (!data.data) throw new Error('Sin imagen generada');
+
+    const newDataUrl = `data:${data.mimeType || 'image/png'};base64,${data.data}`;
+    _photoHdState.currentDataUrl = newDataUrl;
+
+    // Re-pintar la foto AI sobre el canvas
+    await dibujarDataUrlEnCanvas(newDataUrl, document.getElementById('photoHd-canvas'));
+    restoreBtn.style.display = 'inline-block';
+    status.textContent = '✓ Mejorada con AI · click descargar';
+    showToast('🎨 Foto mejorada con AI', '✨', 'success');
+  } catch (err) {
+    status.textContent = '⚠️ ' + (err.message || 'Error AI');
+    showToast('No se pudo mejorar: ' + (err.message || '?'), '⚠️', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = orig;
+  }
+}
+
+function restaurarFotoHdOriginal(){
+  if (!_photoHdState.capturedDataUrl) return;
+  _photoHdState.currentDataUrl = _photoHdState.capturedDataUrl;
+  dibujarDataUrlEnCanvas(_photoHdState.capturedDataUrl, document.getElementById('photoHd-canvas'));
+  document.getElementById('photoHd-restore-btn').style.display = 'none';
+  document.getElementById('photoHd-status').textContent = '↺ Versión original restaurada';
+}
+
+function dibujarDataUrlEnCanvas(dataUrl, canvas){
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      canvas.getContext('2d').drawImage(img, 0, 0);
+      resolve();
+    };
+    img.onerror = reject;
+    img.src = dataUrl;
+  });
+}
+
+// Encuentra el JPEG más grande que entre bajo maxBytes mediante cascada
+// de calidad. Si ni q=0.40 entra, escala dimensiones progresivamente.
+async function comprimirJpgBajo(canvas, maxBytes){
+  const QUALITY_STEPS = [0.92, 0.85, 0.78, 0.70, 0.62, 0.55, 0.48, 0.40];
+  const SCALE_STEPS = [1.0, 0.85, 0.70, 0.55];
+
+  for (const scale of SCALE_STEPS) {
+    let target = canvas;
+    if (scale < 1.0) {
+      const tmp = document.createElement('canvas');
+      tmp.width = Math.round(canvas.width * scale);
+      tmp.height = Math.round(canvas.height * scale);
+      tmp.getContext('2d').drawImage(canvas, 0, 0, tmp.width, tmp.height);
+      target = tmp;
+    }
+    for (const q of QUALITY_STEPS) {
+      const blob = await new Promise(r => target.toBlob(r, 'image/jpeg', q));
+      if (blob && blob.size <= maxBytes) {
+        return { blob, quality: q, scale, width: target.width, height: target.height };
+      }
+    }
+  }
+  // Último recurso: 0.40 al 55% — ya estamos cerca de los 1.5MB pero
+  // devolvemos lo último que probamos.
+  const last = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.40));
+  return { blob: last, quality: 0.40, scale: 1.0, width: canvas.width, height: canvas.height };
+}
+
+async function downloadFotoHd(){
+  const canvas = document.getElementById('photoHd-canvas');
+  const status = document.getElementById('photoHd-status');
+  if (!canvas.width || !canvas.height) return;
+
+  status.textContent = 'Comprimiendo JPG…';
+  const MAX_BYTES = 1.5 * 1024 * 1024;
+  const result = await comprimirJpgBajo(canvas, MAX_BYTES);
+  if (!result.blob) {
+    status.textContent = '⚠️ No se pudo generar el JPG';
+    return;
+  }
+
+  const url = URL.createObjectURL(result.blob);
+  const a = document.createElement('a');
+  const ts = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+  a.download = 'foto-hd-' + ts + '.jpg';
+  a.href = url;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+
+  const kb = Math.round(result.blob.size / 1024);
+  const sizeTxt = kb >= 1024 ? (kb/1024).toFixed(2) + ' MB' : kb + ' KB';
+  const scalePct = Math.round(result.scale * 100);
+  status.textContent = '✓ Descargado · ' + result.width + '×' + result.height + ' · ' + sizeTxt + ' · q=' + result.quality + (scalePct < 100 ? ' · ' + scalePct + '%' : '');
 }
 
 function updateBkVideoLabel(key){
