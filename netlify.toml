@@ -1,3 +1,13 @@
 [build]
   publish = "."
   functions = "netlify/functions"
+
+# Headers para la página del generador de WebP. Son obligatorios para
+# que ffmpeg.wasm pueda usar SharedArrayBuffer. Se aplican SOLO a
+# /webp-gen.html para no afectar el resto de la app (Firebase, Gemini,
+# imágenes externas, etc.).
+[[headers]]
+  for = "/webp-gen.html"
+  [headers.values]
+    Cross-Origin-Opener-Policy = "same-origin"
+    Cross-Origin-Embedder-Policy = "require-corp"

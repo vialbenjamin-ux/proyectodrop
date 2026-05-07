@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>BKDROP · WebP Gen Worker</title>
+  <meta name="robots" content="noindex,nofollow">
+  <style>body{margin:0;padding:8px;font-family:system-ui;background:#fafafa;color:#333;font-size:12px}</style>
+</head>
+<body>
+  <div id="status">Cargando ffmpeg.wasm…</div>
+  <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.10.1/dist/ffmpeg.min.js" crossorigin="anonymous"></script>
+  <script>
+    // Página aislada con COOP/COEP que ejecuta ffmpeg.wasm para convertir
+    // un fragmento de video a WebP animado. Se comunica con el padre por
+    // postMessage. NO toca DOM externo, NO accede a Firebase ni APIs.
+    const $ = id => document.getElementById(id);
+
+    let ffmpeg = null;
+    let fetchFile = null;
+    let loaded = false;
+
+    function send(msg) {
+      try { parent.postMessage(msg, '*'); } catch(_){}
+    }
+
+    (async () => {
+      try {
+        if (typeof FFmpeg === 'undefined') throw new Error('FFmpeg no se cargó (CDN)');
+        const { createFFmpeg, fetchFile: ff } = FFmpeg;
+        ffmpeg = createFFmpeg({
+          log: false,
+          corePath: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.10.0/dist/ffmpeg-core.js',
+        });
+        fetchFile = ff;
+        ffmpeg.setProgress(({ ratio }) => {
+          if (typeof ratio === 'number' && ratio >= 0 && ratio <= 1) {
+            send({ type: 'progress', ratio });
+          }
+        });
+        $('status').textContent = 'Inicializando ffmpeg…';
+        await ffmpeg.load();
+        loaded = true;
+        $('status').textContent = '✅ Listo';
+        send({ type: 'ready' });
+      } catch (err) {
+        $('status').textContent = '⚠️ ' + (err && err.message || 'Error desconocido');
+        send({ type: 'error', message: err && err.message || 'load error' });
+      }
+    })();
+
+    window.addEventListener('message', async (e) => {
+      const m = e.data || {};
+      if (m.type !== 'process') return;
+      if (!loaded) {
+        send({ type: 'error', message: 'ffmpeg aún no terminó de cargar' });
+        return;
+      }
+      const { file, startSec } = m;
+      if (!file) { send({ type: 'error', message: 'sin archivo' }); return; }
+
+      const ext = ((file.name || '').split('.').pop() || 'mp4').toLowerCase();
+      const inName = 'in.' + (['mov','webm','mkv','avi','mp4'].includes(ext) ? ext : 'mp4');
+      const outName = 'out.webp';
+
+      try {
+        try { ffmpeg.FS('unlink', inName); } catch(_){}
+        try { ffmpeg.FS('unlink', outName); } catch(_){}
+
+        $('status').textContent = 'Leyendo video…';
+        ffmpeg.FS('writeFile', inName, await fetchFile(file));
+
+        $('status').textContent = 'Codificando WebP…';
+        // -ss antes de -i: seek rápido. -t 3: 3 segundos exactos.
+        // fps=24, scale+crop a 720×720 SIEMPRE LLENANDO el cuadrado
+        // (force_original_aspect_ratio=increase asegura que la dimensión
+        // menor llegue a 720, y luego crop=720:720 recorta centrado).
+        // Esto NUNCA deja bandas negras.
+        await ffmpeg.run(
+          '-ss', String(Number(startSec) || 0),
+          '-t', '3',
+          '-i', inName,
+          '-vf', 'fps=24,scale=720:720:force_original_aspect_ratio=increase,crop=720:720',
+          '-loop', '0',
+          '-an',
+          '-q:v', '75',
+          outName
+        );
+
+        const data = ffmpeg.FS('readFile', outName);
+        const blob = new Blob([data.buffer], { type: 'image/webp' });
+
+        try { ffmpeg.FS('unlink', inName); } catch(_){}
+        try { ffmpeg.FS('unlink', outName); } catch(_){}
+
+        $('status').textContent = '✅ Listo · ' + Math.round(blob.size / 1024) + ' KB';
+        send({ type: 'result', blob });
+      } catch (err) {
+        $('status').textContent = '⚠️ ' + (err && err.message || 'error');
+        send({ type: 'error', message: err && err.message || 'process error' });
+      }
+    });
+  </script>
+</body>
+</html>

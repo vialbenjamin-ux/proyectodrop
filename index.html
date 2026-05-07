@@ -5786,42 +5786,65 @@ function downloadImgAd(sizeId){
   link.click();
 }
 
-// ── GIF/WebP DE PRODUCTO (ffmpeg.wasm) ─────────────────────────────────
-let _ffmpegInstance = null;
-let _ffmpegLoading = null;
+// ── GIF/WebP DE PRODUCTO (ffmpeg.wasm vía iframe aislado) ──────────────
+// La conversión ocurre en /webp-gen.html, una sub-página con headers
+// COOP/COEP que habilitan SharedArrayBuffer (necesario para ffmpeg.wasm).
+// Esos headers no aplican al index.html para no afectar Firebase, etc.
+let _webpIframe = null;
+let _webpIframeReady = null;
 let _webpGenLastBlob = null;
 let _webpGenLastFile = null;
 
-async function loadFFmpegOnce(onProgress){
-  if (_ffmpegInstance) return _ffmpegInstance;
-  if (_ffmpegLoading) return _ffmpegLoading;
-  _ffmpegLoading = (async () => {
-    if (typeof FFmpeg === 'undefined') {
-      onProgress && onProgress('Descargando ffmpeg.wasm (~25MB, una sola vez)…');
-      await new Promise((resolve, reject) => {
-        const s = document.createElement('script');
-        s.src = 'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.10.1/dist/ffmpeg.min.js';
-        s.onload = resolve;
-        s.onerror = () => reject(new Error('No se pudo cargar ffmpeg.min.js'));
-        document.head.appendChild(s);
-      });
-    }
-    const { createFFmpeg, fetchFile } = FFmpeg;
-    const ffmpeg = createFFmpeg({
-      log: false,
-      corePath: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.10.0/dist/ffmpeg-core.js',
-    });
-    ffmpeg.setProgress(({ ratio }) => {
-      if (typeof ratio === 'number' && ratio >= 0 && ratio <= 1) {
-        onProgress && onProgress('Codificando WebP… ' + Math.round(ratio * 100) + '%');
+function ensureWebpIframe(onProgress){
+  if (_webpIframeReady) return _webpIframeReady;
+  _webpIframeReady = new Promise((resolve, reject) => {
+    onProgress && onProgress('Descargando ffmpeg.wasm (~25MB, una sola vez)…');
+    _webpIframe = document.createElement('iframe');
+    _webpIframe.src = '/webp-gen.html';
+    _webpIframe.style.display = 'none';
+    _webpIframe.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(_webpIframe);
+
+    const handler = (e) => {
+      if (!_webpIframe || e.source !== _webpIframe.contentWindow) return;
+      const m = e.data || {};
+      if (m.type === 'ready') {
+        window.removeEventListener('message', handler);
+        resolve();
+      } else if (m.type === 'error') {
+        window.removeEventListener('message', handler);
+        reject(new Error(m.message || 'error cargando ffmpeg'));
       }
-    });
-    onProgress && onProgress('Inicializando ffmpeg…');
-    await ffmpeg.load();
-    _ffmpegInstance = { ffmpeg, fetchFile };
-    return _ffmpegInstance;
-  })();
-  return _ffmpegLoading;
+    };
+    window.addEventListener('message', handler);
+
+    setTimeout(() => {
+      window.removeEventListener('message', handler);
+      reject(new Error('Timeout cargando ffmpeg (revisa conexión)'));
+    }, 90000);
+  });
+  return _webpIframeReady;
+}
+
+function processVideoInIframe(file, startSec, onProgress){
+  return new Promise((resolve, reject) => {
+    if (!_webpIframe) return reject(new Error('iframe no inicializado'));
+    const handler = (e) => {
+      if (e.source !== _webpIframe.contentWindow) return;
+      const m = e.data || {};
+      if (m.type === 'progress') {
+        onProgress && onProgress('Codificando WebP… ' + Math.round((m.ratio || 0) * 100) + '%');
+      } else if (m.type === 'result') {
+        window.removeEventListener('message', handler);
+        resolve(m.blob);
+      } else if (m.type === 'error') {
+        window.removeEventListener('message', handler);
+        reject(new Error(m.message || 'error en ffmpeg'));
+      }
+    };
+    window.addEventListener('message', handler);
+    _webpIframe.contentWindow.postMessage({ type: 'process', file, startSec }, '*');
+  });
 }
 
 function onWebpGenFile(){
@@ -5891,44 +5914,17 @@ async function generateWebPFromVideo(){
   status.textContent = 'Cargando ffmpeg…';
 
   try {
-    const { ffmpeg, fetchFile } = await loadFFmpegOnce(msg => { status.textContent = msg; });
-
+    await ensureWebpIframe(msg => { status.textContent = msg; });
     status.textContent = 'Procesando video…';
-    const ext = (file.name.split('.').pop() || 'mp4').toLowerCase();
-    const inName = 'in.' + (ext === 'mov' || ext === 'webm' || ext === 'mkv' ? ext : 'mp4');
-    const outName = 'out.webp';
+    const blob = await processVideoInIframe(file, startSec, msg => { status.textContent = msg; });
 
-    try { ffmpeg.FS('unlink', inName); } catch(_){}
-    try { ffmpeg.FS('unlink', outName); } catch(_){}
-
-    ffmpeg.FS('writeFile', inName, await fetchFile(file));
-
-    // -ss antes de -i: seek rápido. -t 3: 3 segundos. scale + crop a 720x720.
-    // fps=24. -loop 0 = animación infinita. -q:v 75 calidad razonable.
-    await ffmpeg.run(
-      '-ss', String(startSec),
-      '-t', '3',
-      '-i', inName,
-      '-vf', 'fps=24,scale=720:720:force_original_aspect_ratio=increase,crop=720:720',
-      '-loop', '0',
-      '-an',
-      '-q:v', '75',
-      outName
-    );
-
-    const data = ffmpeg.FS('readFile', outName);
-    const blob = new Blob([data.buffer], { type: 'image/webp' });
     _webpGenLastBlob = blob;
-
     if (preview.src) URL.revokeObjectURL(preview.src);
     preview.src = URL.createObjectURL(blob);
     out.style.display = 'block';
 
     const kb = Math.round(blob.size / 1024);
     status.textContent = '✅ Listo · ' + (kb >= 1024 ? (kb/1024).toFixed(1) + ' MB' : kb + ' KB');
-
-    try { ffmpeg.FS('unlink', inName); } catch(_){}
-    try { ffmpeg.FS('unlink', outName); } catch(_){}
 
     // Auto-descarga
     downloadWebpGen();
