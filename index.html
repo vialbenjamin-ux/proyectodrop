@@ -450,6 +450,10 @@
   .bk-prompt-card.tone-imgad::before{background:#E89A4A}
   .bk-prompt-card.tone-imgad .bk-prompt-card-icon{background:#FFE8DC;border-color:#E89A4A;color:#9C4520}
   .bk-prompt-card.tone-imgad .bk-prompt-copy-big{background:#E89A4A;color:#fff}
+  .bk-prompt-card.tone-webp{border-color:#C9D8F2}
+  .bk-prompt-card.tone-webp::before{background:#4F65D8}
+  .bk-prompt-card.tone-webp .bk-prompt-card-icon{background:#DCE5F8;border-color:#4F65D8;color:#2F45A8}
+  .bk-prompt-card.tone-webp .bk-prompt-copy-big{background:#4F65D8;color:#fff}
   .bk-prompt-card.tone-analisis{border-color:#C5E5D2}
   .bk-prompt-card.tone-analisis::before{background:#5BA882}
   .bk-prompt-card.tone-analisis .bk-prompt-card-icon{background:var(--green-soft);border-color:#5BA882;color:#3A6B4F}
@@ -1575,6 +1579,39 @@
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+
+        <div class="bk-prompt-card tone-webp">
+          <div class="bk-prompt-card-head">
+            <div class="bk-prompt-card-icon">🎬</div>
+            <div>
+              <div class="bk-prompt-card-tag">Animación</div>
+              <div class="bk-prompt-card-title">GIF / WebP de Producto</div>
+            </div>
+          </div>
+          <div class="bk-prompt-card-desc">Sube un video del producto en uso. Elige los 3 segundos clave con el slider y descarga un WebP animado 720×720 a 24fps. Ideal para fichas de Shopify.</div>
+          <input type="file" accept="video/*" id="webpgen-file" class="bk-video-input" onchange="onWebpGenFile()">
+          <label for="webpgen-file" class="bk-video-label" id="webpgen-file-label">📁 Video del producto</label>
+
+          <div id="webpgen-controls" style="display:none;margin-top:10px">
+            <video id="webpgen-video" muted playsinline style="width:100%;border-radius:8px;border:1.5px solid var(--border);background:#000;max-height:260px"></video>
+            <div style="margin-top:10px;font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;display:flex;justify-content:space-between">
+              <span>Inicio del clip de 3s</span>
+              <span id="webpgen-time-label">0.0s → 3.0s</span>
+            </div>
+            <input type="range" id="webpgen-start" min="0" max="0" step="0.1" value="0" oninput="onWebpGenSeek()" style="width:100%;margin-top:6px;accent-color:#4F65D8">
+          </div>
+
+          <div class="bk-prompt-card-actions" style="margin-top:10px">
+            <button class="bk-prompt-copy-big" id="webpgen-btn" onclick="generateWebPFromVideo()" disabled>▶ Generar WebP</button>
+          </div>
+
+          <div id="webpgen-status" style="margin-top:8px;font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;text-align:center;min-height:14px"></div>
+
+          <div id="webpgen-output" style="display:none;margin-top:12px">
+            <img id="webpgen-preview" style="width:100%;border-radius:8px;border:1.5px solid var(--border);background:#eee">
+            <button id="webpgen-download" onclick="downloadWebpGen()" style="width:100%;margin-top:8px;background:#4F65D8;color:#fff;border:none;border-radius:8px;padding:9px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer">⬇ Descargar WebP</button>
           </div>
         </div>
       </div>
@@ -5747,6 +5784,172 @@ function downloadImgAd(sizeId){
   link.download = `imgad_${sizeId}_${ts}.jpg`;
   link.href = canvas.toDataURL('image/jpeg', 0.92);
   link.click();
+}
+
+// ── GIF/WebP DE PRODUCTO (ffmpeg.wasm) ─────────────────────────────────
+let _ffmpegInstance = null;
+let _ffmpegLoading = null;
+let _webpGenLastBlob = null;
+let _webpGenLastFile = null;
+
+async function loadFFmpegOnce(onProgress){
+  if (_ffmpegInstance) return _ffmpegInstance;
+  if (_ffmpegLoading) return _ffmpegLoading;
+  _ffmpegLoading = (async () => {
+    if (typeof FFmpeg === 'undefined') {
+      onProgress && onProgress('Descargando ffmpeg.wasm (~25MB, una sola vez)…');
+      await new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.10.1/dist/ffmpeg.min.js';
+        s.onload = resolve;
+        s.onerror = () => reject(new Error('No se pudo cargar ffmpeg.min.js'));
+        document.head.appendChild(s);
+      });
+    }
+    const { createFFmpeg, fetchFile } = FFmpeg;
+    const ffmpeg = createFFmpeg({
+      log: false,
+      corePath: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.10.0/dist/ffmpeg-core.js',
+    });
+    ffmpeg.setProgress(({ ratio }) => {
+      if (typeof ratio === 'number' && ratio >= 0 && ratio <= 1) {
+        onProgress && onProgress('Codificando WebP… ' + Math.round(ratio * 100) + '%');
+      }
+    });
+    onProgress && onProgress('Inicializando ffmpeg…');
+    await ffmpeg.load();
+    _ffmpegInstance = { ffmpeg, fetchFile };
+    return _ffmpegInstance;
+  })();
+  return _ffmpegLoading;
+}
+
+function onWebpGenFile(){
+  const file = document.getElementById('webpgen-file').files[0];
+  const label = document.getElementById('webpgen-file-label');
+  const controls = document.getElementById('webpgen-controls');
+  const video = document.getElementById('webpgen-video');
+  const slider = document.getElementById('webpgen-start');
+  const btn = document.getElementById('webpgen-btn');
+  const out = document.getElementById('webpgen-output');
+  const status = document.getElementById('webpgen-status');
+
+  out.style.display = 'none';
+  status.textContent = '';
+  if (!file) {
+    label.textContent = '📁 Video del producto';
+    controls.style.display = 'none';
+    btn.disabled = true;
+    return;
+  }
+  const mb = (file.size / 1024 / 1024).toFixed(1);
+  label.textContent = '📁 ' + file.name + ' (' + mb + ' MB)';
+  _webpGenLastFile = file;
+
+  if (video.src) URL.revokeObjectURL(video.src);
+  video.src = URL.createObjectURL(file);
+  video.onloadedmetadata = () => {
+    const dur = video.duration || 0;
+    if (dur < 3) {
+      status.textContent = '⚠️ El video dura menos de 3s (' + dur.toFixed(1) + 's)';
+      btn.disabled = true;
+      controls.style.display = 'block';
+      slider.max = '0';
+      slider.value = '0';
+      return;
+    }
+    const max = Math.max(0, dur - 3);
+    slider.max = max.toFixed(2);
+    slider.value = '0';
+    controls.style.display = 'block';
+    btn.disabled = false;
+    onWebpGenSeek();
+  };
+}
+
+function onWebpGenSeek(){
+  const slider = document.getElementById('webpgen-start');
+  const video = document.getElementById('webpgen-video');
+  const label = document.getElementById('webpgen-time-label');
+  const start = parseFloat(slider.value || '0');
+  if (!isNaN(video.duration)) video.currentTime = Math.min(start, video.duration - 0.05);
+  label.textContent = start.toFixed(1) + 's → ' + (start + 3).toFixed(1) + 's';
+}
+
+async function generateWebPFromVideo(){
+  const file = _webpGenLastFile;
+  const startSec = parseFloat(document.getElementById('webpgen-start').value || '0');
+  const btn = document.getElementById('webpgen-btn');
+  const status = document.getElementById('webpgen-status');
+  const out = document.getElementById('webpgen-output');
+  const preview = document.getElementById('webpgen-preview');
+
+  if (!file) { status.textContent = '⚠️ Selecciona un video primero'; return; }
+
+  btn.disabled = true;
+  out.style.display = 'none';
+  status.textContent = 'Cargando ffmpeg…';
+
+  try {
+    const { ffmpeg, fetchFile } = await loadFFmpegOnce(msg => { status.textContent = msg; });
+
+    status.textContent = 'Procesando video…';
+    const ext = (file.name.split('.').pop() || 'mp4').toLowerCase();
+    const inName = 'in.' + (ext === 'mov' || ext === 'webm' || ext === 'mkv' ? ext : 'mp4');
+    const outName = 'out.webp';
+
+    try { ffmpeg.FS('unlink', inName); } catch(_){}
+    try { ffmpeg.FS('unlink', outName); } catch(_){}
+
+    ffmpeg.FS('writeFile', inName, await fetchFile(file));
+
+    // -ss antes de -i: seek rápido. -t 3: 3 segundos. scale + crop a 720x720.
+    // fps=24. -loop 0 = animación infinita. -q:v 75 calidad razonable.
+    await ffmpeg.run(
+      '-ss', String(startSec),
+      '-t', '3',
+      '-i', inName,
+      '-vf', 'fps=24,scale=720:720:force_original_aspect_ratio=increase,crop=720:720',
+      '-loop', '0',
+      '-an',
+      '-q:v', '75',
+      outName
+    );
+
+    const data = ffmpeg.FS('readFile', outName);
+    const blob = new Blob([data.buffer], { type: 'image/webp' });
+    _webpGenLastBlob = blob;
+
+    if (preview.src) URL.revokeObjectURL(preview.src);
+    preview.src = URL.createObjectURL(blob);
+    out.style.display = 'block';
+
+    const kb = Math.round(blob.size / 1024);
+    status.textContent = '✅ Listo · ' + (kb >= 1024 ? (kb/1024).toFixed(1) + ' MB' : kb + ' KB');
+
+    try { ffmpeg.FS('unlink', inName); } catch(_){}
+    try { ffmpeg.FS('unlink', outName); } catch(_){}
+
+    // Auto-descarga
+    downloadWebpGen();
+  } catch (err) {
+    console.error('webp-gen error', err);
+    status.textContent = '⚠️ Error: ' + (err && err.message ? err.message : 'desconocido');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function downloadWebpGen(){
+  if (!_webpGenLastBlob) return;
+  const url = URL.createObjectURL(_webpGenLastBlob);
+  const a = document.createElement('a');
+  const ts = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+  a.download = 'producto-' + ts + '.webp';
+  a.href = url;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
 }
 
 function updateBkVideoLabel(key){
