@@ -416,6 +416,21 @@
   .bk-angulo-card-title{font-size:13px;font-weight:700;color:var(--text);font-family:'Syne',sans-serif;line-height:1.3}
   .bk-angulo-card-meta{font-size:10px;color:var(--muted2);font-family:'DM Mono',monospace;letter-spacing:.3px}
   .bk-angulo-card-prob{font-size:11px;color:var(--muted);line-height:1.4;font-family:'DM Mono',monospace}
+  /* Panel para editar el prompt de imagen + adjuntar imagen + abrir ChatGPT */
+  .bk-img-to-gpt{margin-top:14px;padding:14px;background:var(--surface);border:1.5px dashed var(--accent);border-radius:12px;display:flex;flex-direction:column;gap:10px}
+  .bk-img-to-gpt-title{font-size:11px;letter-spacing:.6px;text-transform:uppercase;color:var(--accent);font-weight:700;font-family:'DM Mono',monospace}
+  .bk-img-to-gpt textarea{width:100%;min-height:140px;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:9px 12px;border-radius:8px;font-size:12px;font-family:'DM Mono',monospace;resize:vertical;line-height:1.5;box-sizing:border-box}
+  .bk-img-to-gpt textarea:focus{border-color:var(--accent);outline:none}
+  .bk-img-to-gpt-row{display:flex;align-items:center;gap:6px}
+  .bk-img-to-gpt-row input[type=file]{display:none}
+  .bk-img-to-gpt-row label{flex:1;cursor:pointer;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:9px 12px;border-radius:8px;font-size:11px;font-family:'DM Mono',monospace;text-align:center;transition:all .15s}
+  .bk-img-to-gpt-row label:hover{border-color:var(--accent);background:var(--accent-soft)}
+  .bk-img-to-gpt-actions{display:flex;gap:6px;flex-wrap:wrap}
+  .bk-img-to-gpt-btn{background:#10a37f;color:#fff;border:none;border-radius:8px;padding:10px 14px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer;flex:1;font-weight:600}
+  .bk-img-to-gpt-btn:hover{background:#0d8a6a}
+  .bk-img-to-gpt-btn-sec{background:var(--surface2);color:var(--text);border:1.5px solid var(--border);border-radius:8px;padding:10px 12px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer}
+  .bk-img-to-gpt-btn-sec:hover{border-color:var(--accent)}
+  .bk-img-to-gpt-hint{font-size:10px;color:var(--muted2);font-family:'DM Mono',monospace;line-height:1.45}
   .bk-step-btn{margin-top:10px;background:var(--surface);border:1.5px solid var(--border);color:var(--text);border-radius:22px;padding:10px 20px;font-size:12px;font-weight:600;cursor:pointer;font-family:'DM Mono',monospace;letter-spacing:.3px;transition:all .15s}
   .bk-step-btn:hover{border-color:var(--accent);color:var(--accent)}
   .bk-step-btn.primary{background:var(--accent);color:#fff;border-color:var(--accent);box-shadow:0 3px 10px rgba(91,168,130,.3)}
@@ -1421,6 +1436,22 @@
               <button class="bk-prompt-output-close" onclick="closeBkOutput('imagenes')" title="Cerrar">✕</button>
             </div>
             <div class="bk-prompt-output-body" id="bk-output-body-imagenes"></div>
+
+            <!-- Editor + adjuntar imagen + abrir ChatGPT manual -->
+            <div class="bk-img-to-gpt" id="bk-img-to-gpt" style="display:none">
+              <div class="bk-img-to-gpt-title">✏️ Editar prompt + adjuntar imagen y enviar a ChatGPT</div>
+              <textarea id="bk-img-edit-prompt" placeholder="Edita aquí el prompt de imagen antes de enviarlo a ChatGPT…"></textarea>
+              <div class="bk-img-to-gpt-row">
+                <input type="file" accept="image/*" id="bk-img-to-gpt-file" onchange="onImgToGptFile()">
+                <label for="bk-img-to-gpt-file" id="bk-img-to-gpt-label">📷 Adjuntar imagen del producto (opcional)</label>
+              </div>
+              <img id="bk-img-to-gpt-preview" style="display:none;max-width:100%;max-height:220px;border-radius:8px;border:1.5px solid var(--border);object-fit:contain;background:#eee">
+              <div class="bk-img-to-gpt-actions">
+                <button class="bk-img-to-gpt-btn" onclick="enviarImgPromptAChatGPT()">▶ Copiar prompt y abrir ChatGPT</button>
+                <button class="bk-img-to-gpt-btn-sec" id="bk-img-to-gpt-download" onclick="descargarImgRef()" style="display:none">⬇ Descargar imagen</button>
+              </div>
+              <div class="bk-img-to-gpt-hint">Te abrimos chat.openai.com con el prompt copiado al clipboard. <b>Pega el texto</b> en ChatGPT y <b>arrastra la imagen</b> de arriba a la conversación (o usa "Descargar imagen" si necesitas el archivo).</div>
+            </div>
           </div>
         </div>
 
@@ -5183,6 +5214,71 @@ function ejecutarBkPrompt(key){
   });
 }
 
+// ── Editor "envío a ChatGPT con imagen" (panel del prompt de imágenes) ─
+let _imgToGptFile = null;
+
+function showImgToGptPanel(initialText){
+  const panel = document.getElementById('bk-img-to-gpt');
+  const ta = document.getElementById('bk-img-edit-prompt');
+  if (!panel || !ta) return;
+  ta.value = initialText || '';
+  panel.style.display = 'flex';
+}
+
+function onImgToGptFile(){
+  const file = document.getElementById('bk-img-to-gpt-file').files[0];
+  const label = document.getElementById('bk-img-to-gpt-label');
+  const preview = document.getElementById('bk-img-to-gpt-preview');
+  const dlBtn = document.getElementById('bk-img-to-gpt-download');
+
+  if (!file) {
+    label.textContent = '📷 Adjuntar imagen del producto (opcional)';
+    if (preview.src) URL.revokeObjectURL(preview.src);
+    preview.style.display = 'none';
+    dlBtn.style.display = 'none';
+    _imgToGptFile = null;
+    return;
+  }
+  _imgToGptFile = file;
+  const mb = (file.size / 1024 / 1024).toFixed(2);
+  label.textContent = '📷 ' + file.name + ' (' + mb + ' MB) — click para cambiar';
+  if (preview.src) URL.revokeObjectURL(preview.src);
+  preview.src = URL.createObjectURL(file);
+  preview.style.display = 'block';
+  dlBtn.style.display = 'inline-block';
+}
+
+async function enviarImgPromptAChatGPT(){
+  const ta = document.getElementById('bk-img-edit-prompt');
+  const text = (ta && ta.value || '').trim();
+  if (!text) {
+    showToast('El prompt está vacío — edítalo antes de enviar', '⚠️', 'warn');
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(text);
+    window.open('https://chat.openai.com/', '_blank');
+    if (_imgToGptFile) {
+      showToast('✅ Prompt copiado · pégalo en ChatGPT y arrastra la imagen ↓', '🚀', 'success');
+    } else {
+      showToast('✅ Prompt copiado · pégalo en ChatGPT', '🚀', 'success');
+    }
+  } catch (err) {
+    showToast('No se pudo copiar al clipboard: ' + (err.message || '?'), '⚠️', 'error');
+  }
+}
+
+function descargarImgRef(){
+  if (!_imgToGptFile) return;
+  const url = URL.createObjectURL(_imgToGptFile);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = _imgToGptFile.name || 'producto.jpg';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+}
+
 async function ejecutarBkPromptApi(key, prompt){
   const btn = document.getElementById('bk-copy-'+key);
   const box = document.getElementById('bk-output-'+key);
@@ -5207,6 +5303,11 @@ async function ejecutarBkPromptApi(key, prompt){
     if(body && !text){ body.textContent = '(respuesta vacía)'; }
     if(box){ box.classList.remove('loading'); box.scrollIntoView({behavior:'smooth',block:'center'}); }
     if(btn){ btn.textContent = '✓ Generado'; btn.classList.add('copied'); }
+    // Si fue el prompt de imágenes, abrimos el editor para enviar a ChatGPT
+    // con la imagen del producto. El usuario edita y manda manual.
+    if(key === 'imagenes' && text){
+      showImgToGptPanel(text);
+    }
   } catch(err){
     const rlSecs = parseRateLimitSeconds(err.message);
     if(rlSecs){
