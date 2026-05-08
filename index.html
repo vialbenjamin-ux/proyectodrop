@@ -4944,7 +4944,7 @@ function fillBkPrompt(key){
     if(v.angulo)   extras.push('ÁNGULO DE VENTA: '+v.angulo);
     if(extras.length) text += '\n\n'+extras.join('\n');
   }
-  else if(key === 'master' || key === 'imagenes5'){
+  else if(key === 'master' || key === 'imagenes5' || key === 'angulos'){
     if(v.producto) text = text.replace('[PEGAR AQUÍ EL LINK O DESCRIPCIÓN DEL PRODUCTO]', v.producto);
   }
   else if(key === 'copys'){
