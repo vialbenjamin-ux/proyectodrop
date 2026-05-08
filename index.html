@@ -1353,7 +1353,7 @@
           <div class="bk-step-label"><span class="bk-step-num">1</span> Pega el link o descripción del producto</div>
           <textarea id="bkv-producto" class="bk-step-input" placeholder="https://ejemplo.com/producto  ·  o una descripción corta" oninput="saveBkVars()"></textarea>
           <button class="bk-step-btn primary" id="bk-btn-ejecutar" onclick="ejecutarMaster()">▶ Ejecutar Master</button>
-          <div class="bk-step-hint">Copia el Master Prompt con tu link adentro y abre la IA elegida en una pestaña nueva. Pegas ahí y vuelves con la respuesta.</div>
+          <div class="bk-step-hint">Con Gemini: te muestra los 5 ángulos primero, eliges uno y ahí desarrollamos el master completo focalizado en ese ángulo. Con Claude/ChatGPT: copia el master, pegas ahí y vuelves con la respuesta.</div>
         </div>
 
         <!-- PASO 2 -->
@@ -4407,6 +4407,31 @@ function copyPrompt(id, ti){
 
 // ── BK PROMPTS (panel destacado) ──────────────────────────────────────────────
 const BK_PROMPTS = {
+  // Prompt corto: pide SOLO los 5 ángulos (tabla). Es la primera etapa
+  // del flujo Master cuando IA=Gemini. Una vez que el usuario elige un
+  // ángulo, se dispara el master completo focalizado en ese ángulo.
+  angulos: `Actúa como experto en marketing digital y performance ads (Meta Ads + TikTok Ads).
+
+Para el siguiente producto entre corchetes, genera EXACTAMENTE 5 ángulos de venta listos para usar en anuncios.
+
+REGLAS:
+- El primer ángulo debe ser el PRINCIPAL, identificado directamente en la landing o descripción del producto.
+- Los otros 4 deben ser ángulos NUEVOS creados por ti, dirigidos a distintos públicos, beneficios o momentos de uso.
+- Cada ángulo apunta a un nicho diferente (35-60 años, definido por contexto de uso).
+
+📤 OUTPUT OBLIGATORIO (sin introducción, sin despedida, sin texto adicional):
+Una sola tabla markdown con 5 filas, columnas EXACTAS:
+
+| Ángulo | Nicho | Problema |
+
+Donde:
+- Ángulo: explicación corta del enfoque de venta (5-8 palabras)
+- Nicho: máximo 4 palabras
+- Problema: el dolor o frustración que resuelve, en forma de pregunta hook (1 línea)
+
+📦 PRODUCTO A ANALIZAR
+[PEGAR AQUÍ EL LINK O DESCRIPCIÓN DEL PRODUCTO]`,
+
   imagenes: `PROMPT IMAGEN E-COMMERCE UNIVERSAL
 Cuando te dé un producto y un ángulo de venta, genera SOLO el 🖼️ PROMPT IMAGEN E-COMMERCE con esta estructura exacta:
 Formato: Fotografía publicitaria, calidad premium 8K, formato cuadrado 1:1, optimizada para Meta Ads y TikTok Ads.
@@ -5068,7 +5093,12 @@ function ejecutarMaster(){
   }
   const ia = getBkIa();
   const iaName = BK_IA_NAMES[ia];
-  const text = fillBkPrompt('master');
+
+  // Con Gemini: flujo en 2 etapas. Primero pedimos SOLO los 5 ángulos
+  // (rápido), luego cuando el usuario clickee uno, se dispara el master
+  // completo focalizado en ese ángulo. Para Claude/ChatGPT seguimos con
+  // el master completo (el usuario copia/pega manual).
+  const text = fillBkPrompt(ia === 'gemini' ? 'angulos' : 'master');
 
   if(ia === 'gemini'){
     ejecutarMasterApi(text);
@@ -6809,12 +6839,87 @@ function renderAngulosPicker(angulos){
   window._bkAngulos = angulos;
 }
 
+function buildFocusedMasterPrompt(a, producto){
+  return `📦 MASTER PROMPT FOCALIZADO POR ÁNGULO ELEGIDO
+Actúa como experto en marketing digital, copywriting para e-commerce y performance ads (Meta Ads + TikTok Ads).
+
+EL ÁNGULO DE VENTA YA ESTÁ ELEGIDO. Desarrolla TODO el contenido enfocado EXCLUSIVAMENTE en este ángulo, sin proponer otros:
+
+🎯 ÁNGULO ELEGIDO:
+- Ángulo: ${a.angulo || a.nicho}
+- Nicho: ${a.nicho || a.angulo}
+- Problema (hook): ${a.problema || '—'}
+
+📤 ENTREGA (en este orden):
+
+🔴 1. ÁNGULO DE VENTA (confirmación, 1 fila)
+Tabla markdown con UNA sola fila, columnas:
+| Ángulo | Nicho | Problema | Objeciones | Comprador potencial | Usuario |
+La fila confirma el ángulo elegido y completa Objeciones, Comprador potencial y Usuario consistentemente con ese ángulo.
+
+🟥 2. NOMBRES VENDEDORES DEL PRODUCTO
+5 nombres con estructura: [Qué es] – [Función Principal] – [Promesa de Valor]
+Máximo 70 caracteres cada uno. Aptos para Meta Ads y TikTok Ads.
+
+🟦 3. BENEFICIOS CLAVE
+SOLO 3 beneficios. Cada uno empieza con emoji. Máximo 7 palabras por línea.
+Enfocados en el resultado práctico/emocional para el nicho "${a.nicho || a.angulo}".
+
+🟨 4. TESTIMONIOS DE CLIENTES (BREVES)
+3 testimonios cortos del nicho elegido. Reales, naturales y directos. Incluye nombre ficticio + ciudad.
+
+🟧 5. BULLETS PARA LANDING PAGE
+3 bloques. Cada uno: título bold (máx 9 palabras) + 1 línea de solución directa.
+
+🟪 6. TESTIMONIOS DE CLIENTES (EXTENSOS)
+3 testimonios largos del nicho elegido. Formato: "Título emocional" + texto con situación antes/después + nombre ficticio + ciudad. Mínimo el doble de extensión que un testimonio breve.
+
+📌 9. PREGUNTAS FRECUENTES (FAQ)
+6-8 preguntas. Empieza cada una con emoji. Lenguaje empático.
+Resuelve objeciones concretas del nicho. La ÚLTIMA pregunta debe ser sobre el método de pago.
+
+⚠️ REGLAS GENERALES:
+- TODO enfocado al ángulo "${a.angulo || a.nicho}" y nicho "${a.nicho || a.angulo}".
+- Resolver explícitamente: "${a.problema || ''}"
+- Compatible con Meta Ads y TikTok Ads.
+- Lenguaje claro, vendedor, creíble. Evitar promesas exageradas.
+- Adaptarse al país/mercado del producto analizado.
+- NO incluir el punto 7 (frases para imagen) ni el punto 8 (guía de imagen).
+
+📦 PRODUCTO A ANALIZAR
+[${producto}]`;
+}
+
+function extraerSoloBeneficio(text){
+  // Re-extrae únicamente el beneficio principal del master focalizado.
+  // No tocamos ángulo ni problema porque ya están bien (vienen del click).
+  const benefIdx = text.search(/BENEFICIOS\s*CLAVE/i);
+  if(benefIdx < 0) return false;
+  const after = text.substring(benefIdx);
+  const benefLines = after.split('\n');
+  const sectionMarkers = /^[🔴🟥🟦🟨🟧🟪🟩🟫📌⚠📦]/u;
+  const emojiStart = /^[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}]/u;
+  for(let i=1; i<Math.min(30, benefLines.length); i++){
+    let line = benefLines[i].trim();
+    if(!line) continue;
+    if(sectionMarkers.test(line)) continue;
+    if(emojiStart.test(line)){
+      line = line.replace(/^[-*•]\s*/,'').replace(/\*\*/g,'').trim();
+      const elB = document.getElementById('bkv-beneficio');
+      if(elB){ elB.value = line; }
+      saveBkVars();
+      return true;
+    }
+  }
+  return false;
+}
+
 async function seleccionarAngulo(idx){
   const angulos = window._bkAngulos || [];
   const a = angulos[idx];
   if(!a) return;
 
-  // 1) Rellenar paso 3
+  // 1) Rellenar paso 3 con el ángulo clickeado
   const elA = document.getElementById('bkv-angulo');
   const elP = document.getElementById('bkv-problema');
   if(elA) elA.value = a.nicho || a.angulo || '';
@@ -6831,14 +6936,54 @@ async function seleccionarAngulo(idx){
     el.classList.toggle('selected', i === idx);
   });
 
-  // 3) Auto-disparar imágenes + copys
   const titulo = a.nicho || a.angulo || 'ángulo';
-  showToast(`🎯 "${esc(titulo)}" seleccionado · armando Imágenes y Copys…`, '🎯', 'info');
+  const ia = getBkIa();
 
-  await new Promise(r => setTimeout(r, 250));
+  // 3a) Si IA = Gemini: desarrollar el master COMPLETO focalizado en
+  //     este ángulo, luego auto-disparar Imágenes (y Copys).
+  if(ia === 'gemini'){
+    const v = getBkVars();
+    if(!v.producto){
+      showToast('Falta el link/descripción del producto', '⚠️', 'warn');
+      return;
+    }
+    const focusedPrompt = buildFocusedMasterPrompt(a, v.producto);
+    const respEl = document.getElementById('bkv-respuesta');
+    const res = document.getElementById('bk-extract-result');
+
+    showToast(`🎯 "${esc(titulo)}" elegido · desarrollando master enfocado…`, '🎯', 'info');
+    if(res){ res.classList.remove('warn','success'); res.textContent = '⏳ Desarrollando master focalizado en "' + titulo + '"…'; }
+    if(respEl){ respEl.value = '⏳ Generando master enfocado…'; }
+
+    try {
+      const text = await callGeminiProxy(focusedPrompt);
+      if(respEl){ respEl.value = text; respEl.scrollIntoView({behavior:'smooth', block:'center'}); }
+
+      // Re-extraer solo beneficio (ángulo y problema ya están bien)
+      extraerSoloBeneficio(text);
+
+      // Ocultar el picker — la elección ya se concretó
+      const picker = document.getElementById('bk-angulos-picker');
+      if(picker) picker.style.display = 'none';
+
+      if(res){ res.classList.add('success'); res.textContent = '✓ Master desarrollado enfocado en "' + titulo + '". Disparando Imágenes…'; }
+    } catch(err){
+      const msg = err && err.message ? err.message : '?';
+      if(res){ res.classList.add('warn'); res.textContent = '⚠️ Error desarrollando master: ' + msg; }
+      showToast('No se pudo desarrollar el master: ' + msg, '⚠️', 'error');
+      return;
+    }
+  } else {
+    // 3b) Claude/ChatGPT: el master completo ya lo trajo el usuario
+    //     manualmente. Solo seguimos con el flujo de imágenes/copys.
+    showToast(`🎯 "${esc(titulo)}" seleccionado · armando Imágenes y Copys…`, '🎯', 'info');
+  }
+
+  // 4) Auto-disparar Imágenes (y Copys con pausa para no chocar con
+  //    rate limit de Gemini cuando aplique).
+  await new Promise(r => setTimeout(r, 300));
   ejecutarBkPrompt('imagenes');
-  // Pequeña pausa para no chocar con el rate limit cuando IA=Gemini
-  await new Promise(r => setTimeout(r, 600));
+  await new Promise(r => setTimeout(r, 700));
   ejecutarBkPrompt('copys');
 }
 
