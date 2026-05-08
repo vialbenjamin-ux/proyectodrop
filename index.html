@@ -407,6 +407,13 @@
   .bk-step-input:focus{border-color:var(--accent);outline:none}
   /* Textarea para la respuesta del Master: más alto por default y más legible. La esquina inferior-derecha permite arrastrar para agrandar. */
   textarea#bkv-respuesta{min-height:240px;font-size:13px;line-height:1.55}
+  /* Modo expandido: ocupa casi toda la pantalla para copiar/leer cómodo */
+  textarea#bkv-respuesta.expanded{min-height:75vh;font-size:14px;line-height:1.65}
+  /* Toolbar pequeña debajo del textarea con acciones rápidas */
+  .bk-resp-actions{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}
+  .bk-resp-action-btn{background:var(--surface);border:1.5px solid var(--border);color:var(--muted);padding:6px 12px;border-radius:8px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer;transition:all .15s}
+  .bk-resp-action-btn:hover{border-color:var(--accent);color:var(--accent)}
+  .bk-resp-action-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
   /* Selector visual de ángulos de venta */
   .bk-angulos-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;margin-top:10px}
   .bk-angulo-card{background:var(--surface);border:2px solid var(--border);border-radius:12px;padding:12px 14px;cursor:pointer;transition:transform .15s, border-color .15s, background .15s;display:flex;flex-direction:column;gap:6px;text-align:left}
@@ -1375,6 +1382,10 @@
         <div class="bk-step">
           <div class="bk-step-label"><span class="bk-step-num">2</span> Pega la respuesta del Master <span class="bk-optional">(la salida completa que te dio la IA · arrastra la esquina ↘ para agrandar)</span></div>
           <textarea id="bkv-respuesta" class="bk-step-input" placeholder="Pega acá toda la respuesta: la tabla de ángulos, los beneficios, los testimonios, etc."></textarea>
+          <div class="bk-resp-actions">
+            <button type="button" class="bk-resp-action-btn" id="bk-resp-expand-btn" onclick="toggleRespExpand()">⛶ Expandir</button>
+            <button type="button" class="bk-resp-action-btn" onclick="copyRespMaster()">📋 Copiar todo</button>
+          </div>
           <button class="bk-step-btn" id="bk-btn-extraer" onclick="extraerDatosMaster()">📥 Extraer datos</button>
           <div id="bk-extract-result" class="bk-step-hint"></div>
         </div>
@@ -6877,6 +6888,34 @@ async function generateTts(key){
 
 function escapeHtml(s){
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// Acciones rápidas sobre el textarea de respuesta del Master:
+// - Expandir / contraer altura para leer y copiar cómodo
+// - Copiar todo el contenido al clipboard
+function toggleRespExpand(){
+  const ta = document.getElementById('bkv-respuesta');
+  const btn = document.getElementById('bk-resp-expand-btn');
+  if (!ta || !btn) return;
+  const expanded = ta.classList.toggle('expanded');
+  btn.textContent = expanded ? '⊟ Contraer' : '⛶ Expandir';
+  btn.classList.toggle('active', expanded);
+  // Asegurar que el textarea quede arriba al expandir
+  if (expanded) ta.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+async function copyRespMaster(){
+  const ta = document.getElementById('bkv-respuesta');
+  if (!ta || !ta.value) {
+    showToast('No hay respuesta para copiar', '⚠️', 'warn');
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(ta.value);
+    showToast('Respuesta copiada al clipboard', '📋', 'success');
+  } catch (err) {
+    showToast('No se pudo copiar: ' + (err.message || '?'), '⚠️', 'error');
+  }
 }
 
 // Devuelve TODOS los ángulos de la tabla del Master, no solo el primero.
