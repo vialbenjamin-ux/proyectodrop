@@ -405,6 +405,17 @@
   .bk-optional{font-size:10px;text-transform:none;letter-spacing:.3px;color:var(--muted);font-weight:400;margin-left:auto}
   .bk-step-input{background:var(--surface);border:1.5px solid var(--border);color:var(--text);padding:10px 14px;border-radius:12px;font-size:12px;font-family:'DM Mono',monospace;width:100%;resize:vertical;min-height:60px;line-height:1.5}
   .bk-step-input:focus{border-color:var(--accent);outline:none}
+  /* Textarea para la respuesta del Master: más alto por default y más legible. La esquina inferior-derecha permite arrastrar para agrandar. */
+  textarea#bkv-respuesta{min-height:240px;font-size:13px;line-height:1.55}
+  /* Selector visual de ángulos de venta */
+  .bk-angulos-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;margin-top:10px}
+  .bk-angulo-card{background:var(--surface);border:2px solid var(--border);border-radius:12px;padding:12px 14px;cursor:pointer;transition:transform .15s, border-color .15s, background .15s;display:flex;flex-direction:column;gap:6px;text-align:left}
+  .bk-angulo-card:hover{border-color:var(--accent);background:var(--accent-soft);transform:translateY(-1px)}
+  .bk-angulo-card.selected{border-color:var(--accent);background:var(--accent-soft);box-shadow:0 0 0 3px var(--accent-soft)}
+  .bk-angulo-card-tag{font-size:9px;letter-spacing:1px;color:var(--accent);text-transform:uppercase;font-weight:700;font-family:'DM Mono',monospace}
+  .bk-angulo-card-title{font-size:13px;font-weight:700;color:var(--text);font-family:'Syne',sans-serif;line-height:1.3}
+  .bk-angulo-card-meta{font-size:10px;color:var(--muted2);font-family:'DM Mono',monospace;letter-spacing:.3px}
+  .bk-angulo-card-prob{font-size:11px;color:var(--muted);line-height:1.4;font-family:'DM Mono',monospace}
   .bk-step-btn{margin-top:10px;background:var(--surface);border:1.5px solid var(--border);color:var(--text);border-radius:22px;padding:10px 20px;font-size:12px;font-weight:600;cursor:pointer;font-family:'DM Mono',monospace;letter-spacing:.3px;transition:all .15s}
   .bk-step-btn:hover{border-color:var(--accent);color:var(--accent)}
   .bk-step-btn.primary{background:var(--accent);color:#fff;border-color:var(--accent);box-shadow:0 3px 10px rgba(91,168,130,.3)}
@@ -1347,10 +1358,19 @@
 
         <!-- PASO 2 -->
         <div class="bk-step">
-          <div class="bk-step-label"><span class="bk-step-num">2</span> Pega la respuesta del Master <span class="bk-optional">(la salida completa que te dio la IA)</span></div>
-          <textarea id="bkv-respuesta" class="bk-step-input" placeholder="Pega acá toda la respuesta: la tabla de ángulos, los beneficios, los testimonios, etc." style="min-height:120px"></textarea>
+          <div class="bk-step-label"><span class="bk-step-num">2</span> Pega la respuesta del Master <span class="bk-optional">(la salida completa que te dio la IA · arrastra la esquina ↘ para agrandar)</span></div>
+          <textarea id="bkv-respuesta" class="bk-step-input" placeholder="Pega acá toda la respuesta: la tabla de ángulos, los beneficios, los testimonios, etc."></textarea>
           <button class="bk-step-btn" id="bk-btn-extraer" onclick="extraerDatosMaster()">📥 Extraer datos</button>
           <div id="bk-extract-result" class="bk-step-hint"></div>
+        </div>
+
+        <!-- PASO 2.5 — selector de ángulos -->
+        <div class="bk-step" id="bk-angulos-picker" style="display:none">
+          <div class="bk-step-label">
+            <span class="bk-step-num">★</span> Elige el ángulo de venta
+            <span class="bk-optional">(click → rellena paso 3 + dispara Imágenes y Copys automático)</span>
+          </div>
+          <div id="bk-angulos-grid" class="bk-angulos-grid"></div>
         </div>
 
         <!-- PASO 3 -->
@@ -6728,21 +6748,10 @@ function escapeHtml(s){
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-function extraerDatosMaster(){
-  const el = document.getElementById('bkv-respuesta');
-  const text = el ? (el.value||'').trim() : '';
-  const res = document.getElementById('bk-extract-result');
-  res.classList.remove('success','warn');
-  if(!text){
-    res.textContent = '⚠️ Pega primero la respuesta completa que te dio Gemini.';
-    res.classList.add('warn');
-    return;
-  }
-
-  const found = [];
-
-  // 1) Parsear tabla de ángulos: buscar header con "Ángulo" y "Nicho"
-  const lines = text.split('\n');
+// Devuelve TODOS los ángulos de la tabla del Master, no solo el primero.
+// Cada item: { angulo, nicho, problema }
+function parseTodosLosAngulos(text){
+  const lines = (text||'').split('\n');
   let headerIdx = -1;
   for(let i=0; i<lines.length; i++){
     const l = lines[i];
@@ -6751,20 +6760,112 @@ function extraerDatosMaster(){
       break;
     }
   }
-  let angulo='', problema='';
-  if(headerIdx >= 0){
-    for(let i = headerIdx + 1; i < Math.min(headerIdx + 6, lines.length); i++){
-      const line = lines[i];
-      if(!line.includes('|')) continue;
-      if(/^[\s|\-:]+$/.test(line)) continue; // separador markdown
-      const cols = line.split('|').map(c=>c.trim()).filter(c=>c.length);
-      if(cols.length >= 3){
-        // cols[0]=Ángulo, cols[1]=Nicho, cols[2]=Problema
-        angulo = cols[1] || cols[0] || '';
-        problema = cols[2] || '';
-        break;
-      }
+  if(headerIdx < 0) return [];
+
+  const angulos = [];
+  for(let i = headerIdx + 1; i < lines.length; i++){
+    const line = lines[i];
+    if(!line.includes('|')){
+      // Si la siguiente línea ya no es tabla y ya tenemos al menos un
+      // ángulo, paramos. Así evitamos comer texto post-tabla.
+      if(angulos.length) break;
+      continue;
     }
+    if(/^[\s|\-:]+$/.test(line)) continue; // separador markdown
+    const cols = line.split('|').map(c=>c.trim()).filter(c=>c.length);
+    if(cols.length >= 2){
+      const ang = (cols[0] || '').replace(/\*\*/g,'').trim();
+      const nic = (cols[1] || cols[0] || '').replace(/\*\*/g,'').trim();
+      const pro = (cols[2] || '').replace(/\*\*/g,'').trim();
+      if(ang || nic) angulos.push({ angulo: ang, nicho: nic, problema: pro });
+    }
+  }
+  return angulos;
+}
+
+function renderAngulosPicker(angulos){
+  const picker = document.getElementById('bk-angulos-picker');
+  const grid = document.getElementById('bk-angulos-grid');
+  if (!picker || !grid) return;
+  if (!angulos || !angulos.length) {
+    picker.style.display = 'none';
+    grid.innerHTML = '';
+    window._bkAngulos = [];
+    return;
+  }
+  grid.innerHTML = angulos.map((a, i) => {
+    const titulo = esc(a.nicho || a.angulo || '—');
+    const subAngulo = (a.angulo && a.nicho && a.angulo !== a.nicho)
+      ? `<div class="bk-angulo-card-meta">Ángulo: ${esc(a.angulo)}</div>` : '';
+    const probHtml = a.problema ? `<div class="bk-angulo-card-prob">${esc(a.problema)}</div>` : '';
+    return `<div class="bk-angulo-card" onclick="seleccionarAngulo(${i})">
+      <div class="bk-angulo-card-tag">Opción ${i+1}</div>
+      <div class="bk-angulo-card-title">${titulo}</div>
+      ${subAngulo}
+      ${probHtml}
+    </div>`;
+  }).join('');
+  picker.style.display = 'block';
+  window._bkAngulos = angulos;
+}
+
+async function seleccionarAngulo(idx){
+  const angulos = window._bkAngulos || [];
+  const a = angulos[idx];
+  if(!a) return;
+
+  // 1) Rellenar paso 3
+  const elA = document.getElementById('bkv-angulo');
+  const elP = document.getElementById('bkv-problema');
+  if(elA) elA.value = a.nicho || a.angulo || '';
+  if(elP){
+    let prob = (a.problema || '').replace(/^\*\*|\*\*$/g, '').trim();
+    if(prob && !prob.startsWith('¿')) prob = '¿' + prob.charAt(0).toUpperCase() + prob.slice(1);
+    if(prob && !/[?]\s*$/.test(prob)) prob = prob.replace(/[\.\,\;\s]+$/, '') + '?';
+    elP.value = prob;
+  }
+  saveBkVars();
+
+  // 2) Marcar la card activa
+  document.querySelectorAll('.bk-angulo-card').forEach((el, i) => {
+    el.classList.toggle('selected', i === idx);
+  });
+
+  // 3) Auto-disparar imágenes + copys
+  const titulo = a.nicho || a.angulo || 'ángulo';
+  showToast(`🎯 "${esc(titulo)}" seleccionado · armando Imágenes y Copys…`, '🎯', 'info');
+
+  await new Promise(r => setTimeout(r, 250));
+  ejecutarBkPrompt('imagenes');
+  // Pequeña pausa para no chocar con el rate limit cuando IA=Gemini
+  await new Promise(r => setTimeout(r, 600));
+  ejecutarBkPrompt('copys');
+}
+
+function extraerDatosMaster(){
+  const el = document.getElementById('bkv-respuesta');
+  const text = el ? (el.value||'').trim() : '';
+  const res = document.getElementById('bk-extract-result');
+  res.classList.remove('success','warn');
+  if(!text){
+    res.textContent = '⚠️ Pega primero la respuesta completa que te dio Gemini.';
+    res.classList.add('warn');
+    renderAngulosPicker([]);
+    return;
+  }
+
+  const found = [];
+
+  // 1) Parsear tabla de ángulos: buscar header con "Ángulo" y "Nicho"
+  // Renderizamos TODOS los ángulos como cards seleccionables, y además
+  // pre-rellenamos paso 3 con el primero (manteniendo compatibilidad).
+  const todosAngulos = parseTodosLosAngulos(text);
+  renderAngulosPicker(todosAngulos);
+
+  let angulo='', problema='';
+  if(todosAngulos.length){
+    angulo = todosAngulos[0].nicho || todosAngulos[0].angulo || '';
+    problema = todosAngulos[0].problema || '';
   }
 
   if(angulo){
@@ -6802,7 +6903,11 @@ function extraerDatosMaster(){
   saveBkVars();
 
   if(found.length){
-    res.textContent = '✓ Rellené: ' + found.join(', ') + '. Revisa los campos del paso 3 y copia Imágenes/Copys cuando estés listo.';
+    const angCount = todosAngulos.length;
+    const tip = angCount > 1
+      ? ` Encontré ${angCount} ángulos — abajo elegí cuál usar y se dispara Imágenes + Copys solo.`
+      : '';
+    res.textContent = '✓ Rellené: ' + found.join(', ') + '.' + tip;
     res.classList.add('success');
     const btn = document.getElementById('bk-btn-extraer');
     if(btn){ btn.textContent='✓ Datos extraídos'; btn.classList.add('done'); setTimeout(()=>{ btn.textContent='📥 Extraer datos'; btn.classList.remove('done'); }, 3000); }
