@@ -5063,7 +5063,7 @@ function resetRlAutoRetries(){ window._bkRlAutoRetries = 0; }
 // Renderiza el panel de "espera por rate limit" dentro de la card de salida
 // con countdown + botón de reintento manual. retryFn se llama al llegar a 0
 // o al hacer click en el botón.
-function showRateLimitPanel({ box, body, label, btn, btnLabel, seconds, retryFn }){
+function showRateLimitPanel({ box, body, label, btn, btnLabel, seconds, retryFn, rawError }){
   if(box){
     box.classList.add('open');
     box.classList.remove('error', 'loading');
@@ -5075,15 +5075,19 @@ function showRateLimitPanel({ box, body, label, btn, btnLabel, seconds, retryFn 
   const exhausted = window._bkRlAutoRetries >= 1;
 
   if(body){
+    const rawHtml = rawError
+      ? `<div style="margin-top:10px;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;font-size:10px;color:var(--muted2);font-family:'DM Mono',monospace;line-height:1.4;text-align:left;word-break:break-word;max-height:120px;overflow-y:auto"><b>Error real de Gemini:</b><br>${esc(String(rawError).slice(0, 600))}</div>`
+      : '';
     body.innerHTML = `
       <div class="bk-rate-limit">
         <div class="bk-rate-limit-icon">⏳</div>
         <div class="bk-rate-limit-title">Gemini se quedó sin requests por minuto</div>
         <div class="bk-rate-limit-sub">${exhausted
-          ? 'Ya reintentamos automáticamente y volvió a fallar. El plan gratuito de Gemini permite ~10 análisis por minuto. <b>Espera 1-2 min</b>, cambia IA destino a Claude/ChatGPT, o reintenta a mano cuando termines.'
-          : 'El plan gratuito permite ~10 análisis por minuto. Reintenta automáticamente cuando termine la cuenta regresiva o haz click en el botón para reintentar antes.'}</div>
+          ? 'Ya reintentamos automáticamente y volvió a fallar. <b>Espera 1-2 min</b>, cambia IA destino a Claude/ChatGPT, o reintenta a mano.'
+          : 'Reintenta automáticamente cuando termine la cuenta regresiva o haz click en el botón para reintentar antes.'}</div>
         <div class="bk-rate-limit-countdown"><span id="bk-rl-secs">${seconds}</span><small>s</small></div>
         <button class="bk-rate-limit-retry" id="bk-rl-retry">▶ Reintentar ahora</button>
+        ${rawHtml}
       </div>
     `;
   }
@@ -5410,7 +5414,8 @@ async function ejecutarBkPromptApi(key, prompt){
         box, body, label, btn,
         btnLabel: '⏳ Esperando…',
         seconds: rlSecs,
-        retryFn: ()=>ejecutarBkPromptApi(key, prompt)
+        retryFn: ()=>ejecutarBkPromptApi(key, prompt),
+        rawError: err.message
       });
       return;
     }
@@ -6689,7 +6694,8 @@ async function ejecutarBkVideo(key){
         box, body, label, btn,
         btnLabel: '⏳ Esperando…',
         seconds: rlSecs,
-        retryFn: ()=>ejecutarBkVideo(key)
+        retryFn: ()=>ejecutarBkVideo(key),
+        rawError: err.message
       });
       return;
     }
