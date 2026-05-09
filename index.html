@@ -4706,12 +4706,15 @@ Pensados para e-commerce y anuncios
 
 🟨 4. TESTIMONIOS DE CLIENTES (BREVES)
 Genera 3 testimonios cortos.
+Formato obligatorio: Texto del testimonio sin comillas. – Nombre Apellido
 Reglas:
 
 Deben sonar reales y creíbles
 Estilo natural y directo
 Enfocados en la experiencia del usuario
-Incluir nombre ficticio y ciudad
+Nombre Apellido: genérico chileno (Sofía Pérez, Camila Vargas, Andrés Castillo, María González, Felipe Reyes, Carla Tapia, Diego Soto, etc.)
+SIN ciudad ni localidad. SIN inicial de apellido.
+El género del nombre debe coincidir con el género del narrador del texto.
 
 
 🟧 5. BULLETS PARA LANDING PAGE
@@ -4726,15 +4729,21 @@ Debajo escribir máximo 1 línea de solución clara y directa.
 
 🟪 6. TESTIMONIOS DE CLIENTES (EXTENSOS)
 Genera 3 testimonios largos.
-Formato obligatorio:
+Formato obligatorio (sin desviaciones):
 
-"Título emocional de la experiencia"
-Texto testimonial que incluya:
+**Título emocional sin comillas**
+Texto del testimonio sin comillas a su alrededor, con situación antes/después.
+— Nombre Apellido
 
-Nombre ficticio y ciudad
-Situación antes / después
-Que se sienta real y creíble
-Mínimo el doble de extensión de un testimonio común
+Reglas:
+
+El título va en bold (**...**), SIN comillas.
+El texto NO debe llevar comillas dobles (ni al principio ni al final).
+El nombre va en línea aparte, después del cuerpo, precedido por guión largo (—).
+Nombre Apellido: genérico chileno (Sofía Pérez, Camila Vargas, Andrés Castillo, María González, Felipe Reyes, Carla Tapia, Diego Soto, etc.)
+SIN inicial de apellido. SIN ciudad ni localidad.
+El género del nombre debe coincidir con el género del narrador del texto.
+Mínimo el doble de extensión que un testimonio breve.
 
 
 
@@ -5627,7 +5636,12 @@ function parseMasterToChunks(text){
           texto = m[1].trim();
         }
       }
-      return { titulo: t.title || '', texto, autor };
+      // Strip comillas dobles que sobran al inicio/fin del texto
+      // (Gemini a veces las mete aunque le pidamos que no)
+      texto = texto.replace(/^["“”]+/, '').replace(/["“”]+$/, '').trim();
+      // Strip comillas dobles que sobran del título también
+      const tituloLimpio = (t.title || '').replace(/^["“”]+/, '').replace(/["“”]+$/, '').trim();
+      return { titulo: tituloLimpio, texto, autor };
     });
   }
 
@@ -6038,18 +6052,18 @@ function escapeHtmlForShrine(s){
 // "Las pelotas son geniales — Carla Tapia" → { text, author }
 // Si el autor viene con ciudad ("Carla, Santiago"), la pela
 // defensivamente para dejar solo Nombre Apellido.
+// Strip comillas rectas (") y curvas (" ") que Gemini a veces mete.
 function splitTestimonioBreve(t){
   const raw = String(t || '').trim();
-  const m = raw.match(/^"?(.+?)"?\s*[—–-]\s*(.+)$/);
+  // Match: opcional comilla (recta o curva) + texto + opcional comilla + dash + autor
+  const m = raw.match(/^["“”]?(.+?)["“”]?\s*[—–-]\s*(.+)$/);
   if (m && m[2].length < 80) {
     let author = m[2].trim();
     // Strip trailing ", Ciudad" o ", Localidad"
     author = author.replace(/,\s*[^,]+$/, '').trim();
-    // Strip iniciales con punto: "Carla T." → "Carla T" → ya queda mejor con
-    // el cambio del prompt, pero si igual aparece, lo dejamos como vino.
     return { text: m[1].trim(), author };
   }
-  return { text: raw.replace(/^"|"$/g, '').trim(), author: '' };
+  return { text: raw.replace(/^["“”]+|["“”]+$/g, '').trim(), author: '' };
 }
 
 async function ejecutarBkPromptApi(key, prompt){
@@ -8173,7 +8187,8 @@ Ejemplo:
 
 🟨 4. TESTIMONIOS DE CLIENTES (BREVES)
 3 testimonios cortos del nicho elegido. Reales, naturales y directos.
-FORMATO OBLIGATORIO: "Texto del testimonio." – Nombre Apellido
+FORMATO OBLIGATORIO: Texto del testimonio sin comillas. – Nombre Apellido
+- El texto del testimonio va SIN comillas dobles a su alrededor.
 - Nombre Apellido: nombre genérico chileno (Sofía Pérez, Camila Vargas, Andrés Castillo, María González, Felipe Reyes, Carla Tapia, Diego Soto, etc.)
 - NO incluir ciudad ni inicial de apellido.
 - El género del nombre debe coincidir con el género del narrador del texto (si es "Sofía", el testimonio narra como mujer).
@@ -8188,10 +8203,20 @@ Solución directa en una línea para este punto.
 Solución directa en una línea para este punto.
 
 🟪 6. TESTIMONIOS DE CLIENTES (EXTENSOS)
-3 testimonios largos del nicho elegido. Formato: "Título emocional" + texto con situación antes/después + nombre ficticio chileno (solo Nombre Apellido, SIN ciudad). Mínimo el doble de extensión que un testimonio breve.
-- Usar nombres genéricos chilenos (ver ejemplos en sección 4).
+3 testimonios largos del nicho elegido.
+FORMATO OBLIGATORIO (sin desviaciones):
+**Título emocional sin comillas**
+Texto del testimonio sin comillas, en una o más líneas seguidas, con situación antes/después.
+— Nombre Apellido
+
+REGLAS:
+- El título va en bold (entre **...**), sin comillas a su alrededor.
+- El texto NO debe llevar comillas dobles ni iniciales (ni al principio ni al final).
+- El nombre va en una línea aparte después del cuerpo, precedido por un guión largo (—).
+- Nombre Apellido es genérico chileno (Sofía Pérez, Camila Vargas, Andrés Castillo, María González, Felipe Reyes, Carla Tapia, Diego Soto, etc.).
+- SIN inicial de apellido (NO "Marta S."), SIN ciudad ni localidad (NO "Marta Sánchez, Santiago").
 - El género del nombre debe coincidir con el género del narrador del texto.
-- NO incluir ciudad ni localidad después del nombre.
+- Mínimo el doble de extensión que un testimonio breve.
 
 📌 9. PREGUNTAS FRECUENTES (FAQ)
 6-8 preguntas. Empieza cada una con emoji. Lenguaje empático.
