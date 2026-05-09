@@ -30,7 +30,16 @@ export default async (request) => {
   const prompt = (body.prompt || '').trim();
   if (!prompt) return jsonResponse(400, { error: 'Falta el campo "prompt"' });
 
-  const model = body.model || 'gemini-2.5-flash';
+  // Cadena de modelos en orden de preferencia. Cuando el primario está
+  // saturado, saltamos al siguiente (infra distinta, suele responder).
+  // El usuario puede forzar uno con body.model.
+  const requestedModel = body.model;
+  const MODEL_CHAIN = requestedModel ? [requestedModel] : [
+    'gemini-2.5-flash',         // primario: balance calidad/velocidad
+    'gemini-2.0-flash-exp',     // alt: infra diferente
+    'gemini-2.0-flash',         // alt estable
+    'gemini-1.5-flash',         // último recurso, calidad menor pero disponible
+  ];
 
   const parts = [];
   if (body.fileUri && body.mimeType) {
@@ -39,11 +48,7 @@ export default async (request) => {
   parts.push({ text: prompt });
 
   // Tope de tokens en output — solo aplica si Gemini quiere generar tanto.
-  // El Análisis Estratégico de video necesita ~30-50k tokens (10 secciones
-  // + 5 voces en off completas + hooks/CTAs alternativos + ADN). Subimos al
-  // máximo soportado por gemini-2.5-flash para evitar truncamiento.
   const maxOutputTokens = body.fileUri ? 65536 : 8192;
-  const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse&key=${apiKey}`;
   const geminiBody = JSON.stringify({
     contents: [{ parts }],
     generationConfig: { temperature: 0.7, maxOutputTokens },
@@ -63,12 +68,6 @@ export default async (request) => {
         safeEnqueue(encoder.encode(': keep-alive\n\n'));
       }, 5000);
 
-      // Reintenta automáticamente cuando Gemini devuelve "high demand" /
-      // overloaded / rate-limit transitorio. Mientras tanto los heartbeats
-      // mantienen la conexión viva con el cliente.
-      const TRANSIENT_RETRIES = 3;
-      const TRANSIENT_BACKOFF_MS = [2000, 4000, 8000];
-
       function isTransient(status, msg) {
         if (status === 503 || status === 429) return true;
         const m = String(msg || '').toLowerCase();
@@ -78,62 +77,94 @@ export default async (request) => {
       }
 
       try {
-        let geminiResp;
+        // Recorre la cadena de modelos. Si el primario está saturado,
+        // saltamos al siguiente (infra distinta) en vez de reintentar el
+        // mismo. Si todos fallan, error final con sugerencias.
+        let geminiResp = null;
         let lastErrMsg = null;
         let lastStatus = null;
-        for (let attempt = 0; attempt <= TRANSIENT_RETRIES; attempt++) {
-          try {
-            geminiResp = await fetch(geminiUrl, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: geminiBody,
-            });
-          } catch (netErr) {
-            lastErrMsg = netErr.message || 'network error';
-            lastStatus = 0;
-            if (attempt < TRANSIENT_RETRIES) {
-              await new Promise(r => setTimeout(r, TRANSIENT_BACKOFF_MS[attempt] || 4000));
-              continue;
+        let modelUsed = null;
+
+        for (let mi = 0; mi < MODEL_CHAIN.length; mi++) {
+          const m = MODEL_CHAIN[mi];
+          const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(m)}:streamGenerateContent?alt=sse&key=${apiKey}`;
+
+          // Intento principal sobre este modelo. Damos UN reintento corto
+          // por si fue un blip puntual (1.5s). Si vuelve a fallar transient,
+          // saltamos al siguiente modelo de la cadena en lugar de seguir
+          // golpeando el mismo modelo saturado.
+          let attempted = 0;
+          let resp = null;
+          while (attempted < 2) {
+            attempted++;
+            try {
+              resp = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: geminiBody,
+              });
+            } catch (netErr) {
+              lastErrMsg = netErr.message || 'network error';
+              lastStatus = 0;
+              if (attempted < 2) { await new Promise(r => setTimeout(r, 1500)); continue; }
+              break;
             }
-            throw netErr;
+
+            if (resp.ok) {
+              geminiResp = resp;
+              modelUsed = m;
+              break;
+            }
+
+            const errText = await resp.text();
+            let msg = errText;
+            try { const j = JSON.parse(errText); msg = j?.error?.message || errText; } catch {}
+            lastErrMsg = msg;
+            lastStatus = resp.status;
+            resp = null;
+
+            if (isTransient(lastStatus, msg)) {
+              if (attempted < 2) {
+                safeEnqueue(encoder.encode(`: blip ${m} retry\n\n`));
+                await new Promise(r => setTimeout(r, 1500));
+                continue;
+              }
+              // 2 intentos transient → cambiar de modelo
+              break;
+            }
+
+            // Error definitivo no transient (404, 400, 401, 403...) → no
+            // tiene sentido probar otros modelos, falla todo
+            mi = MODEL_CHAIN.length; // forzar salida del loop externo
+            break;
           }
 
-          if (geminiResp.ok) break;
+          if (geminiResp) break;
 
-          const errText = await geminiResp.text();
-          let msg = errText;
-          try { const j = JSON.parse(errText); msg = j?.error?.message || errText; } catch {}
-          lastErrMsg = msg;
-          lastStatus = geminiResp.status;
-
-          if (isTransient(geminiResp.status, msg) && attempt < TRANSIENT_RETRIES) {
-            // Avisamos al cliente que estamos reintentando (no rompe el JSON parse:
-            // los SSE comments inician con ":" y el cliente los ignora)
-            safeEnqueue(encoder.encode(`: retry ${attempt + 1}/${TRANSIENT_RETRIES} (${geminiResp.status})\n\n`));
-            await new Promise(r => setTimeout(r, TRANSIENT_BACKOFF_MS[attempt] || 4000));
-            continue;
+          if (mi < MODEL_CHAIN.length - 1 && isTransient(lastStatus, lastErrMsg)) {
+            const next = MODEL_CHAIN[mi + 1];
+            safeEnqueue(encoder.encode(`: switching ${m} -> ${next} (${lastStatus})\n\n`));
           }
-
-          // Error definitivo o no retriable
-          safeEnqueue(encoder.encode(`data: ${JSON.stringify({ error: 'Gemini: ' + String(msg).slice(0, 400) })}\n\n`));
-          geminiResp = null;
-          break;
         }
 
         if (geminiResp && geminiResp.ok) {
-          // Gemini empezó a responder: cortar heartbeats y reenviar su stream
           if (heartbeatInterval) { clearInterval(heartbeatInterval); heartbeatInterval = null; }
+          // Avisamos qué modelo se usó si NO fue el primario
+          if (modelUsed && modelUsed !== MODEL_CHAIN[0]) {
+            safeEnqueue(encoder.encode(`: served-by ${modelUsed}\n\n`));
+          }
           const reader = geminiResp.body.getReader();
           while (true) {
             const { done, value } = await reader.read();
             if (done) break;
             safeEnqueue(value);
           }
-        } else if (lastErrMsg && (lastStatus !== null) && !isTransient(lastStatus, lastErrMsg)) {
-          // ya enqueado el error
         } else if (lastErrMsg) {
-          // Tras agotar reintentos en error transitorio, enviar mensaje claro
-          safeEnqueue(encoder.encode(`data: ${JSON.stringify({ error: 'Gemini sigue saturado tras varios reintentos. Inténtalo en 1-2 minutos.' })}\n\n`));
+          if (isTransient(lastStatus, lastErrMsg)) {
+            safeEnqueue(encoder.encode(`data: ${JSON.stringify({ error: 'Gemini saturado en todos los modelos (' + MODEL_CHAIN.length + ' probados). Espera 1-2 min y reintenta, o cambia IA destino a Claude/ChatGPT.' })}\n\n`));
+          } else {
+            safeEnqueue(encoder.encode(`data: ${JSON.stringify({ error: 'Gemini: ' + String(lastErrMsg).slice(0, 400) })}\n\n`));
+          }
         }
       } catch (err) {
         safeEnqueue(encoder.encode(`data: ${JSON.stringify({ error: 'Error: ' + (err.message || 'desconocido') })}\n\n`));
