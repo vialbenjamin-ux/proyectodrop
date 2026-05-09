@@ -5054,6 +5054,12 @@ function parseRateLimitSeconds(errMsg){
   return m ? Math.max(1, Math.ceil(parseFloat(m[1]))) : 60;
 }
 
+// Contador de auto-retries por rate limit: si después de 1 reintento
+// volvemos a chocar, dejamos de auto-retriear y le pedimos al usuario
+// que espere o cambie a Claude/ChatGPT. Sino entramos en loop infinito.
+window._bkRlAutoRetries = window._bkRlAutoRetries || 0;
+function resetRlAutoRetries(){ window._bkRlAutoRetries = 0; }
+
 // Renderiza el panel de "espera por rate limit" dentro de la card de salida
 // con countdown + botón de reintento manual. retryFn se llama al llegar a 0
 // o al hacer click en el botón.
@@ -5063,12 +5069,19 @@ function showRateLimitPanel({ box, body, label, btn, btnLabel, seconds, retryFn 
     box.classList.remove('error', 'loading');
   }
   if(label){ label.textContent = 'Cuota momentánea agotada'; }
+
+  // Si ya intentamos auto-retriear 1+ vez y volvió a fallar, NO
+  // auto-retriear de nuevo. Mostrar mensaje claro.
+  const exhausted = window._bkRlAutoRetries >= 1;
+
   if(body){
     body.innerHTML = `
       <div class="bk-rate-limit">
         <div class="bk-rate-limit-icon">⏳</div>
         <div class="bk-rate-limit-title">Gemini se quedó sin requests por minuto</div>
-        <div class="bk-rate-limit-sub">El plan gratuito permite 20 análisis por minuto. Reintenta automáticamente cuando termine la cuenta regresiva o haz click en el botón para reintentar antes.</div>
+        <div class="bk-rate-limit-sub">${exhausted
+          ? 'Ya reintentamos automáticamente y volvió a fallar. El plan gratuito de Gemini permite ~10 análisis por minuto. <b>Espera 1-2 min</b>, cambia IA destino a Claude/ChatGPT, o reintenta a mano cuando termines.'
+          : 'El plan gratuito permite ~10 análisis por minuto. Reintenta automáticamente cuando termine la cuenta regresiva o haz click en el botón para reintentar antes.'}</div>
         <div class="bk-rate-limit-countdown"><span id="bk-rl-secs">${seconds}</span><small>s</small></div>
         <button class="bk-rate-limit-retry" id="bk-rl-retry">▶ Reintentar ahora</button>
       </div>
@@ -5090,7 +5103,14 @@ function showRateLimitPanel({ box, body, label, btn, btnLabel, seconds, retryFn 
       clearInterval(tick);
       cancelled = true;
       if(btn){ btn.disabled = false; }
-      try { retryFn(); } catch(e){ console.error(e); }
+      // Solo auto-retriear si no agotamos los intentos
+      if(!exhausted){
+        window._bkRlAutoRetries++;
+        try { retryFn(); } catch(e){ console.error(e); }
+      } else {
+        // Ya consumimos auto-retry. El usuario debe darle al botón.
+        if(btn){ btn.textContent = btnLabel || '▶ Reintentar manualmente'; }
+      }
     }
   }, 1000);
 
@@ -5101,6 +5121,8 @@ function showRateLimitPanel({ box, body, label, btn, btnLabel, seconds, retryFn 
       cancelled = true;
       clearInterval(tick);
       if(btn){ btn.disabled = false; }
+      // Click manual SIEMPRE resetea el contador — el usuario sabe lo que hace
+      resetRlAutoRetries();
       try { retryFn(); } catch(e){ console.error(e); }
     };
   }
@@ -5158,6 +5180,8 @@ async function callGeminiProxyStream(payload, onChunk){
     }
   }
   if(serverError && !fullText) throw new Error(serverError);
+  // Llamada exitosa → reseteamos contador de auto-retries de rate limit
+  if(typeof resetRlAutoRetries === 'function') resetRlAutoRetries();
   return fullText;
 }
 
@@ -5238,14 +5262,21 @@ async function ejecutarMasterApi(prompt){
       if(btn){ btn.disabled = true; btn.textContent = '⏳ Esperando…'; }
       let s = rlSecs;
       let cancelled = false;
+      const exhausted = window._bkRlAutoRetries >= 1;
+      if(exhausted && res){
+        res.innerHTML = `⏳ <b>${rlSecs}s</b> · ya reintentamos auto y volvió a fallar — espera o cambia IA destino · <a href="#" id="bk-rl-retry" style="color:var(--accent);font-weight:600">reintentar manual</a>`;
+      }
       const tick = setInterval(()=>{
         if(cancelled) return;
         s -= 1;
         const el = document.getElementById('bk-rl-secs'); if(el) el.textContent = String(Math.max(0,s));
-        if(s <= 0){ clearInterval(tick); cancelled = true; ejecutarMasterApi(prompt); }
+        if(s <= 0){
+          clearInterval(tick); cancelled = true;
+          if(!exhausted){ window._bkRlAutoRetries++; ejecutarMasterApi(prompt); }
+        }
       }, 1000);
       const link = document.getElementById('bk-rl-retry');
-      if(link) link.onclick = (e)=>{ e.preventDefault(); if(cancelled) return; cancelled = true; clearInterval(tick); ejecutarMasterApi(prompt); };
+      if(link) link.onclick = (e)=>{ e.preventDefault(); if(cancelled) return; cancelled = true; clearInterval(tick); resetRlAutoRetries(); ejecutarMasterApi(prompt); };
       return;
     }
     if(res){ res.textContent = '⚠️ Error con Gemini: '+err.message; res.classList.add('warn'); }
@@ -7546,11 +7577,21 @@ async function seleccionarAngulo(idx){
     showToast(`🎯 "${esc(titulo)}" seleccionado · armando Imágenes y Copys…`, '🎯', 'info');
   }
 
-  // 4) Auto-disparar Imágenes (y Copys con pausa para no chocar con
-  //    rate limit de Gemini cuando aplique).
-  await new Promise(r => setTimeout(r, 300));
+  // 4) Auto-disparar Imágenes (y Copys con pausa larga para no chocar
+  //    con el rate limit de 10 RPM del plan gratuito de Gemini).
+  //    Si IA != Gemini, son flujos manuales (clipboard) y no necesitan
+  //    espaciado.
+  if(ia === 'gemini'){
+    await new Promise(r => setTimeout(r, 6000));
+  } else {
+    await new Promise(r => setTimeout(r, 300));
+  }
   ejecutarBkPrompt('imagenes');
-  await new Promise(r => setTimeout(r, 700));
+  if(ia === 'gemini'){
+    await new Promise(r => setTimeout(r, 6000));
+  } else {
+    await new Promise(r => setTimeout(r, 700));
+  }
   ejecutarBkPrompt('copys');
 }
 
