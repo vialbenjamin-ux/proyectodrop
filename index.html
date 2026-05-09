@@ -5928,6 +5928,41 @@ async function ejecutarAutoShrine(){
     setStatus('⏳ Generando plantilla nueva con tu contenido…');
     const newJson = buildAutoShrineTemplate(baseJson, masterText, gifsRefs, fotosRefs);
 
+    // 3.5 VALIDACIÓN PRE-PUSH: contar elementos críticos y mostrar confirmación
+    const checkChunks = parseMasterToChunks(masterText);
+    const validation = {
+      'Beneficios':         { count: checkChunks.beneficios.length,         expected: 3 },
+      'Testimonios breves': { count: checkChunks.testimoniosBreves.length, expected: 3 },
+      'Bullets landing':    { count: checkChunks.bullets.length,             expected: 3 },
+      'Testimonios extensos': { count: checkChunks.testimoniosExtensos.length, expected: 3 },
+      'FAQ': { count: checkChunks.faq.length, expected: 6 }, // mínimo 6 (template tiene 4 dynamic + 1 estático)
+      'GIFs subidos': { count: gifsRefs.length, expected: 3 },
+      'Fotos subidas': { count: fotosRefs.length, expected: 3 },
+    };
+    const warnings = [];
+    Object.entries(validation).forEach(([label, v]) => {
+      if (v.count < v.expected) warnings.push('• ' + label + ': ' + v.count + ' (esperado ≥' + v.expected + ')');
+    });
+    let summaryMsg = '🚀 RESUMEN ANTES DE APLICAR\n\n';
+    summaryMsg += '✓ Beneficios: ' + checkChunks.beneficios.length + '\n';
+    summaryMsg += '✓ Testimonios breves: ' + checkChunks.testimoniosBreves.length + '\n';
+    summaryMsg += '✓ Bullets landing: ' + checkChunks.bullets.length + '\n';
+    summaryMsg += '✓ Testimonios extensos: ' + checkChunks.testimoniosExtensos.length + '\n';
+    summaryMsg += '✓ FAQ: ' + checkChunks.faq.length + '\n';
+    summaryMsg += '✓ Imágenes subidas: ' + (gifsRefs.length + fotosRefs.length) + '/6\n\n';
+    if (warnings.length) {
+      summaryMsg += '⚠️ ATENCIÓN — algunos contadores quedaron bajos:\n' + warnings.join('\n') + '\n\n';
+      summaryMsg += '¿Aplicar igual?';
+    } else {
+      summaryMsg += '¿Aplicar al producto "' + _autoShrineProduct.title + '"?';
+    }
+    if (!confirm(summaryMsg)) {
+      setStatus('⚠️ Cancelado por el usuario. Las imágenes ya están en Shopify Files (no se aplicó plantilla).');
+      goBtn.disabled = false;
+      goBtn.textContent = '🚀 Generar plantilla y aplicar al producto';
+      return;
+    }
+
     // 4. Generar key y subir
     const today = new Date();
     const mm = String(today.getMonth() + 1).padStart(2, '0');
