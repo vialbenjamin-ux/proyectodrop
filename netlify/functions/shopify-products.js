@@ -48,8 +48,8 @@ exports.handler = async function (event) {
       try { body = JSON.parse(event.body || '{}'); }
       catch { return respond(400, { error: 'JSON inválido' }); }
       if (!body.id) return respond(400, { error: 'Falta id del producto' });
-      if (!body.image || !body.image.attachment) {
-        return respond(400, { error: 'Falta image.attachment (base64)' });
+      if (!body.image || (!body.image.attachment && !body.image.src)) {
+        return respond(400, { error: 'Falta image.attachment (base64) o image.src (URL)' });
       }
       return await addProductImage(domain, headers, body);
     }
@@ -127,10 +127,13 @@ async function getProduct(domain, headers, id) {
 
 async function addProductImage(domain, headers, body) {
   const url = `https://${domain}/admin/api/2024-10/products/${encodeURIComponent(body.id)}/images.json`;
-  const img = {
-    attachment: body.image.attachment,
-    filename: body.image.filename || ('bkdrop-' + Date.now() + '.jpg'),
-  };
+  const img = {};
+  if (body.image.attachment) {
+    img.attachment = body.image.attachment;
+    img.filename = body.image.filename || ('bkdrop-' + Date.now() + '.jpg');
+  } else if (body.image.src) {
+    img.src = body.image.src;
+  }
   if (body.image.alt) img.alt = body.image.alt;
   if (typeof body.image.position === 'number') img.position = body.image.position;
 
