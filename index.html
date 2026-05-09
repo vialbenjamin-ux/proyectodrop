@@ -414,6 +414,25 @@
   .bk-resp-action-btn{background:var(--surface);border:1.5px solid var(--border);color:var(--muted);padding:6px 12px;border-radius:8px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer;transition:all .15s}
   .bk-resp-action-btn:hover{border-color:var(--accent);color:var(--accent)}
   .bk-resp-action-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+  /* Panel para enviar landing al producto Shopify */
+  .bk-shopify-push{margin-top:14px;padding:14px;background:var(--surface);border:1.5px solid var(--accent);border-radius:12px;display:flex;flex-direction:column;gap:10px}
+  .bk-shopify-push-title{font-size:11px;letter-spacing:.6px;text-transform:uppercase;color:var(--accent);font-weight:700;font-family:'DM Mono',monospace}
+  .bk-shopify-search-row{display:flex;gap:6px;flex-wrap:wrap}
+  .bk-shopify-search-row input{flex:1;min-width:200px;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:9px 12px;border-radius:8px;font-size:12px;font-family:'DM Mono',monospace}
+  .bk-shopify-search-row input:focus{border-color:var(--accent);outline:none}
+  .bk-shopify-search-row button{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:9px 14px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer;font-weight:600}
+  .bk-shopify-results{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;max-height:280px;overflow-y:auto}
+  .bk-shopify-result{display:flex;gap:8px;align-items:center;background:var(--surface2);border:1.5px solid var(--border);border-radius:10px;padding:8px 10px;cursor:pointer;transition:all .15s}
+  .bk-shopify-result:hover{border-color:var(--accent);background:var(--accent-soft)}
+  .bk-shopify-result img{width:38px;height:38px;border-radius:6px;object-fit:cover;background:#eee;flex-shrink:0}
+  .bk-shopify-result .info{flex:1;min-width:0}
+  .bk-shopify-result .title{font-size:11px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bk-shopify-result .meta{font-size:9px;color:var(--muted);font-family:'DM Mono',monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bk-shopify-result.selected{border-color:var(--accent);background:var(--accent-soft);box-shadow:0 0 0 3px var(--accent-soft)}
+  .bk-shopify-preview-edit{width:100%;min-height:220px;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:10px 12px;border-radius:8px;font-size:11px;font-family:'DM Mono',monospace;resize:vertical;line-height:1.5;box-sizing:border-box}
+  .bk-shopify-confirm-btn{background:#10a37f;color:#fff;border:none;border-radius:8px;padding:10px 14px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer;font-weight:600}
+  .bk-shopify-confirm-btn:hover{background:#0d8a6a}
+  .bk-shopify-status{font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;min-height:14px;line-height:1.4}
   /* Selector visual de ángulos de venta */
   .bk-angulos-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;margin-top:10px}
   .bk-angulo-card{background:var(--surface);border:2px solid var(--border);border-radius:12px;padding:12px 14px;cursor:pointer;transition:transform .15s, border-color .15s, background .15s;display:flex;flex-direction:column;gap:6px;text-align:left}
@@ -1386,8 +1405,33 @@
             <button type="button" class="bk-resp-action-btn" id="bk-resp-expand-btn" onclick="toggleRespExpand()">⛶ Expandir</button>
             <button type="button" class="bk-resp-action-btn" onclick="copyRespMaster()">📋 Copiar todo</button>
           </div>
-          <button class="bk-step-btn" id="bk-btn-extraer" onclick="extraerDatosMaster()">📥 Extraer datos</button>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
+            <button class="bk-step-btn" id="bk-btn-extraer" onclick="extraerDatosMaster()">📥 Extraer datos</button>
+            <button class="bk-step-btn" id="bk-btn-shopify-push" onclick="abrirShopifyPush()" style="background:#10a37f;color:#fff">📤 Pegar en producto Shopify</button>
+          </div>
           <div id="bk-extract-result" class="bk-step-hint"></div>
+
+          <div class="bk-shopify-push" id="bk-shopify-push" style="display:none">
+            <div class="bk-shopify-push-title">📤 Pegar landing al producto Shopify</div>
+            <div class="bk-shopify-search-row">
+              <input type="text" id="bk-shopify-search" placeholder="Buscar producto por título (vacío = últimos 50)" onkeydown="if(event.key==='Enter') buscarProductosShopify()">
+              <button onclick="buscarProductosShopify()">🔍 Buscar</button>
+            </div>
+            <div class="bk-shopify-results" id="bk-shopify-results"></div>
+
+            <div id="bk-shopify-preview-section" style="display:none;flex-direction:column;gap:8px">
+              <div class="bk-shopify-push-title" style="color:var(--muted)">HTML que se pegará en la descripción del producto (editable)</div>
+              <textarea class="bk-shopify-preview-edit" id="bk-shopify-html"></textarea>
+              <label style="display:flex;align-items:center;gap:6px;font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;cursor:pointer">
+                <input type="checkbox" id="bk-shopify-update-title" onchange="document.getElementById('bk-shopify-new-title').style.display = this.checked ? 'block' : 'none'">
+                También actualizar el título del producto con el primer "Nombre vendedor" del Master
+              </label>
+              <input type="text" id="bk-shopify-new-title" placeholder="Título nuevo (auto-detectado)" style="display:none;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px 12px;border-radius:8px;font-size:12px;font-family:'DM Mono',monospace;width:100%;box-sizing:border-box">
+              <button class="bk-shopify-confirm-btn" id="bk-shopify-confirm-btn" onclick="confirmarShopifyPush()">✅ Pegar en producto</button>
+            </div>
+
+            <div class="bk-shopify-status" id="bk-shopify-status"></div>
+          </div>
         </div>
 
         <!-- PASO 2.5 — selector de ángulos -->
@@ -6916,6 +6960,304 @@ async function copyRespMaster(){
   } catch (err) {
     showToast('No se pudo copiar: ' + (err.message || '?'), '⚠️', 'error');
   }
+}
+
+// ── Pegar landing al producto Shopify ─────────────────────────────────
+let _shopifySelectedProduct = null;
+
+function shopifyApiUrl(extra){
+  const t = tenantParam(); // '' o '&tenant=gt'
+  const base = '/.netlify/functions/shopify-products?_=1';
+  return base + (extra ? '&' + extra : '') + t;
+}
+
+function abrirShopifyPush(){
+  const ta = document.getElementById('bkv-respuesta');
+  if (!ta || !(ta.value || '').trim()) {
+    showToast('Pega/genera primero la respuesta del Master', '⚠️', 'warn');
+    return;
+  }
+  const panel = document.getElementById('bk-shopify-push');
+  if (!panel) return;
+  const isVisible = (panel.style.display !== 'none');
+  panel.style.display = isVisible ? 'none' : 'flex';
+  if (!isVisible) {
+    buscarProductosShopify();
+    panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+}
+
+async function buscarProductosShopify(){
+  const q = document.getElementById('bk-shopify-search')?.value || '';
+  const results = document.getElementById('bk-shopify-results');
+  const status = document.getElementById('bk-shopify-status');
+  if (!results) return;
+  results.innerHTML = '<div style="font-size:11px;color:var(--muted);font-family:\'DM Mono\',monospace;padding:8px">Buscando…</div>';
+  if (status) status.textContent = '';
+  try {
+    const url = shopifyApiUrl(q ? 'q=' + encodeURIComponent(q) : '');
+    const resp = await fetch(url);
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || ('HTTP ' + resp.status));
+    const products = data.products || [];
+    if (!products.length) {
+      results.innerHTML = '<div style="font-size:11px;color:var(--muted);font-family:\'DM Mono\',monospace;padding:8px">Sin resultados.</div>';
+      return;
+    }
+    results.innerHTML = products.map(p => {
+      const img = p.image ? '<img src="' + esc(p.image) + '" alt="">' : '<img alt="">';
+      const statusIcon = p.status === 'active' ? '🟢' : '⚪';
+      const titleAttr = String(p.title || '').replace(/'/g, "\\'");
+      return '<div class="bk-shopify-result" data-id="' + p.id + '" onclick="seleccionarProductoShopify(' + p.id + ", '" + titleAttr + '\')">' +
+        img +
+        '<div class="info">' +
+          '<div class="title">' + esc(p.title || '') + '</div>' +
+          '<div class="meta">' + statusIcon + ' ' + esc(p.handle || '') + '</div>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+  } catch (err) {
+    results.innerHTML = '';
+    if (status) status.textContent = '⚠️ ' + (err.message || 'error');
+  }
+}
+
+function seleccionarProductoShopify(id, title){
+  _shopifySelectedProduct = { id, title };
+  document.querySelectorAll('.bk-shopify-result').forEach(el => {
+    el.classList.toggle('selected', String(el.dataset.id) === String(id));
+  });
+
+  const masterText = document.getElementById('bkv-respuesta')?.value || '';
+  const html = buildLandingHtml(masterText);
+  const ta = document.getElementById('bk-shopify-html');
+  if (ta) ta.value = html;
+
+  const newTitle = detectarPrimerNombre(masterText);
+  const titleInput = document.getElementById('bk-shopify-new-title');
+  if (titleInput && newTitle) titleInput.value = newTitle;
+
+  const previewSection = document.getElementById('bk-shopify-preview-section');
+  if (previewSection) previewSection.style.display = 'flex';
+  const status = document.getElementById('bk-shopify-status');
+  if (status) status.textContent = '✓ Producto seleccionado: ' + title;
+}
+
+async function confirmarShopifyPush(){
+  if (!_shopifySelectedProduct) return;
+  const html = (document.getElementById('bk-shopify-html')?.value || '').trim();
+  const updateTitle = document.getElementById('bk-shopify-update-title')?.checked;
+  const newTitle = (document.getElementById('bk-shopify-new-title')?.value || '').trim();
+  const status = document.getElementById('bk-shopify-status');
+  const btn = document.getElementById('bk-shopify-confirm-btn');
+
+  if (!html) {
+    if (status) status.textContent = '⚠️ El HTML está vacío';
+    return;
+  }
+
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Enviando…'; }
+  if (status) status.textContent = '⏳ Pegando en Shopify…';
+
+  try {
+    const body = { id: _shopifySelectedProduct.id, body_html: html };
+    if (updateTitle && newTitle) body.title = newTitle;
+
+    const resp = await fetch(shopifyApiUrl(''), {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || ('HTTP ' + resp.status));
+
+    if (status) status.innerHTML = '✅ Pegado correctamente. <a href="https://admin.shopify.com/store/benkotienda/products/' + _shopifySelectedProduct.id + '" target="_blank" style="color:var(--accent);font-weight:600">Ver en admin →</a>';
+    showToast('Landing pegada al producto Shopify', '🚀', 'success');
+  } catch (err) {
+    const msg = err && err.message ? err.message : '?';
+    if (status) status.textContent = '⚠️ ' + msg + (msg.includes('403') ? ' (revisa write_products en el token)' : '');
+    showToast('No se pudo pegar: ' + msg, '⚠️', 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '✅ Pegar en producto'; }
+  }
+}
+
+// ── Conversión master text → HTML para Shopify body_html ──────────────
+function parseMasterSections(text){
+  const markers = [
+    { key: 'angulos',              regex: /🔴.*?ÁNGULOS?\s*DE\s*VENTA/i },
+    { key: 'nombres',              regex: /🟥.*?NOMBRES\s*VENDEDORES/i },
+    { key: 'beneficios',           regex: /🟦.*?BENEFICIOS\s*CLAVE/i },
+    { key: 'testimonios_breves',   regex: /🟨.*?TESTIMONIOS.*?BREVES/i },
+    { key: 'bullets',              regex: /🟧.*?BULLETS.*?LANDING/i },
+    { key: 'testimonios_extensos', regex: /🟪.*?TESTIMONIOS.*?EXTENSOS/i },
+    { key: 'faq',                  regex: /(?:📌.*?PREGUNTAS\s*FRECUENTES|FAQ)/i },
+  ];
+  const positions = markers.map(m => {
+    const match = m.regex.exec(text);
+    return match ? { key: m.key, pos: match.index } : null;
+  }).filter(Boolean).sort((a,b) => a.pos - b.pos);
+
+  const sections = {};
+  for (let i = 0; i < positions.length; i++) {
+    const start = positions[i].pos;
+    const end = i + 1 < positions.length ? positions[i+1].pos : text.length;
+    sections[positions[i].key] = text.substring(start, end).trim();
+  }
+  return sections;
+}
+
+function buildLandingHtml(text){
+  if (!text) return '';
+  const sections = parseMasterSections(text);
+  let html = '';
+
+  // Beneficios → <ul>
+  if (sections.beneficios) {
+    const bullets = extractBulletsList(sections.beneficios);
+    if (bullets.length) {
+      html += '<h2>Beneficios</h2>\n<ul>\n';
+      bullets.forEach(b => { html += '  <li>' + escHtml(b) + '</li>\n'; });
+      html += '</ul>\n\n';
+    }
+  }
+
+  // Bullets para landing → <h3> + <p>
+  if (sections.bullets) {
+    const blocks = extractNumberedBlocks(sections.bullets);
+    if (blocks.length) {
+      html += '<h2>¿Por qué elegirlo?</h2>\n';
+      blocks.forEach(b => {
+        html += '<h3>' + escHtml(b.title) + '</h3>\n';
+        if (b.body) html += '<p>' + escHtml(b.body) + '</p>\n';
+      });
+      html += '\n';
+    }
+  }
+
+  // Testimonios extensos → <blockquote>
+  if (sections.testimonios_extensos) {
+    const ts = extractTestimonios(sections.testimonios_extensos);
+    if (ts.length) {
+      html += '<h2>Lo que dicen nuestros clientes</h2>\n';
+      ts.forEach(t => {
+        html += '<blockquote>\n';
+        if (t.title) html += '  <strong>' + escHtml(t.title) + '</strong><br>\n';
+        if (t.body) html += '  ' + escHtml(t.body) + '\n';
+        html += '</blockquote>\n';
+      });
+      html += '\n';
+    }
+  }
+
+  // FAQ → <details><summary>
+  if (sections.faq) {
+    const faq = extractFaq(sections.faq);
+    if (faq.length) {
+      html += '<h2>Preguntas frecuentes</h2>\n';
+      faq.forEach(qa => {
+        html += '<details>\n';
+        html += '  <summary>' + escHtml(qa.q) + '</summary>\n';
+        if (qa.a) html += '  <p>' + escHtml(qa.a) + '</p>\n';
+        html += '</details>\n';
+      });
+    }
+  }
+
+  return html.trim();
+}
+
+function extractBulletsList(sectionText){
+  const lines = sectionText.split('\n').slice(1);
+  const out = [];
+  for (const line of lines) {
+    let t = line.trim();
+    if (!t) continue;
+    if (/^[🔴🟥🟦🟨🟧🟪🟩🟫📌⚠📦]/.test(t)) continue;
+    t = t.replace(/^[-*•]\s*/, '').replace(/\*\*/g, '').trim();
+    if (t.length > 3) out.push(t);
+  }
+  return out;
+}
+
+function extractNumberedBlocks(sectionText){
+  const blocks = [];
+  const lines = sectionText.split('\n');
+  let current = null;
+  for (const line of lines) {
+    const t = line.trim();
+    if (!t) continue;
+    if (/^[1-9]️⃣/.test(t)) {
+      if (current) blocks.push(current);
+      const titleClean = t.replace(/^[1-9]️⃣\s*/, '').replace(/\*\*/g, '').replace(/\s*[–-]\s*/, ' — ').trim();
+      current = { title: titleClean, body: '' };
+    } else if (current) {
+      const cleaned = t.replace(/\*\*/g, '');
+      current.body += (current.body ? ' ' : '') + cleaned;
+    }
+  }
+  if (current) blocks.push(current);
+  return blocks;
+}
+
+function extractTestimonios(sectionText){
+  const blocks = [];
+  const lines = sectionText.split('\n');
+  let current = null;
+  for (const line of lines) {
+    const t = line.trim().replace(/\*\*/g, '');
+    if (!t) {
+      if (current && current.body) { blocks.push(current); current = null; }
+      continue;
+    }
+    if (/^"[^"]+"$/.test(t)) {
+      if (current && current.body) blocks.push(current);
+      current = { title: t.replace(/^"|"$/g, ''), body: '' };
+    } else if (current) {
+      current.body += (current.body ? ' ' : '') + t;
+    }
+  }
+  if (current && current.body) blocks.push(current);
+  return blocks.filter(b => b.body);
+}
+
+function extractFaq(sectionText){
+  const lines = sectionText.split('\n');
+  const out = [];
+  let current = null;
+  for (const line of lines) {
+    const t = line.trim();
+    if (!t) continue;
+    if (/^[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u.test(t) && /\?/.test(t)) {
+      if (current) out.push(current);
+      current = { q: t.replace(/^[-*•]\s*/, '').replace(/\*\*/g, '').trim(), a: '' };
+    } else if (current) {
+      current.a += (current.a ? ' ' : '') + t.replace(/\*\*/g, '');
+    }
+  }
+  if (current) out.push(current);
+  return out;
+}
+
+function detectarPrimerNombre(text){
+  const sections = parseMasterSections(text);
+  if (!sections.nombres) return '';
+  const lines = sections.nombres.split('\n').slice(1);
+  for (const line of lines) {
+    let t = line.trim();
+    if (!t) continue;
+    if (/^[🔴🟥🟦🟨🟧🟪🟩🟫📌⚠📦]/.test(t)) continue;
+    t = t.replace(/^[-*•\d.]+\s*/, '').replace(/\*\*/g, '').trim();
+    if (t.length > 5 && t.length < 100) return t;
+  }
+  return '';
+}
+
+function escHtml(s){
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
 }
 
 // Devuelve TODOS los ángulos de la tabla del Master, no solo el primero.
