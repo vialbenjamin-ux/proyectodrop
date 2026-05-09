@@ -36,9 +36,8 @@ export default async (request) => {
   const requestedModel = body.model;
   const MODEL_CHAIN = requestedModel ? [requestedModel] : [
     'gemini-2.5-flash',         // primario: balance calidad/velocidad
-    'gemini-2.0-flash-exp',     // alt: infra diferente
-    'gemini-2.0-flash',         // alt estable
-    'gemini-1.5-flash',         // último recurso, calidad menor pero disponible
+    'gemini-2.0-flash',         // alt estable, infra diferente
+    'gemini-1.5-flash',         // último recurso, estable, soporta video
   ];
 
   const parts = [];
@@ -78,13 +77,18 @@ export default async (request) => {
 
       // Errores que indican "este modelo no existe / no está disponible
       // en mi cuenta/región" — deben saltar al siguiente modelo de la
-      // cadena, no abortar. Distinto de transient (saturación) y de
-      // errores reales (400, 401, 403 con request malformado).
+      // cadena, no abortar. La regex es ESPECÍFICA al texto que devuelve
+      // Gemini ("is not found for API version", "is not supported for
+      // generateContent") para no atrapar errores genéricos como
+      // "MIME type not supported".
       function isModelMissing(status, msg) {
         if (status === 404) return true;
         const m = String(msg || '').toLowerCase();
-        return m.includes('not found') || m.includes('not supported')
-            || m.includes('is not enabled') || m.includes('does not exist');
+        return m.includes('not found for api version')
+            || m.includes('is not supported for generatecontent')
+            || m.includes('is not supported for streamgeneratecontent')
+            || m.includes('model is not enabled')
+            || m.includes('model does not exist');
       }
 
       try {
@@ -181,10 +185,11 @@ export default async (request) => {
             safeEnqueue(value);
           }
         } else if (lastErrMsg) {
+          const tail = ' · Último error (' + (lastStatus || '?') + '): ' + String(lastErrMsg).slice(0, 300);
           if (isTransient(lastStatus, lastErrMsg)) {
-            safeEnqueue(encoder.encode(`data: ${JSON.stringify({ error: 'Gemini saturado en todos los modelos (' + MODEL_CHAIN.length + ' probados). Espera 1-2 min y reintenta, o cambia IA destino a Claude/ChatGPT.' })}\n\n`));
+            safeEnqueue(encoder.encode(`data: ${JSON.stringify({ error: 'Gemini saturado en todos los modelos (' + MODEL_CHAIN.length + ' probados). Espera 1-2 min o cambia IA destino a Claude/ChatGPT.' + tail })}\n\n`));
           } else if (isModelMissing(lastStatus, lastErrMsg)) {
-            safeEnqueue(encoder.encode(`data: ${JSON.stringify({ error: 'Ningún modelo Gemini disponible en tu cuenta para este request. Verifica acceso a la API.' })}\n\n`));
+            safeEnqueue(encoder.encode(`data: ${JSON.stringify({ error: 'Ningún modelo Gemini disponible para este request.' + tail })}\n\n`));
           } else {
             safeEnqueue(encoder.encode(`data: ${JSON.stringify({ error: 'Gemini: ' + String(lastErrMsg).slice(0, 400) })}\n\n`));
           }
