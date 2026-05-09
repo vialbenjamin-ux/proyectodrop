@@ -433,6 +433,18 @@
   .bk-shopify-confirm-btn{background:#10a37f;color:#fff;border:none;border-radius:8px;padding:10px 14px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer;font-weight:600}
   .bk-shopify-confirm-btn:hover{background:#0d8a6a}
   .bk-shopify-status{font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;min-height:14px;line-height:1.4}
+  /* Panel de copy-paste por sección para pegar en theme editor de Shrine */
+  .bk-shrine-paste{margin-top:14px;padding:14px;background:var(--surface);border:1.5px solid #C5B5E5;border-radius:12px;display:flex;flex-direction:column;gap:12px}
+  .bk-shrine-paste-title{font-size:11px;letter-spacing:.6px;text-transform:uppercase;color:#7B5BB5;font-weight:700;font-family:'DM Mono',monospace}
+  .bk-shrine-section{background:var(--surface2);border:1.5px solid var(--border);border-radius:10px;padding:10px 12px}
+  .bk-shrine-section-title{font-size:11px;letter-spacing:.5px;text-transform:uppercase;color:#7B5BB5;font-weight:700;font-family:'DM Mono',monospace;margin-bottom:8px;display:flex;align-items:center;gap:6px}
+  .bk-shrine-chunk{display:flex;gap:6px;align-items:flex-start;margin-bottom:6px;padding:6px 8px;background:var(--surface);border:1px solid var(--border);border-radius:6px}
+  .bk-shrine-chunk:last-child{margin-bottom:0}
+  .bk-shrine-chunk-label{font-size:9px;letter-spacing:.5px;text-transform:uppercase;color:var(--muted2);font-family:'DM Mono',monospace;flex-shrink:0;width:60px;padding-top:2px}
+  .bk-shrine-chunk-text{flex:1;font-size:12px;color:var(--text);line-height:1.4;word-break:break-word;font-family:'DM Mono',monospace}
+  .bk-shrine-chunk-copy{flex-shrink:0;background:#7B5BB5;color:#fff;border:none;border-radius:6px;padding:4px 10px;font-size:10px;font-family:'DM Mono',monospace;cursor:pointer;font-weight:600}
+  .bk-shrine-chunk-copy:hover{background:#5B3F8E}
+  .bk-shrine-chunk-copy.copied{background:#16a34a}
   /* Selector visual de ángulos de venta */
   .bk-angulos-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;margin-top:10px}
   .bk-angulo-card{background:var(--surface);border:2px solid var(--border);border-radius:12px;padding:12px 14px;cursor:pointer;transition:transform .15s, border-color .15s, background .15s;display:flex;flex-direction:column;gap:6px;text-align:left}
@@ -1408,8 +1420,17 @@
           <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
             <button class="bk-step-btn" id="bk-btn-extraer" onclick="extraerDatosMaster()">📥 Extraer datos</button>
             <button class="bk-step-btn" id="bk-btn-shopify-push" onclick="abrirShopifyPush()" style="background:#10a37f;color:#fff">📤 Pegar en producto Shopify</button>
+            <button class="bk-step-btn" id="bk-btn-shrine-paste" onclick="abrirShrinePaste()" style="background:#7B5BB5;color:#fff">📋 Copy-paste para Shrine</button>
           </div>
           <div id="bk-extract-result" class="bk-step-hint"></div>
+
+          <div class="bk-shrine-paste" id="bk-shrine-paste" style="display:none">
+            <div class="bk-shrine-paste-title">📋 Copy-paste por sección · Theme Editor de Shrine</div>
+            <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;line-height:1.5">
+              Cada bloque tiene su botón de copiar. Abrí el Theme Editor de Shrine en otra pestaña, click en cada sección de la landing, y pegá lo correspondiente.
+            </div>
+            <div id="bk-shrine-paste-body"></div>
+          </div>
 
           <div class="bk-shopify-push" id="bk-shopify-push" style="display:none">
             <div class="bk-shopify-push-title">📤 Pegar landing al producto Shopify</div>
@@ -5376,6 +5397,198 @@ function descargarImgRef(){
   document.body.appendChild(a);
   a.click();
   setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+}
+
+// ── Copy-paste por sección para Shrine theme editor ───────────────────
+function abrirShrinePaste(){
+  const ta = document.getElementById('bkv-respuesta');
+  if (!ta || !(ta.value || '').trim()) {
+    showToast('Pega/genera primero la respuesta del Master', '⚠️', 'warn');
+    return;
+  }
+  const panel = document.getElementById('bk-shrine-paste');
+  if (!panel) return;
+  const isVisible = (panel.style.display !== 'none');
+  panel.style.display = isVisible ? 'none' : 'flex';
+  if (!isVisible) {
+    renderShrinePastePanel(ta.value);
+    panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+}
+
+function renderShrinePastePanel(masterText){
+  const body = document.getElementById('bk-shrine-paste-body');
+  if (!body) return;
+  const chunks = parseMasterToChunks(masterText);
+  let html = '';
+
+  // Nombres vendedores
+  if (chunks.nombres.length) {
+    html += renderShrineSection('🟥 Nombres vendedores · Título del producto', chunks.nombres.map((n, i) =>
+      shrineChunk('Opción ' + (i+1), n)
+    ));
+  }
+
+  // Beneficios clave
+  if (chunks.beneficios.length) {
+    html += renderShrineSection('🟦 Beneficios clave · 3 íconos con texto corto', chunks.beneficios.map((b, i) =>
+      shrineChunk('Beneficio ' + (i+1), b)
+    ));
+  }
+
+  // Bullets para landing
+  if (chunks.bullets.length) {
+    const items = [];
+    chunks.bullets.forEach((b, i) => {
+      items.push(shrineChunk('Bullet ' + (i+1) + ' · Título', b.title));
+      if (b.body) items.push(shrineChunk('Bullet ' + (i+1) + ' · Texto', b.body));
+    });
+    html += renderShrineSection('🟧 Bullets para landing · 3 bloques', items);
+  }
+
+  // Testimonios extensos (con foto)
+  if (chunks.testimoniosExtensos.length) {
+    const items = [];
+    chunks.testimoniosExtensos.forEach((t, i) => {
+      items.push(shrineChunk('Testim. ' + (i+1) + ' · Título', t.titulo || ''));
+      items.push(shrineChunk('Testim. ' + (i+1) + ' · Texto', t.texto || ''));
+      if (t.autor) items.push(shrineChunk('Testim. ' + (i+1) + ' · Autor', t.autor));
+    });
+    html += renderShrineSection('🟪 Testimonios extensos · sección Multicolumn de Shrine (con foto)', items);
+  }
+
+  // Testimonios breves
+  if (chunks.testimoniosBreves.length) {
+    html += renderShrineSection('🟨 Testimonios breves', chunks.testimoniosBreves.map((t, i) =>
+      shrineChunk('Breve ' + (i+1), t)
+    ));
+  }
+
+  // FAQ
+  if (chunks.faq.length) {
+    const items = [];
+    chunks.faq.forEach((qa, i) => {
+      items.push(shrineChunk('Preg. ' + (i+1), qa.q));
+      items.push(shrineChunk('Resp. ' + (i+1), qa.a));
+    });
+    html += renderShrineSection('📌 FAQ · sección de preguntas frecuentes', items);
+  }
+
+  if (!html) {
+    html = '<div style="padding:14px;text-align:center;color:var(--muted);font-size:12px;font-family:\'DM Mono\',monospace">No se detectaron secciones del Master. Verifica que la respuesta tenga los emojis 🔴🟥🟦🟨🟧🟪📌 marcando cada sección.</div>';
+  }
+
+  body.innerHTML = html;
+}
+
+function renderShrineSection(title, itemsHtml){
+  return '<div class="bk-shrine-section">' +
+    '<div class="bk-shrine-section-title">' + esc(title) + '</div>' +
+    itemsHtml.join('') +
+  '</div>';
+}
+
+function shrineChunk(label, text){
+  if (!text) return '';
+  const safeText = String(text || '').trim();
+  if (!safeText) return '';
+  // Encode for the data attribute (preserve original text exactly when copying)
+  const encoded = encodeURIComponent(safeText);
+  return '<div class="bk-shrine-chunk">' +
+    '<div class="bk-shrine-chunk-label">' + esc(label) + '</div>' +
+    '<div class="bk-shrine-chunk-text">' + esc(safeText) + '</div>' +
+    '<button class="bk-shrine-chunk-copy" onclick="copyShrineChunk(this, \'' + encoded + '\')">📋</button>' +
+  '</div>';
+}
+
+async function copyShrineChunk(btn, encoded){
+  try {
+    const text = decodeURIComponent(encoded);
+    await navigator.clipboard.writeText(text);
+    const orig = btn.textContent;
+    btn.textContent = '✓';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = orig; btn.classList.remove('copied'); }, 1200);
+  } catch (err) {
+    showToast('No se pudo copiar: ' + (err.message || '?'), '⚠️', 'error');
+  }
+}
+
+function parseMasterToChunks(text){
+  const sections = parseMasterSections(text);
+  const chunks = {
+    nombres: [],
+    beneficios: [],
+    bullets: [],
+    testimoniosBreves: [],
+    testimoniosExtensos: [],
+    faq: [],
+  };
+
+  // Nombres vendedores: cada línea con texto significativo, máx 70 chars
+  if (sections.nombres) {
+    const lines = sections.nombres.split('\n').slice(1);
+    for (const line of lines) {
+      let t = line.trim();
+      if (!t) continue;
+      if (/^[🔴🟥🟦🟨🟧🟪🟩🟫📌⚠📦]/.test(t)) continue;
+      t = t.replace(/^[-*•\d.]+\s*/, '').replace(/\*\*/g, '').trim();
+      if (t.length > 5 && t.length < 100) chunks.nombres.push(t);
+      if (chunks.nombres.length >= 5) break;
+    }
+  }
+
+  // Beneficios
+  if (sections.beneficios) {
+    chunks.beneficios = extractBulletsList(sections.beneficios).slice(0, 3);
+  }
+
+  // Bullets
+  if (sections.bullets) {
+    chunks.bullets = extractNumberedBlocks(sections.bullets);
+  }
+
+  // Testimonios breves: cada línea con cita o nombre+ciudad
+  if (sections.testimonios_breves) {
+    const lines = sections.testimonios_breves.split('\n').slice(1);
+    let acc = '';
+    for (const line of lines) {
+      const t = line.trim().replace(/\*\*/g, '');
+      if (!t) {
+        if (acc) { chunks.testimoniosBreves.push(acc.trim()); acc = ''; }
+        continue;
+      }
+      if (/^[🔴🟥🟦🟨🟧🟪🟩🟫📌⚠📦]/.test(t)) continue;
+      acc += (acc ? ' ' : '') + t.replace(/^[-*•]\s*/, '');
+    }
+    if (acc) chunks.testimoniosBreves.push(acc.trim());
+  }
+
+  // Testimonios extensos
+  if (sections.testimonios_extensos) {
+    const ts = extractTestimonios(sections.testimonios_extensos);
+    chunks.testimoniosExtensos = ts.map(t => {
+      // Intentar separar autor del cuerpo (último fragmento si parece nombre+ciudad)
+      const bodyParts = (t.body || '').split(/[—–-]/);
+      let texto = t.body || '';
+      let autor = '';
+      if (bodyParts.length >= 2) {
+        const candidate = bodyParts[bodyParts.length - 1].trim();
+        if (candidate.length < 80 && /,/.test(candidate)) {
+          autor = candidate;
+          texto = bodyParts.slice(0, -1).join('—').trim();
+        }
+      }
+      return { titulo: t.title || '', texto, autor };
+    });
+  }
+
+  // FAQ
+  if (sections.faq) {
+    chunks.faq = extractFaq(sections.faq);
+  }
+
+  return chunks;
 }
 
 async function ejecutarBkPromptApi(key, prompt){
