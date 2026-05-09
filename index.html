@@ -8035,7 +8035,7 @@ function extractBulletsList(sectionText){
     // (ej: "🏠 Texto 1. 🔔 Texto 2. 🛡️ Texto 3.") splitear cada uno
     // por punto+espacio+caracter-no-latino (i.e. emoji al inicio del
     // siguiente segmento).
-    const parts = t.split(/(?<=[.!?])\s+(?=[^ -ÿ\s])/);
+    const parts = t.split(/(?<=[.!?])\s+(?=[\u{1F000}-\u{1FFFF}\u{2300}-\u{2BFF}\u{2600}-\u{27BF}])/u);
     for (const p of parts) {
       const piece = p.trim().replace(/<br\/?>/gi, '').trim();
       if (piece.length > 3 && piece.length < 200) out.push(piece);
