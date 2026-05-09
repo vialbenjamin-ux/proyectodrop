@@ -5594,9 +5594,35 @@ function parseMasterToChunks(text){
     }
   }
 
-  // Beneficios
+  // Beneficios — primero del section detectado
   if (sections.beneficios) {
     chunks.beneficios = extractBulletsList(sections.beneficios).slice(0, 3);
+  }
+  // Fallback: si el section parser dió < 3 beneficios, escanear las
+  // primeras 30 líneas DESPUÉS del marcador BENEFICIOS CLAVE buscando
+  // líneas con emoji al inicio. Esto cubre el caso donde Gemini cierra
+  // la sección antes (por ejemplo si pone una línea descriptiva con
+  // emoji que mi regex de section corta erróneamente).
+  if (chunks.beneficios.length < 3) {
+    const benefIdx = text.search(/BENEFICIOS\s*CLAVE/i);
+    if (benefIdx >= 0) {
+      const slice = text.substring(benefIdx).split('\n').slice(1, 30);
+      const emojiLine = /^\s*[-*•]?\s*[\u{1F000}-\u{1FFFF}\u{2300}-\u{2BFF}\u{2600}-\u{27BF}]/u;
+      const seen = new Set(chunks.beneficios.map(b => b.toLowerCase().replace(/\s+/g, ' ')));
+      for (const line of slice) {
+        const t = line.trim().replace(/^[-*•]\s*/, '').replace(/\*\*/g, '').trim();
+        if (!t || t.length < 5 || t.length > 200) continue;
+        if (!emojiLine.test(line.trim().replace(/\*\*/g, ''))) continue;
+        // Skip si es header de sección o ya capturado
+        if (/TESTIMONIOS|BULLETS|FAQ|PREGUNTAS\s*FRECUENTES|NOMBRES\s*VENDEDORES/i.test(t)) break;
+        const key = t.toLowerCase().replace(/\s+/g, ' ');
+        if (!seen.has(key)) {
+          chunks.beneficios.push(t);
+          seen.add(key);
+        }
+        if (chunks.beneficios.length >= 3) break;
+      }
+    }
   }
 
   // Bullets
@@ -5625,25 +5651,43 @@ function parseMasterToChunks(text){
       const bodyText = t.body || '';
       let texto = bodyText;
       let autor = '';
-      // Detectar autor al final del cuerpo después de un dash. Aceptamos
-      // tanto "— Nombre Apellido" como "— Nombre, Ciudad".
-      const m = bodyText.match(/^([\s\S]+?)\s*[—–-]\s*([^—–-]+?)\s*$/);
+      // Detectar autor al final del cuerpo. Buscamos el ÚLTIMO dash
+      // (em-dash, en-dash, o " - " con espacios) seguido por algo que
+      // parezca un nombre (capitalizado, < 80 chars). Greedy first
+      // group → matchea el LAST dash, no el primero.
+      const m = bodyText.match(/^([\s\S]+)\s*[—–]\s*([A-ZÁÉÍÓÚÑ][^\n]{1,80}?)\s*$/);
       if (m) {
-        const candidate = m[2].trim();
-        // Es autor si es corto y empieza con mayúscula (heurística de nombre)
+        let candidate = m[2].trim();
+        // Si el candidate todavía tiene un dash interno (regex falló en
+        // capturar el último), tomar la parte después del último dash
+        const lastDash = Math.max(candidate.lastIndexOf('—'), candidate.lastIndexOf('–'));
+        if (lastDash > 0) {
+          candidate = candidate.substring(lastDash + 1).trim();
+        }
         if (candidate.length < 80 && /^[A-ZÁÉÍÓÚÑ]/.test(candidate)) {
-          // Pelar ciudad/localidad ("Nombre, Ciudad" → "Nombre")
           autor = candidate.replace(/,\s*[^,]+$/, '').trim();
-          // Pelar iniciales abreviadas ("Elena G." → "Elena")
           autor = autor.replace(/\s+[A-ZÁÉÍÓÚÑ]\.?\s*$/, '').trim();
-          // Completar apellido chileno si quedó solo con primer nombre
           autor = _completarNombreChileno(autor);
           texto = m[1].trim();
         }
       }
-      // Strip comillas dobles que sobran al inicio/fin del texto
+      // Fallback: si autor todavía vacío pero el body termina con un
+      // patrón "— Nombre" en cualquier parte de la última oración,
+      // intentar con lastIndexOf
+      if (!autor) {
+        const lastDashIdx = Math.max(bodyText.lastIndexOf('—'), bodyText.lastIndexOf('–'));
+        if (lastDashIdx > 0 && bodyText.length - lastDashIdx < 100) {
+          let candidate = bodyText.substring(lastDashIdx + 1).trim();
+          if (/^[A-ZÁÉÍÓÚÑ]/.test(candidate) && candidate.length < 80) {
+            autor = candidate.replace(/,\s*[^,]+$/, '').trim();
+            autor = autor.replace(/\s+[A-ZÁÉÍÓÚÑ]\.?\s*$/, '').trim();
+            autor = _completarNombreChileno(autor);
+            texto = bodyText.substring(0, lastDashIdx).trim();
+          }
+        }
+      }
+      // Strip comillas dobles del texto y título
       texto = texto.replace(/^["“”]+/, '').replace(/["“”]+$/, '').trim();
-      // Strip comillas dobles que sobran del título también
       const tituloLimpio = (t.title || '').replace(/^["“”]+/, '').replace(/["“”]+$/, '').trim();
       return { titulo: tituloLimpio, texto, autor };
     });
