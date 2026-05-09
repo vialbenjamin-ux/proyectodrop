@@ -5605,11 +5605,12 @@ function parseMasterToChunks(text){
   }
 
   // Testimonios breves: una línea = un testimonio.
-  // Cada uno se split en {text, author} buscando el patrón final " - Nombre, Ciudad".
   if (sections.testimonios_breves) {
     const lines = sections.testimonios_breves.split('\n').slice(1);
     for (const line of lines) {
-      const raw = line.trim().replace(/\*\*/g, '').replace(/^[-*•]\s*/, '');
+      let raw = line.trim().replace(/\*\*/g, '').replace(/^[-*•]\s*/, '');
+      // Strip leading numbering "1.", "2)" del outer parser también
+      raw = raw.replace(/^\d+[.)]\s*/, '');
       if (!raw) continue;
       if (/^[🔴🟥🟦🟨🟧🟪🟩🟫📌⚠📦]/.test(raw)) continue;
       const split = splitTestimonioBreve(raw);
@@ -5635,6 +5636,8 @@ function parseMasterToChunks(text){
           autor = candidate.replace(/,\s*[^,]+$/, '').trim();
           // Pelar iniciales abreviadas ("Elena G." → "Elena")
           autor = autor.replace(/\s+[A-ZÁÉÍÓÚÑ]\.?\s*$/, '').trim();
+          // Completar apellido chileno si quedó solo con primer nombre
+          autor = _completarNombreChileno(autor);
           texto = m[1].trim();
         }
       }
@@ -6050,21 +6053,44 @@ function escapeHtmlForShrine(s){
     .replace(/>/g, '&gt;');
 }
 
+// Lista de apellidos chilenos genéricos para completar nombres incompletos
+// que Gemini a veces devuelve como "Elena G." o solo "Elena".
+const _CHILEAN_APELLIDOS = ['Pérez','González','Rodríguez','Soto','Vargas','Castillo','Reyes','Tapia','Muñoz','Rojas','Fuentes','Sepúlveda','Espinoza','Carrasco','Ortiz','Silva','Bravo','Núñez'];
+function _completarNombreChileno(name){
+  const cleaned = String(name || '').trim();
+  if (!cleaned) return cleaned;
+  // Si solo tiene una palabra (ej: "Elena"), agregar apellido genérico chileno
+  // Determinístico por hash del nombre para que sea estable entre re-runs
+  const words = cleaned.split(/\s+/).filter(w => w.length > 0);
+  if (words.length <= 1) {
+    let h = 0;
+    for (let i = 0; i < cleaned.length; i++) h = (h * 31 + cleaned.charCodeAt(i)) >>> 0;
+    return cleaned + ' ' + _CHILEAN_APELLIDOS[h % _CHILEAN_APELLIDOS.length];
+  }
+  return cleaned;
+}
+
 // "Las pelotas son geniales — Carla Tapia" → { text, author }
-// Si el autor viene con ciudad ("Carla, Santiago"), la pela.
-// Si viene con inicial ("Elena G."), la sacamos al ser tan ambiguo
-// (preferimos solo "Elena" antes que dejar "Elena G.").
-// Strip comillas rectas (") y curvas (" ") que Gemini a veces mete.
+// Robusto: strip comillas rectas (") y curvas (" "), strip "1.", "2)" leading,
+// strip ciudad e iniciales del autor, y completa apellido chileno si falta.
 function splitTestimonioBreve(t){
-  const raw = String(t || '').trim();
+  let raw = String(t || '').trim();
+  // Strip leading numbering: "1. ", "2)", "**3.**", "- 4."
+  raw = raw.replace(/^[-*•]?\s*\*?\*?\s*\d+[.)]\s*\*?\*?\s*/, '');
+
   const m = raw.match(/^["“”]?(.+?)["“”]?\s*[—–-]\s*(.+)$/);
   if (m && m[2].length < 80) {
+    let text = m[1].trim();
+    // Strip comillas (rectas/curvas) que sobren al inicio o fin del texto
+    text = text.replace(/^["“”]+|["“”]+$/g, '').trim();
     let author = m[2].trim();
-    // Strip trailing ", Ciudad" o ", Localidad"
+    // Strip trailing ", Ciudad"
     author = author.replace(/,\s*[^,]+$/, '').trim();
-    // Strip iniciales abreviadas: "Elena G." → "Elena", "Marta S." → "Marta"
+    // Strip iniciales abreviadas: "Elena G." → "Elena"
     author = author.replace(/\s+[A-ZÁÉÍÓÚÑ]\.?\s*$/, '').trim();
-    return { text: m[1].trim(), author };
+    // Si el nombre quedó solo con primer nombre, agregar apellido chileno
+    author = _completarNombreChileno(author);
+    return { text, author };
   }
   return { text: raw.replace(/^["“”]+|["“”]+$/g, '').trim(), author: '' };
 }
@@ -7996,10 +8022,14 @@ function extractBulletsList(sectionText){
     let t = line.trim();
     if (!t) continue;
     if (/^[🔴🟥🟦🟨🟧🟪🟩🟫📌⚠📦]/.test(t)) continue;
-    t = t.replace(/^[-*•]\s*/, '').replace(/\*\*/g, '').trim();
-    // Cada beneficio DEBE iniciar con emoji (no con letra latina o dígito).
-    if (/^[a-zA-Z0-9áéíóúñÁÉÍÓÚÑ¿¡]/.test(t)) continue;
+    // Strip numbering, bullets, bold, así pasa "1. ⚡ Texto" o "**1.** ⚡ Texto"
+    t = t.replace(/^(?:\*\*\s*)?\d+[.)]\s*\*?\*?/, '')
+         .replace(/^[-*•]\s*/, '')
+         .replace(/\*\*/g, '')
+         .trim();
     if (t.length < 3 || t.length > 500) continue;
+    // Aceptar la línea solo si tiene al menos un emoji (en cualquier parte)
+    if (!/[\u{1F000}-\u{1FFFF}\u{2300}-\u{2BFF}\u{2600}-\u{27BF}]/u.test(t)) continue;
 
     // CASO ESPECIAL: si la línea contiene varios beneficios pegados
     // (ej: "🏠 Texto 1. 🔔 Texto 2. 🛡️ Texto 3.") splitear cada uno
@@ -8047,35 +8077,51 @@ function extractNumberedBlocks(sectionText){
 }
 
 function extractTestimonios(sectionText){
-  const blocks = [];
-  const lines = sectionText.split('\n');
-  let current = null;
-  for (const line of lines) {
-    const raw = line.trim();
-    if (!raw) {
-      if (current && current.body) { blocks.push(current); current = null; }
-      continue;
-    }
-    // Detectar si es un TÍTULO (en línea propia, corto, con ** o " ")
-    const isBoldTitle = /^\*\*[^*]+\*\*\s*$/.test(raw);
-    const isQuoteTitle = /^["“”][^"“”]+["“”]\s*$/.test(raw);
-    const cleaned = raw.replace(/\*\*/g, '').replace(/^["“”]+|["“”]+$/g, '').trim();
+  // Estrategia: split por línea en blanco para identificar bloques. Cada
+  // bloque puede tener:
+  //  - **Título** o "Título" en su 1ra línea (formato ideal)
+  //  - O primera línea corta seguida de cuerpo más largo (heurística)
+  // Después capturamos cuerpo y eventualmente autor en línea aparte.
+  const blocksRaw = sectionText
+    .split(/\n\s*\n+/)
+    .slice(1) // descartar el header de sección
+    .map(b => b.split('\n').map(l => l.trim()).filter(l =>
+      l && !/^[🔴🟥🟦🟨🟧🟪🟩🟫📌⚠📦]/.test(l)
+    ));
 
-    if ((isBoldTitle || isQuoteTitle) && cleaned.length < 100) {
-      if (current && current.body) blocks.push(current);
-      current = { title: cleaned, body: '' };
-    } else if (current) {
-      current.body += (current.body ? ' ' : '') + cleaned;
-    } else {
-      // Sin título previo, asumir que el primer bloque inicia sin título.
-      // Solo iniciamos un current si la línea es razonablemente larga.
-      if (cleaned.length > 30) {
-        current = { title: '', body: cleaned };
+  const blocks = [];
+  for (const lines of blocksRaw) {
+    if (!lines.length) continue;
+
+    let title = '';
+    let bodyStart = 0;
+
+    // Línea 0: chequear si es título explícito (bold/quote) o heurística
+    const first = lines[0];
+    const isBoldTitle  = /^\*\*[^*]+\*\*\s*$/.test(first);
+    const isQuoteTitle = /^["“”][^"“”]+["“”]\s*$/.test(first);
+    const firstClean = first.replace(/\*\*/g, '').replace(/^["“”]+|["“”]+$/g, '').trim();
+
+    if (isBoldTitle || isQuoteTitle) {
+      title = firstClean;
+      bodyStart = 1;
+    } else if (lines.length >= 2 && firstClean.length > 0 && firstClean.length < 90) {
+      // Heurística: primera línea corta + más líneas → primera es título
+      const secondLen = lines[1].length;
+      if (secondLen > firstClean.length * 1.2) {
+        title = firstClean;
+        bodyStart = 1;
       }
     }
+
+    const body = lines.slice(bodyStart)
+      .map(l => l.replace(/\*\*/g, '').trim())
+      .join(' ')
+      .trim();
+
+    if (body) blocks.push({ title, body });
   }
-  if (current && current.body) blocks.push(current);
-  return blocks.filter(b => b.body);
+  return blocks;
 }
 
 function extractFaq(sectionText){
