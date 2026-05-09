@@ -2,6 +2,7 @@
 // - GET  ?q=texto      → busca productos por título (devuelve {id,title,handle,image})
 // - GET  ?id=123       → trae 1 producto completo
 // - PUT  body { id, body_html, title?, tags? } → actualiza producto
+// - POST body { id, image:{filename,attachment(base64),alt?,position?} } → sube imagen
 //
 // Requiere scope read_products + write_products en el SHOPIFY_TOKEN.
 
@@ -40,6 +41,17 @@ exports.handler = async function (event) {
       catch { return respond(400, { error: 'JSON inválido' }); }
       if (!body.id) return respond(400, { error: 'Falta id del producto' });
       return await updateProduct(domain, headers, body);
+    }
+
+    if (event.httpMethod === 'POST') {
+      let body;
+      try { body = JSON.parse(event.body || '{}'); }
+      catch { return respond(400, { error: 'JSON inválido' }); }
+      if (!body.id) return respond(400, { error: 'Falta id del producto' });
+      if (!body.image || !body.image.attachment) {
+        return respond(400, { error: 'Falta image.attachment (base64)' });
+      }
+      return await addProductImage(domain, headers, body);
     }
 
     return respond(405, { error: 'Método no permitido' });
@@ -85,6 +97,28 @@ async function getProduct(domain, headers, id) {
   return respond(200, { product: data.product });
 }
 
+async function addProductImage(domain, headers, body) {
+  const url = `https://${domain}/admin/api/2024-10/products/${encodeURIComponent(body.id)}/images.json`;
+  const img = {
+    attachment: body.image.attachment,
+    filename: body.image.filename || ('bkdrop-' + Date.now() + '.jpg'),
+  };
+  if (body.image.alt) img.alt = body.image.alt;
+  if (typeof body.image.position === 'number') img.position = body.image.position;
+
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ image: img }),
+  });
+  if (!resp.ok) {
+    const txt = await resp.text();
+    return respond(resp.status, { error: 'Shopify ' + resp.status + ': ' + txt.slice(0, 300) });
+  }
+  const data = await resp.json();
+  return respond(200, { image: data.image, ok: true });
+}
+
 async function updateProduct(domain, headers, body) {
   const url = `https://${domain}/admin/api/2024-10/products/${encodeURIComponent(body.id)}.json`;
   const update = { id: body.id };
@@ -109,7 +143,7 @@ async function updateProduct(domain, headers, body) {
 function cors() {
   return {
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, PUT, OPTIONS',
+    'Access-Control-Allow-Methods': 'GET, PUT, POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
   };
 }

@@ -1427,7 +1427,16 @@
                 También actualizar el título del producto con el primer "Nombre vendedor" del Master
               </label>
               <input type="text" id="bk-shopify-new-title" placeholder="Título nuevo (auto-detectado)" style="display:none;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px 12px;border-radius:8px;font-size:12px;font-family:'DM Mono',monospace;width:100%;box-sizing:border-box">
-              <button class="bk-shopify-confirm-btn" id="bk-shopify-confirm-btn" onclick="confirmarShopifyPush()">✅ Pegar en producto</button>
+
+              <!-- Imágenes adjuntas (GIFs / fotos del producto) -->
+              <div style="margin-top:6px;padding-top:10px;border-top:1px dashed var(--border);display:flex;flex-direction:column;gap:8px">
+                <div class="bk-shopify-push-title" style="color:var(--muted)">📷 Adjuntar imágenes (3 GIFs + 3 fotos típicamente)</div>
+                <input type="file" accept="image/*" id="bk-shopify-images-file" multiple onchange="onShopifyImagesPicked()" style="display:none">
+                <label for="bk-shopify-images-file" style="cursor:pointer;background:var(--surface2);border:1.5px dashed var(--border);color:var(--text);padding:10px 12px;border-radius:8px;font-size:11px;font-family:'DM Mono',monospace;text-align:center" id="bk-shopify-images-label">📁 Click para elegir GIFs y/o fotos (multi-selección)</label>
+                <div id="bk-shopify-images-preview" style="display:none;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:6px"></div>
+              </div>
+
+              <button class="bk-shopify-confirm-btn" id="bk-shopify-confirm-btn" onclick="confirmarShopifyPush()">✅ Pegar todo en producto</button>
             </div>
 
             <div class="bk-shopify-status" id="bk-shopify-status"></div>
@@ -6964,6 +6973,45 @@ async function copyRespMaster(){
 
 // ── Pegar landing al producto Shopify ─────────────────────────────────
 let _shopifySelectedProduct = null;
+let _shopifyImagesQueue = []; // archivos seleccionados para subir
+
+function onShopifyImagesPicked(){
+  const inp = document.getElementById('bk-shopify-images-file');
+  const label = document.getElementById('bk-shopify-images-label');
+  const preview = document.getElementById('bk-shopify-images-preview');
+  const files = Array.from(inp?.files || []);
+  _shopifyImagesQueue = files;
+
+  if (!files.length) {
+    label.textContent = '📁 Click para elegir GIFs y/o fotos (multi-selección)';
+    preview.style.display = 'none';
+    preview.innerHTML = '';
+    return;
+  }
+
+  label.textContent = '📁 ' + files.length + ' archivo(s) seleccionado(s) — click para cambiar';
+  preview.style.display = 'grid';
+  preview.innerHTML = files.map((f, i) => {
+    const url = URL.createObjectURL(f);
+    return '<div style="position:relative">'+
+      '<img src="' + url + '" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:6px;border:1.5px solid var(--border)">'+
+      '<div style="position:absolute;bottom:2px;left:2px;background:rgba(0,0,0,0.7);color:#fff;font-size:9px;padding:1px 4px;border-radius:3px;font-family:\'DM Mono\',monospace">' + (i+1) + '</div>'+
+    '</div>';
+  }).join('');
+}
+
+function fileToBase64(file){
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result || '';
+      const idx = result.indexOf(',');
+      resolve(idx >= 0 ? result.substring(idx + 1) : result);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
 
 function shopifyApiUrl(extra){
   const t = tenantParam(); // '' o '&tenant=gt'
@@ -7050,35 +7098,72 @@ async function confirmarShopifyPush(){
   const newTitle = (document.getElementById('bk-shopify-new-title')?.value || '').trim();
   const status = document.getElementById('bk-shopify-status');
   const btn = document.getElementById('bk-shopify-confirm-btn');
+  const images = _shopifyImagesQueue || [];
 
-  if (!html) {
-    if (status) status.textContent = '⚠️ El HTML está vacío';
+  if (!html && !images.length) {
+    if (status) status.textContent = '⚠️ Nada para enviar (sin HTML ni imágenes)';
     return;
   }
 
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Enviando…'; }
-  if (status) status.textContent = '⏳ Pegando en Shopify…';
+
+  let uploadedImages = 0;
+  let failedImages = 0;
 
   try {
-    const body = { id: _shopifySelectedProduct.id, body_html: html };
-    if (updateTitle && newTitle) body.title = newTitle;
+    // 1) Actualizar body_html (+ título si aplica)
+    if (html) {
+      if (status) status.textContent = '⏳ Pegando descripción en Shopify…';
+      const body = { id: _shopifySelectedProduct.id, body_html: html };
+      if (updateTitle && newTitle) body.title = newTitle;
 
-    const resp = await fetch(shopifyApiUrl(''), {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    const data = await resp.json();
-    if (!resp.ok) throw new Error(data.error || ('HTTP ' + resp.status));
+      const resp = await fetch(shopifyApiUrl(''), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || ('HTTP ' + resp.status));
+    }
 
-    if (status) status.innerHTML = '✅ Pegado correctamente. <a href="https://admin.shopify.com/store/benkotienda/products/' + _shopifySelectedProduct.id + '" target="_blank" style="color:var(--accent);font-weight:600">Ver en admin →</a>';
+    // 2) Subir imágenes una por una (Shopify acepta base64 hasta ~20MB
+    //    por imagen, pero Netlify limita el body a 6MB → mandamos de a 1)
+    if (images.length) {
+      for (let i = 0; i < images.length; i++) {
+        const f = images[i];
+        if (status) status.textContent = '⏳ Subiendo imagen ' + (i+1) + '/' + images.length + ' (' + f.name + ')…';
+        try {
+          const base64 = await fileToBase64(f);
+          const resp = await fetch(shopifyApiUrl(''), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              id: _shopifySelectedProduct.id,
+              image: { filename: f.name, attachment: base64, position: i + 1 },
+            }),
+          });
+          const data = await resp.json();
+          if (!resp.ok) throw new Error(data.error || ('HTTP ' + resp.status));
+          uploadedImages++;
+        } catch (imgErr) {
+          failedImages++;
+          console.warn('Error subiendo imagen ' + f.name + ':', imgErr);
+        }
+      }
+    }
+
+    const adminUrl = 'https://admin.shopify.com/store/benkotienda/products/' + _shopifySelectedProduct.id;
+    let msg = '✅ Pegado correctamente';
+    if (uploadedImages) msg += ' · ' + uploadedImages + ' imagen(es) subida(s)';
+    if (failedImages) msg += ' · ⚠️ ' + failedImages + ' imagen(es) fallaron';
+    if (status) status.innerHTML = msg + ' · <a href="' + adminUrl + '" target="_blank" style="color:var(--accent);font-weight:600">Ver en admin →</a>';
     showToast('Landing pegada al producto Shopify', '🚀', 'success');
   } catch (err) {
-    const msg = err && err.message ? err.message : '?';
-    if (status) status.textContent = '⚠️ ' + msg + (msg.includes('403') ? ' (revisa write_products en el token)' : '');
-    showToast('No se pudo pegar: ' + msg, '⚠️', 'error');
+    const m = err && err.message ? err.message : '?';
+    if (status) status.textContent = '⚠️ ' + m + (m.includes('403') ? ' (revisa write_products en el token)' : '');
+    showToast('No se pudo pegar: ' + m, '⚠️', 'error');
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = '✅ Pegar en producto'; }
+    if (btn) { btn.disabled = false; btn.textContent = '✅ Pegar todo en producto'; }
   }
 }
 
