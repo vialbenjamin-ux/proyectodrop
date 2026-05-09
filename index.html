@@ -1421,6 +1421,7 @@
             <button class="bk-step-btn" id="bk-btn-extraer" onclick="extraerDatosMaster()">📥 Extraer datos</button>
             <button class="bk-step-btn" id="bk-btn-shopify-push" onclick="abrirShopifyPush()" style="background:#10a37f;color:#fff">📤 Pegar en producto Shopify</button>
             <button class="bk-step-btn" id="bk-btn-shrine-paste" onclick="abrirShrinePaste()" style="background:#7B5BB5;color:#fff">📋 Copy-paste para Shrine</button>
+            <button class="bk-step-btn" id="bk-btn-template-inspect" onclick="inspeccionarTemplate()" style="background:#E89A4A;color:#fff">🔍 Inspeccionar último template</button>
           </div>
           <div id="bk-extract-result" class="bk-step-hint"></div>
 
@@ -1430,6 +1431,16 @@
               Cada bloque tiene su botón de copiar. Abrí el Theme Editor de Shrine en otra pestaña, click en cada sección de la landing, y pegá lo correspondiente.
             </div>
             <div id="bk-shrine-paste-body"></div>
+          </div>
+
+          <div id="bk-template-inspect" style="display:none;margin-top:14px;padding:14px;background:var(--surface);border:1.5px solid #E89A4A;border-radius:12px;flex-direction:column;gap:10px">
+            <div style="font-size:11px;letter-spacing:.6px;text-transform:uppercase;color:#E89A4A;font-weight:700;font-family:'DM Mono',monospace">🔍 Inspector de template product.*.json</div>
+            <div id="bk-template-inspect-status" style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace"></div>
+            <div id="bk-template-inspect-list" style="display:none;font-size:11px;font-family:'DM Mono',monospace"></div>
+            <textarea id="bk-template-inspect-json" style="display:none;width:100%;min-height:300px;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:10px 12px;border-radius:8px;font-size:10px;font-family:'DM Mono',monospace;resize:vertical;line-height:1.4;box-sizing:border-box" readonly></textarea>
+            <div style="display:flex;gap:6px;flex-wrap:wrap">
+              <button class="bk-resp-action-btn" onclick="copyTemplateJson()" id="bk-template-copy-btn" style="display:none">📋 Copiar JSON completo</button>
+            </div>
           </div>
 
           <div class="bk-shopify-push" id="bk-shopify-push" style="display:none">
@@ -5589,6 +5600,94 @@ function parseMasterToChunks(text){
   }
 
   return chunks;
+}
+
+// ── Inspector de template Shrine ───────────────────────────────────────
+async function inspeccionarTemplate(){
+  const panel = document.getElementById('bk-template-inspect');
+  const statusEl = document.getElementById('bk-template-inspect-status');
+  const listEl = document.getElementById('bk-template-inspect-list');
+  const jsonEl = document.getElementById('bk-template-inspect-json');
+  const copyBtn = document.getElementById('bk-template-copy-btn');
+  if (!panel) return;
+
+  panel.style.display = 'flex';
+  panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  listEl.style.display = 'none';
+  jsonEl.style.display = 'none';
+  copyBtn.style.display = 'none';
+  statusEl.textContent = '⏳ Listando templates de productos del theme actual…';
+
+  try {
+    // 1) Listar templates product.*.json del theme MAIN
+    const url = '/.netlify/functions/shopify-themes?op=list-templates' + tenantParam();
+    const resp = await fetch(url);
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || ('HTTP ' + resp.status));
+
+    const templates = data.templates || [];
+    if (!templates.length) {
+      statusEl.textContent = '⚠️ No se encontraron templates product.*.json. ¿Verificaste que el scope read_themes esté activo?';
+      return;
+    }
+
+    statusEl.innerHTML = `✓ ${data.total} template(s) encontrados (theme #${data.themeId}). Ordenados por más reciente:`;
+    listEl.style.display = 'block';
+    listEl.innerHTML = templates.slice(0, 12).map((t, i) =>
+      '<div style="padding:6px 8px;margin-bottom:4px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;display:flex;justify-content:space-between;align-items:center;gap:8px">' +
+        '<div style="flex:1;min-width:0">' +
+          '<div style="font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(t.handle) + (i === 0 ? ' <span style="color:#E89A4A">← más reciente</span>' : '') + '</div>' +
+          '<div style="color:var(--muted2);font-size:9px">' + esc(t.updated_at || '') + ' · ' + (t.size || '?') + ' bytes</div>' +
+        '</div>' +
+        '<button class="bk-resp-action-btn" onclick="cargarTemplateJson(\'' + esc(t.key) + '\')">Ver JSON</button>' +
+      '</div>'
+    ).join('');
+
+    if (templates.length > 12) {
+      listEl.innerHTML += '<div style="margin-top:6px;color:var(--muted2);font-size:10px">… y ' + (templates.length - 12) + ' más.</div>';
+    }
+  } catch (err) {
+    statusEl.textContent = '⚠️ ' + (err.message || 'Error') + (String(err.message||'').includes('403') ? ' · falta scope read_themes en tu Custom App' : '');
+  }
+}
+
+async function cargarTemplateJson(assetKey){
+  const statusEl = document.getElementById('bk-template-inspect-status');
+  const jsonEl = document.getElementById('bk-template-inspect-json');
+  const copyBtn = document.getElementById('bk-template-copy-btn');
+
+  statusEl.textContent = '⏳ Descargando ' + assetKey + '…';
+  jsonEl.style.display = 'none';
+  copyBtn.style.display = 'none';
+
+  try {
+    const url = '/.netlify/functions/shopify-themes?op=template&assetKey=' + encodeURIComponent(assetKey) + tenantParam();
+    const resp = await fetch(url);
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || ('HTTP ' + resp.status));
+
+    const raw = data.value || '';
+    let pretty = raw;
+    try { pretty = JSON.stringify(JSON.parse(raw), null, 2); } catch(_){}
+
+    jsonEl.value = pretty;
+    jsonEl.style.display = 'block';
+    copyBtn.style.display = 'inline-block';
+    statusEl.innerHTML = '✓ Cargado <b>' + esc(assetKey) + '</b> · ' + (raw.length || 0) + ' caracteres. Copiá el JSON con el botón para pasármelo y armar el mapper exacto.';
+  } catch (err) {
+    statusEl.textContent = '⚠️ ' + (err.message || 'Error');
+  }
+}
+
+async function copyTemplateJson(){
+  const jsonEl = document.getElementById('bk-template-inspect-json');
+  if (!jsonEl || !jsonEl.value) return;
+  try {
+    await navigator.clipboard.writeText(jsonEl.value);
+    showToast('JSON del template copiado', '📋', 'success');
+  } catch (err) {
+    showToast('No se pudo copiar: ' + (err.message || '?'), '⚠️', 'error');
+  }
 }
 
 async function ejecutarBkPromptApi(key, prompt){
