@@ -76,6 +76,17 @@ export default async (request) => {
             || m.includes('unavailable');
       }
 
+      // Errores que indican "este modelo no existe / no está disponible
+      // en mi cuenta/región" — deben saltar al siguiente modelo de la
+      // cadena, no abortar. Distinto de transient (saturación) y de
+      // errores reales (400, 401, 403 con request malformado).
+      function isModelMissing(status, msg) {
+        if (status === 404) return true;
+        const m = String(msg || '').toLowerCase();
+        return m.includes('not found') || m.includes('not supported')
+            || m.includes('is not enabled') || m.includes('does not exist');
+      }
+
       try {
         // Recorre la cadena de modelos. Si el primario está saturado,
         // saltamos al siguiente (infra distinta) en vez de reintentar el
@@ -133,15 +144,25 @@ export default async (request) => {
               break;
             }
 
-            // Error definitivo no transient (404, 400, 401, 403...) → no
-            // tiene sentido probar otros modelos, falla todo
+            // 404 / "not found" / "not supported" → este modelo no
+            // existe en la cuenta. Saltamos al siguiente sin abortar.
+            if (isModelMissing(lastStatus, msg)) {
+              safeEnqueue(encoder.encode(`: skip ${m} (not available)\n\n`));
+              break; // sale del loop interno, sigue al próximo modelo
+            }
+
+            // Error real (400, 401, 403, prompt mal armado, key inválida)
+            // → no tiene sentido probar otros modelos, abortar todo
             mi = MODEL_CHAIN.length; // forzar salida del loop externo
             break;
           }
 
           if (geminiResp) break;
 
-          if (mi < MODEL_CHAIN.length - 1 && isTransient(lastStatus, lastErrMsg)) {
+          // Notificar al cliente cada vez que saltamos a otro modelo
+          // (sea por saturación o por modelo no disponible)
+          if (mi < MODEL_CHAIN.length - 1 &&
+              (isTransient(lastStatus, lastErrMsg) || isModelMissing(lastStatus, lastErrMsg))) {
             const next = MODEL_CHAIN[mi + 1];
             safeEnqueue(encoder.encode(`: switching ${m} -> ${next} (${lastStatus})\n\n`));
           }
@@ -162,6 +183,8 @@ export default async (request) => {
         } else if (lastErrMsg) {
           if (isTransient(lastStatus, lastErrMsg)) {
             safeEnqueue(encoder.encode(`data: ${JSON.stringify({ error: 'Gemini saturado en todos los modelos (' + MODEL_CHAIN.length + ' probados). Espera 1-2 min y reintenta, o cambia IA destino a Claude/ChatGPT.' })}\n\n`));
+          } else if (isModelMissing(lastStatus, lastErrMsg)) {
+            safeEnqueue(encoder.encode(`data: ${JSON.stringify({ error: 'Ningún modelo Gemini disponible en tu cuenta para este request. Verifica acceso a la API.' })}\n\n`));
           } else {
             safeEnqueue(encoder.encode(`data: ${JSON.stringify({ error: 'Gemini: ' + String(lastErrMsg).slice(0, 400) })}\n\n`));
           }
