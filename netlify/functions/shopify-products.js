@@ -150,8 +150,9 @@ async function addProductImage(domain, headers, body) {
 async function updateProduct(domain, headers, body) {
   const url = `https://${domain}/admin/api/2024-10/products/${encodeURIComponent(body.id)}.json`;
   const update = { id: body.id };
-  if (typeof body.body_html === 'string') update.body_html = body.body_html;
-  if (typeof body.title === 'string')     update.title     = body.title;
+  if (typeof body.body_html === 'string')       update.body_html       = body.body_html;
+  if (typeof body.title === 'string')           update.title           = body.title;
+  if (typeof body.template_suffix === 'string') update.template_suffix = body.template_suffix;
   if (Array.isArray(body.tags))           update.tags      = body.tags.join(', ');
   if (typeof body.tags === 'string')      update.tags      = body.tags;
 

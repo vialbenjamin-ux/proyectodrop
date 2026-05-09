@@ -1419,9 +1419,10 @@
           </div>
           <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
             <button class="bk-step-btn" id="bk-btn-extraer" onclick="extraerDatosMaster()">📥 Extraer datos</button>
-            <button class="bk-step-btn" id="bk-btn-shopify-push" onclick="abrirShopifyPush()" style="background:#10a37f;color:#fff">📤 Pegar en producto Shopify</button>
-            <button class="bk-step-btn" id="bk-btn-shrine-paste" onclick="abrirShrinePaste()" style="background:#7B5BB5;color:#fff">📋 Copy-paste para Shrine</button>
-            <button class="bk-step-btn" id="bk-btn-template-inspect" onclick="inspeccionarTemplate()" style="background:#E89A4A;color:#fff">🔍 Inspeccionar último template</button>
+            <button class="bk-step-btn" id="bk-btn-auto-shrine" onclick="abrirAutoShrine()" style="background:#dc2626;color:#fff;font-weight:700">🚀 Auto-generar plantilla Shrine</button>
+            <button class="bk-step-btn" id="bk-btn-shopify-push" onclick="abrirShopifyPush()" style="background:#10a37f;color:#fff">📤 Pegar en producto</button>
+            <button class="bk-step-btn" id="bk-btn-shrine-paste" onclick="abrirShrinePaste()" style="background:#7B5BB5;color:#fff">📋 Copy-paste manual</button>
+            <button class="bk-step-btn" id="bk-btn-template-inspect" onclick="inspeccionarTemplate()" style="background:#E89A4A;color:#fff">🔍 Inspector</button>
           </div>
           <div id="bk-extract-result" class="bk-step-hint"></div>
 
@@ -1431,6 +1432,38 @@
               Cada bloque tiene su botón de copiar. Abrí el Theme Editor de Shrine en otra pestaña, click en cada sección de la landing, y pegá lo correspondiente.
             </div>
             <div id="bk-shrine-paste-body"></div>
+          </div>
+
+          <div class="bk-shopify-push" id="bk-auto-shrine" style="display:none;border-color:#dc2626">
+            <div class="bk-shopify-push-title" style="color:#dc2626">🚀 Auto-generar plantilla Shrine completa</div>
+            <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;line-height:1.5">
+              Crea una plantilla nueva en tu theme con TODO el contenido del Master + 3 GIFs + 3 fotos. La asigna automáticamente al producto. ~30s end-to-end.
+            </div>
+            <div class="bk-shopify-search-row">
+              <input type="text" id="bk-auto-shrine-search" placeholder="Busca el producto por título" onkeydown="if(event.key==='Enter') buscarProductosAutoShrine()">
+              <button onclick="buscarProductosAutoShrine()">🔍 Buscar</button>
+            </div>
+            <div class="bk-shopify-results" id="bk-auto-shrine-results"></div>
+
+            <div id="bk-auto-shrine-files" style="display:none;flex-direction:column;gap:8px;border-top:1px dashed var(--border);padding-top:10px">
+              <div class="bk-shopify-push-title" style="color:var(--muted)">📁 Adjuntar 3 GIFs (image-with-text) + 3 fotos (testimonios)</div>
+              <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px">
+                <div>
+                  <label style="display:block;font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;margin-bottom:4px">3 GIFs · galería del producto + image-with-text</label>
+                  <input type="file" id="bk-auto-gifs" accept="image/webp,image/gif,image/*" multiple onchange="onAutoFileChange('gif')" style="display:none">
+                  <label for="bk-auto-gifs" id="bk-auto-gifs-label" style="cursor:pointer;display:block;background:var(--surface2);border:1.5px dashed var(--border);color:var(--text);padding:10px;border-radius:8px;font-size:11px;font-family:'DM Mono',monospace;text-align:center">📁 Click — selecciona 3 GIFs</label>
+                </div>
+                <div>
+                  <label style="display:block;font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;margin-bottom:4px">3 fotos testimonios · sección Testimonials</label>
+                  <input type="file" id="bk-auto-fotos" accept="image/jpeg,image/jpg,image/png,image/*" multiple onchange="onAutoFileChange('foto')" style="display:none">
+                  <label for="bk-auto-fotos" id="bk-auto-fotos-label" style="cursor:pointer;display:block;background:var(--surface2);border:1.5px dashed var(--border);color:var(--text);padding:10px;border-radius:8px;font-size:11px;font-family:'DM Mono',monospace;text-align:center">📁 Click — selecciona 3 fotos</label>
+                </div>
+              </div>
+              <div id="bk-auto-files-preview" style="display:grid;grid-template-columns:repeat(6,1fr);gap:4px"></div>
+              <button id="bk-auto-shrine-go" onclick="ejecutarAutoShrine()" disabled style="background:#dc2626;color:#fff;border:none;border-radius:8px;padding:11px;font-size:12px;font-family:'DM Mono',monospace;cursor:pointer;font-weight:700">🚀 Generar plantilla y aplicar al producto</button>
+            </div>
+
+            <div class="bk-shopify-status" id="bk-auto-shrine-status"></div>
           </div>
 
           <div id="bk-template-inspect" style="display:none;margin-top:14px;padding:14px;background:var(--surface);border:1.5px solid #E89A4A;border-radius:12px;flex-direction:column;gap:10px">
@@ -5688,6 +5721,315 @@ async function copyTemplateJson(){
   } catch (err) {
     showToast('No se pudo copiar: ' + (err.message || '?'), '⚠️', 'error');
   }
+}
+
+// ── Auto-generar plantilla Shrine completa ────────────────────────────
+let _autoShrineProduct = null;
+let _autoShrineGifs = [];
+let _autoShrineFotos = [];
+
+function abrirAutoShrine(){
+  const ta = document.getElementById('bkv-respuesta');
+  if (!ta || !(ta.value || '').trim()) {
+    showToast('Pega/genera primero la respuesta del Master', '⚠️', 'warn');
+    return;
+  }
+  const panel = document.getElementById('bk-auto-shrine');
+  if (!panel) return;
+  const isVisible = (panel.style.display !== 'none');
+  panel.style.display = isVisible ? 'none' : 'flex';
+  if (!isVisible) {
+    buscarProductosAutoShrine();
+    panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+}
+
+async function buscarProductosAutoShrine(){
+  const q = document.getElementById('bk-auto-shrine-search')?.value || '';
+  const results = document.getElementById('bk-auto-shrine-results');
+  const status = document.getElementById('bk-auto-shrine-status');
+  if (!results) return;
+  results.innerHTML = '<div style="font-size:11px;color:var(--muted);padding:8px">Buscando…</div>';
+  if (status) status.textContent = '';
+  try {
+    const url = '/.netlify/functions/shopify-products?_=1' + (q ? '&q=' + encodeURIComponent(q) : '') + tenantParam();
+    const resp = await fetch(url);
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || ('HTTP ' + resp.status));
+    const products = data.products || [];
+    if (!products.length) {
+      results.innerHTML = '<div style="font-size:11px;color:var(--muted);padding:8px">Sin resultados.</div>';
+      return;
+    }
+    results.innerHTML = products.map(p => {
+      const img = p.image ? '<img src="' + esc(p.image) + '" alt="">' : '<img alt="">';
+      const titleAttr = String(p.title || '').replace(/'/g, "\\'");
+      const handleAttr = String(p.handle || '').replace(/'/g, "\\'");
+      return '<div class="bk-shopify-result" data-id="' + p.id + '" onclick="seleccionarProductoAutoShrine(' + p.id + ", '" + titleAttr + "', '" + handleAttr + '\')">' +
+        img +
+        '<div class="info">' +
+          '<div class="title">' + esc(p.title || '') + '</div>' +
+          '<div class="meta">' + esc(p.handle || '') + '</div>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+  } catch (err) {
+    results.innerHTML = '';
+    if (status) status.textContent = '⚠️ ' + (err.message || 'error');
+  }
+}
+
+function seleccionarProductoAutoShrine(id, title, handle){
+  _autoShrineProduct = { id, title, handle };
+  document.querySelectorAll('#bk-auto-shrine-results .bk-shopify-result').forEach(el => {
+    el.classList.toggle('selected', String(el.dataset.id) === String(id));
+  });
+  document.getElementById('bk-auto-shrine-files').style.display = 'flex';
+  document.getElementById('bk-auto-shrine-status').textContent = '✓ Producto: ' + title + ' (handle: ' + handle + ')';
+  refreshAutoFilesPreview();
+}
+
+function onAutoFileChange(role){
+  const inp = document.getElementById(role === 'gif' ? 'bk-auto-gifs' : 'bk-auto-fotos');
+  const label = document.getElementById(role === 'gif' ? 'bk-auto-gifs-label' : 'bk-auto-fotos-label');
+  const files = Array.from(inp.files || []).slice(0, 3); // máximo 3
+  if (role === 'gif') _autoShrineGifs = files;
+  else _autoShrineFotos = files;
+  if (label) {
+    if (!files.length) label.textContent = role === 'gif' ? '📁 Click — selecciona 3 GIFs' : '📁 Click — selecciona 3 fotos';
+    else label.textContent = '✓ ' + files.length + ' archivo(s)';
+  }
+  refreshAutoFilesPreview();
+}
+
+function refreshAutoFilesPreview(){
+  const preview = document.getElementById('bk-auto-files-preview');
+  const goBtn = document.getElementById('bk-auto-shrine-go');
+  if (!preview || !goBtn) return;
+  const all = [..._autoShrineGifs.map((f,i) => ({f,role:'gif',pos:i+1})),
+               ..._autoShrineFotos.map((f,i) => ({f,role:'foto',pos:i+1}))];
+  preview.innerHTML = all.map(item => {
+    const url = URL.createObjectURL(item.f);
+    const tag = item.role === 'gif' ? 'GIF' : 'FOTO';
+    const color = item.role === 'gif' ? '#4F65D8' : '#D85B95';
+    return '<div style="position:relative">'+
+      '<img src="' + url + '" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:6px;border:1.5px solid var(--border)">'+
+      '<div style="position:absolute;top:2px;left:2px;background:' + color + ';color:#fff;font-size:8px;padding:1px 4px;border-radius:3px;font-family:\'DM Mono\',monospace;font-weight:700">' + tag + ' ' + item.pos + '</div>'+
+    '</div>';
+  }).join('');
+  goBtn.disabled = !(_autoShrineProduct && _autoShrineGifs.length === 3 && _autoShrineFotos.length === 3);
+}
+
+async function ejecutarAutoShrine(){
+  if (!_autoShrineProduct) return;
+  const status = document.getElementById('bk-auto-shrine-status');
+  const goBtn = document.getElementById('bk-auto-shrine-go');
+  const masterText = document.getElementById('bkv-respuesta')?.value || '';
+
+  goBtn.disabled = true;
+  goBtn.textContent = '⏳ Generando…';
+  const setStatus = (m) => { if(status) status.textContent = m; };
+
+  try {
+    // 1. Subir las 6 imágenes a Files
+    const gifsRefs = [];
+    for (let i = 0; i < _autoShrineGifs.length; i++) {
+      setStatus('⏳ Subiendo GIF ' + (i+1) + '/3…');
+      const r = await uploadToShopifyFiles(_autoShrineGifs[i], 'gif-' + (i+1));
+      gifsRefs.push(r);
+    }
+    const fotosRefs = [];
+    for (let i = 0; i < _autoShrineFotos.length; i++) {
+      setStatus('⏳ Subiendo foto testimonio ' + (i+1) + '/3…');
+      const r = await uploadToShopifyFiles(_autoShrineFotos[i], 'testimonio-' + (i+1));
+      fotosRefs.push(r);
+    }
+
+    // 2. Leer el último template como base
+    setStatus('⏳ Leyendo plantilla base de tu theme…');
+    const listResp = await fetch('/.netlify/functions/shopify-themes?op=list-templates' + tenantParam());
+    const listData = await listResp.json();
+    if (!listResp.ok) throw new Error(listData.error || 'list-templates fail');
+    const baseTemplate = (listData.templates || [])[0];
+    if (!baseTemplate) throw new Error('No hay templates de productos en el theme');
+
+    const tmplResp = await fetch('/.netlify/functions/shopify-themes?op=template&assetKey=' + encodeURIComponent(baseTemplate.key) + tenantParam());
+    const tmplData = await tmplResp.json();
+    if (!tmplResp.ok) throw new Error(tmplData.error || 'template read fail');
+    const baseJson = JSON.parse(tmplData.value);
+
+    // 3. Construir el nuevo template con substituciones
+    setStatus('⏳ Generando plantilla nueva con tu contenido…');
+    const newJson = buildAutoShrineTemplate(baseJson, masterText, gifsRefs, fotosRefs);
+
+    // 4. Generar key y subir
+    const today = new Date();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    const yyyy = today.getFullYear();
+    const newSuffix = mm + dd + yyyy + '-' + _autoShrineProduct.handle;
+    const newKey = 'templates/product.' + newSuffix + '.json';
+    setStatus('⏳ Subiendo plantilla "' + newSuffix + '" al theme…');
+    const writeResp = await fetch('/.netlify/functions/shopify-themes?_=1' + tenantParam(), {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ assetKey: newKey, value: JSON.stringify(newJson, null, 2) }),
+    });
+    const writeData = await writeResp.json();
+    if (!writeResp.ok) throw new Error(writeData.error || 'write template fail');
+
+    // 5. Asignar template_suffix al producto
+    setStatus('⏳ Asignando plantilla al producto…');
+    const updResp = await fetch('/.netlify/functions/shopify-products?_=1' + tenantParam(), {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: _autoShrineProduct.id, template_suffix: newSuffix }),
+    });
+    const updData = await updResp.json();
+    if (!updResp.ok) throw new Error(updData.error || 'product update fail');
+
+    // ✅ Listo
+    const productUrl = 'https://benkotienda.com/products/' + _autoShrineProduct.handle;
+    const adminUrl = 'https://admin.shopify.com/store/benkotienda/products/' + _autoShrineProduct.id;
+    if (status) status.innerHTML = '✅ Plantilla "<b>' + esc(newSuffix) + '</b>" creada y asignada · ' +
+      '<a href="' + productUrl + '" target="_blank" style="color:#dc2626;font-weight:700">Ver tienda</a> · ' +
+      '<a href="' + adminUrl + '" target="_blank" style="color:var(--accent);font-weight:600">Admin</a>';
+    showToast('🚀 Plantilla generada y aplicada', '✨', 'success');
+  } catch (err) {
+    const m = err && err.message ? err.message : '?';
+    if (status) status.textContent = '⚠️ ' + m;
+    showToast('Error: ' + m, '⚠️', 'error');
+  } finally {
+    goBtn.disabled = false;
+    goBtn.textContent = '🚀 Generar plantilla y aplicar al producto';
+  }
+}
+
+async function uploadToShopifyFiles(file, alt){
+  const base64 = await fileToBase64(file);
+  const resp = await fetch('/.netlify/functions/shopify-themes?_=1' + tenantParam(), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      op: 'upload-file',
+      filename: file.name,
+      mimeType: file.type || 'image/jpeg',
+      attachment: base64,
+      alt: alt || file.name,
+    }),
+  });
+  const data = await resp.json();
+  if (!resp.ok) throw new Error('Upload fail: ' + (data.error || resp.status));
+  return data; // { file, filename, cdnUrl, shopifyRef }
+}
+
+// Construye la nueva plantilla sustituyendo settings con contenido del Master
+function buildAutoShrineTemplate(base, masterText, gifsRefs, fotosRefs){
+  const tpl = JSON.parse(JSON.stringify(base));
+  const chunks = parseMasterToChunks(masterText);
+  let imageWithTextIdx = 0;
+
+  for (const sectionKey of Object.keys(tpl.sections || {})) {
+    const section = tpl.sections[sectionKey];
+    if (!section || !section.type) continue;
+
+    if (section.type === 'main-product' && section.blocks) {
+      for (const blockKey of Object.keys(section.blocks)) {
+        const block = section.blocks[blockKey];
+        if (!block || !block.type) continue;
+        // emoji_benefits → 🟦 Beneficios
+        if (block.type === 'emoji_benefits' && chunks.beneficios.length) {
+          const lines = chunks.beneficios.slice(0, 3).map(b => escapeHtmlForShrine(b)).join('<br/>');
+          block.settings = block.settings || {};
+          block.settings.benefits = '<p>' + lines + '</p>';
+        }
+        // reviews → 🟨 Testimonios breves (autores + textos)
+        if (block.type === 'reviews' && chunks.testimoniosBreves.length) {
+          for (let i = 0; i < Math.min(3, chunks.testimoniosBreves.length); i++) {
+            const t = chunks.testimoniosBreves[i];
+            const split = splitTestimonioBreve(t);
+            block.settings['author_' + (i+1)] = '<em>' + escapeHtmlForShrine(split.author) + '</em>';
+            block.settings['text_' + (i+1)] = '<p>' + escapeHtmlForShrine(split.text) + '</p>';
+          }
+        }
+      }
+    }
+
+    if (section.type === 'image-with-text') {
+      if (imageWithTextIdx < chunks.bullets.length) {
+        const bullet = chunks.bullets[imageWithTextIdx];
+        if (section.blocks) {
+          for (const blockKey of Object.keys(section.blocks)) {
+            const block = section.blocks[blockKey];
+            if (!block || !block.type) continue;
+            if (block.type === 'heading') {
+              block.settings = block.settings || {};
+              block.settings.heading = bullet.title || '';
+            } else if (block.type === 'text') {
+              block.settings = block.settings || {};
+              block.settings.text = '<p><br/>' + escapeHtmlForShrine(bullet.body || '') + '<br/><br/></p>';
+            }
+          }
+        }
+      }
+      // Imagen GIF correspondiente
+      if (gifsRefs[imageWithTextIdx]) {
+        section.settings = section.settings || {};
+        section.settings.image = gifsRefs[imageWithTextIdx].shopifyRef;
+      }
+      imageWithTextIdx++;
+    }
+
+    if (section.type === 'testimonials' && section.blocks) {
+      let colIdx = 0;
+      for (const blockKey of Object.keys(section.blocks)) {
+        const block = section.blocks[blockKey];
+        if (!block || block.type !== 'column') continue;
+        block.settings = block.settings || {};
+        if (colIdx < chunks.testimoniosExtensos.length) {
+          const t = chunks.testimoniosExtensos[colIdx];
+          block.settings.title = (t.titulo || (t.texto || '').slice(0, 80));
+          block.settings.text = '<p><br/>' + escapeHtmlForShrine(t.texto || '') + '<br/><br/></p>';
+          block.settings.author = '<em><strong>' + escapeHtmlForShrine(t.autor || '') + '</strong></em>';
+        }
+        if (fotosRefs[colIdx]) {
+          block.settings.image = fotosRefs[colIdx].shopifyRef;
+        }
+        colIdx++;
+      }
+    }
+
+    if (section.type === 'collapsible-content' && section.blocks) {
+      const blockKeys = Object.keys(section.blocks);
+      // Reemplazar primeros N (manteniendo el último estático "¿Se paga al recibir?")
+      const dynamicCount = Math.min(3, chunks.faq.length, Math.max(0, blockKeys.length - 1));
+      for (let i = 0; i < dynamicCount; i++) {
+        const block = section.blocks[blockKeys[i]];
+        const qa = chunks.faq[i];
+        if (block && qa) {
+          block.settings = block.settings || {};
+          block.settings.heading = qa.q || '';
+          block.settings.row_content = '<p><br/>' + escapeHtmlForShrine(qa.a || '') + '<br/><br/></p>';
+        }
+      }
+    }
+  }
+
+  return tpl;
+}
+
+function escapeHtmlForShrine(s){
+  return String(s || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+// "Las pelotas son geniales — Carla, Santiago" → { text, author }
+function splitTestimonioBreve(t){
+  const m = String(t).match(/^(.+?)\s*[—–-]\s*(.+)$/);
+  if (m && m[2].length < 60) return { text: m[1].trim(), author: m[2].trim() };
+  return { text: t, author: '' };
 }
 
 async function ejecutarBkPromptApi(key, prompt){
