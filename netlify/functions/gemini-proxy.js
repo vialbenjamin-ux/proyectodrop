@@ -34,10 +34,12 @@ export default async (request) => {
   // saturado, saltamos al siguiente (infra distinta, suele responder).
   // El usuario puede forzar uno con body.model.
   const requestedModel = body.model;
+  // gemini-1.5-flash fue deprecado en v1beta — devuelve 404. Solo usamos
+  // los actuales 2.x. Si necesitas más fallback en el futuro, agregar
+  // gemini-2.5-pro (más caro pero estable).
   const MODEL_CHAIN = requestedModel ? [requestedModel] : [
     'gemini-2.5-flash',         // primario: balance calidad/velocidad
     'gemini-2.0-flash',         // alt estable, infra diferente
-    'gemini-1.5-flash',         // último recurso, estable, soporta video
   ];
 
   const parts = [];
@@ -99,6 +101,7 @@ export default async (request) => {
         let lastErrMsg = null;
         let lastStatus = null;
         let modelUsed = null;
+        const allErrors = []; // [{model, status, msg}] para mensaje final
 
         for (let mi = 0; mi < MODEL_CHAIN.length; mi++) {
           const m = MODEL_CHAIN[mi];
@@ -163,6 +166,9 @@ export default async (request) => {
 
           if (geminiResp) break;
 
+          // Registrar el error de este modelo para diagnóstico final
+          allErrors.push({ model: m, status: lastStatus, msg: lastErrMsg });
+
           // Notificar al cliente cada vez que saltamos a otro modelo
           // (sea por saturación o por modelo no disponible)
           if (mi < MODEL_CHAIN.length - 1 &&
@@ -184,14 +190,24 @@ export default async (request) => {
             if (done) break;
             safeEnqueue(value);
           }
-        } else if (lastErrMsg) {
-          const tail = ' · Último error (' + (lastStatus || '?') + '): ' + String(lastErrMsg).slice(0, 300);
-          if (isTransient(lastStatus, lastErrMsg)) {
-            safeEnqueue(encoder.encode(`data: ${JSON.stringify({ error: 'Gemini saturado en todos los modelos (' + MODEL_CHAIN.length + ' probados). Espera 1-2 min o cambia IA destino a Claude/ChatGPT.' + tail })}\n\n`));
-          } else if (isModelMissing(lastStatus, lastErrMsg)) {
-            safeEnqueue(encoder.encode(`data: ${JSON.stringify({ error: 'Ningún modelo Gemini disponible para este request.' + tail })}\n\n`));
+        } else if (allErrors.length || lastErrMsg) {
+          // Clasificación dominante: si CUALQUIER modelo falló transient,
+          // probablemente es saturación general. Si todos fueron model-
+          // missing, es problema de cuenta/región. Si hay otros errores,
+          // mostramos el primero real (más informativo que el último).
+          const anyTransient   = allErrors.some(e => isTransient(e.status, e.msg));
+          const allModelMissing = allErrors.length > 0 && allErrors.every(e => isModelMissing(e.status, e.msg));
+          const breakdown = allErrors.map(e => `[${e.model} ${e.status||'?'}] ${String(e.msg||'').slice(0, 150)}`).join(' | ');
+
+          if (anyTransient) {
+            safeEnqueue(encoder.encode(`data: ${JSON.stringify({ error: 'Gemini saturado tras probar ' + allErrors.length + ' modelo(s). Espera 1-2 min o cambia IA destino a Claude/ChatGPT. · ' + breakdown.slice(0, 350) })}\n\n`));
+          } else if (allModelMissing) {
+            safeEnqueue(encoder.encode(`data: ${JSON.stringify({ error: 'Ningún modelo Gemini disponible para este request en tu cuenta. · ' + breakdown.slice(0, 350) })}\n\n`));
           } else {
-            safeEnqueue(encoder.encode(`data: ${JSON.stringify({ error: 'Gemini: ' + String(lastErrMsg).slice(0, 400) })}\n\n`));
+            // Mostrar el primer error real (no transient, no missing)
+            const firstReal = allErrors.find(e => !isTransient(e.status, e.msg) && !isModelMissing(e.status, e.msg));
+            const real = firstReal ? `[${firstReal.model} ${firstReal.status||'?'}] ${firstReal.msg}` : (lastErrMsg || 'desconocido');
+            safeEnqueue(encoder.encode(`data: ${JSON.stringify({ error: 'Gemini: ' + String(real).slice(0, 400) })}\n\n`));
           }
         }
       } catch (err) {
