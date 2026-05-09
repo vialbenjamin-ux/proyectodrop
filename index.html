@@ -5633,11 +5633,12 @@ function parseMasterToChunks(text){
         if (candidate.length < 80 && /^[A-ZÁÉÍÓÚÑ]/.test(candidate)) {
           // Pelar ciudad/localidad ("Nombre, Ciudad" → "Nombre")
           autor = candidate.replace(/,\s*[^,]+$/, '').trim();
+          // Pelar iniciales abreviadas ("Elena G." → "Elena")
+          autor = autor.replace(/\s+[A-ZÁÉÍÓÚÑ]\.?\s*$/, '').trim();
           texto = m[1].trim();
         }
       }
       // Strip comillas dobles que sobran al inicio/fin del texto
-      // (Gemini a veces las mete aunque le pidamos que no)
       texto = texto.replace(/^["“”]+/, '').replace(/["“”]+$/, '').trim();
       // Strip comillas dobles que sobran del título también
       const tituloLimpio = (t.title || '').replace(/^["“”]+/, '').replace(/["“”]+$/, '').trim();
@@ -6050,17 +6051,19 @@ function escapeHtmlForShrine(s){
 }
 
 // "Las pelotas son geniales — Carla Tapia" → { text, author }
-// Si el autor viene con ciudad ("Carla, Santiago"), la pela
-// defensivamente para dejar solo Nombre Apellido.
+// Si el autor viene con ciudad ("Carla, Santiago"), la pela.
+// Si viene con inicial ("Elena G."), la sacamos al ser tan ambiguo
+// (preferimos solo "Elena" antes que dejar "Elena G.").
 // Strip comillas rectas (") y curvas (" ") que Gemini a veces mete.
 function splitTestimonioBreve(t){
   const raw = String(t || '').trim();
-  // Match: opcional comilla (recta o curva) + texto + opcional comilla + dash + autor
   const m = raw.match(/^["“”]?(.+?)["“”]?\s*[—–-]\s*(.+)$/);
   if (m && m[2].length < 80) {
     let author = m[2].trim();
     // Strip trailing ", Ciudad" o ", Localidad"
     author = author.replace(/,\s*[^,]+$/, '').trim();
+    // Strip iniciales abreviadas: "Elena G." → "Elena", "Marta S." → "Marta"
+    author = author.replace(/\s+[A-ZÁÉÍÓÚÑ]\.?\s*$/, '').trim();
     return { text: m[1].trim(), author };
   }
   return { text: raw.replace(/^["“”]+|["“”]+$/g, '').trim(), author: '' };
@@ -7995,10 +7998,18 @@ function extractBulletsList(sectionText){
     if (/^[🔴🟥🟦🟨🟧🟪🟩🟫📌⚠📦]/.test(t)) continue;
     t = t.replace(/^[-*•]\s*/, '').replace(/\*\*/g, '').trim();
     // Cada beneficio DEBE iniciar con emoji (no con letra latina o dígito).
-    // Esto evita que líneas descriptivas como "Genera 3 beneficios..." se
-    // cuelen como si fueran beneficios y arruinen el conteo de 3.
     if (/^[a-zA-Z0-9áéíóúñÁÉÍÓÚÑ¿¡]/.test(t)) continue;
-    if (t.length > 3 && t.length < 200) out.push(t);
+    if (t.length < 3 || t.length > 500) continue;
+
+    // CASO ESPECIAL: si la línea contiene varios beneficios pegados
+    // (ej: "🏠 Texto 1. 🔔 Texto 2. 🛡️ Texto 3.") splitear cada uno
+    // por punto+espacio+caracter-no-latino (i.e. emoji al inicio del
+    // siguiente segmento).
+    const parts = t.split(/(?<=[.!?])\s+(?=[^ -ÿ\s])/);
+    for (const p of parts) {
+      const piece = p.trim().replace(/<br\/?>/gi, '').trim();
+      if (piece.length > 3 && piece.length < 200) out.push(piece);
+    }
   }
   return out;
 }
@@ -8040,16 +8051,27 @@ function extractTestimonios(sectionText){
   const lines = sectionText.split('\n');
   let current = null;
   for (const line of lines) {
-    const t = line.trim().replace(/\*\*/g, '');
-    if (!t) {
+    const raw = line.trim();
+    if (!raw) {
       if (current && current.body) { blocks.push(current); current = null; }
       continue;
     }
-    if (/^"[^"]+"$/.test(t)) {
+    // Detectar si es un TÍTULO (en línea propia, corto, con ** o " ")
+    const isBoldTitle = /^\*\*[^*]+\*\*\s*$/.test(raw);
+    const isQuoteTitle = /^["“”][^"“”]+["“”]\s*$/.test(raw);
+    const cleaned = raw.replace(/\*\*/g, '').replace(/^["“”]+|["“”]+$/g, '').trim();
+
+    if ((isBoldTitle || isQuoteTitle) && cleaned.length < 100) {
       if (current && current.body) blocks.push(current);
-      current = { title: t.replace(/^"|"$/g, ''), body: '' };
+      current = { title: cleaned, body: '' };
     } else if (current) {
-      current.body += (current.body ? ' ' : '') + t;
+      current.body += (current.body ? ' ' : '') + cleaned;
+    } else {
+      // Sin título previo, asumir que el primer bloque inicia sin título.
+      // Solo iniciamos un current si la línea es razonablemente larga.
+      if (cleaned.length > 30) {
+        current = { title: '', body: cleaned };
+      }
     }
   }
   if (current && current.body) blocks.push(current);
