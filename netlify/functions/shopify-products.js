@@ -61,21 +61,44 @@ exports.handler = async function (event) {
 };
 
 async function searchProducts(domain, headers, q) {
-  // /admin/api/2024-10/products.json?title=foo (parcial)
-  // Si no hay query, traemos los últimos 50.
-  const params = new URLSearchParams({
-    limit: '50',
-    fields: 'id,title,handle,image,updated_at,status',
-  });
-  if (q) params.set('title', q);
-  const url = `https://${domain}/admin/api/2024-10/products.json?${params}`;
-  const resp = await fetch(url, { headers });
-  if (!resp.ok) {
-    const txt = await resp.text();
-    return respond(resp.status, { error: 'Shopify ' + resp.status + ': ' + txt.slice(0, 200) });
+  // La API REST de Shopify usa `title=` como match EXACTO, no contiene.
+  // Para que la búsqueda sea útil, paginamos hasta 500 productos y
+  // filtramos del lado del servidor por substring case-insensitive
+  // contra title y handle.
+  const FIELDS = 'id,title,handle,image,updated_at,status';
+  const PAGE_SIZE = 250; // máximo permitido por Shopify
+  const MAX_PAGES = q ? 4 : 1; // con query: hasta 1000 productos. Sin query: 250.
+
+  let all = [];
+  let pageUrl = `https://${domain}/admin/api/2024-10/products.json?limit=${PAGE_SIZE}&fields=${FIELDS}`;
+  let pages = 0;
+
+  while (pageUrl && pages < MAX_PAGES) {
+    const resp = await fetch(pageUrl, { headers });
+    if (!resp.ok) {
+      const txt = await resp.text();
+      return respond(resp.status, { error: 'Shopify ' + resp.status + ': ' + txt.slice(0, 200) });
+    }
+    const data = await resp.json();
+    all = all.concat(data.products || []);
+
+    const link = resp.headers.get('Link') || '';
+    const next = link.match(/<([^>]+)>;\s*rel="next"/);
+    pageUrl = next ? next[1] : null;
+    pages++;
   }
-  const data = await resp.json();
-  const products = (data.products || []).map(p => ({
+
+  let filtered = all;
+  if (q) {
+    const ql = q.toLowerCase();
+    filtered = all.filter(p =>
+      (p.title  && p.title.toLowerCase().includes(ql)) ||
+      (p.handle && p.handle.toLowerCase().includes(ql))
+    );
+  }
+
+  // Limitar a 100 resultados visibles para no saturar la UI
+  const products = filtered.slice(0, 100).map(p => ({
     id: p.id,
     title: p.title,
     handle: p.handle,
@@ -83,7 +106,12 @@ async function searchProducts(domain, headers, q) {
     status: p.status,
     updated_at: p.updated_at,
   }));
-  return respond(200, { products });
+
+  return respond(200, {
+    products,
+    matched: filtered.length,
+    searched: all.length,
+  });
 }
 
 async function getProduct(domain, headers, id) {

@@ -1414,7 +1414,7 @@
           <div class="bk-shopify-push" id="bk-shopify-push" style="display:none">
             <div class="bk-shopify-push-title">📤 Pegar landing al producto Shopify</div>
             <div class="bk-shopify-search-row">
-              <input type="text" id="bk-shopify-search" placeholder="Buscar producto por título (vacío = últimos 50)" onkeydown="if(event.key==='Enter') buscarProductosShopify()">
+              <input type="text" id="bk-shopify-search" placeholder="Escribe parte del nombre (ej: 'pelota', 'ratón', 'aspiradora')" onkeydown="if(event.key==='Enter') buscarProductosShopify()">
               <button onclick="buscarProductosShopify()">🔍 Buscar</button>
             </div>
             <div class="bk-shopify-results" id="bk-shopify-results"></div>
@@ -7086,8 +7086,14 @@ async function buscarProductosShopify(){
     if (!resp.ok) throw new Error(data.error || ('HTTP ' + resp.status));
     const products = data.products || [];
     if (!products.length) {
-      results.innerHTML = '<div style="font-size:11px;color:var(--muted);font-family:\'DM Mono\',monospace;padding:8px">Sin resultados.</div>';
+      const hint = data.searched
+        ? 'Sin coincidencias entre ' + data.searched + ' producto(s) revisados. Prueba otra palabra.'
+        : 'Sin resultados.';
+      results.innerHTML = '<div style="font-size:11px;color:var(--muted);font-family:\'DM Mono\',monospace;padding:8px">' + hint + '</div>';
       return;
+    }
+    if (status && data.matched && data.matched > products.length) {
+      status.textContent = 'Mostrando ' + products.length + ' de ' + data.matched + ' coincidencias. Refina la búsqueda si no ves el tuyo.';
     }
     results.innerHTML = products.map(p => {
       const img = p.image ? '<img src="' + esc(p.image) + '" alt="">' : '<img alt="">';
