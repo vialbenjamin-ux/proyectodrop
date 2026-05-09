@@ -5501,11 +5501,14 @@ function renderShrinePastePanel(masterText){
     html += renderShrineSection('🟪 Testimonios extensos · sección Multicolumn de Shrine (con foto)', items);
   }
 
-  // Testimonios breves
+  // Testimonios breves: ahora son objetos {text, author}
   if (chunks.testimoniosBreves.length) {
-    html += renderShrineSection('🟨 Testimonios breves', chunks.testimoniosBreves.map((t, i) =>
-      shrineChunk('Breve ' + (i+1), t)
-    ));
+    const items = [];
+    chunks.testimoniosBreves.forEach((t, i) => {
+      items.push(shrineChunk('Breve ' + (i+1) + ' · Texto', t.text || ''));
+      if (t.author) items.push(shrineChunk('Breve ' + (i+1) + ' · Autor', t.author));
+    });
+    html += renderShrineSection('🟨 Testimonios breves', items);
   }
 
   // FAQ
@@ -5592,20 +5595,17 @@ function parseMasterToChunks(text){
     chunks.bullets = extractNumberedBlocks(sections.bullets);
   }
 
-  // Testimonios breves: cada línea con cita o nombre+ciudad
+  // Testimonios breves: una línea = un testimonio.
+  // Cada uno se split en {text, author} buscando el patrón final " - Nombre, Ciudad".
   if (sections.testimonios_breves) {
     const lines = sections.testimonios_breves.split('\n').slice(1);
-    let acc = '';
     for (const line of lines) {
-      const t = line.trim().replace(/\*\*/g, '');
-      if (!t) {
-        if (acc) { chunks.testimoniosBreves.push(acc.trim()); acc = ''; }
-        continue;
-      }
-      if (/^[🔴🟥🟦🟨🟧🟪🟩🟫📌⚠📦]/.test(t)) continue;
-      acc += (acc ? ' ' : '') + t.replace(/^[-*•]\s*/, '');
+      const raw = line.trim().replace(/\*\*/g, '').replace(/^[-*•]\s*/, '');
+      if (!raw) continue;
+      if (/^[🔴🟥🟦🟨🟧🟪🟩🟫📌⚠📦]/.test(raw)) continue;
+      const split = splitTestimonioBreve(raw);
+      if (split.text) chunks.testimoniosBreves.push(split);
     }
-    if (acc) chunks.testimoniosBreves.push(acc.trim());
   }
 
   // Testimonios extensos
@@ -5878,12 +5878,17 @@ async function ejecutarAutoShrine(){
     const writeData = await writeResp.json();
     if (!writeResp.ok) throw new Error(writeData.error || 'write template fail');
 
-    // 5. Asignar template_suffix al producto
-    setStatus('⏳ Asignando plantilla al producto…');
+    // 5. Asignar template_suffix + actualizar título con el 1er nombre vendedor del Master
+    setStatus('⏳ Asignando plantilla y actualizando título…');
+    const chunksForTitle = parseMasterToChunks(masterText);
+    const updateBody = { id: _autoShrineProduct.id, template_suffix: newSuffix };
+    if (chunksForTitle.nombres && chunksForTitle.nombres[0]) {
+      updateBody.title = chunksForTitle.nombres[0];
+    }
     const updResp = await fetch('/.netlify/functions/shopify-products?_=1' + tenantParam(), {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: _autoShrineProduct.id, template_suffix: newSuffix }),
+      body: JSON.stringify(updateBody),
     });
     const updData = await updResp.json();
     if (!updResp.ok) throw new Error(updData.error || 'product update fail');
@@ -5943,13 +5948,14 @@ function buildAutoShrineTemplate(base, masterText, gifsRefs, fotosRefs){
           block.settings = block.settings || {};
           block.settings.benefits = '<p>' + lines + '</p>';
         }
-        // reviews → 🟨 Testimonios breves (autores + textos)
+        // reviews → 🟨 Testimonios breves: cada uno es {text, author}
         if (block.type === 'reviews' && chunks.testimoniosBreves.length) {
           for (let i = 0; i < Math.min(3, chunks.testimoniosBreves.length); i++) {
             const t = chunks.testimoniosBreves[i];
-            const split = splitTestimonioBreve(t);
-            block.settings['author_' + (i+1)] = '<em>' + escapeHtmlForShrine(split.author) + '</em>';
-            block.settings['text_' + (i+1)] = '<p>' + escapeHtmlForShrine(split.text) + '</p>';
+            const author = (t && t.author) ? t.author : '';
+            const text = (t && t.text) ? t.text : '';
+            block.settings['author_' + (i+1)] = '<em>' + escapeHtmlForShrine(author) + '</em>';
+            block.settings['text_' + (i+1)] = '<p>' + escapeHtmlForShrine(text) + '</p>';
           }
         }
       }
@@ -6026,10 +6032,17 @@ function escapeHtmlForShrine(s){
 }
 
 // "Las pelotas son geniales — Carla, Santiago" → { text, author }
+// Quita comillas alrededor del texto y separa por guión largo/corto/em-dash.
 function splitTestimonioBreve(t){
-  const m = String(t).match(/^(.+?)\s*[—–-]\s*(.+)$/);
-  if (m && m[2].length < 60) return { text: m[1].trim(), author: m[2].trim() };
-  return { text: t, author: '' };
+  const raw = String(t || '').trim();
+  // Match: opcional comilla + texto + opcional comilla + dash + autor
+  // Captura grupos: 1=texto sin comillas, 2=autor
+  const m = raw.match(/^"?(.+?)"?\s*[—–-]\s*(.+)$/);
+  if (m && m[2].length < 80) {
+    return { text: m[1].trim(), author: m[2].trim() };
+  }
+  // Sin autor detectable: solo strip comillas
+  return { text: raw.replace(/^"|"$/g, '').trim(), author: '' };
 }
 
 async function ejecutarBkPromptApi(key, prompt){
@@ -7866,14 +7879,17 @@ async function confirmarShopifyPush(){
 
 // ── Conversión master text → HTML para Shopify body_html ──────────────
 function parseMasterSections(text){
+  // Detección permisiva: emoji opcional, número/título también captan.
+  // Esto permite que aunque Gemini omita el cuadro de color, igual
+  // detectemos la sección por el nombre.
   const markers = [
-    { key: 'angulos',              regex: /🔴.*?ÁNGULOS?\s*DE\s*VENTA/i },
-    { key: 'nombres',              regex: /🟥.*?NOMBRES\s*VENDEDORES/i },
-    { key: 'beneficios',           regex: /🟦.*?BENEFICIOS\s*CLAVE/i },
-    { key: 'testimonios_breves',   regex: /🟨.*?TESTIMONIOS.*?BREVES/i },
-    { key: 'bullets',              regex: /🟧.*?BULLETS.*?LANDING/i },
-    { key: 'testimonios_extensos', regex: /🟪.*?TESTIMONIOS.*?EXTENSOS/i },
-    { key: 'faq',                  regex: /(?:📌.*?PREGUNTAS\s*FRECUENTES|FAQ)/i },
+    { key: 'angulos',              regex: /(?:🔴.*?)?ÁNGULOS?\s*DE\s*VENTA/i },
+    { key: 'nombres',              regex: /(?:🟥.*?)?NOMBRES\s*VENDEDORES/i },
+    { key: 'beneficios',           regex: /(?:🟦.*?)?BENEFICIOS\s*CLAVE/i },
+    { key: 'testimonios_breves',   regex: /(?:🟨.*?)?TESTIMONIOS.*?BREVES/i },
+    { key: 'bullets',              regex: /(?:🟧.*?)?BULLETS.*?LANDING/i },
+    { key: 'testimonios_extensos', regex: /(?:🟪.*?)?TESTIMONIOS.*?EXTENSOS/i },
+    { key: 'faq',                  regex: /(?:📌.*?)?(?:PREGUNTAS\s*FRECUENTES|^\s*FAQ\b)/im },
   ];
   const positions = markers.map(m => {
     const match = m.regex.exec(text);
@@ -7966,15 +7982,27 @@ function extractNumberedBlocks(sectionText){
   const blocks = [];
   const lines = sectionText.split('\n');
   let current = null;
+  // Acepta varios formatos de inicio de bloque:
+  //  - 1️⃣ 2️⃣ 3️⃣ (keycap emoji, lo que pide el prompt)
+  //  - **1.** o **1)** (bold markdown)
+  //  - 1. o 1) (plano)
+  //  - ### 1. (heading markdown)
+  const startRegex = /^(?:[1-9]️⃣|#{1,3}\s*\*?\*?[1-9][.)]?|\*\*\s*[1-9][.)]\s*\*\*|[1-9][.)])\s*/;
   for (const line of lines) {
     const t = line.trim();
     if (!t) continue;
-    if (/^[1-9]️⃣/.test(t)) {
+    // Saltar líneas que solo son sentinel de sección
+    if (/^[🔴🟥🟦🟨🟧🟪🟩🟫📌⚠📦]/.test(t) && !/[1-9][.)]/.test(t)) continue;
+    if (startRegex.test(t)) {
       if (current) blocks.push(current);
-      const titleClean = t.replace(/^[1-9]️⃣\s*/, '').replace(/\*\*/g, '').replace(/\s*[–-]\s*/, ' — ').trim();
+      const titleClean = t.replace(startRegex, '')
+        .replace(/\*\*/g, '')
+        .replace(/^#+\s*/, '')
+        .replace(/\s*[–—-]\s*/, ' — ')
+        .trim();
       current = { title: titleClean, body: '' };
     } else if (current) {
-      const cleaned = t.replace(/\*\*/g, '');
+      const cleaned = t.replace(/\*\*/g, '').replace(/^[-*•]\s*/, '');
       current.body += (current.body ? ' ' : '') + cleaned;
     }
   }
@@ -8132,8 +8160,14 @@ Enfocados en el resultado práctico/emocional para el nicho "${a.nicho || a.angu
 🟨 4. TESTIMONIOS DE CLIENTES (BREVES)
 3 testimonios cortos del nicho elegido. Reales, naturales y directos. Incluye nombre ficticio + ciudad.
 
-🟧 5. BULLETS PARA LANDING PAGE
-3 bloques. Cada uno: título bold (máx 9 palabras) + 1 línea de solución directa.
+🟧 5. BULLETS PARA LANDING PAGE (3 bloques)
+Cada bloque DEBE empezar con un emoji keycap numerado (1️⃣, 2️⃣, 3️⃣) seguido del título bold (máx 9 palabras), luego un salto de línea, luego 1 línea con la solución directa. Ejemplo:
+1️⃣ **Título corto del bloque 1**
+Solución directa en una línea para este punto.
+2️⃣ **Título corto del bloque 2**
+Solución directa en una línea para este punto.
+3️⃣ **Título corto del bloque 3**
+Solución directa en una línea para este punto.
 
 🟪 6. TESTIMONIOS DE CLIENTES (EXTENSOS)
 3 testimonios largos del nicho elegido. Formato: "Título emocional" + texto con situación antes/después + nombre ficticio + ciudad. Mínimo el doble de extensión que un testimonio breve.
