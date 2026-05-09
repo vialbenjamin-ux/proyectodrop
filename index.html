@@ -5612,15 +5612,19 @@ function parseMasterToChunks(text){
   if (sections.testimonios_extensos) {
     const ts = extractTestimonios(sections.testimonios_extensos);
     chunks.testimoniosExtensos = ts.map(t => {
-      // Intentar separar autor del cuerpo (último fragmento si parece nombre+ciudad)
-      const bodyParts = (t.body || '').split(/[—–-]/);
-      let texto = t.body || '';
+      const bodyText = t.body || '';
+      let texto = bodyText;
       let autor = '';
-      if (bodyParts.length >= 2) {
-        const candidate = bodyParts[bodyParts.length - 1].trim();
-        if (candidate.length < 80 && /,/.test(candidate)) {
-          autor = candidate;
-          texto = bodyParts.slice(0, -1).join('—').trim();
+      // Detectar autor al final del cuerpo después de un dash. Aceptamos
+      // tanto "— Nombre Apellido" como "— Nombre, Ciudad".
+      const m = bodyText.match(/^([\s\S]+?)\s*[—–-]\s*([^—–-]+?)\s*$/);
+      if (m) {
+        const candidate = m[2].trim();
+        // Es autor si es corto y empieza con mayúscula (heurística de nombre)
+        if (candidate.length < 80 && /^[A-ZÁÉÍÓÚÑ]/.test(candidate)) {
+          // Pelar ciudad/localidad ("Nombre, Ciudad" → "Nombre")
+          autor = candidate.replace(/,\s*[^,]+$/, '').trim();
+          texto = m[1].trim();
         }
       }
       return { titulo: t.title || '', texto, autor };
@@ -6031,17 +6035,20 @@ function escapeHtmlForShrine(s){
     .replace(/>/g, '&gt;');
 }
 
-// "Las pelotas son geniales — Carla, Santiago" → { text, author }
-// Quita comillas alrededor del texto y separa por guión largo/corto/em-dash.
+// "Las pelotas son geniales — Carla Tapia" → { text, author }
+// Si el autor viene con ciudad ("Carla, Santiago"), la pela
+// defensivamente para dejar solo Nombre Apellido.
 function splitTestimonioBreve(t){
   const raw = String(t || '').trim();
-  // Match: opcional comilla + texto + opcional comilla + dash + autor
-  // Captura grupos: 1=texto sin comillas, 2=autor
   const m = raw.match(/^"?(.+?)"?\s*[—–-]\s*(.+)$/);
   if (m && m[2].length < 80) {
-    return { text: m[1].trim(), author: m[2].trim() };
+    let author = m[2].trim();
+    // Strip trailing ", Ciudad" o ", Localidad"
+    author = author.replace(/,\s*[^,]+$/, '').trim();
+    // Strip iniciales con punto: "Carla T." → "Carla T" → ya queda mejor con
+    // el cambio del prompt, pero si igual aparece, lo dejamos como vino.
+    return { text: m[1].trim(), author };
   }
-  // Sin autor detectable: solo strip comillas
   return { text: raw.replace(/^"|"$/g, '').trim(), author: '' };
 }
 
@@ -7973,7 +7980,11 @@ function extractBulletsList(sectionText){
     if (!t) continue;
     if (/^[🔴🟥🟦🟨🟧🟪🟩🟫📌⚠📦]/.test(t)) continue;
     t = t.replace(/^[-*•]\s*/, '').replace(/\*\*/g, '').trim();
-    if (t.length > 3) out.push(t);
+    // Cada beneficio DEBE iniciar con emoji (no con letra latina o dígito).
+    // Esto evita que líneas descriptivas como "Genera 3 beneficios..." se
+    // cuelen como si fueran beneficios y arruinen el conteo de 3.
+    if (/^[a-zA-Z0-9áéíóúñÁÉÍÓÚÑ¿¡]/.test(t)) continue;
+    if (t.length > 3 && t.length < 200) out.push(t);
   }
   return out;
 }
@@ -8154,11 +8165,18 @@ La fila confirma el ángulo elegido y completa Objeciones, Comprador potencial y
 Máximo 70 caracteres cada uno. Aptos para Meta Ads y TikTok Ads.
 
 🟦 3. BENEFICIOS CLAVE
-SOLO 3 beneficios. Cada uno empieza con emoji. Máximo 7 palabras por línea.
-Enfocados en el resultado práctico/emocional para el nicho "${a.nicho || a.angulo}".
+EXACTAMENTE 3 beneficios (no 2, no 4 — siempre 3). Cada beneficio DEBE iniciar con un emoji distinto (✅, ✨, 🚀, 🎯, 💪, 🔥, 🛡️, etc.) seguido del texto. Máximo 7 palabras por línea. Sin descripciones intro, solo las 3 líneas con emoji.
+Ejemplo:
+✅ Texto del beneficio 1 corto.
+✨ Texto del beneficio 2 corto.
+🚀 Texto del beneficio 3 corto.
 
 🟨 4. TESTIMONIOS DE CLIENTES (BREVES)
-3 testimonios cortos del nicho elegido. Reales, naturales y directos. Incluye nombre ficticio + ciudad.
+3 testimonios cortos del nicho elegido. Reales, naturales y directos.
+FORMATO OBLIGATORIO: "Texto del testimonio." – Nombre Apellido
+- Nombre Apellido: nombre genérico chileno (Sofía Pérez, Camila Vargas, Andrés Castillo, María González, Felipe Reyes, Carla Tapia, Diego Soto, etc.)
+- NO incluir ciudad ni inicial de apellido.
+- El género del nombre debe coincidir con el género del narrador del texto (si es "Sofía", el testimonio narra como mujer).
 
 🟧 5. BULLETS PARA LANDING PAGE (3 bloques)
 Cada bloque DEBE empezar con un emoji keycap numerado (1️⃣, 2️⃣, 3️⃣) seguido del título bold (máx 9 palabras), luego un salto de línea, luego 1 línea con la solución directa. Ejemplo:
@@ -8170,7 +8188,10 @@ Solución directa en una línea para este punto.
 Solución directa en una línea para este punto.
 
 🟪 6. TESTIMONIOS DE CLIENTES (EXTENSOS)
-3 testimonios largos del nicho elegido. Formato: "Título emocional" + texto con situación antes/después + nombre ficticio + ciudad. Mínimo el doble de extensión que un testimonio breve.
+3 testimonios largos del nicho elegido. Formato: "Título emocional" + texto con situación antes/después + nombre ficticio chileno (solo Nombre Apellido, SIN ciudad). Mínimo el doble de extensión que un testimonio breve.
+- Usar nombres genéricos chilenos (ver ejemplos en sección 4).
+- El género del nombre debe coincidir con el género del narrador del texto.
+- NO incluir ciudad ni localidad después del nombre.
 
 📌 9. PREGUNTAS FRECUENTES (FAQ)
 6-8 preguntas. Empieza cada una con emoji. Lenguaje empático.
