@@ -6098,6 +6098,14 @@ function buildAutoShrineTemplate(base, masterText, gifsRefs, fotosRefs){
           block.settings.title = (t.titulo || (t.texto || '').slice(0, 80));
           block.settings.text = '<p><br/>' + escapeHtmlForShrine(t.texto || '') + '<br/><br/></p>';
           block.settings.author = '<em><strong>' + escapeHtmlForShrine(t.autor || '') + '</strong></em>';
+        } else if (chunks.testimoniosExtensos.length > 0) {
+          // Si no hay testimonio para esta columna pero sí para otras,
+          // re-usamos el ÚLTIMO testimonio capturado (mejor que dejar
+          // contenido del template base de un producto distinto).
+          const t = chunks.testimoniosExtensos[chunks.testimoniosExtensos.length - 1];
+          block.settings.title = (t.titulo || (t.texto || '').slice(0, 80));
+          block.settings.text = '<p><br/>' + escapeHtmlForShrine(t.texto || '') + '<br/><br/></p>';
+          block.settings.author = '<em><strong>' + escapeHtmlForShrine(t.autor || '') + '</strong></em>';
         }
         if (fotosRefs[colIdx]) {
           block.settings.image = fotosRefs[colIdx].shopifyRef;
@@ -8156,17 +8164,32 @@ function extractNumberedBlocks(sectionText){
 }
 
 function extractTestimonios(sectionText){
-  // Estrategia: split por línea en blanco para identificar bloques. Cada
-  // bloque puede tener:
-  //  - **Título** o "Título" en su 1ra línea (formato ideal)
-  //  - O primera línea corta seguida de cuerpo más largo (heurística)
-  // Después capturamos cuerpo y eventualmente autor en línea aparte.
-  const blocksRaw = sectionText
+  // Quitar header de sección (primera línea)
+  const headerRemoved = sectionText.split('\n').slice(1).join('\n').trim();
+
+  // ESTRATEGIA 1: split por líneas en blanco
+  let blocksRaw = headerRemoved
     .split(/\n\s*\n+/)
-    .slice(1) // descartar el header de sección
     .map(b => b.split('\n').map(l => l.trim()).filter(l =>
       l && !/^[🔴🟥🟦🟨🟧🟪🟩🟫📌⚠📦]/.test(l)
-    ));
+    ))
+    .filter(b => b.length > 0);
+
+  // ESTRATEGIA 2 (fallback): si la 1ra dió < 3 bloques pero hay
+  // múltiples patrones **Title**, splittear por título. Esto cubre el
+  // caso donde Gemini concatena testimonios sin línea en blanco.
+  if (blocksRaw.length < 3) {
+    const titleMatches = headerRemoved.match(/^\s*\*\*[^*\n]+\*\*\s*$/gm);
+    if (titleMatches && titleMatches.length >= 2) {
+      // Split por aparición de **Title** al inicio de línea
+      const altSplit = headerRemoved.split(/(?=^\s*\*\*[^*\n]+\*\*\s*$)/m)
+        .map(b => b.split('\n').map(l => l.trim()).filter(l =>
+          l && !/^[🔴🟥🟦🟨🟧🟪🟩🟫📌⚠📦]/.test(l)
+        ))
+        .filter(b => b.length > 0);
+      if (altSplit.length > blocksRaw.length) blocksRaw = altSplit;
+    }
+  }
 
   const blocks = [];
   for (const lines of blocksRaw) {
@@ -8175,7 +8198,6 @@ function extractTestimonios(sectionText){
     let title = '';
     let bodyStart = 0;
 
-    // Línea 0: chequear si es título explícito (bold/quote) o heurística
     const first = lines[0];
     const isBoldTitle  = /^\*\*[^*]+\*\*\s*$/.test(first);
     const isQuoteTitle = /^["“”][^"“”]+["“”]\s*$/.test(first);
@@ -8185,7 +8207,6 @@ function extractTestimonios(sectionText){
       title = firstClean;
       bodyStart = 1;
     } else if (lines.length >= 2 && firstClean.length > 0 && firstClean.length < 90) {
-      // Heurística: primera línea corta + más líneas → primera es título
       const secondLen = lines[1].length;
       if (secondLen > firstClean.length * 1.2) {
         title = firstClean;
