@@ -159,6 +159,29 @@ async function updateProduct(domain, headers, body) {
   if (Array.isArray(body.tags))           update.tags      = body.tags.join(', ');
   if (typeof body.tags === 'string')      update.tags      = body.tags;
 
+  // Si llegan price o compare_at_price, hay que actualizar el variant
+  // (en Shopify el precio vive en variants[], no en el producto). Hacemos
+  // un fetch primero para obtener los IDs de los variants existentes.
+  if (body.price !== undefined || body.compare_at_price !== undefined) {
+    const fetchUrl = `https://${domain}/admin/api/2024-10/products/${encodeURIComponent(body.id)}.json`;
+    const fetchResp = await fetch(fetchUrl, { headers });
+    if (!fetchResp.ok) {
+      const txt = await fetchResp.text();
+      return respond(fetchResp.status, { error: 'No se pudo leer el producto para actualizar variant: ' + txt.slice(0, 200) });
+    }
+    const prod = await fetchResp.json();
+    const variants = (prod.product && prod.product.variants) || [];
+    if (!variants.length) {
+      return respond(400, { error: 'El producto no tiene variants' });
+    }
+    update.variants = variants.map(v => {
+      const u = { id: v.id };
+      if (body.price !== undefined)            u.price            = String(body.price);
+      if (body.compare_at_price !== undefined) u.compare_at_price = body.compare_at_price ? String(body.compare_at_price) : null;
+      return u;
+    });
+  }
+
   const resp = await fetch(url, {
     method: 'PUT',
     headers,
