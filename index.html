@@ -6855,6 +6855,21 @@ async function clonarImagenesDelTemplate(jsonText, setStatus){
 
   if (setStatus) setStatus('Encontradas ' + refs.length + ' imágenes únicas para clonar…');
 
+  // Obtener shop.id de Chile UNA vez — sirve para construir URLs CDN
+  // canonical de cualquier filename sin pasar por la GraphQL Files API
+  // (que es flaky con hashes largos / extensiones webp).
+  let clShopId = null;
+  try {
+    const sResp = await fetch('/.netlify/functions/shopify-themes?op=shop-id&tenant=chile');
+    const sData = await sResp.json();
+    if (sResp.ok && sData.shopId) clShopId = sData.shopId;
+  } catch(e){ console.warn('No se pudo obtener shopId CL', e); }
+
+  const buildCanonicalCdn = (filename)=>{
+    if (!clShopId) return null;
+    return 'https://cdn.shopify.com/s/files/1/' + clShopId + '/files/' + encodeURIComponent(filename);
+  };
+
   // Procesar una por una (paralelizar podría saturar Shopify API)
   const replacements = {}; // original → newRef
   for (let i = 0; i < refs.length; i++) {
@@ -6864,26 +6879,40 @@ async function clonarImagenesDelTemplate(jsonText, setStatus){
 
     try {
       // 1. Obtener CDN URL de la imagen en CL
+      // Estrategia: primero URL canonical (siempre funciona si la imagen
+      // existe en Files), después GraphQL como fallback.
       let cdnUrl = null;
       if (r.kind === 'cdn') {
         cdnUrl = r.original;
       } else {
-        // Resolver shopify://shop_images/IMG via GraphQL Files API de CL
-        const findResp = await fetch('/.netlify/functions/shopify-themes?op=find-file&filename=' + encodeURIComponent(r.filename) + '&tenant=chile');
-        const findData = await findResp.json();
-        if (!findResp.ok || !findData.url) {
-          console.warn('No se pudo resolver', r.filename, findData);
-          continue; // saltar esta imagen, dejar la ref original (va a estar rota en GT pero no aborta todo)
+        // Intento 1: URL canonical
+        const canonical = buildCanonicalCdn(r.filename);
+        if (canonical) {
+          try {
+            const headResp = await fetch(canonical, { method: 'GET' });
+            if (headResp.ok) { cdnUrl = canonical; }
+          } catch(e){}
         }
-        cdnUrl = findData.url;
+        // Intento 2 (fallback): GraphQL Files API
+        if (!cdnUrl) {
+          const findResp = await fetch('/.netlify/functions/shopify-themes?op=find-file&filename=' + encodeURIComponent(r.filename) + '&tenant=chile');
+          const findData = await findResp.json();
+          if (findResp.ok && findData.url) cdnUrl = findData.url;
+        }
+        if (!cdnUrl) {
+          console.warn('[clonar] No se pudo resolver:', r.filename);
+          continue;
+        }
       }
 
       // 2. Descargar la imagen del CDN
       if (setStatus) setStatus(label + ' · Descargando ' + r.filename + '…');
       const imgResp = await fetch(cdnUrl);
-      if (!imgResp.ok) { console.warn('Download fail', cdnUrl); continue; }
+      if (!imgResp.ok) { console.warn('[clonar] Download fail', cdnUrl, imgResp.status); continue; }
       const blob = await imgResp.blob();
-      const mime = blob.type || 'image/jpeg';
+      const mime = blob.type || (r.filename.endsWith('.webp') ? 'image/webp' :
+                                  r.filename.endsWith('.png')  ? 'image/png'  :
+                                  r.filename.endsWith('.gif')  ? 'image/gif'  : 'image/jpeg');
 
       // 3. Convertir a base64
       const base64 = await new Promise((resolve, reject) => {

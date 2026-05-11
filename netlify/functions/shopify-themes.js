@@ -47,7 +47,10 @@ exports.handler = async function (event) {
         if (!qs.filename) return respond(400, { error: 'Falta filename' });
         return await findFileByName(domain, headers, qs.filename);
       }
-      return respond(400, { error: 'op no válido (list, list-templates, template, find-file)' });
+      if (op === 'shop-id') {
+        return await getShopId(domain, headers);
+      }
+      return respond(400, { error: 'op no válido (list, list-templates, template, find-file, shop-id)' });
     }
 
     if (event.httpMethod === 'PUT') {
@@ -161,6 +164,19 @@ async function writeAsset(domain, headers, assetKey, value) {
   }
   const data = await resp.json();
   return respond(200, { themeId, asset: data.asset, ok: true });
+}
+
+// Devuelve el shop.id numérico — necesario para construir URLs canonical
+// del CDN (https://cdn.shopify.com/s/files/1/SHOP_ID/files/FILENAME).
+async function getShopId(domain, headers) {
+  const url = `https://${domain}/admin/api/2024-10/shop.json`;
+  const resp = await fetch(url, { headers });
+  if (!resp.ok) {
+    const txt = await resp.text();
+    return respond(resp.status, { error: 'shop fetch fail: ' + txt.slice(0, 200) });
+  }
+  const data = await resp.json();
+  return respond(200, { shopId: data?.shop?.id, name: data?.shop?.name, domain });
 }
 
 // Busca un archivo en Files library por filename. Devuelve el CDN URL real
