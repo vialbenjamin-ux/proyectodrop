@@ -8409,8 +8409,8 @@ async function _bkFetchAsBlobURL(url, mimeType, label, onProgress){
 
 async function _bkLoadFFmpeg(onProgress){
   if(_bkFfmpegInstance) return _bkFfmpegInstance;
-  if(onProgress) onProgress('Cargando librería FFmpeg…');
-  // jsdelivr es más rápido y confiable que unpkg para descargas grandes
+  const log = (m)=>{ console.log('[ffmpeg]', m); if(onProgress) onProgress(m); };
+  log('[1/5] Importando librería FFmpeg…');
   const FFMPEG_VER = '0.12.10';
   const CORE_VER   = '0.12.6';
   const UTIL_VER   = '0.12.2';
@@ -8425,22 +8425,31 @@ async function _bkLoadFFmpeg(onProgress){
       onProgress('Procesando video… ' + pct + '%');
     }
   });
-  // Descarga con progreso real de los 3 archivos. core wasm es el más
-  // pesado (~30 MB), worker y core.js son chicos (<200 KB cada uno).
+  ffmpeg.on('log', (l)=>{ console.log('[ffmpeg-internal]', l.message); });
+  log('[2/5] Descargando worker.js (~50 KB)…');
   const workerURL = await _bkFetchAsBlobURL(
     `${CDN}/@ffmpeg/ffmpeg@${FFMPEG_VER}/dist/esm/worker.js`,
-    'text/javascript', 'worker', onProgress
+    'text/javascript', '[2/5] worker', onProgress
   );
+  log('[3/5] Descargando core.js (~150 KB)…');
   const coreURL = await _bkFetchAsBlobURL(
     `${CDN}/@ffmpeg/core@${CORE_VER}/dist/umd/ffmpeg-core.js`,
-    'text/javascript', 'core.js', onProgress
+    'text/javascript', '[3/5] core.js', onProgress
   );
+  log('[4/5] Descargando core.wasm (~30 MB)…');
   const wasmURL = await _bkFetchAsBlobURL(
     `${CDN}/@ffmpeg/core@${CORE_VER}/dist/umd/ffmpeg-core.wasm`,
-    'application/wasm', 'core.wasm', onProgress
+    'application/wasm', '[4/5] core.wasm', onProgress
   );
-  if(onProgress) onProgress('Inicializando FFmpeg…');
-  await ffmpeg.load({ classWorkerURL: workerURL, coreURL, wasmURL });
+  log('[5/5] Inicializando FFmpeg (compilando WASM en el browser)…');
+  // Timeout de 90s para que no quede colgado mudo. ffmpeg.load compila
+  // el WASM y crea el worker; si tarda más de 90s, algo está mal.
+  const loadPromise = ffmpeg.load({ classWorkerURL: workerURL, coreURL, wasmURL });
+  const timeoutPromise = new Promise((_, reject)=>{
+    setTimeout(()=>reject(new Error('FFmpeg tardó más de 90s en inicializar. Revisá DevTools → Console para detalles, o probá con otro navegador.')), 90000);
+  });
+  await Promise.race([loadPromise, timeoutPromise]);
+  log('✓ FFmpeg listo');
   _bkFfmpegInstance = { ffmpeg, fetchFile };
   return _bkFfmpegInstance;
 }
