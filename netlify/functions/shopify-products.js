@@ -159,27 +159,38 @@ async function updateProduct(domain, headers, body) {
   if (Array.isArray(body.tags))           update.tags      = body.tags.join(', ');
   if (typeof body.tags === 'string')      update.tags      = body.tags;
 
-  // Si llegan price o compare_at_price, hay que actualizar el variant
-  // (en Shopify el precio vive en variants[], no en el producto). Hacemos
-  // un fetch primero para obtener los IDs de los variants existentes.
-  if (body.price !== undefined || body.compare_at_price !== undefined) {
+  // Si llegan price, compare_at_price o inventory_policy, hay que
+  // actualizar los variants (esos campos viven en variants[], no en
+  // el producto). Hacemos fetch del producto para conseguir los IDs.
+  let variants = [];
+  const needsVariantFetch =
+    body.price !== undefined ||
+    body.compare_at_price !== undefined ||
+    body.inventory_policy !== undefined ||
+    body.cost !== undefined ||
+    body.mark_all_locations === true;
+
+  if (needsVariantFetch) {
     const fetchUrl = `https://${domain}/admin/api/2024-10/products/${encodeURIComponent(body.id)}.json`;
     const fetchResp = await fetch(fetchUrl, { headers });
     if (!fetchResp.ok) {
       const txt = await fetchResp.text();
-      return respond(fetchResp.status, { error: 'No se pudo leer el producto para actualizar variant: ' + txt.slice(0, 200) });
+      return respond(fetchResp.status, { error: 'No se pudo leer el producto: ' + txt.slice(0, 200) });
     }
     const prod = await fetchResp.json();
-    const variants = (prod.product && prod.product.variants) || [];
+    variants = (prod.product && prod.product.variants) || [];
     if (!variants.length) {
       return respond(400, { error: 'El producto no tiene variants' });
     }
-    update.variants = variants.map(v => {
-      const u = { id: v.id };
-      if (body.price !== undefined)            u.price            = String(body.price);
-      if (body.compare_at_price !== undefined) u.compare_at_price = body.compare_at_price ? String(body.compare_at_price) : null;
-      return u;
-    });
+    if (body.price !== undefined || body.compare_at_price !== undefined || body.inventory_policy !== undefined) {
+      update.variants = variants.map(v => {
+        const u = { id: v.id };
+        if (body.price !== undefined)            u.price            = String(body.price);
+        if (body.compare_at_price !== undefined) u.compare_at_price = body.compare_at_price ? String(body.compare_at_price) : null;
+        if (body.inventory_policy !== undefined) u.inventory_policy = body.inventory_policy; // 'continue' = vender sin stock
+        return u;
+      });
+    }
   }
 
   const resp = await fetch(url, {
@@ -192,7 +203,64 @@ async function updateProduct(domain, headers, body) {
     return respond(resp.status, { error: 'Shopify ' + resp.status + ': ' + txt.slice(0, 300) });
   }
   const data = await resp.json();
-  return respond(200, { product: data.product, ok: true });
+
+  // Side effects extra (después del main PUT):
+  const sideResults = { cost_updated: 0, locations_connected: 0, errors: [] };
+
+  // 1. Costo del producto (inventory_item.cost) — requiere PUT a otro endpoint
+  if (body.cost !== undefined && variants.length) {
+    for (const v of variants) {
+      if (!v.inventory_item_id) continue;
+      try {
+        const costResp = await fetch(`https://${domain}/admin/api/2024-10/inventory_items/${v.inventory_item_id}.json`, {
+          method: 'PUT',
+          headers,
+          body: JSON.stringify({ inventory_item: { id: v.inventory_item_id, cost: String(body.cost) } }),
+        });
+        if (costResp.ok) sideResults.cost_updated++;
+        else { const t = await costResp.text(); sideResults.errors.push('cost: ' + costResp.status + ' ' + t.slice(0, 100)); }
+      } catch (e) { sideResults.errors.push('cost network: ' + (e.message || '?')); }
+    }
+  }
+
+  // 2. Conectar a todas las sucursales activas
+  if (body.mark_all_locations === true && variants.length) {
+    try {
+      const locResp = await fetch(`https://${domain}/admin/api/2024-10/locations.json`, { headers });
+      if (!locResp.ok) {
+        const t = await locResp.text();
+        sideResults.errors.push('locations fetch: ' + locResp.status + ' ' + t.slice(0, 100));
+      } else {
+        const locData = await locResp.json();
+        const locations = (locData.locations || []).filter(l => l.active);
+        for (const v of variants) {
+          if (!v.inventory_item_id) continue;
+          for (const loc of locations) {
+            try {
+              const cResp = await fetch(`https://${domain}/admin/api/2024-10/inventory_levels/connect.json`, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({
+                  inventory_item_id: v.inventory_item_id,
+                  location_id: loc.id,
+                  relocate_if_necessary: true,
+                }),
+              });
+              if (cResp.ok || cResp.status === 422) {
+                // 422 suele ser "already connected" → contar igual
+                sideResults.locations_connected++;
+              } else {
+                const t = await cResp.text();
+                sideResults.errors.push('loc ' + loc.id + ': ' + cResp.status + ' ' + t.slice(0, 80));
+              }
+            } catch (e) { sideResults.errors.push('loc network: ' + (e.message || '?')); }
+          }
+        }
+      }
+    } catch (e) { sideResults.errors.push('locations network: ' + (e.message || '?')); }
+  }
+
+  return respond(200, { product: data.product, ok: true, sideResults });
 }
 
 function cors() {

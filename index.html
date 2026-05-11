@@ -5874,14 +5874,23 @@ function recomputarPreciosReleasit(){
 
   preview.innerHTML =
     '<div style="font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace">' + offerText + '</div>' +
-    // Sección 1: push automático a Shopify
+    // Sección 1: push automático a Shopify (price, compare, cost, inventory)
     '<div style="background:var(--surface2);border:1.5px solid var(--accent);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:8px">' +
       '<div style="font-size:11px;letter-spacing:.5px;text-transform:uppercase;color:var(--accent);font-weight:700;font-family:\'DM Mono\',monospace">⚡ Auto-actualizar Shopify</div>' +
       '<div style="display:flex;gap:14px;flex-wrap:wrap;font-size:13px;font-family:\'DM Mono\',monospace">' +
         '<div><span style="color:var(--muted)">price:</span> <b style="color:var(--accent)">' + fmt(p1) + '</b></div>' +
-        '<div><span style="color:var(--muted)">compare_at_price:</span> <b>' + fmt(compareAtPrice) + '</b> <span style="color:var(--muted2);font-size:10px">(precio tachado)</span></div>' +
+        '<div><span style="color:var(--muted)">compare:</span> <b>' + fmt(compareAtPrice) + '</b></div>' +
+        '<div><span style="color:var(--muted)">cost (CLP):</span> <b>' + fmt(cost) + '</b></div>' +
       '</div>' +
-      '<button class="bk-shopify-confirm-btn" onclick="aplicarPreciosShopify(' + p1 + ',' + compareAtPrice + ')" id="bk-precios-push-btn">⚡ Actualizar precio en Shopify</button>' +
+      '<div style="display:flex;flex-direction:column;gap:6px;font-size:11px;color:var(--muted);font-family:\'DM Mono\',monospace">' +
+        '<label style="display:flex;align-items:center;gap:6px;cursor:pointer">' +
+          '<input type="checkbox" id="bk-precios-sell-no-stock" checked> Permitir vender sin existencias (inventory_policy = continue)' +
+        '</label>' +
+        '<label style="display:flex;align-items:center;gap:6px;cursor:pointer">' +
+          '<input type="checkbox" id="bk-precios-all-locations" checked> Conectar inventario a TODAS las sucursales activas' +
+        '</label>' +
+      '</div>' +
+      '<button class="bk-shopify-confirm-btn" onclick="aplicarPreciosShopify(' + p1 + ',' + compareAtPrice + ',' + cost + ')" id="bk-precios-push-btn">⚡ Actualizar Shopify (precio + costo + inventario)</button>' +
     '</div>' +
     // Sección 2: copy buttons para Releasit
     '<div style="background:var(--surface2);border:1.5px solid #D9A82E;border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:6px">' +
@@ -5907,35 +5916,56 @@ function preciosReleasitChunk(label, text){
   '</div>';
 }
 
-async function aplicarPreciosShopify(price, comparePrice){
+async function aplicarPreciosShopify(price, comparePrice, cost){
   if (!_preciosSelectedProduct) {
     showToast('Selecciona primero un producto', '⚠️', 'warn');
     return;
   }
   const status = document.getElementById('bk-precios-status');
   const btn = document.getElementById('bk-precios-push-btn');
+  const sellNoStock = document.getElementById('bk-precios-sell-no-stock')?.checked;
+  const allLocations = document.getElementById('bk-precios-all-locations')?.checked;
+
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Actualizando…'; }
-  if (status) status.textContent = '⏳ Actualizando precio en Shopify…';
+  if (status) status.textContent = '⏳ Actualizando Shopify (price + cost + inventario)…';
   try {
+    const body = {
+      id: _preciosSelectedProduct.id,
+      price: price,
+      compare_at_price: comparePrice,
+    };
+    if (typeof cost === 'number' && cost > 0) body.cost = cost;
+    if (sellNoStock)  body.inventory_policy   = 'continue';
+    if (allLocations) body.mark_all_locations = true;
+
     const resp = await fetch('/.netlify/functions/shopify-products?_=1' + tenantParam(), {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        id: _preciosSelectedProduct.id,
-        price: price,
-        compare_at_price: comparePrice,
-      }),
+      body: JSON.stringify(body),
     });
     const data = await resp.json();
     if (!resp.ok) throw new Error(data.error || ('HTTP ' + resp.status));
-    if (status) status.innerHTML = '✅ Precio actualizado · price=' + price + ' · compare=' + comparePrice + '. Releasit ya lee los nuevos precios. Solo te falta pegar los textos.';
-    showToast('Precio empujado a Shopify', '⚡', 'success');
+
+    const side = data.sideResults || {};
+    const parts = [
+      '✅ Shopify actualizado',
+      'price=' + price,
+      'compare=' + comparePrice,
+    ];
+    if (typeof cost === 'number') parts.push('cost=' + cost);
+    if (sellNoStock)  parts.push('vender sin stock=ON');
+    if (allLocations) parts.push(side.locations_connected + ' sucursal(es) conectadas');
+    if (side.errors && side.errors.length) {
+      parts.push('⚠️ ' + side.errors.length + ' aviso(s): ' + side.errors[0].slice(0, 80));
+    }
+    if (status) status.innerHTML = parts.join(' · ');
+    showToast('Shopify actualizado completo', '⚡', 'success');
   } catch (err) {
     const m = err && err.message ? err.message : '?';
-    if (status) status.textContent = '⚠️ ' + m;
+    if (status) status.textContent = '⚠️ ' + m + (m.includes('403') ? ' — falta scope write_inventory o read_locations en el token' : '');
     showToast('Error: ' + m, '⚠️', 'error');
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = '⚡ Actualizar precio en Shopify'; }
+    if (btn) { btn.disabled = false; btn.textContent = '⚡ Actualizar Shopify (precio + costo + inventario)'; }
   }
 }
 
