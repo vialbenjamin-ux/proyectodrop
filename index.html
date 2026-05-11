@@ -6865,10 +6865,16 @@ async function clonarImagenesDelTemplate(jsonText, setStatus){
     if (sResp.ok && sData.shopId) clShopId = sData.shopId;
   } catch(e){ console.warn('No se pudo obtener shopId CL', e); }
 
+  // El shop.id va separado en grupos de 4 dígitos en el path del CDN:
+  // shop_id 71394263272 → '/s/files/1/0713/9426/3272/files/...'
+  // Hacemos pad-left con 0s hasta múltiplo de 4 y separamos.
   const buildCanonicalCdn = (filename)=>{
     if (!clShopId) return null;
-    return 'https://cdn.shopify.com/s/files/1/' + clShopId + '/files/' + encodeURIComponent(filename);
+    const padded = String(clShopId).padStart(12, '0');
+    const path = padded.slice(0,4) + '/' + padded.slice(4,8) + '/' + padded.slice(8,12);
+    return 'https://cdn.shopify.com/s/files/1/' + path + '/files/' + encodeURIComponent(filename);
   };
+  console.log('[clonar] CL shopId:', clShopId, '→ canonical pattern OK');
 
   // Procesar una por una (paralelizar podría saturar Shopify API)
   const replacements = {}; // original → newRef
@@ -6907,12 +6913,14 @@ async function clonarImagenesDelTemplate(jsonText, setStatus){
 
       // 2. Descargar la imagen del CDN
       if (setStatus) setStatus(label + ' · Descargando ' + r.filename + '…');
+      console.log('[clonar] ' + label + ' descargando:', cdnUrl);
       const imgResp = await fetch(cdnUrl);
-      if (!imgResp.ok) { console.warn('[clonar] Download fail', cdnUrl, imgResp.status); continue; }
+      if (!imgResp.ok) { console.warn('[clonar] ✗ Download fail', cdnUrl, imgResp.status); continue; }
       const blob = await imgResp.blob();
       const mime = blob.type || (r.filename.endsWith('.webp') ? 'image/webp' :
                                   r.filename.endsWith('.png')  ? 'image/png'  :
                                   r.filename.endsWith('.gif')  ? 'image/gif'  : 'image/jpeg');
+      console.log('[clonar] ' + label + ' descargado:', r.filename, '·', (blob.size/1024).toFixed(1) + ' KB', '·', mime);
 
       // 3. Convertir a base64
       const base64 = await new Promise((resolve, reject) => {
@@ -6936,19 +6944,27 @@ async function clonarImagenesDelTemplate(jsonText, setStatus){
         }),
       });
       const upData = await upResp.json();
+      console.log('[clonar] ' + label + ' upload response:', upResp.status, upData);
       if (!upResp.ok || !upData.shopifyRef) {
-        console.warn('Upload to GT fail', r.filename, upData);
+        console.warn('[clonar] ✗ Upload to GT fail', r.filename, upData);
         continue;
       }
 
-      // Mapping: la ref original (cualquier formato) → la ref nueva
-      // Si era shopify://, mantenemos shopify:// (más compatible con theme settings)
-      // Si era CDN URL, podemos usar el nuevo CDN URL o shopify://.
-      replacements[r.original] = (r.kind === 'shopify')
+      // Mapping: la ref original → la ref nueva. OJO: si Shopify GT asignó
+      // un filename distinto al original (ej: agregó "_2" por colisión),
+      // upData.filename va a ser distinto a r.filename, y el shopifyRef
+      // resultante también — eso ES bueno, queremos apuntar al nuevo archivo.
+      const newRef = (r.kind === 'shopify')
         ? upData.shopifyRef
         : (upData.cdnUrl || upData.shopifyRef);
+      if (newRef !== r.original) {
+        replacements[r.original] = newRef;
+        console.log('[clonar] ' + label + ' ✓ replacement:', r.original, '→', newRef);
+      } else {
+        console.log('[clonar] ' + label + ' ✓ subido (mismo nombre, no requiere replace):', r.original);
+      }
     } catch (err) {
-      console.warn('Error clonando ' + r.filename + ':', err);
+      console.warn('[clonar] ✗ Error clonando ' + r.filename + ':', err);
     }
   }
 
