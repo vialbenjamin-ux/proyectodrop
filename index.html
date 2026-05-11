@@ -8380,77 +8380,57 @@ function escapeHtml(s){
 
 let _bkFfmpegInstance = null;
 
-// Descarga un archivo mostrando progreso real (bytes recibidos / total).
-// Devuelve un blob: URL same-origin para usarse en Worker / WASM.
-async function _bkFetchAsBlobURL(url, mimeType, label, onProgress){
-  const resp = await fetch(url);
-  if(!resp.ok) throw new Error('No se pudo descargar ' + label + ' (HTTP ' + resp.status + ')');
-  const total = Number(resp.headers.get('content-length') || 0);
-  const reader = resp.body.getReader();
-  const chunks = [];
-  let received = 0;
-  while(true){
-    const { done, value } = await reader.read();
-    if(done) break;
-    chunks.push(value);
-    received += value.length;
-    if(onProgress){
-      if(total){
-        const pct = Math.round((received / total) * 100);
-        onProgress(label + ' ' + pct + '% (' + (received/1024/1024).toFixed(1) + '/' + (total/1024/1024).toFixed(1) + ' MB)');
-      } else {
-        onProgress(label + ' ' + (received/1024/1024).toFixed(1) + ' MB');
-      }
+// Carga el script UMD de FFmpeg.wasm v0.11.6 via <script> tag.
+// v0.11.x es más viejo pero MUCHO más estable que v0.12.x para este caso
+// de uso simple (mux sin transcoding). Usa una sola URL global window.FFmpeg.
+function _bkLoadScript(src){
+  return new Promise((resolve, reject)=>{
+    if(document.querySelector('script[data-ffmpeg]')){
+      // Ya cargado; esperar a que window.FFmpeg esté listo
+      const check = ()=>{ if(window.FFmpeg) resolve(); else setTimeout(check, 50); };
+      check();
+      return;
     }
-  }
-  const blob = new Blob(chunks, { type: mimeType });
-  return URL.createObjectURL(blob);
+    const s = document.createElement('script');
+    s.src = src;
+    s.async = true;
+    s.dataset.ffmpeg = '1';
+    s.onload = ()=>resolve();
+    s.onerror = ()=>reject(new Error('No se pudo cargar el script FFmpeg desde ' + src));
+    document.head.appendChild(s);
+  });
 }
 
 async function _bkLoadFFmpeg(onProgress){
   if(_bkFfmpegInstance) return _bkFfmpegInstance;
   const log = (m)=>{ console.log('[ffmpeg]', m); if(onProgress) onProgress(m); };
-  log('[1/5] Importando librería FFmpeg…');
-  const FFMPEG_VER = '0.12.10';
-  const CORE_VER   = '0.12.6';
-  const UTIL_VER   = '0.12.2';
-  const CDN = 'https://cdn.jsdelivr.net/npm';
-  const ffmpegMod = await import(`${CDN}/@ffmpeg/ffmpeg@${FFMPEG_VER}/dist/esm/index.js`);
-  const utilMod   = await import(`${CDN}/@ffmpeg/util@${UTIL_VER}/dist/esm/index.js`);
-  const fetchFile = utilMod.fetchFile;
-  const ffmpeg = new ffmpegMod.FFmpeg();
-  ffmpeg.on('progress', (p)=>{
-    if(onProgress && typeof p.progress === 'number'){
-      const pct = Math.max(0, Math.min(100, Math.round(p.progress * 100)));
-      onProgress('Procesando video… ' + pct + '%');
-    }
+
+  log('[1/3] Cargando librería FFmpeg.wasm v0.11.6…');
+  await _bkLoadScript('https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js');
+  if(!window.FFmpeg) throw new Error('window.FFmpeg no se inicializó');
+  const { createFFmpeg, fetchFile } = window.FFmpeg;
+
+  log('[2/3] Inicializando FFmpeg (descarga ~30 MB de core la primera vez)…');
+  const ffmpeg = createFFmpeg({
+    log: false,
+    progress: ({ ratio })=>{
+      if(typeof ratio === 'number' && ratio >= 0 && ratio <= 1){
+        const pct = Math.round(ratio * 100);
+        if(onProgress) onProgress('Procesando video… ' + pct + '%');
+      }
+    },
+    // corePath apunta al core 0.11.0 compatible (single-thread, sin COEP/COOP)
+    corePath: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js',
   });
-  ffmpeg.on('log', (l)=>{ console.log('[ffmpeg-internal]', l.message); });
-  log('[2/5] Descargando worker.js (~50 KB)…');
-  const workerURL = await _bkFetchAsBlobURL(
-    `${CDN}/@ffmpeg/ffmpeg@${FFMPEG_VER}/dist/esm/worker.js`,
-    'text/javascript', '[2/5] worker', onProgress
-  );
-  log('[3/5] Descargando core.js (~150 KB)…');
-  const coreURL = await _bkFetchAsBlobURL(
-    `${CDN}/@ffmpeg/core@${CORE_VER}/dist/umd/ffmpeg-core.js`,
-    'text/javascript', '[3/5] core.js', onProgress
-  );
-  log('[4/5] Descargando core.wasm (~30 MB)…');
-  const wasmURL = await _bkFetchAsBlobURL(
-    `${CDN}/@ffmpeg/core@${CORE_VER}/dist/umd/ffmpeg-core.wasm`,
-    'application/wasm', '[4/5] core.wasm', onProgress
-  );
-  log('[5/5] Inicializando FFmpeg (compilando WASM en el browser)…');
-  // Timeout de 90s para que no quede colgado mudo. ffmpeg.load compila
-  // el WASM y crea el worker; si tarda más de 90s, algo está mal.
-  const loadPromise = ffmpeg.load({ classWorkerURL: workerURL, coreURL, wasmURL });
+
+  // Timeout de 120s — la descarga del core wasm puede tardar
+  const loadPromise = ffmpeg.load();
   const timeoutPromise = new Promise((_, reject)=>{
-    setTimeout(()=>reject(new Error('FFmpeg tardó más de 90s en inicializar. Revisá DevTools → Console para detalles, o probá con otro navegador.')), 90000);
+    setTimeout(()=>reject(new Error('FFmpeg tardó más de 120s en cargar. Probá con otro navegador (Chrome/Edge) o revisá tu conexión.')), 120000);
   });
   await Promise.race([loadPromise, timeoutPromise]);
-  log('✓ FFmpeg listo');
-  _bkFfmpegInstance = { ffmpeg, fetchFile };
+  log('[3/3] ✓ FFmpeg listo');
+  _bkFfmpegInstance = { ffmpeg, fetchFile, isV011: true };
   return _bkFfmpegInstance;
 }
 
@@ -8483,24 +8463,24 @@ async function combinarVideoYAudio(key){
   try {
     // 1. Cargar FFmpeg.wasm (lazy)
     setStatus('Cargando FFmpeg…');
-    const { ffmpeg, fetchFile } = await _bkLoadFFmpeg((msg)=>setStatus(msg));
+    const { ffmpeg, fetchFile, isV011 } = await _bkLoadFFmpeg((msg)=>setStatus(msg));
 
-    // 2. Escribir inputs al filesystem virtual
+    // 2. Escribir inputs al filesystem virtual (API diferente en v0.11)
     setStatus('Preparando archivos…');
     const videoExt = (origVideo.type && /webm/i.test(origVideo.type)) ? 'webm' : 'mp4';
-    await ffmpeg.writeFile('in.' + videoExt, await fetchFile(origVideo));
-    // Audio: base64 → Uint8Array
     const audioBytes = Uint8Array.from(atob(tts.base64), c => c.charCodeAt(0));
-    await ffmpeg.writeFile('in.mp3', audioBytes);
+    if(isV011){
+      // v0.11 API: ffmpeg.FS('writeFile', name, data)
+      ffmpeg.FS('writeFile', 'in.' + videoExt, await fetchFile(origVideo));
+      ffmpeg.FS('writeFile', 'in.mp3', audioBytes);
+    } else {
+      await ffmpeg.writeFile('in.' + videoExt, await fetchFile(origVideo));
+      await ffmpeg.writeFile('in.mp3', audioBytes);
+    }
 
-    // 3. Ejecutar mux: video del original + audio nuevo, sin reencode de video
-    // -map 0:v       → video stream del primer input
-    // -map 1:a       → audio stream del segundo input
-    // -c:v copy      → copia codec de video (rápido)
-    // -c:a aac       → reencode audio a AAC (compatible MP4)
-    // -shortest      → cortar cuando termine el más corto
-    setStatus('Combinando video + audio nuevo (puede tardar 30-90s)…');
-    await ffmpeg.exec([
+    // 3. Mux: video original + audio nuevo, sin reencode de video
+    setStatus('Combinando video + audio nuevo (30-90s)…');
+    const args = [
       '-i', 'in.' + videoExt,
       '-i', 'in.mp3',
       '-map', '0:v:0',
@@ -8510,11 +8490,16 @@ async function combinarVideoYAudio(key){
       '-b:a', '192k',
       '-shortest',
       'out.mp4'
-    ]);
+    ];
+    if(isV011){
+      await ffmpeg.run(...args);
+    } else {
+      await ffmpeg.exec(args);
+    }
 
-    // 4. Leer resultado y descargar
+    // 4. Leer y descargar
     setStatus('Preparando descarga…');
-    const data = await ffmpeg.readFile('out.mp4');
+    const data = isV011 ? ffmpeg.FS('readFile', 'out.mp4') : await ffmpeg.readFile('out.mp4');
     const blob = new Blob([data.buffer], { type: 'video/mp4' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -8524,10 +8509,18 @@ async function combinarVideoYAudio(key){
     a.click();
     setTimeout(()=>{ try { a.remove(); URL.revokeObjectURL(url); } catch(e){} }, 1000);
 
-    // 5. Cleanup filesystem virtual
-    try { await ffmpeg.deleteFile('in.' + videoExt); } catch(e){}
-    try { await ffmpeg.deleteFile('in.mp3'); } catch(e){}
-    try { await ffmpeg.deleteFile('out.mp4'); } catch(e){}
+    // 5. Cleanup
+    try {
+      if(isV011){
+        ffmpeg.FS('unlink', 'in.' + videoExt);
+        ffmpeg.FS('unlink', 'in.mp3');
+        ffmpeg.FS('unlink', 'out.mp4');
+      } else {
+        await ffmpeg.deleteFile('in.' + videoExt);
+        await ffmpeg.deleteFile('in.mp3');
+        await ffmpeg.deleteFile('out.mp4');
+      }
+    } catch(e){}
 
     setStatus('✅ Video descargado (' + (blob.size/1024/1024).toFixed(1) + ' MB).', 'var(--accent)');
   } catch(err){
