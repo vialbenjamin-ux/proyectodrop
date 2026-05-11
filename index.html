@@ -6567,9 +6567,22 @@ async function ejecutarAutoShrine(){
     // ✅ Listo
     const productUrl = 'https://benkotienda.com/products/' + _autoShrineProduct.handle;
     const adminUrl = 'https://admin.shopify.com/store/benkotienda/products/' + _autoShrineProduct.id;
+    // Guardamos datos del landing recién creado para poder replicarlo a GT
+    window._lastLandingCL = {
+      suffix: newSuffix,
+      assetKey: newKey,
+      jsonText: JSON.stringify(newJson, null, 2),
+      handle: _autoShrineProduct.handle,
+      title: _autoShrineProduct.title,
+    };
     if (status) status.innerHTML = '✅ Plantilla "<b>' + esc(newSuffix) + '</b>" creada y asignada · ' +
       '<a href="' + productUrl + '" target="_blank" style="color:#dc2626;font-weight:700">Ver tienda</a> · ' +
-      '<a href="' + adminUrl + '" target="_blank" style="color:var(--accent);font-weight:600">Admin</a>';
+      '<a href="' + adminUrl + '" target="_blank" style="color:var(--accent);font-weight:600">Admin</a>' +
+      '<div style="margin-top:12px;padding:10px 12px;background:linear-gradient(135deg,#4ECDC4 0%,#22C55E 100%);border-radius:8px;color:#fff">' +
+      '<button onclick="replicarTemplateAGT()" id="bk-replicar-gt-btn" style="background:#fff;color:#22C55E;border:none;border-radius:6px;padding:8px 14px;font-size:12px;font-family:\'DM Mono\',monospace;cursor:pointer;font-weight:700">🔄 Replicar este landing a Shopify GT</button>' +
+      '<div style="font-size:10px;margin-top:6px;opacity:0.9;line-height:1.4">El producto debe existir en GT con el mismo handle: <b>' + esc(_autoShrineProduct.handle) + '</b>. Las imágenes deberás reasignarlas desde el editor de Shopify GT.</div>' +
+      '<div id="bk-replicar-gt-status" style="font-size:11px;margin-top:8px;font-family:\'DM Mono\',monospace"></div>' +
+      '</div>';
     showToast('🚀 Plantilla generada y aplicada', '✨', 'success');
   } catch (err) {
     const m = err && err.message ? err.message : '?';
@@ -6597,6 +6610,78 @@ async function uploadToShopifyFiles(file, alt){
   const data = await resp.json();
   if (!resp.ok) throw new Error('Upload fail: ' + (data.error || resp.status));
   return data; // { file, filename, cdnUrl, shopifyRef }
+}
+
+// Replica el último landing generado en Shopify Chile al Shopify de Guatemala.
+// Requiere que el producto exista en GT con el MISMO handle. Lo busca, copia
+// el template JSON al theme MAIN de GT con la misma assetKey, y asigna el
+// template_suffix al producto de GT. NO clona las imágenes — el usuario
+// las reasigna después desde el editor de Shopify GT.
+async function replicarTemplateAGT(){
+  const last = window._lastLandingCL;
+  const statusEl = document.getElementById('bk-replicar-gt-status');
+  const btn = document.getElementById('bk-replicar-gt-btn');
+  const setStatus = (msg, color)=>{
+    if(statusEl){
+      statusEl.innerHTML = msg;
+      statusEl.style.color = color || '#fff';
+    }
+  };
+  if(!last || !last.suffix || !last.jsonText || !last.handle){
+    setStatus('⚠ No hay landing reciente para replicar. Generá uno primero.', '#FCA5A5');
+    return;
+  }
+  if(btn){ btn.disabled = true; btn.textContent = '⏳ Replicando…'; }
+  try {
+    // 1. Buscar producto en GT con mismo handle (forzando tenant=gt en la URL)
+    setStatus('1/4 · Buscando producto en GT con handle "<b>' + esc(last.handle) + '</b>"…');
+    const searchResp = await fetch('/.netlify/functions/shopify-products?q=' + encodeURIComponent(last.handle) + '&tenant=gt');
+    const searchData = await searchResp.json();
+    if(!searchResp.ok) throw new Error('Búsqueda GT: ' + (searchData.error || 'fallo'));
+    const matches = (searchData.products || []).filter(p => p.handle === last.handle);
+    if(!matches.length){
+      throw new Error('No encontré ningún producto en GT con handle exacto "' + last.handle + '". Creálo primero en Shopify GT con el mismo handle.');
+    }
+    const gtProduct = matches[0];
+
+    // 2. Leer el template JSON ya armado (lo guardamos en _lastLandingCL.jsonText)
+    setStatus('2/4 · Subiendo plantilla "<b>' + esc(last.suffix) + '</b>" al theme de GT…');
+    const writeResp = await fetch('/.netlify/functions/shopify-themes?_=1&tenant=gt', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ assetKey: last.assetKey, value: last.jsonText }),
+    });
+    const writeData = await writeResp.json();
+    if(!writeResp.ok) throw new Error('Subida template GT: ' + (writeData.error || 'fallo'));
+
+    // 3. Asignar template_suffix al producto de GT
+    setStatus('3/4 · Asignando plantilla al producto en GT…');
+    const updResp = await fetch('/.netlify/functions/shopify-products?_=1&tenant=gt', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: gtProduct.id, template_suffix: last.suffix }),
+    });
+    const updData = await updResp.json();
+    if(!updResp.ok) throw new Error('Asignar template GT: ' + (updData.error || 'fallo'));
+
+    // 4. ¡Listo!
+    setStatus('4/4 · ✅ Listo');
+    // El dominio público de GT puede ser distinto — uso el .myshopify.com como fallback.
+    // Si el usuario tiene dominio custom de GT, lo cambia desde el admin.
+    const gtAdminUrl = 'https://admin.shopify.com/store/' +
+      (gtProduct.handle ? '' : '') + // placeholder
+      '?ref=bkdrop';
+    setStatus(
+      '✅ Plantilla "<b>' + esc(last.suffix) + '</b>" replicada en Shopify GT y asignada al producto.<br>' +
+      '<span style="opacity:0.95">⚠ Reasigná las imágenes desde el editor de Shopify GT (las refs <code>shopify://shop_images/...</code> apuntan a Chile y no se ven en GT).</span>'
+    );
+    showToast('🔄 Landing replicado a GT', '✨', 'success');
+  } catch(err){
+    setStatus('⚠ ' + (err.message || 'Error desconocido'), '#FCA5A5');
+    showToast('Error replicando: ' + (err.message || '?'), '⚠️', 'error');
+  } finally {
+    if(btn){ btn.disabled = false; btn.textContent = '🔄 Replicar este landing a Shopify GT'; }
+  }
 }
 
 // Construye la nueva plantilla sustituyendo settings con contenido del Master
