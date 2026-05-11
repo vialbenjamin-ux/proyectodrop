@@ -2411,6 +2411,23 @@
 
       <!-- SPY LIBRARY -->
       <div id="inv-tab-spy" class="inv-tab" style="display:none">
+
+        <!-- BLOQUE DESCARGA -->
+        <div class="bkfit-card" style="background:linear-gradient(135deg,#FE2C55 0%,#7e22ce 100%);color:#fff;border:none">
+          <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:16px;margin-bottom:4px">📥 Descargar video ganador</div>
+          <div style="font-size:12px;opacity:0.92;margin-bottom:12px;line-height:1.5">Pegá la URL del ad de Meta Ad Library o del video de TikTok. Te abro los mejores downloaders con la URL ya copiada al portapapeles — solo hacés Ctrl+V y descargás.</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+            <input id="inv-spy-dl-url" type="text" placeholder="https://www.tiktok.com/@user/video/123  o  https://www.facebook.com/ads/library/?id=123" style="flex:1;min-width:240px;padding:10px 12px;border:none;border-radius:8px;font-size:12px;font-family:'DM Mono',monospace;background:#fff;color:#222" onkeydown="if(event.key==='Enter')spyDetectPlatform()" oninput="spyDetectPlatform(true)">
+            <button onclick="spyDetectPlatform()" style="background:#fff;color:#7e22ce;border:none;border-radius:8px;padding:10px 16px;font-size:12px;font-family:'DM Mono',monospace;cursor:pointer;font-weight:800">🔍 Detectar</button>
+          </div>
+          <div id="inv-spy-dl-platform" style="font-size:11px;opacity:0.9;font-family:'DM Mono',monospace;margin-bottom:10px;min-height:14px"></div>
+          <div id="inv-spy-dl-buttons" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+          <div style="font-size:10px;opacity:0.85;margin-top:12px;line-height:1.5">
+            <strong>Tip Meta Ad Library:</strong> dentro de un ad, click derecho sobre el video → "Copiar dirección del video" → pegá acá.<br>
+            <strong>Tip TikTok:</strong> tocá el botón "compartir" en el video → "Copiar link".
+          </div>
+        </div>
+
         <div class="bkfit-card">
           <div class="bkfit-card-title">🕵 Spy Library — búsqueda asistida en Meta + TikTok</div>
           <div style="font-size:12px;color:var(--muted);margin:-6px 0 14px;line-height:1.5">
@@ -10451,6 +10468,122 @@ async function spyReverseSearch(engine){
     }
   }
   try { window.open(url, '_blank', 'noopener'); } catch(e){}
+}
+
+// ===== DESCARGA DE VIDEOS =====
+// Detecta plataforma a partir de la URL pegada y muestra los downloaders
+// compatibles. Cada downloader se abre con la URL copiada al portapapeles
+// (la mayoría no aceptan query param para auto-fill).
+
+function _spyDetectPlatform(url){
+  const u = String(url || '').trim().toLowerCase();
+  if(!u) return null;
+  if(/tiktok\.com|vm\.tiktok\.com|vt\.tiktok\.com/.test(u)) return 'tiktok';
+  if(/facebook\.com\/ads\/library|fb\.me\/ads/.test(u))     return 'meta-adlib';
+  if(/facebook\.com|fb\.watch|fb\.com/.test(u))             return 'facebook';
+  if(/instagram\.com|instagr\.am/.test(u))                  return 'instagram';
+  if(/youtube\.com|youtu\.be/.test(u))                      return 'youtube';
+  // URL de CDN directo (fbcdn, tiktok cdn) — descarga directa
+  if(/fbcdn\.net|tiktokcdn|cdninstagram/.test(u))           return 'direct';
+  return 'unknown';
+}
+
+// Lista de downloaders por plataforma. Cada uno tiene {name, url, note}.
+// La URL del ad NO se pasa por query param porque la mayoría no lo aceptan
+// — se copia al portapapeles y el usuario pega adentro.
+const SPY_DOWNLOADERS = {
+  tiktok: [
+    { name: 'SSSTik (sin marca de agua)',  url: 'https://ssstik.io/',    note: 'Recomendado — descarga sin watermark' },
+    { name: 'SnapTik',                     url: 'https://snaptik.app/',  note: 'Alternativa, también sin watermark' },
+    { name: 'TikDown',                     url: 'https://tikdown.org/',  note: 'Backup' },
+    { name: 'MusicalDown',                 url: 'https://musicaldown.com/', note: 'Backup' },
+  ],
+  facebook: [
+    { name: 'GetFvid',                     url: 'https://www.getfvid.com/',   note: 'Recomendado — HD' },
+    { name: 'FDown',                       url: 'https://fdown.net/',          note: 'Alternativa' },
+    { name: 'SnapSave',                    url: 'https://snapsave.app/',       note: 'Backup' },
+    { name: 'FBDown',                      url: 'https://fbdown.net/',         note: 'Backup' },
+  ],
+  'meta-adlib': [
+    { name: 'GetFvid',                     url: 'https://www.getfvid.com/',   note: 'Para ads de Meta Ad Library: extraé el src del video primero' },
+    { name: 'SnapSave',                    url: 'https://snapsave.app/',       note: 'Alternativa' },
+    { name: 'FDown',                       url: 'https://fdown.net/',          note: 'Backup' },
+  ],
+  instagram: [
+    { name: 'SaveInsta',                   url: 'https://saveinsta.app/',     note: 'Recomendado' },
+    { name: 'SnapInsta',                   url: 'https://snapinsta.app/',     note: 'Alternativa' },
+    { name: 'IGRam',                       url: 'https://igram.world/',       note: 'Backup' },
+  ],
+  youtube: [
+    { name: 'Y2Mate',                      url: 'https://www.y2mate.com/',    note: 'Convierte a MP4 / MP3' },
+    { name: 'SaveFrom',                    url: 'https://en.savefrom.net/',   note: 'Alternativa' },
+  ],
+  direct: [
+    { name: 'Descargar directo',           url: '__direct__',                 note: 'La URL ya es del CDN — descarga directa' },
+  ],
+  unknown: [],
+};
+
+function spyDetectPlatform(silent){
+  const url    = (document.getElementById('inv-spy-dl-url').value || '').trim();
+  const platEl = document.getElementById('inv-spy-dl-platform');
+  const btnsEl = document.getElementById('inv-spy-dl-buttons');
+  if(!url){
+    platEl.textContent = '';
+    btnsEl.innerHTML = '';
+    return;
+  }
+  const plat = _spyDetectPlatform(url);
+  const labels = {
+    'tiktok':     '🔴 TikTok detectado',
+    'facebook':   '🔵 Facebook detectado',
+    'meta-adlib': '🔵 Meta Ad Library detectado',
+    'instagram':  '📷 Instagram detectado',
+    'youtube':    '▶ YouTube detectado',
+    'direct':     '⬇ URL de CDN directa',
+    'unknown':    '❓ Plataforma no reconocida — probá pegar la URL en cualquier downloader',
+    null:         '',
+  };
+  platEl.textContent = labels[plat] || '';
+  const list = SPY_DOWNLOADERS[plat] || [];
+  if(!list.length){
+    btnsEl.innerHTML = '<div style="font-size:11px;opacity:0.85;font-family:\'DM Mono\',monospace">No tengo downloaders pre-configurados para esta URL. Probá pegándola en getfvid.com / ssstik.io según corresponda.</div>';
+    return;
+  }
+  btnsEl.innerHTML = list.map((d, i)=>{
+    const isDirect = d.url === '__direct__';
+    return `<button onclick="spyOpenDownloader(${i}, '${plat}')" title="${d.note.replace(/'/g, "\\'")}" style="background:rgba(255,255,255,0.95);color:#7e22ce;border:none;border-radius:6px;padding:8px 12px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer;font-weight:700">${isDirect ? '⬇' : '↗'} ${d.name}</button>`;
+  }).join('');
+}
+
+async function spyOpenDownloader(idx, plat){
+  const url = (document.getElementById('inv-spy-dl-url').value || '').trim();
+  if(!url) return;
+  const list = SPY_DOWNLOADERS[plat] || [];
+  const dl = list[idx];
+  if(!dl) return;
+  if(dl.url === '__direct__'){
+    // URL de CDN: forzamos descarga directa con <a download>
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'bkdrop-video-' + Date.now() + '.mp4';
+    a.target = '_blank';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(()=>{ try { a.remove(); } catch(e){} }, 200);
+    return;
+  }
+  // Copiar URL al portapapeles
+  try {
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      await navigator.clipboard.writeText(url);
+    }
+  } catch(e){}
+  // Abrir downloader
+  try { window.open(dl.url, '_blank', 'noopener'); } catch(e){}
+  // Feedback
+  const platEl = document.getElementById('inv-spy-dl-platform');
+  platEl.innerHTML = '✅ URL copiada al portapapeles. En el sitio que se abrió → pegá con <strong>Ctrl+V</strong> en el input principal → descargá.';
 }
 
 // Limpia un dominio: saca protocolo, www, trailing slash, paths.
