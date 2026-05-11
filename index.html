@@ -8379,13 +8379,45 @@ function escapeHtml(s){
 // La primera vez carga ~30 MB desde CDN; después queda en cache del browser.
 
 let _bkFfmpegInstance = null;
+
+// Descarga un archivo mostrando progreso real (bytes recibidos / total).
+// Devuelve un blob: URL same-origin para usarse en Worker / WASM.
+async function _bkFetchAsBlobURL(url, mimeType, label, onProgress){
+  const resp = await fetch(url);
+  if(!resp.ok) throw new Error('No se pudo descargar ' + label + ' (HTTP ' + resp.status + ')');
+  const total = Number(resp.headers.get('content-length') || 0);
+  const reader = resp.body.getReader();
+  const chunks = [];
+  let received = 0;
+  while(true){
+    const { done, value } = await reader.read();
+    if(done) break;
+    chunks.push(value);
+    received += value.length;
+    if(onProgress){
+      if(total){
+        const pct = Math.round((received / total) * 100);
+        onProgress(label + ' ' + pct + '% (' + (received/1024/1024).toFixed(1) + '/' + (total/1024/1024).toFixed(1) + ' MB)');
+      } else {
+        onProgress(label + ' ' + (received/1024/1024).toFixed(1) + ' MB');
+      }
+    }
+  }
+  const blob = new Blob(chunks, { type: mimeType });
+  return URL.createObjectURL(blob);
+}
+
 async function _bkLoadFFmpeg(onProgress){
   if(_bkFfmpegInstance) return _bkFfmpegInstance;
-  if(onProgress) onProgress('Cargando FFmpeg (30 MB, solo la primera vez)…');
-  // Cargar como ES module desde CDN
-  const ffmpegMod = await import('https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/esm/index.js');
-  const utilMod   = await import('https://unpkg.com/@ffmpeg/util@0.12.2/dist/esm/index.js');
-  const { toBlobURL, fetchFile } = utilMod;
+  if(onProgress) onProgress('Cargando librería FFmpeg…');
+  // jsdelivr es más rápido y confiable que unpkg para descargas grandes
+  const FFMPEG_VER = '0.12.10';
+  const CORE_VER   = '0.12.6';
+  const UTIL_VER   = '0.12.2';
+  const CDN = 'https://cdn.jsdelivr.net/npm';
+  const ffmpegMod = await import(`${CDN}/@ffmpeg/ffmpeg@${FFMPEG_VER}/dist/esm/index.js`);
+  const utilMod   = await import(`${CDN}/@ffmpeg/util@${UTIL_VER}/dist/esm/index.js`);
+  const fetchFile = utilMod.fetchFile;
   const ffmpeg = new ffmpegMod.FFmpeg();
   ffmpeg.on('progress', (p)=>{
     if(onProgress && typeof p.progress === 'number'){
@@ -8393,20 +8425,20 @@ async function _bkLoadFFmpeg(onProgress){
       onProgress('Procesando video… ' + pct + '%');
     }
   });
-  // El worker.js se carga cross-origin por default y el navegador lo bloquea.
-  // toBlobURL hace fetch (respeta CORS del unpkg, que es *) y devuelve un
-  // blob: URL same-origin, que sí se puede usar para construir Worker.
-  // Lo mismo para coreURL y wasmURL para evitar cualquier problema.
-  if(onProgress) onProgress('Descargando worker FFmpeg…');
-  const workerURL = await toBlobURL(
-    'https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/esm/worker.js',
-    'text/javascript'
+  // Descarga con progreso real de los 3 archivos. core wasm es el más
+  // pesado (~30 MB), worker y core.js son chicos (<200 KB cada uno).
+  const workerURL = await _bkFetchAsBlobURL(
+    `${CDN}/@ffmpeg/ffmpeg@${FFMPEG_VER}/dist/esm/worker.js`,
+    'text/javascript', 'worker', onProgress
   );
-  // ffmpeg-core single-thread (NO requiere SharedArrayBuffer)
-  const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
-  if(onProgress) onProgress('Descargando core FFmpeg (~30 MB)…');
-  const coreURL = await toBlobURL(baseURL + '/ffmpeg-core.js',  'text/javascript');
-  const wasmURL = await toBlobURL(baseURL + '/ffmpeg-core.wasm', 'application/wasm');
+  const coreURL = await _bkFetchAsBlobURL(
+    `${CDN}/@ffmpeg/core@${CORE_VER}/dist/umd/ffmpeg-core.js`,
+    'text/javascript', 'core.js', onProgress
+  );
+  const wasmURL = await _bkFetchAsBlobURL(
+    `${CDN}/@ffmpeg/core@${CORE_VER}/dist/umd/ffmpeg-core.wasm`,
+    'application/wasm', 'core.wasm', onProgress
+  );
   if(onProgress) onProgress('Inicializando FFmpeg…');
   await ffmpeg.load({ classWorkerURL: workerURL, coreURL, wasmURL });
   _bkFfmpegInstance = { ffmpeg, fetchFile };
