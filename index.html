@@ -5873,33 +5873,42 @@ async function ejecutarReplicacionGT(){
   }
   if(btn){ btn.disabled = true; btn.textContent = '⏳ Replicando…'; }
   try {
+    // Renombrar template al replicar con formato MMDDYYYY-handle
+    // (más fácil de rastrear cuándo se replicó cada landing)
+    const today = new Date();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    const yyyy = today.getFullYear();
+    const newSuffix = mm + dd + yyyy + '-' + p.handle;
+    const newAssetKey = 'templates/product.' + newSuffix + '.json';
+
     // 1. Clonar imágenes de CL → GT y obtener JSON con refs reescritas
     const setSt = (msg)=>{ if(status){ status.textContent = '1/3 · ' + msg; status.style.color = 'var(--muted)'; } };
     setSt('Detectando imágenes del template…');
     const jsonWithImages = await clonarImagenesDelTemplate(p.jsonText, setSt);
 
-    // 2. Subir el template (con refs ya reescritas) al theme MAIN de GT
-    if(status){ status.textContent = '2/3 · Subiendo plantilla al theme de GT…'; status.style.color = 'var(--muted)'; }
+    // 2. Subir el template renombrado al theme MAIN de GT
+    if(status){ status.textContent = '2/3 · Subiendo plantilla "' + newSuffix + '" al theme de GT…'; status.style.color = 'var(--muted)'; }
     const wResp = await fetch('/.netlify/functions/shopify-themes?_=1&tenant=gt', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ assetKey: p.assetKey, value: jsonWithImages }),
+      body: JSON.stringify({ assetKey: newAssetKey, value: jsonWithImages }),
     });
     const wData = await wResp.json();
     if(!wResp.ok) throw new Error('Subida template GT: ' + (wData.error || 'fallo'));
 
-    // 3. Asignar template_suffix al producto en GT
+    // 3. Asignar template_suffix renombrado al producto en GT
     if(status){ status.textContent = '3/3 · Asignando plantilla al producto en GT…'; status.style.color = 'var(--muted)'; }
     const uResp = await fetch('/.netlify/functions/shopify-products?_=1&tenant=gt', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: p.gtId, template_suffix: p.suffix }),
+      body: JSON.stringify({ id: p.gtId, template_suffix: newSuffix }),
     });
     const uData = await uResp.json();
     if(!uResp.ok) throw new Error('Asignar template GT: ' + (uData.error || 'fallo'));
 
     if(status){
-      status.innerHTML = '✅ Plantilla "<b>' + esc(p.suffix) + '</b>" + imágenes replicadas al producto de GT.';
+      status.innerHTML = '✅ Plantilla "<b>' + esc(newSuffix) + '</b>" + imágenes replicadas al producto de GT.';
       status.style.color = 'var(--accent)';
     }
     showToast('🔄 Landing + imágenes replicados a GT', '✨', 'success');
@@ -6809,24 +6818,35 @@ async function uploadToShopifyFiles(file, alt){
 //  1. shopify://shop_images/IMG.jpg → resolver vía GraphQL Files API (CL) → CDN URL → descarga
 //  2. https://cdn.shopify.com/.../files/IMG.jpg → URL ya CDN, descarga directa
 async function clonarImagenesDelTemplate(jsonText, setStatus){
+  // El JSON que devuelve Shopify viene con / escapados como \/ — al parsear
+  // y re-stringify los desescapamos para que el regex normal los pueda
+  // matchear. Después subimos el JSON re-serializado a GT (Shopify lo
+  // re-escapa automáticamente al guardar, no nos importa el formato local).
+  let parsed;
+  try { parsed = JSON.parse(jsonText); }
+  catch(e){ throw new Error('Template JSON inválido: ' + e.message); }
+  let workingText = JSON.stringify(parsed);
+
   // Extraer refs únicas
   const refs = []; // [{ kind:'shopify'|'cdn', original:'...', filename:'...' }]
   const seen = new Set();
-  const REF_SHOPIFY = /shopify:\/\/shop_images\/([^\s"'`)]+)/g;
-  const REF_CDN     = /https:\/\/cdn\.shopify\.com\/s\/files\/[^"'`\s)]+\/files\/([^"'`\s?#)]+)/g;
+  // \w + - + . cubre los caracteres comunes en filenames de Shopify Files
+  const REF_SHOPIFY = /shopify:\/\/shop_images\/([\w\-\.%]+)/g;
+  const REF_CDN     = /https:\/\/cdn\.shopify\.com\/s\/files\/[^"'\s]+\/files\/([\w\-\.%]+)/g;
   let m;
-  while ((m = REF_SHOPIFY.exec(jsonText)) !== null) {
+  while ((m = REF_SHOPIFY.exec(workingText)) !== null) {
     const original = m[0];
     if (seen.has(original)) continue;
     seen.add(original);
     refs.push({ kind: 'shopify', original, filename: decodeURIComponent(m[1]) });
   }
-  while ((m = REF_CDN.exec(jsonText)) !== null) {
-    const original = m[0].split('?')[0]; // sin query string para dedup
+  while ((m = REF_CDN.exec(workingText)) !== null) {
+    const original = m[0].split('?')[0];
     if (seen.has(original)) continue;
     seen.add(original);
     refs.push({ kind: 'cdn', original: m[0], filename: decodeURIComponent(m[1]) });
   }
+  console.log('[clonar-imagenes] refs detectadas:', refs);
 
   if (!refs.length) {
     if (setStatus) setStatus('No hay imágenes para clonar.');
@@ -6903,12 +6923,12 @@ async function clonarImagenesDelTemplate(jsonText, setStatus){
     }
   }
 
-  // Reemplazar en el JSON
+  // Reemplazar en el JSON (operamos sobre workingText, no jsonText, porque
+  // workingText tiene las / sin escapar, igual que las refs del map)
   if (setStatus) setStatus('Reescribiendo refs en el template…');
-  let newJson = jsonText;
+  let newJson = workingText;
   const okReplacements = Object.keys(replacements).length;
   for (const [orig, newRef] of Object.entries(replacements)) {
-    // Replace literal (no regex) para no romper por chars especiales en URLs
     newJson = newJson.split(orig).join(newRef);
   }
 
