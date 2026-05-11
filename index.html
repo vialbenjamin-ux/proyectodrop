@@ -2439,6 +2439,13 @@
             </div>
             <button id="inv-spy-btn" onclick="spyGenerarBusquedas()" style="background:var(--accent);color:#fff;border:none;border-radius:8px;padding:10px 18px;font-size:13px;font-family:'DM Mono',monospace;cursor:pointer;font-weight:700">🔍 Generar búsquedas</button>
           </div>
+          <details style="margin-bottom:10px">
+            <summary style="cursor:pointer;font-size:11px;color:var(--accent);font-family:'DM Mono',monospace;font-weight:700;padding:6px 0">➕ Pegar descripción / copy del producto (opcional, mejora la precisión)</summary>
+            <div style="margin-top:8px">
+              <textarea id="inv-spy-context" placeholder="Pegá acá el copy de la landing, descripción de AliExpress, bullets, beneficios, etc. Cuanto más contexto, más específicas las keywords. (No es obligatorio)" rows="6" style="width:100%;padding:10px;border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:8px;font-size:12px;font-family:'DM Mono',monospace;resize:vertical;box-sizing:border-box"></textarea>
+              <div style="font-size:10px;color:var(--muted2);font-family:'DM Mono',monospace;margin-top:4px">Tip: si pegás texto en otro idioma, Gemini igual te genera keywords ES+EN.</div>
+            </div>
+          </details>
           <div id="inv-spy-status" style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;margin-bottom:10px"></div>
           <div id="inv-spy-results"></div>
         </div>
@@ -10135,6 +10142,10 @@ function buildTikTokCreativeCenterUrl(keyword, country){
 async function spyGenerarBusquedas(){
   const producto = (document.getElementById('inv-spy-producto').value || '').trim();
   const country  = document.getElementById('inv-spy-country').value || 'CL';
+  const ctxEl    = document.getElementById('inv-spy-context');
+  const contextoRaw = ctxEl ? (ctxEl.value || '').trim() : '';
+  // Limitar a 4000 chars para no inflar el prompt
+  const contexto = contextoRaw.slice(0, 4000);
   const status   = document.getElementById('inv-spy-status');
   const results  = document.getElementById('inv-spy-results');
   const btn      = document.getElementById('inv-spy-btn');
@@ -10143,14 +10154,18 @@ async function spyGenerarBusquedas(){
     status.style.color = 'var(--danger,#E74C3C)';
     return;
   }
-  status.textContent = '⏳ Generando keywords con Gemini...';
+  status.textContent = contexto ? '⏳ Generando keywords con contexto extra...' : '⏳ Generando keywords con Gemini...';
   status.style.color = 'var(--muted)';
   results.innerHTML = '';
   if(btn){ btn.disabled = true; btn.textContent = '⏳ Generando...'; }
 
+  const contextoBlock = contexto
+    ? `\n\nCONTEXTO ADICIONAL DEL PRODUCTO (úsalo como fuente principal para identificar el producto EXACTO — nombre real, características, ángulos del copy, idioma original):\n"""\n${contexto}\n"""\n\nIMPORTANTE: Las keywords deben apuntar al producto EXACTO descrito en el contexto, NO a productos genéricos de la misma categoría. Si en el contexto aparecen palabras técnicas, marcas genéricas, o términos específicos en otro idioma, incluí 1-2 keywords literales de ahí.`
+    : '';
+
   const prompt = `Sos un experto en dropshipping y spy ads. Te paso un producto y necesito que generes EXACTAMENTE 6 keywords para buscar ads de ese producto en Meta Ad Library y TikTok.
 
-PRODUCTO: "${producto}"
+PRODUCTO: "${producto}"${contextoBlock}
 
 Generá:
 - 3 keywords en ESPAÑOL (variando ángulo: descriptivo, beneficio, problema-solución)
@@ -10158,9 +10173,9 @@ Generá:
 
 REGLAS:
 - 2 a 4 palabras cada keyword (NO frases largas)
-- Sin marcas comerciales, sin emojis, sin comillas
+- Sin marcas comerciales registradas, sin emojis, sin comillas
 - Usá términos que un advertiser real pondría en el copy del ad
-- Variá entre genérico ("cepillo mascota") y específico ("cepillo masaje perro")
+- ${contexto ? 'Priorizá especificidad sobre genérico: queremos encontrar ESE producto, no la categoría.' : 'Variá entre genérico ("cepillo mascota") y específico ("cepillo masaje perro")'}
 
 Devolveme SOLO JSON válido sin texto extra, en este formato:
 {
