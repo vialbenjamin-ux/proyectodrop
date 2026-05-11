@@ -6884,14 +6884,12 @@ async function clonarImagenesDelTemplate(jsonText, setStatus){
     if (setStatus) setStatus(label + ' · Resolviendo ' + r.filename + '…');
 
     try {
-      // 1. Obtener CDN URL de la imagen en CL
-      // Estrategia: primero URL canonical (siempre funciona si la imagen
-      // existe en Files), después GraphQL como fallback.
+      // 1. Obtener CDN URL de la imagen en CL (público, accesible vía HTTPS)
       let cdnUrl = null;
       if (r.kind === 'cdn') {
         cdnUrl = r.original;
       } else {
-        // Intento 1: URL canonical
+        // Intento 1: URL canonical (más rápido)
         const canonical = buildCanonicalCdn(r.filename);
         if (canonical) {
           try {
@@ -6906,65 +6904,45 @@ async function clonarImagenesDelTemplate(jsonText, setStatus){
           if (findResp.ok && findData.url) cdnUrl = findData.url;
         }
         if (!cdnUrl) {
-          console.warn('[clonar] No se pudo resolver:', r.filename);
+          console.warn('[clonar] ' + label + ' ✗ No se pudo resolver:', r.filename);
           continue;
         }
       }
 
-      // 2. Descargar la imagen del CDN
-      if (setStatus) setStatus(label + ' · Descargando ' + r.filename + '…');
-      console.log('[clonar] ' + label + ' descargando:', cdnUrl);
-      const imgResp = await fetch(cdnUrl);
-      if (!imgResp.ok) { console.warn('[clonar] ✗ Download fail', cdnUrl, imgResp.status); continue; }
-      const blob = await imgResp.blob();
-      const mime = blob.type || (r.filename.endsWith('.webp') ? 'image/webp' :
-                                  r.filename.endsWith('.png')  ? 'image/png'  :
-                                  r.filename.endsWith('.gif')  ? 'image/gif'  : 'image/jpeg');
-      console.log('[clonar] ' + label + ' descargado:', r.filename, '·', (blob.size/1024).toFixed(1) + ' KB', '·', mime);
-
-      // 3. Convertir a base64
-      const base64 = await new Promise((resolve, reject) => {
-        const fr = new FileReader();
-        fr.onload = () => resolve(String(fr.result).split(',')[1] || '');
-        fr.onerror = reject;
-        fr.readAsDataURL(blob);
-      });
-
-      // 4. Subir a GT vía Files library
-      if (setStatus) setStatus(label + ' · Subiendo ' + r.filename + ' a GT…');
-      const upResp = await fetch('/.netlify/functions/shopify-themes?_=1&tenant=gt', {
+      // 2. Pasarle a Shopify GT la URL CDN de CL — Shopify descarga el archivo
+      // desde sus propios servers (server-to-server, sin pasar por Netlify).
+      // Esto evita el límite de 6 MB de body de Netlify Functions, que rompía
+      // los .webp pesados con base64.
+      if (setStatus) setStatus(label + ' · Clonando ' + r.filename + ' a GT (server-to-server)…');
+      console.log('[clonar] ' + label + ' clone-from-url:', cdnUrl);
+      const cloneResp = await fetch('/.netlify/functions/shopify-themes?_=1&tenant=gt', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          op: 'upload-file',
+          op: 'clone-from-url',
+          sourceUrl: cdnUrl,
           filename: r.filename,
-          mimeType: mime,
-          attachment: base64,
           alt: r.filename,
         }),
       });
-      const upData = await upResp.json();
-      console.log('[clonar] ' + label + ' upload response:', upResp.status, upData);
-      if (!upResp.ok || !upData.shopifyRef) {
-        console.warn('[clonar] ✗ Upload to GT fail', r.filename, upData);
+      const cloneData = await cloneResp.json();
+      console.log('[clonar] ' + label + ' response:', cloneResp.status, cloneData);
+      if (!cloneResp.ok || !cloneData.shopifyRef) {
+        console.warn('[clonar] ' + label + ' ✗ Clone to GT fail', r.filename, cloneData);
         continue;
       }
 
-      // Mapping: la ref original → la ref nueva. OJO: si Shopify GT asignó
-      // un filename distinto al original (ej: agregó "_2" por colisión),
-      // upData.filename va a ser distinto a r.filename, y el shopifyRef
-      // resultante también — eso ES bueno, queremos apuntar al nuevo archivo.
       const newRef = (r.kind === 'shopify')
-        ? upData.shopifyRef
-        : (upData.cdnUrl || upData.shopifyRef);
+        ? cloneData.shopifyRef
+        : (cloneData.cdnUrl || cloneData.shopifyRef);
       if (newRef !== r.original) {
         replacements[r.original] = newRef;
         console.log('[clonar] ' + label + ' ✓ replacement:', r.original, '→', newRef);
       } else {
-        console.log('[clonar] ' + label + ' ✓ subido (mismo nombre, no requiere replace):', r.original);
+        console.log('[clonar] ' + label + ' ✓ clonado (mismo nombre):', r.original);
       }
     } catch (err) {
-      console.warn('[clonar] ✗ Error clonando ' + r.filename + ':', err);
+      console.warn('[clonar] ' + label + ' ✗ Error:', err);
     }
   }
 

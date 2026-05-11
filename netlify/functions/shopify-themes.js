@@ -73,6 +73,15 @@ exports.handler = async function (event) {
         }
         return await uploadFile(domain, headers, body);
       }
+      if (body.op === 'clone-from-url') {
+        // Le pasamos a Shopify la URL externa de un archivo (ej: CDN de otra
+        // tienda) y Shopify lo descarga + agrega a Files library. El archivo
+        // nunca pasa por Netlify Function, evitando el límite de 6 MB de body.
+        if (!body.sourceUrl || !body.filename) {
+          return respond(400, { error: 'Falta sourceUrl o filename' });
+        }
+        return await cloneFileFromUrl(domain, headers, body);
+      }
       return respond(400, { error: 'op POST no válido' });
     }
 
@@ -239,6 +248,82 @@ async function findFileByName(domain, headers, filename) {
   }
   if (!foundFile) return respond(404, { error: 'Archivo no encontrado: ' + q });
   return respond(200, { file: foundFile, url: foundUrl, filename: q });
+}
+
+// Clona un archivo a Shopify Files usando una URL externa como source.
+// fileCreate de la API GraphQL acepta originalSource como URL HTTPS y
+// Shopify descarga el archivo asincrónicamente desde ahí, sin que pase
+// por nuestro server. Usado para clonar entre tiendas (CDN CL → Files GT)
+// evitando el límite de 6 MB de payload de Netlify Functions.
+async function cloneFileFromUrl(domain, headers, body) {
+  const gqlUrl = `https://${domain}/admin/api/2024-10/graphql.json`;
+  const filename = body.filename;
+  const sourceUrl = body.sourceUrl;
+  const alt = body.alt || filename;
+
+  // Detectar contentType: IMAGE para img/, FILE para resto
+  const ext = (filename.split('.').pop() || '').toLowerCase();
+  const isImage = ['jpg','jpeg','png','gif','webp','svg','bmp','heic','heif'].includes(ext);
+  const contentType = isImage ? 'IMAGE' : 'FILE';
+
+  const createQuery = `
+    mutation fileCreate($files: [FileCreateInput!]!) {
+      fileCreate(files: $files) {
+        files {
+          ... on MediaImage {
+            id alt fileStatus createdAt
+            image { url width height altText }
+          }
+          ... on GenericFile { id fileStatus url }
+        }
+        userErrors { field message }
+      }
+    }
+  `;
+  const createResp = await fetch(gqlUrl, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      query: createQuery,
+      variables: {
+        files: [{ alt, contentType, originalSource: sourceUrl, filename }],
+      },
+    }),
+  });
+  if (!createResp.ok) {
+    const txt = await createResp.text();
+    return respond(createResp.status, { error: 'GraphQL clone ' + createResp.status + ': ' + txt.slice(0, 300) });
+  }
+  const createData = await createResp.json();
+  if (createData.errors) {
+    return respond(500, { error: 'GraphQL errors: ' + JSON.stringify(createData.errors).slice(0, 300) });
+  }
+  const fc = createData.data && createData.data.fileCreate;
+  if (fc && fc.userErrors && fc.userErrors.length) {
+    return respond(500, { error: 'userErrors: ' + JSON.stringify(fc.userErrors).slice(0, 300) });
+  }
+  const file = fc && fc.files && fc.files[0];
+  if (!file) return respond(500, { error: 'fileCreate no devolvió archivo' });
+
+  // El archivo se está procesando asincrónicamente. La URL puede no estar
+  // todavía disponible. Si fileStatus es UPLOADED/READY, devolvemos url; sino,
+  // construimos shopifyRef usando el filename solicitado (Shopify normalmente
+  // lo preserva o le agrega un sufijo numérico si hay colisión).
+  const cdnUrl = file.image && file.image.url;
+  let derivedFilename = filename;
+  if (cdnUrl) {
+    const m = cdnUrl.match(/\/files\/([^?]+)/);
+    if (m) derivedFilename = decodeURIComponent(m[1]);
+  }
+  const shopifyRef = 'shopify://shop_images/' + derivedFilename;
+
+  return respond(200, {
+    file,
+    filename: derivedFilename,
+    cdnUrl: cdnUrl || null,
+    shopifyRef,
+    fileStatus: file.fileStatus,
+  });
 }
 
 // Upload a file al Files library global de Shopify. Flujo GraphQL en 3 pasos:
