@@ -45,6 +45,10 @@ export default async (request) => {
   const parts = [];
   if (body.fileUri && body.mimeType) {
     parts.push({ fileData: { mimeType: body.mimeType, fileUri: body.fileUri } });
+  } else if (body.inlineData && body.inlineData.data && body.inlineData.mimeType) {
+    // Imagen embebida en base64 (Gemini Vision). Para imágenes chicas (<20 MB)
+    // es más simple que subir al File API. Útil para foto del producto.
+    parts.push({ inlineData: { mimeType: body.inlineData.mimeType, data: body.inlineData.data } });
   }
   parts.push({ text: prompt });
 

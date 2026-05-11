@@ -2446,6 +2446,21 @@
               <div style="font-size:10px;color:var(--muted2);font-family:'DM Mono',monospace;margin-top:4px">Tip: si pegás texto en otro idioma, Gemini igual te genera keywords ES+EN.</div>
             </div>
           </details>
+          <details style="margin-bottom:10px" id="inv-spy-img-details">
+            <summary style="cursor:pointer;font-size:11px;color:var(--accent);font-family:'DM Mono',monospace;font-weight:700;padding:6px 0">📸 Subir foto del producto (Gemini Vision identifica el producto exacto)</summary>
+            <div style="margin-top:8px">
+              <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+                <label for="inv-spy-img" style="background:var(--surface2);border:1px dashed var(--border);color:var(--text);border-radius:8px;padding:10px 14px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer">📂 Elegir imagen…</label>
+                <input id="inv-spy-img" type="file" accept="image/*" style="display:none" onchange="spyOnImgSelected(event)">
+                <button id="inv-spy-img-clear" onclick="spyClearImg()" style="display:none;background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:6px;padding:6px 10px;font-size:10px;font-family:'DM Mono',monospace;cursor:pointer">✕ Quitar</button>
+                <span id="inv-spy-img-info" style="font-size:10px;color:var(--muted2);font-family:'DM Mono',monospace"></span>
+              </div>
+              <div id="inv-spy-img-preview" style="margin-top:10px;display:none">
+                <img id="inv-spy-img-thumb" src="" style="max-width:160px;max-height:160px;border-radius:8px;border:1px solid var(--border);object-fit:contain;background:var(--surface)">
+              </div>
+              <div style="font-size:10px;color:var(--muted2);font-family:'DM Mono',monospace;margin-top:6px;line-height:1.4">Foto del producto, screenshot del ad, captura de AliExpress, lo que sea. Gemini Vision identifica modelo/marca/términos técnicos visibles y genera keywords mucho más certeras.</div>
+            </div>
+          </details>
           <div id="inv-spy-status" style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;margin-bottom:10px"></div>
           <div id="inv-spy-results"></div>
         </div>
@@ -10154,6 +10169,7 @@ async function spyGenerarBusquedas(){
   const contextoRaw = ctxEl ? (ctxEl.value || '').trim() : '';
   // Limitar a 4000 chars para no inflar el prompt
   const contexto = contextoRaw.slice(0, 4000);
+  const imgData  = window._spyImgData || null; // { mimeType, data (base64) }
   const status   = document.getElementById('inv-spy-status');
   const results  = document.getElementById('inv-spy-results');
   const btn      = document.getElementById('inv-spy-btn');
@@ -10162,7 +10178,11 @@ async function spyGenerarBusquedas(){
     status.style.color = 'var(--danger,#E74C3C)';
     return;
   }
-  status.textContent = contexto ? '⏳ Generando keywords con contexto extra...' : '⏳ Generando keywords con Gemini...';
+  let statusMsg = '⏳ Generando keywords con Gemini...';
+  if(imgData && contexto) statusMsg = '⏳ Analizando foto + contexto...';
+  else if(imgData)        statusMsg = '⏳ Analizando foto del producto...';
+  else if(contexto)       statusMsg = '⏳ Generando keywords con contexto extra...';
+  status.textContent = statusMsg;
   status.style.color = 'var(--muted)';
   results.innerHTML = '';
   if(btn){ btn.disabled = true; btn.textContent = '⏳ Generando...'; }
@@ -10171,9 +10191,13 @@ async function spyGenerarBusquedas(){
     ? `\n\nCONTEXTO ADICIONAL DEL PRODUCTO (úsalo como fuente principal para identificar el producto EXACTO — nombre real, características, ángulos del copy, idioma original):\n"""\n${contexto}\n"""\n\nIMPORTANTE: Las keywords deben apuntar al producto EXACTO descrito en el contexto, NO a productos genéricos de la misma categoría. Si en el contexto aparecen palabras técnicas, marcas genéricas, o términos específicos en otro idioma, incluí 1-2 keywords literales de ahí.`
     : '';
 
+  const imgBlock = imgData
+    ? `\n\nFOTO DEL PRODUCTO: te paso una imagen. Analizala con atención y identificá:\n- Qué producto es exactamente (modelo, tipo, forma)\n- Marca/logo genérico si está visible (no marcas registradas grandes)\n- Términos técnicos visibles en el packaging o etiquetas\n- Categoría de uso\n\nLas keywords que generes deben describir LO QUE VES EN LA IMAGEN, no genéricos de la categoría.`
+    : '';
+
   const prompt = `Sos un experto en dropshipping y spy ads. Te paso un producto y necesito que generes EXACTAMENTE 6 keywords para buscar ads de ese producto en Meta Ad Library y TikTok.
 
-PRODUCTO: "${producto}"${contextoBlock}
+PRODUCTO (descripción del usuario): "${producto}"${contextoBlock}${imgBlock}
 
 Generá:
 - 3 keywords en ESPAÑOL (variando ángulo: descriptivo, beneficio, problema-solución)
@@ -10183,7 +10207,7 @@ REGLAS:
 - 2 a 4 palabras cada keyword (NO frases largas)
 - Sin marcas comerciales registradas, sin emojis, sin comillas
 - Usá términos que un advertiser real pondría en el copy del ad
-- ${contexto ? 'Priorizá especificidad sobre genérico: queremos encontrar ESE producto, no la categoría.' : 'Variá entre genérico ("cepillo mascota") y específico ("cepillo masaje perro")'}
+- ${(contexto || imgData) ? 'Priorizá especificidad sobre genérico: queremos encontrar ESE producto, no la categoría.' : 'Variá entre genérico ("cepillo mascota") y específico ("cepillo masaje perro")'}
 
 Devolveme SOLO JSON válido sin texto extra, en este formato:
 {
@@ -10192,7 +10216,10 @@ Devolveme SOLO JSON válido sin texto extra, en este formato:
 }`;
 
   try {
-    const raw = await callGeminiProxy(prompt);
+    // Si hay imagen, usar el stream con inlineData; sino, llamada normal
+    const raw = imgData
+      ? await callGeminiProxyStream({ prompt, inlineData: imgData })
+      : await callGeminiProxy(prompt);
     // Extraer JSON del response (Gemini a veces lo envuelve en ```json ... ```)
     let jsonText = raw.trim();
     const fence = jsonText.match(/```(?:json)?\s*([\s\S]*?)```/);
@@ -10275,6 +10302,73 @@ function spyCopyKw(btn, kw){
       setTimeout(()=>{ btn.textContent = old; }, 1200);
     }).catch(()=>{});
   }
+}
+
+// Procesa la imagen seleccionada: la redimensiona a max 1024px (para no
+// mandar 5 MB a Gemini), la convierte a base64 y la guarda en
+// window._spyImgData. La miniatura se muestra en el preview.
+function spyOnImgSelected(ev){
+  const f = ev.target.files && ev.target.files[0];
+  if(!f) return;
+  const info = document.getElementById('inv-spy-img-info');
+  if(!f.type.startsWith('image/')){
+    info.textContent = '⚠ El archivo no es una imagen';
+    info.style.color = 'var(--danger,#E74C3C)';
+    return;
+  }
+  info.textContent = '⏳ Procesando imagen...';
+  info.style.color = 'var(--muted)';
+  const reader = new FileReader();
+  reader.onload = (e)=>{
+    const dataUrl = e.target.result;
+    const img = new Image();
+    img.onload = ()=>{
+      // Redimensionar a max 1024px en el lado más largo
+      const MAX = 1024;
+      let w = img.naturalWidth, h = img.naturalHeight;
+      const scale = Math.min(1, MAX / Math.max(w, h));
+      w = Math.round(w * scale);
+      h = Math.round(h * scale);
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      // JPEG 0.85 calidad — buen balance tamaño/calidad para Vision
+      const jpegDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+      const b64 = jpegDataUrl.split(',')[1];
+      window._spyImgData = { mimeType: 'image/jpeg', data: b64 };
+      // Preview
+      const preview = document.getElementById('inv-spy-img-preview');
+      const thumb   = document.getElementById('inv-spy-img-thumb');
+      thumb.src = jpegDataUrl;
+      preview.style.display = 'block';
+      document.getElementById('inv-spy-img-clear').style.display = 'inline-block';
+      const kb = Math.round(b64.length * 0.75 / 1024);
+      info.textContent = '✓ ' + w + 'x' + h + ' · ' + kb + ' KB';
+      info.style.color = 'var(--accent)';
+    };
+    img.onerror = ()=>{
+      info.textContent = '⚠ No se pudo procesar la imagen';
+      info.style.color = 'var(--danger,#E74C3C)';
+    };
+    img.src = dataUrl;
+  };
+  reader.onerror = ()=>{
+    info.textContent = '⚠ Error leyendo el archivo';
+    info.style.color = 'var(--danger,#E74C3C)';
+  };
+  reader.readAsDataURL(f);
+}
+
+function spyClearImg(){
+  window._spyImgData = null;
+  const input  = document.getElementById('inv-spy-img');
+  const preview= document.getElementById('inv-spy-img-preview');
+  const info   = document.getElementById('inv-spy-img-info');
+  const clear  = document.getElementById('inv-spy-img-clear');
+  if(input) input.value = '';
+  if(preview) preview.style.display = 'none';
+  if(info){ info.textContent = ''; info.style.color = ''; }
+  if(clear) clear.style.display = 'none';
 }
 
 // TikTok Creative Center no acepta keyword vía URL — copiamos al portapapeles
