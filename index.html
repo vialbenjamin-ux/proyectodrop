@@ -1423,6 +1423,7 @@
             <button class="bk-step-btn" id="bk-btn-precios-releasit" onclick="abrirPreciosReleasit()" style="background:#D9A82E;color:#fff">💰 Precios + Releasit</button>
             <button class="bk-step-btn" id="bk-btn-shopify-push" onclick="abrirShopifyPush()" style="background:#10a37f;color:#fff">📤 Pegar en producto</button>
             <button class="bk-step-btn" id="bk-btn-shrine-paste" onclick="abrirShrinePaste()" style="background:#7B5BB5;color:#fff">📋 Copy-paste manual</button>
+            <button class="bk-step-btn" id="bk-btn-mis-landings" onclick="abrirMisLandings()" style="background:#5B7CBF;color:#fff">📚 Mis landings</button>
             <button class="bk-step-btn" id="bk-btn-template-inspect" onclick="inspeccionarTemplate()" style="background:#E89A4A;color:#fff">🔍 Inspector</button>
           </div>
           <div id="bk-extract-result" class="bk-step-hint"></div>
@@ -1465,6 +1466,15 @@
             </div>
 
             <div class="bk-shopify-status" id="bk-auto-shrine-status"></div>
+          </div>
+
+          <div class="bk-shopify-push" id="bk-mis-landings" style="display:none;border-color:#5B7CBF">
+            <div class="bk-shopify-push-title" style="color:#5B7CBF">📚 Historial de landings generadas</div>
+            <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;line-height:1.5">
+              Auto-guardado en Firestore después de cada master. Click descargar para tener el archivo Word de respaldo.
+            </div>
+            <div id="bk-mis-landings-list" style="display:flex;flex-direction:column;gap:8px;max-height:500px;overflow-y:auto"></div>
+            <div class="bk-shopify-status" id="bk-mis-landings-status"></div>
           </div>
 
           <div class="bk-shopify-push" id="bk-precios-releasit" style="display:none;border-color:#D9A82E">
@@ -5812,6 +5822,174 @@ async function copyTemplateJson(){
   }
 }
 
+// ── Mis Landings: auto-guardado en Firestore + descarga .doc ───────────
+let _currentLandingId = null;
+
+async function saveLandingInitial({ producto, angulo, masterText }){
+  try {
+    if (typeof firebase === 'undefined' || !firebase.firestore) return null;
+    const db = firebase.firestore();
+    const docRef = await db.collection('bkdrop_landings').add({
+      product_link: producto || '',
+      angulo_data: angulo || null,
+      master_response: masterText || '',
+      imagenes_response: '',
+      copys_response: '',
+      created_at: firebase.firestore.FieldValue.serverTimestamp(),
+      updated_at: firebase.firestore.FieldValue.serverTimestamp(),
+    });
+    _currentLandingId = docRef.id;
+    return docRef.id;
+  } catch (e) {
+    console.warn('saveLandingInitial:', e);
+    return null;
+  }
+}
+
+async function updateLandingField(field, value){
+  if (!_currentLandingId) return;
+  try {
+    const db = firebase.firestore();
+    const updates = { updated_at: firebase.firestore.FieldValue.serverTimestamp() };
+    updates[field] = value;
+    await db.collection('bkdrop_landings').doc(_currentLandingId).update(updates);
+  } catch (e) {
+    console.warn('updateLandingField:', e);
+  }
+}
+
+async function listLandings(limit){
+  try {
+    const db = firebase.firestore();
+    const snap = await db.collection('bkdrop_landings')
+      .orderBy('created_at', 'desc')
+      .limit(limit || 50)
+      .get();
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  } catch (e) {
+    console.warn('listLandings:', e);
+    return [];
+  }
+}
+
+async function deleteLanding(id){
+  try {
+    if (!confirm('¿Eliminar este landing? Esta acción no se puede deshacer.')) return false;
+    const db = firebase.firestore();
+    await db.collection('bkdrop_landings').doc(id).delete();
+    return true;
+  } catch (e) {
+    showToast('Error al eliminar: ' + (e.message || '?'), '⚠️', 'error');
+    return false;
+  }
+}
+
+async function abrirMisLandings(){
+  const panel = document.getElementById('bk-mis-landings');
+  if (!panel) return;
+  const isVisible = (panel.style.display !== 'none');
+  panel.style.display = isVisible ? 'none' : 'flex';
+  if (!isVisible) {
+    await refrescarMisLandings();
+    panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+}
+
+async function refrescarMisLandings(){
+  const listEl = document.getElementById('bk-mis-landings-list');
+  const status = document.getElementById('bk-mis-landings-status');
+  if (!listEl) return;
+  listEl.innerHTML = '<div style="font-size:11px;color:var(--muted);padding:8px;text-align:center">Cargando…</div>';
+  if (status) status.textContent = '';
+  const landings = await listLandings(50);
+  if (!landings.length) {
+    listEl.innerHTML = '<div style="font-size:11px;color:var(--muted);padding:14px;text-align:center">No hay landings guardadas todavía. Genera un master con un ángulo y aparecerá acá.</div>';
+    return;
+  }
+  if (status) status.textContent = '✓ ' + landings.length + ' landing(s) en historial';
+  listEl.innerHTML = landings.map(l => {
+    const fecha = l.created_at && l.created_at.toDate
+      ? l.created_at.toDate().toLocaleString('es-CL', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' })
+      : '?';
+    const angulo = (l.angulo_data && (l.angulo_data.nicho || l.angulo_data.angulo)) || 'sin ángulo';
+    const linkShort = (l.product_link || '').slice(0, 80);
+    const hasImg = l.imagenes_response ? '✓ img' : '';
+    const hasCopy = l.copys_response ? '✓ copys' : '';
+    return '<div style="display:flex;gap:8px;align-items:center;padding:10px;background:var(--surface2);border:1.5px solid var(--border);border-radius:10px">' +
+      '<div style="flex:1;min-width:0">' +
+        '<div style="font-size:12px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">🎯 ' + esc(angulo) + '</div>' +
+        '<div style="font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(linkShort) + '</div>' +
+        '<div style="font-size:9px;color:var(--muted2);font-family:\'DM Mono\',monospace;margin-top:2px">' + esc(fecha) + ' · master ✓ ' + hasImg + ' ' + hasCopy + '</div>' +
+      '</div>' +
+      '<button class="bk-resp-action-btn" onclick="verLandingCompleto(\'' + l.id + '\')" title="Ver contenido">👁</button>' +
+      '<button class="bk-resp-action-btn" onclick="descargarLandingDoc(\'' + l.id + '\')" title="Descargar como Word" style="color:#5B7CBF">📥</button>' +
+      '<button class="bk-resp-action-btn" onclick="eliminarLandingUI(\'' + l.id + '\')" title="Eliminar" style="color:#C0392B">🗑</button>' +
+    '</div>';
+  }).join('');
+}
+
+async function verLandingCompleto(id){
+  const landings = await listLandings(50);
+  const l = landings.find(x => x.id === id);
+  if (!l) return;
+  const ta = document.getElementById('bkv-respuesta');
+  if (ta) {
+    ta.value = l.master_response || '';
+    ta.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    showToast('Landing cargado en el textarea. Podés editar y re-procesar.', '👁', 'info');
+  }
+}
+
+async function descargarLandingDoc(id){
+  const landings = await listLandings(50);
+  const l = landings.find(x => x.id === id);
+  if (!l) { showToast('No se encontró el landing', '⚠️', 'warn'); return; }
+
+  const fecha = l.created_at && l.created_at.toDate ? l.created_at.toDate() : new Date();
+  const angulo = (l.angulo_data && (l.angulo_data.nicho || l.angulo_data.angulo)) || 'sin-angulo';
+
+  const html = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">' +
+    '<head><meta charset="utf-8"><title>Landing — ' + esc(angulo) + '</title>' +
+    '<style>body{font-family:Calibri,Arial,sans-serif;max-width:900px;margin:30px auto;padding:20px;color:#1a1a1a;line-height:1.5}' +
+    'h1{color:#2C3E50;border-bottom:3px solid #5B7CBF;padding-bottom:8px}' +
+    'h2{color:#5B7CBF;margin-top:30px;border-bottom:1px solid #DDD;padding-bottom:4px}' +
+    'pre{background:#F5F5F5;padding:14px;border-radius:6px;white-space:pre-wrap;word-wrap:break-word;font-family:Consolas,Monaco,monospace;font-size:11pt;line-height:1.6}' +
+    '.meta{background:#EFF3F8;padding:10px 14px;border-radius:6px;font-size:10pt;color:#555}' +
+    '</style></head><body>' +
+    '<h1>Landing · ' + esc(angulo) + '</h1>' +
+    '<div class="meta">' +
+      '<div><b>Producto:</b> ' + esc(l.product_link || '') + '</div>' +
+      '<div><b>Fecha:</b> ' + esc(fecha.toLocaleString('es-CL')) + '</div>' +
+      (l.angulo_data && l.angulo_data.problema ? '<div><b>Problema (hook):</b> ' + esc(l.angulo_data.problema) + '</div>' : '') +
+      (l.angulo_data && l.angulo_data.angulo ? '<div><b>Ángulo:</b> ' + esc(l.angulo_data.angulo) + '</div>' : '') +
+    '</div>' +
+    '<h2>🟦 Master Prompt — output completo</h2>' +
+    '<pre>' + esc(l.master_response || '(vacío)') + '</pre>' +
+    (l.imagenes_response ? '<h2>🖼️ Prompt de Imágenes</h2><pre>' + esc(l.imagenes_response) + '</pre>' : '') +
+    (l.copys_response ? '<h2>📝 Copys</h2><pre>' + esc(l.copys_response) + '</pre>' : '') +
+    '</body></html>';
+
+  const blob = new Blob(['﻿', html], { type: 'application/msword' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const slug = String(angulo).substring(0, 40).replace(/[^\w\s-]/g, '').replace(/\s+/g, '-').toLowerCase();
+  const fechaStr = fecha.toISOString().slice(0,10);
+  a.download = 'landing-' + slug + '-' + fechaStr + '.doc';
+  a.href = url;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+  showToast('Word descargado', '📥', 'success');
+}
+
+async function eliminarLandingUI(id){
+  const ok = await deleteLanding(id);
+  if (ok) {
+    showToast('Landing eliminado', '🗑', 'success');
+    refrescarMisLandings();
+  }
+}
+
 // ── Precios + Releasit: push price/compare_at_price + copy texts ──────
 let _preciosSelectedProduct = null;
 
@@ -6389,6 +6567,10 @@ async function ejecutarBkPromptApi(key, prompt){
     // con la imagen del producto. El usuario edita y manda manual.
     if(key === 'imagenes' && text){
       showImgToGptPanel(text);
+    }
+    // Auto-guardar al landing record el output recibido (si existe el record)
+    if(text && (key === 'imagenes' || key === 'copys')){
+      updateLandingField(key === 'imagenes' ? 'imagenes_response' : 'copys_response', text);
     }
   } catch(err){
     const rlSecs = parseRateLimitSeconds(err.message);
@@ -8649,6 +8831,13 @@ async function seleccionarAngulo(idx){
     try {
       const text = await callGeminiProxy(focusedPrompt);
       if(respEl){ respEl.value = text; respEl.scrollIntoView({behavior:'smooth', block:'center'}); }
+
+      // Auto-guardar landing en Firestore para tener historial completo
+      saveLandingInitial({
+        producto: v.producto,
+        angulo: a,
+        masterText: text,
+      });
 
       // Re-extraer solo beneficio (ángulo y problema ya están bien)
       extraerSoloBeneficio(text);
