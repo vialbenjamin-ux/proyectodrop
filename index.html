@@ -11490,17 +11490,79 @@ function pipelineUserRole(){
 }
 
 let _pipelineCache = [];
+let _pipelineAssignments = [];
 let _pipelineActiveTab = 'all';
 let _pipelineProducts = [];
+let _pipelineCurrentAssignment = null; // para form de subida con contexto
+
+const ASSIGNMENT_STATES = {
+  pending_edit: { label: '🕐 Por editar',  color: '#D9A82E' },
+  in_edit:      { label: '✂️ Editando',    color: '#5B7CBF' },
+  completed:    { label: '✅ Completada',   color: '#3F7F5C' },
+};
 
 async function pipelineLoadAll(){
   try {
     if (typeof firebase === 'undefined' || !firebase.firestore) return [];
     const db = firebase.firestore();
-    const snap = await db.collection('bkdrop_videos').orderBy('created_at', 'desc').limit(200).get();
-    _pipelineCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const [vidsSnap, assignSnap] = await Promise.all([
+      db.collection('bkdrop_videos').orderBy('created_at', 'desc').limit(300).get(),
+      db.collection('bkdrop_assignments').orderBy('created_at', 'desc').limit(200).get(),
+    ]);
+    _pipelineCache = vidsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    _pipelineAssignments = assignSnap.docs.map(d => ({ id: d.id, ...d.data() }));
     return _pipelineCache;
   } catch (e) { console.warn('pipelineLoadAll:', e); return []; }
+}
+
+// CRUD asignaciones (carpeta con 3 raws asignada a un colab para edición)
+async function pipelineCreateAssignment(data){
+  try {
+    const db = firebase.firestore();
+    await db.collection('bkdrop_assignments').add({
+      product_id: data.product_id || '',
+      product_name: data.product_name || '',
+      raw_folder_link: data.raw_folder_link || '',
+      assigned_to: data.assigned_to || '',
+      notes: data.notes || '',
+      state: 'pending_edit',
+      created_by: window._currentUser || 'unknown',
+      created_at: firebase.firestore.FieldValue.serverTimestamp(),
+      updated_at: firebase.firestore.FieldValue.serverTimestamp(),
+    });
+    return true;
+  } catch (e) {
+    showToast('Error creando asignación: ' + (e.message || '?'), '⚠️', 'error');
+    return false;
+  }
+}
+
+async function pipelineUpdateAssignmentState(id, state){
+  try {
+    const db = firebase.firestore();
+    await db.collection('bkdrop_assignments').doc(id).update({
+      state,
+      updated_at: firebase.firestore.FieldValue.serverTimestamp(),
+    });
+    return true;
+  } catch (e) { console.warn('updateAssignmentState:', e); return false; }
+}
+
+async function pipelineDeleteAssignment(id){
+  if (!confirm('¿Eliminar esta asignación? Los videos editados ya subidos no se borran.')) return false;
+  try {
+    const db = firebase.firestore();
+    await db.collection('bkdrop_assignments').doc(id).delete();
+    return true;
+  } catch (e) {
+    showToast('Error: ' + (e.message || '?'), '⚠️', 'error');
+    return false;
+  }
+}
+
+// Cuenta cuántos videos editados se subieron para una asignación dada
+function pipelineAssignmentProgress(assignmentId){
+  return _pipelineCache.filter(v => v.assignment_id === assignmentId).length;
 }
 
 async function pipelineAddVideo(data){
@@ -11511,6 +11573,7 @@ async function pipelineAddVideo(data){
       product_name: data.product_name || '',
       tier: data.tier || 'base',
       parent_video_id: data.parent_video_id || null,
+      assignment_id: data.assignment_id || null,
       created_by: window._currentUser || 'unknown',
       drive_link: data.drive_link || '',
       tag: data.tag || 'otro',
@@ -11523,6 +11586,15 @@ async function pipelineAddVideo(data){
       updated_at: firebase.firestore.FieldValue.serverTimestamp(),
     };
     await db.collection('bkdrop_videos').add(doc);
+    // Si está asociado a una asignación, actualizar su estado:
+    // - 1° subido → in_edit
+    // - 3° subido → completed
+    if (data.assignment_id) {
+      const progressBefore = pipelineAssignmentProgress(data.assignment_id);
+      const progressAfter = progressBefore + 1;
+      const newState = progressAfter >= 3 ? 'completed' : 'in_edit';
+      await pipelineUpdateAssignmentState(data.assignment_id, newState);
+    }
     return true;
   } catch (e) {
     showToast('Error al subir: ' + (e.message || '?'), '⚠️', 'error');
@@ -11602,7 +11674,11 @@ async function renderPipeline(){
   // Todos los roles ven la pipeline COMPLETA (cola, winners, patrones, etc).
   // Lo que cambia es qué ACCIONES puede hacer cada uno sobre cada video.
   const totalMine = _pipelineCache.filter(v => v.created_by === window._currentUser).length;
+  const pendingMine = _pipelineAssignments.filter(a =>
+    (a.assigned_to === window._currentUser || role === 'supervisor') && a.state !== 'completed'
+  ).length;
   const tabs = [
+    { id: 'assignments', label: '📦 Asignaciones (' + pendingMine + ')' },
     { id: 'queue',     label: '⏳ Cola de revisión (' + _pipelineCache.filter(v => v.state === 'pending_review').length + ')' },
     { id: 'approved',  label: '✅ Aprobados / En test (' + _pipelineCache.filter(v => v.state === 'approved' || v.state === 'in_test').length + ')' },
     { id: 'winners',   label: '🏆 Winners (' + _pipelineCache.filter(v => v.state === 'winner').length + ')' },
@@ -11610,11 +11686,6 @@ async function renderPipeline(){
     { id: 'changes',   label: '⚠️ Pidieron cambios (' + _pipelineCache.filter(v => v.state === 'needs_changes').length + ')' },
     { id: 'colab1_mine', label: '🎬 Mis videos (' + totalMine + ')' },
   ];
-  // Botón ➕ subir nuevo: visible para colab1 y colab3 (productores), supervisor también lo ve por si quiere subir directo
-  if (role === 'colab1' || role === 'supervisor') {
-    tabs.push({ id: 'colab1_upload', label: '➕ Subir video base' });
-  }
-  // Botón crear variación: solo colab2 lo ve. Pero los winners igual los ve todo el mundo en su tab.
   if (role === 'colab2' || role === 'supervisor') {
     tabs.push({ id: 'colab2_mine', label: '🚀 Mis variaciones (' + _pipelineCache.filter(v => v.created_by === window._currentUser && v.tier === 'variation').length + ')' });
   }
@@ -11653,6 +11724,10 @@ function renderPipelineTab(tab, role){
 
   if (tab === 'colab1_upload') {
     content.innerHTML = pipelineRenderUploadForm('base');
+    return;
+  }
+  if (tab === 'assignments') {
+    content.innerHTML = pipelineRenderAssignmentsTab(role);
     return;
   }
   if (tab === 'dashboard') {
@@ -11799,27 +11874,37 @@ async function pipelineResubmit(id){
 let _pipelineUploadTier = 'base';
 let _pipelineUploadParent = null;
 
-function pipelineRenderUploadForm(tier, parentVideoId){
+function pipelineRenderUploadForm(tier, parentVideoId, assignment){
   _pipelineUploadTier = tier;
   _pipelineUploadParent = parentVideoId || null;
+  _pipelineCurrentAssignment = assignment || null;
+
   const productOptions = _pipelineProducts.map(p =>
-    '<option value="' + esc(String(p.id||'')) + '" data-name="' + esc(String(p.name||'')) + '">' + esc(p.name || '?') + '</option>'
+    '<option value="' + esc(String(p.id||'')) + '" data-name="' + esc(String(p.name||'')) + '"' + (assignment && String(p.id) === String(assignment.product_id) ? ' selected' : '') + '>' + esc(p.name || '?') + '</option>'
   ).join('');
   const tagOptions = PIPELINE_TAGS.map(t => '<option value="' + t.id + '">' + esc(t.label) + '</option>').join('');
   const tierBadge = tier === 'variation' ? '<div style="background:#7B5BB5;color:#fff;font-size:11px;padding:6px 10px;border-radius:6px;font-weight:700;letter-spacing:.5px;display:inline-block">VARIACIÓN de winner</div>' : '';
 
+  const assignmentBadge = assignment
+    ? '<div style="background:#10a37f;color:#fff;padding:10px 12px;border-radius:8px;margin-bottom:10px">' +
+        '<div style="font-size:11px;font-weight:700;letter-spacing:.5px">📦 ASIGNACIÓN: ' + esc(assignment.product_name || '?') + '</div>' +
+        '<div style="font-size:10px;opacity:.9;margin-top:3px">Editado ' + (pipelineAssignmentProgress(assignment.id) + 1) + ' de 3 · ' + esc(assignment.assigned_to || '?') + '</div>' +
+      '</div>'
+    : '';
+
   return '<div style="background:var(--surface);border:1.5px solid var(--accent);border-radius:12px;padding:16px;max-width:600px">' +
     '<div style="font-size:14px;font-weight:700;color:var(--accent);font-family:\'Syne\',sans-serif;margin-bottom:12px">' +
-      (tier === 'base' ? '➕ Subir video base' : '🚀 Subir variación') +
+      (assignment ? '📤 Subir video EDITADO de asignación' : (tier === 'base' ? '➕ Subir video base' : '🚀 Subir variación')) +
     '</div>' +
+    assignmentBadge +
     tierBadge +
     '<div style="display:flex;flex-direction:column;gap:10px;margin-top:10px">' +
-      '<div><label style="font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace;display:block;margin-bottom:4px">PRODUCTO</label>' +
-        '<select id="pipeline-up-product" style="width:100%;padding:9px 12px;border-radius:8px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text);font-size:13px">' + productOptions + '</select>' +
+      '<div><label style="font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace;display:block;margin-bottom:4px">PRODUCTO' + (assignment ? ' (de la asignación, no editable)' : '') + '</label>' +
+        '<select id="pipeline-up-product" ' + (assignment ? 'disabled' : '') + ' style="width:100%;padding:9px 12px;border-radius:8px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text);font-size:13px">' + productOptions + '</select>' +
       '</div>' +
-      '<div><label style="font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace;display:block;margin-bottom:4px">LINK DE GOOGLE DRIVE (compartido)</label>' +
+      '<div><label style="font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace;display:block;margin-bottom:4px">LINK DE GOOGLE DRIVE DEL VIDEO EDITADO</label>' +
         '<input id="pipeline-up-link" placeholder="https://drive.google.com/file/d/..." style="width:100%;padding:9px 12px;border-radius:8px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text);font-size:13px;font-family:\'DM Mono\',monospace;box-sizing:border-box">' +
-        '<div style="font-size:9px;color:var(--muted2);margin-top:4px">El link debe estar configurado como "Cualquier persona con el enlace puede ver". El embed se genera automático.</div>' +
+        '<div style="font-size:9px;color:var(--muted2);margin-top:4px">Pega el link del VIDEO YA EDITADO (no el raw). Debe estar como "Cualquier persona con el enlace puede ver".</div>' +
       '</div>' +
       '<div><label style="font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace;display:block;margin-bottom:4px">TIPO DE VIDEO</label>' +
         '<select id="pipeline-up-tag" style="width:100%;padding:9px 12px;border-radius:8px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text);font-size:13px">' + tagOptions + '</select>' +
@@ -11839,6 +11924,7 @@ async function pipelineSubmitUpload(){
   const driveLink = document.getElementById('pipeline-up-link').value.trim();
   const tag = document.getElementById('pipeline-up-tag').value;
   const hook = document.getElementById('pipeline-up-hook').value.trim();
+  const assignmentId = _pipelineCurrentAssignment ? _pipelineCurrentAssignment.id : null;
 
   if (!productId) { showToast('Selecciona un producto', '⚠️', 'warn'); return; }
   if (!driveLink || !/drive\.google\.com/.test(driveLink)) {
@@ -11854,10 +11940,12 @@ async function pipelineSubmitUpload(){
     hook,
     tier: _pipelineUploadTier,
     parent_video_id: _pipelineUploadParent,
+    assignment_id: assignmentId,
   });
   if (ok) {
     showToast('✅ Video enviado a revisión', '📤', 'success');
-    _pipelineActiveTab = (_pipelineUploadTier === 'variation') ? 'colab2_mine' : 'colab1_mine';
+    _pipelineCurrentAssignment = null; // limpiar contexto tras subir
+    _pipelineActiveTab = (_pipelineUploadTier === 'variation') ? 'colab2_mine' : (assignmentId ? 'assignments' : 'colab1_mine');
     renderPipeline();
   }
 }
@@ -11874,6 +11962,142 @@ function pipelineRenderWinnersForScaling(winners){
   }
   return '<div style="font-size:11px;color:var(--muted);font-family:\'DM Mono\',monospace;margin-bottom:12px">Click 🚀 sobre cualquier winner para crear una variación con tu nombre.</div>' +
     pipelineRenderVideoList(winners, 'colab2');
+}
+
+// ── Tab Asignaciones: supervisor crea, colab 1 ve las suyas ───────────
+function pipelineRenderAssignmentsTab(role){
+  const isSupervisor = role === 'supervisor';
+  const visibleAssignments = isSupervisor
+    ? _pipelineAssignments
+    : _pipelineAssignments.filter(a => a.assigned_to === window._currentUser);
+
+  let html = '';
+
+  // Botón crear nueva (solo supervisor)
+  if (isSupervisor) {
+    html += '<button class="bk-step-btn" onclick="pipelineToggleAssignmentForm()" style="background:var(--accent);color:#fff;margin-bottom:14px">📦 + Crear asignación nueva</button>' +
+            '<div id="pipeline-assignment-form" style="display:none;margin-bottom:14px">' + pipelineRenderAssignmentForm() + '</div>';
+  }
+
+  if (!visibleAssignments.length) {
+    html += '<div style="padding:40px;text-align:center;color:var(--muted);font-family:\'DM Mono\',monospace">' +
+      (isSupervisor ? 'Sin asignaciones creadas. Click el botón de arriba para crear la primera.' : 'No tienes asignaciones pendientes.') +
+    '</div>';
+    return html;
+  }
+
+  // Lista de asignaciones
+  html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:14px">';
+  for (const a of visibleAssignments) {
+    const stateInfo = ASSIGNMENT_STATES[a.state] || ASSIGNMENT_STATES.pending_edit;
+    const progress = pipelineAssignmentProgress(a.id);
+    const fecha = a.created_at && a.created_at.toDate ? a.created_at.toDate().toLocaleString('es-CL', {day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) : '?';
+    const folderEmbed = pipelineDriveEmbedUrl(a.raw_folder_link);
+    const canUpload = (a.assigned_to === window._currentUser || isSupervisor) && progress < 3;
+
+    html += '<div style="background:var(--surface);border:1.5px solid var(--border);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px">' +
+      // Header
+      '<div style="display:flex;align-items:flex-start;gap:8px">' +
+        '<div style="flex:1;min-width:0">' +
+          '<div style="font-size:13px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">📦 ' + esc(a.product_name || '?') + '</div>' +
+          '<div style="font-size:9px;color:var(--muted2);font-family:\'DM Mono\',monospace;margin-top:2px">Asignada a <b>' + esc(a.assigned_to || '?') + '</b> · ' + esc(fecha) + '</div>' +
+        '</div>' +
+        '<div style="background:' + stateInfo.color + ';color:#fff;font-size:10px;padding:3px 8px;border-radius:6px;font-weight:700;letter-spacing:.3px">' + stateInfo.label + '</div>' +
+      '</div>' +
+      // Progress
+      '<div style="display:flex;align-items:center;gap:8px;background:var(--surface2);padding:6px 10px;border-radius:6px">' +
+        '<div style="flex:1;font-size:11px;color:var(--muted)">Editados subidos:</div>' +
+        '<div style="font-size:13px;font-weight:700;color:' + (progress >= 3 ? '#3F7F5C' : 'var(--accent)') + '">' + progress + '/3</div>' +
+      '</div>' +
+      // Notes
+      (a.notes ? '<div style="font-size:11px;color:var(--muted);line-height:1.5;background:var(--surface2);padding:8px;border-radius:6px;border-left:3px solid var(--accent)">📝 ' + esc(a.notes) + '</div>' : '') +
+      // Folder link/embed
+      '<a href="' + esc(a.raw_folder_link || '#') + '" target="_blank" style="background:var(--surface2);border:1px solid var(--border);color:var(--accent);padding:8px 10px;border-radius:6px;font-size:11px;font-family:\'DM Mono\',monospace;text-decoration:none;display:block;text-align:center">📁 Abrir carpeta Drive con raws</a>' +
+      // Action: upload edited video
+      (canUpload ? '<button class="bk-step-btn" onclick="pipelineStartUploadForAssignment(\'' + a.id + '\')" style="background:#10a37f;color:#fff;font-weight:700">📤 Subir video editado ' + (progress + 1) + ' de 3</button>' : '') +
+      // Supervisor: delete
+      (isSupervisor ? '<button onclick="pipelineDeleteAssignmentUI(\'' + a.id + '\')" style="background:var(--surface2);color:var(--muted);border:1px solid var(--border);padding:5px 10px;border-radius:6px;font-size:10px;font-family:\'DM Mono\',monospace;cursor:pointer">🗑 Eliminar asignación</button>' : '') +
+    '</div>';
+  }
+  html += '</div>';
+  return html;
+}
+
+function pipelineRenderAssignmentForm(){
+  const productOptions = _pipelineProducts.map(p =>
+    '<option value="' + esc(String(p.id||'')) + '" data-name="' + esc(String(p.name||'')) + '">' + esc(p.name || '?') + '</option>'
+  ).join('');
+  const colabOptions = ['Colaborador 1', 'Colaborador 2', 'Colaborador 3'].map(c =>
+    '<option value="' + esc(c) + '">' + esc(c) + '</option>'
+  ).join('');
+
+  return '<div style="background:var(--surface);border:1.5px solid var(--accent);border-radius:12px;padding:16px;max-width:700px">' +
+    '<div style="font-size:14px;font-weight:700;color:var(--accent);font-family:\'Syne\',sans-serif;margin-bottom:12px">📦 Crear asignación de edición</div>' +
+    '<div style="display:flex;flex-direction:column;gap:10px">' +
+      '<div><label style="font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace;display:block;margin-bottom:4px">PRODUCTO</label>' +
+        '<select id="pipeline-assign-product" style="width:100%;padding:9px 12px;border-radius:8px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text);font-size:13px">' + productOptions + '</select>' +
+      '</div>' +
+      '<div><label style="font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace;display:block;margin-bottom:4px">CARPETA GOOGLE DRIVE CON LOS 3 RAWS</label>' +
+        '<input id="pipeline-assign-folder" placeholder="https://drive.google.com/drive/folders/..." style="width:100%;padding:9px 12px;border-radius:8px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text);font-size:13px;font-family:\'DM Mono\',monospace;box-sizing:border-box">' +
+        '<div style="font-size:9px;color:var(--muted2);margin-top:4px">Configurá la carpeta como "Cualquier persona con el enlace puede ver". Va a tener los 3 videos sin editar.</div>' +
+      '</div>' +
+      '<div><label style="font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace;display:block;margin-bottom:4px">ASIGNAR A</label>' +
+        '<select id="pipeline-assign-to" style="width:100%;padding:9px 12px;border-radius:8px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text);font-size:13px">' + colabOptions + '</select>' +
+      '</div>' +
+      '<div><label style="font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace;display:block;margin-bottom:4px">BRIEFING / NOTAS PARA EL EDITOR (opcional)</label>' +
+        '<textarea id="pipeline-assign-notes" placeholder="Ej: usar música upbeat, mostrar el producto en uso primero, agregar overlay con texto del beneficio..." style="width:100%;padding:9px 12px;border-radius:8px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text);font-size:13px;min-height:80px;resize:vertical;box-sizing:border-box;font-family:\'DM Mono\',monospace"></textarea>' +
+      '</div>' +
+      '<button class="bk-step-btn" onclick="pipelineSubmitAssignment()" style="background:var(--accent);color:#fff;font-weight:700">📦 Crear asignación</button>' +
+    '</div>' +
+  '</div>';
+}
+
+function pipelineToggleAssignmentForm(){
+  const f = document.getElementById('pipeline-assignment-form');
+  if (f) f.style.display = f.style.display === 'none' ? 'block' : 'none';
+}
+
+async function pipelineSubmitAssignment(){
+  const productSel = document.getElementById('pipeline-assign-product');
+  const productId = productSel.value;
+  const productName = productSel.options[productSel.selectedIndex]?.dataset?.name || '';
+  const folderLink = document.getElementById('pipeline-assign-folder').value.trim();
+  const assignedTo = document.getElementById('pipeline-assign-to').value;
+  const notes = document.getElementById('pipeline-assign-notes').value.trim();
+
+  if (!productId) { showToast('Selecciona un producto', '⚠️', 'warn'); return; }
+  if (!folderLink || !/drive\.google\.com/.test(folderLink)) {
+    showToast('Pega un link válido de carpeta Drive', '⚠️', 'warn');
+    return;
+  }
+  if (!assignedTo) { showToast('Asigna a un colaborador', '⚠️', 'warn'); return; }
+
+  const ok = await pipelineCreateAssignment({
+    product_id: productId,
+    product_name: productName,
+    raw_folder_link: folderLink,
+    assigned_to: assignedTo,
+    notes,
+  });
+  if (ok) {
+    showToast('📦 Asignación creada para ' + assignedTo, '✅', 'success');
+    renderPipeline();
+  }
+}
+
+async function pipelineDeleteAssignmentUI(id){
+  const ok = await pipelineDeleteAssignment(id);
+  if (ok) { showToast('🗑 Asignación eliminada', '🗑', 'success'); renderPipeline(); }
+}
+
+// Cuando se hace click "Subir video editado" desde una asignación,
+// abre el form pre-llenado con el contexto
+function pipelineStartUploadForAssignment(assignmentId){
+  const a = _pipelineAssignments.find(x => x.id === assignmentId);
+  if (!a) return;
+  _pipelineCurrentAssignment = a;
+  const content = document.getElementById('pipeline-content');
+  if (content) content.innerHTML = pipelineRenderUploadForm('base', null, a);
 }
 
 // ── Dashboard de patrones (supervisor) ────────────────────────────────
