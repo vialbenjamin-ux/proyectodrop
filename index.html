@@ -1258,9 +1258,6 @@
       <button class="tab-btn ng-item" data-section="prompts" onclick="switchSection('prompts')">
         ✨ Prompts
       </button>
-      <button class="tab-btn ng-item" data-section="creativos" onclick="switchSection('creativos')">
-        🎯 Creativos <span class="badge" id="badge-creativos" style="display:none">0</span>
-      </button>
       <button class="tab-btn ng-item" data-section="pipeline" onclick="switchSection('pipeline')">
         📹 Pipeline <span class="badge" id="badge-pipeline" style="display:none">0</span>
       </button>
@@ -2374,238 +2371,6 @@
     </div>
   </div>
 
-  <div id="section-creativos" class="section">
-    <div class="filter-row">
-      <div style="display:flex;align-items:center;gap:10px;flex:1;flex-wrap:wrap">
-        <div style="font-size:10px;color:var(--muted);letter-spacing:2px;text-transform:uppercase">🎯 Creativos · ADN + Performance</div>
-        <div style="position:relative;flex:1;max-width:280px">
-          <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--muted2);font-size:13px">🔍</span>
-          <input id="creativos-search" placeholder="Buscar por nombre, hook, ángulo..." oninput="renderCreativos()"
-            style="width:100%;background:var(--surface);border:1.5px solid var(--border);color:var(--text);padding:7px 12px 7px 30px;border-radius:20px;font-size:12px;font-family:'DM Mono',monospace;outline:none">
-        </div>
-        <select id="creativos-filter-veredicto" onchange="renderCreativos()" style="background:var(--surface);border:1.5px solid var(--border);color:var(--text);padding:6px 12px;border-radius:20px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer;outline:none">
-          <option value="all">Todos</option>
-          <option value="winner">🟢 Winners</option>
-          <option value="semi">🟡 Semi-winners</option>
-          <option value="normal">⚪ Normales</option>
-          <option value="va_mal">🔴 Van mal</option>
-          <option value="perdedor">❌ Perdedores</option>
-          <option value="investigar">🔍 Investigar</option>
-          <option value="pendiente">⏳ Pendientes</option>
-        </select>
-        <select id="creativos-filter-producto" onchange="renderCreativos()" style="background:var(--surface);border:1.5px solid var(--border);color:var(--text);padding:6px 12px;border-radius:20px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer;outline:none">
-          <option value="all">Todos los productos</option>
-        </select>
-        <span id="creativos-count" style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace"></span>
-      </div>
-      <button class="btn-primary" onclick="openCreativoModal()">+ Nuevo creativo</button>
-    </div>
-
-    <div class="creativos-grid" id="creativos-grid"></div>
-    <div id="creativos-empty" class="creativos-empty" style="display:none">
-      <div style="font-size:48px;margin-bottom:8px">🎯</div>
-      <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:18px;margin-bottom:6px">Aún no tienes creativos fichados</div>
-      <div style="font-size:12px;color:var(--muted);max-width:480px;margin:0 auto;line-height:1.6">Cada creativo (video) se ficha con su ADN: hook, ángulo, framework, voz en off. Cuando lo lances en Meta, copias spend / CPA real / ROAS real desde la planilla Cruce y BKDROP calcula automáticamente si es winner, semi-winner o perdedor.</div>
-      <button class="btn-primary" style="margin-top:18px" onclick="openCreativoModal()">+ Crear primer creativo</button>
-    </div>
-
-    <!-- Modal de creativo -->
-    <div id="creativo-modal" class="creativo-modal-overlay" style="display:none" onclick="closeCreativoModalIfBg(event)">
-      <div class="creativo-modal">
-        <div class="creativo-modal-head">
-          <div class="creativo-modal-title" id="creativo-modal-title">Nuevo creativo</div>
-          <button class="creativo-modal-close" onclick="closeCreativoModal()">✕</button>
-        </div>
-        <div class="creativo-modal-body" id="creativo-modal-body">
-          <input type="hidden" id="cre-id">
-
-          <div class="creativo-section-label">📝 Datos básicos</div>
-          <div class="creativo-grid-2">
-            <label class="creativo-field">
-              <span>Nombre del creativo *</span>
-              <input type="text" id="cre-nombre" placeholder="Ej: Hook pregunta dolor v3 — UGC mujer 40">
-            </label>
-            <label class="creativo-field">
-              <span>Producto *</span>
-              <select id="cre-producto"></select>
-            </label>
-            <label class="creativo-field creativo-full">
-              <span>URL del video (Drive / Dropbox / link público)</span>
-              <input type="url" id="cre-video-url" placeholder="https://drive.google.com/...">
-            </label>
-            <label class="creativo-field creativo-full">
-              <span>Ángulo de venta</span>
-              <input type="text" id="cre-angulo" placeholder="Ej: Resultado deseado — verse más joven en 30 días">
-            </label>
-          </div>
-
-          <div class="creativo-section-label">🧬 ADN del creativo</div>
-          <div class="creativo-grid-2">
-            <label class="creativo-field">
-              <span>Tipo de video</span>
-              <select id="cre-tipo">
-                <option value="">— Seleccionar —</option>
-                <option>UGC</option>
-                <option>Demo</option>
-                <option>Testimonial</option>
-                <option>Problema/Solución</option>
-                <option>Before/After</option>
-                <option>Historia personal</option>
-                <option>Unboxing</option>
-                <option>Respuesta a comentario</option>
-                <option>Comparativo</option>
-                <option>Oferta directa</option>
-                <option>Educación</option>
-              </select>
-            </label>
-            <label class="creativo-field">
-              <span>Framework narrativo</span>
-              <select id="cre-framework">
-                <option value="">— Seleccionar —</option>
-                <option>PAS (Problema-Agitación-Solución)</option>
-                <option>Demo</option>
-                <option>Mecanismo único</option>
-                <option>Educación</option>
-                <option>Historia personal</option>
-                <option>Respuesta a comentario</option>
-                <option>Híbrido</option>
-              </select>
-            </label>
-            <label class="creativo-field creativo-full">
-              <span>Hook (texto exacto del primer 1-3 seg)</span>
-              <input type="text" id="cre-hook" placeholder='Ej: "¿Sigues durmiendo mal por culpa del calor?"'>
-            </label>
-            <label class="creativo-field">
-              <span>Tipo de hook</span>
-              <select id="cre-hook-tipo">
-                <option value="">— Seleccionar —</option>
-                <option>Pregunta al dolor</option>
-                <option>Sensacionalista</option>
-                <option>Anti-promesa</option>
-                <option>Tiempo / urgencia</option>
-                <option>Mejor producto</option>
-                <option>Prueba social</option>
-                <option>Oferta</option>
-                <option>Estadístico</option>
-                <option>Controversia</option>
-                <option>Rutina</option>
-                <option>Empatía</option>
-                <option>Historia que impacta</option>
-              </select>
-            </label>
-            <label class="creativo-field">
-              <span>Mecanismo emocional</span>
-              <select id="cre-emocion">
-                <option value="">— Seleccionar —</option>
-                <option>Frustración</option>
-                <option>Alivio</option>
-                <option>Miedo a seguir igual</option>
-                <option>Curiosidad</option>
-                <option>Sorpresa</option>
-                <option>Deseo</option>
-                <option>Aspiración</option>
-                <option>Identificación</option>
-                <option>Urgencia</option>
-              </select>
-            </label>
-            <label class="creativo-field creativo-full">
-              <span>Voz en off (transcripción)</span>
-              <textarea id="cre-voz-off" rows="4" placeholder="Pega aquí la locución completa del video..."></textarea>
-            </label>
-          </div>
-
-          <div class="creativo-section-label">📊 Performance</div>
-          <div class="creativo-import-row">
-            <button type="button" class="creativo-btn-import" onclick="toggleImportarCruce()">📥 Importar de Cruce real</button>
-            <button type="button" class="creativo-btn-import secondary" id="cre-btn-refresh" onclick="refrescarCruce()" style="display:none">↻ Refrescar última importación</button>
-            <div id="cre-cross-source" class="creativo-cross-source" style="display:none"></div>
-          </div>
-          <div id="cre-import-panel" class="creativo-import-panel" style="display:none">
-            <div class="creativo-import-grid">
-              <label class="creativo-field">
-                <span>Cuenta Meta</span>
-                <select id="cre-import-account"></select>
-              </label>
-              <label class="creativo-field">
-                <span>Período</span>
-                <select id="cre-import-preset">
-                  <option value="today">Hoy</option>
-                  <option value="yesterday">Ayer</option>
-                  <option value="last_3d">Últimos 3 días</option>
-                  <option value="last_7d" selected>Últimos 7 días</option>
-                  <option value="last_14d">Últimos 14 días</option>
-                  <option value="last_30d">Últimos 30 días</option>
-                  <option value="this_month">Este mes</option>
-                  <option value="last_month">Mes pasado</option>
-                </select>
-              </label>
-              <button type="button" class="creativo-btn-load" onclick="cargarCampañasCruce()">🔍 Cargar campañas</button>
-            </div>
-            <div id="cre-campañas-list" class="creativo-campañas-list"></div>
-          </div>
-          <div class="creativo-tip" style="display:none" id="cre-tip-manual">💡 Si la campaña tiene varios creativos compartidos, ajusta los números a mano para reflejar solo este video.</div>
-          <div class="creativo-grid-3">
-            <label class="creativo-field">
-              <span>Spend (CLP)</span>
-              <input type="number" id="cre-spend" min="0" step="100" oninput="recalcVeredicto()" placeholder="0">
-            </label>
-            <label class="creativo-field">
-              <span>Ventas (órdenes)</span>
-              <input type="number" id="cre-ventas" min="0" step="1" oninput="recalcVeredicto()" placeholder="0">
-            </label>
-            <label class="creativo-field">
-              <span>Revenue (CLP)</span>
-              <input type="number" id="cre-revenue" min="0" step="100" oninput="recalcVeredicto()" placeholder="0">
-            </label>
-            <label class="creativo-field">
-              <span>CPA real (calculado)</span>
-              <input type="text" id="cre-cpa-calc" readonly placeholder="—" style="background:var(--surface2)">
-            </label>
-            <label class="creativo-field">
-              <span>ROAS real (calculado)</span>
-              <input type="text" id="cre-roas-calc" readonly placeholder="—" style="background:var(--surface2)">
-            </label>
-            <label class="creativo-field">
-              <span>Días activo</span>
-              <input type="number" id="cre-dias" min="0" step="1" placeholder="0">
-            </label>
-            <label class="creativo-field creativo-full">
-              <span>Ad IDs vinculados (separados por coma — opcional, para Fase 1b)</span>
-              <input type="text" id="cre-ad-ids" placeholder="6520123456789, 6520987654321">
-            </label>
-          </div>
-
-          <div class="creativo-section-label">⚖️ Veredicto</div>
-          <div id="cre-veredicto-preview" class="creativo-veredicto-preview">⏳ Pendiente — completa los datos de performance para calcular</div>
-          <div class="creativo-grid-2">
-            <label class="creativo-field">
-              <span>Veredicto manual (opcional, sobreescribe automático)</span>
-              <select id="cre-veredicto-manual">
-                <option value="">— Usar automático —</option>
-                <option value="winner">🟢 Winner</option>
-                <option value="semi">🟡 Semi-winner</option>
-                <option value="normal">⚪ Normal</option>
-                <option value="va_mal">🔴 Va mal</option>
-                <option value="perdedor">❌ Perdedor</option>
-                <option value="investigar">🔍 Investigar</option>
-                <option value="pendiente">⏳ Pendiente</option>
-              </select>
-            </label>
-            <label class="creativo-field creativo-full">
-              <span>Patrón aprendido / Notas</span>
-              <textarea id="cre-patron" rows="3" placeholder="¿Qué te enseñó este creativo? Ej: 'Hook tipo pregunta funciona en mujeres 40+ con ángulo de resultado'"></textarea>
-            </label>
-          </div>
-        </div>
-        <div class="creativo-modal-foot">
-          <button class="creativo-btn-delete" id="cre-btn-delete" onclick="deleteCreativo()" style="display:none">🗑 Eliminar</button>
-          <div style="flex:1"></div>
-          <button class="creativo-btn-cancel" onclick="closeCreativoModal()">Cancelar</button>
-          <button class="creativo-btn-save" onclick="saveCreativo()">💾 Guardar</button>
-        </div>
-      </div>
-    </div>
-  </div>
 
   <div id="section-investigacion" class="section">
     <div style="max-width:1100px;margin:0 auto">
@@ -3389,7 +3154,6 @@ function switchSection(s, silent){
   if(s==='calendario') renderCalendar();
   if(s==='prompts'){ renderPrompts(); loadBkVars(); }
   if(s==='reportes') initReportes();
-  if(s==='creativos') renderCreativos();
   if(s==='pipeline') renderPipeline();
   if(s==='bkfit') bkfitInit();
   if(s==='investigacion') bkInvInit();
@@ -3750,7 +3514,7 @@ function shiftRankingPeriod(dir){
   renderRanking();
 }
 
-function render(){ renderHoyPanel(); renderRanking(); renderPriorityPanel(); renderProducts(); renderSuppliers(); renderTodos(); renderArchivo(); renderVideos(); renderPrompts(); renderBadges(); renderCreativos(); }
+function render(){ renderHoyPanel(); renderRanking(); renderPriorityPanel(); renderProducts(); renderSuppliers(); renderTodos(); renderArchivo(); renderVideos(); renderPrompts(); renderBadges(); }
 
 function renderHoyPanel(){
   const panel = document.getElementById('hoy-panel');
@@ -12798,6 +12562,7 @@ function fmtRoas(n){
 
 function renderCreativos(){
   const grid = document.getElementById('creativos-grid');
+  if (!grid) return; // sección eliminada por el usuario — no-op
   const empty = document.getElementById('creativos-empty');
   const countEl = document.getElementById('creativos-count');
   if (!grid) return;
