@@ -12036,8 +12036,8 @@ function pipelineRenderAssignmentForm(){
     '<div style="display:flex;flex-direction:column;gap:10px">' +
       '<div><label style="font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace;display:block;margin-bottom:4px">PRODUCTO (escribe para buscar)</label>' +
         '<input id="pipeline-assign-product-search" oninput="filterAssignProductOptions(this.value)" placeholder="🔍 Buscar por nombre..." style="width:100%;padding:9px 12px;border-radius:8px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text);font-size:13px;font-family:\'DM Mono\',monospace;box-sizing:border-box;margin-bottom:6px">' +
-        '<select id="pipeline-assign-product" size="6" style="width:100%;padding:6px;border-radius:8px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text);font-size:13px">' + productOptions + '</select>' +
-        '<div style="font-size:9px;color:var(--muted2);margin-top:4px">Click el producto en la lista para seleccionarlo</div>' +
+        '<select id="pipeline-assign-product" size="6" onchange="updateAssignProductSelected()" onclick="updateAssignProductSelected()" style="width:100%;padding:6px;border-radius:8px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text);font-size:13px">' + productOptions + '</select>' +
+        '<div id="pipeline-assign-product-selected" style="font-size:11px;font-weight:600;color:#3F7F5C;margin-top:6px;font-family:\'DM Mono\',monospace;padding:6px 10px;background:#DCF1D9;border:1.5px solid #3F7F5C;border-radius:6px;display:none">✓ Seleccionado: <span id="pipeline-assign-product-selected-name"></span></div>' +
       '</div>' +
       '<div><label style="font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace;display:block;margin-bottom:4px">CARPETA GOOGLE DRIVE CON LOS 3 RAWS</label>' +
         '<input id="pipeline-assign-folder" placeholder="https://drive.google.com/drive/folders/..." style="width:100%;padding:9px 12px;border-radius:8px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text);font-size:13px;font-family:\'DM Mono\',monospace;box-sizing:border-box">' +
@@ -12071,8 +12071,22 @@ function filterAssignProductOptions(query){
     opt.style.display = visible ? '' : 'none';
     if (visible && !firstVisible) firstVisible = opt;
   });
-  // Auto-seleccionar el primer resultado visible
   if (firstVisible) sel.value = firstVisible.value;
+  updateAssignProductSelected();
+}
+
+function updateAssignProductSelected(){
+  const sel = document.getElementById('pipeline-assign-product');
+  const display = document.getElementById('pipeline-assign-product-selected');
+  const nameSpan = document.getElementById('pipeline-assign-product-selected-name');
+  if (!sel || !display || !nameSpan) return;
+  const opt = sel.options[sel.selectedIndex];
+  if (opt && opt.value) {
+    nameSpan.textContent = opt.dataset.name || opt.text || opt.value;
+    display.style.display = 'block';
+  } else {
+    display.style.display = 'none';
+  }
 }
 
 async function pipelineSubmitAssignment(){
