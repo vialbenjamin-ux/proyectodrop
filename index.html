@@ -2446,6 +2446,18 @@
               <div style="font-size:10px;color:var(--muted2);font-family:'DM Mono',monospace;margin-top:4px">Tip: si pegás texto en otro idioma, Gemini igual te genera keywords ES+EN.</div>
             </div>
           </details>
+          <details style="margin-bottom:10px">
+            <summary style="cursor:pointer;font-size:11px;color:var(--accent);font-family:'DM Mono',monospace;font-weight:700;padding:6px 0">🎯 Buscar todos los ads de un competidor (por dominio)</summary>
+            <div style="margin-top:8px">
+              <div style="font-size:11px;color:var(--muted);line-height:1.5;margin-bottom:8px">Pegá el dominio del competidor (ej: <code style="background:var(--surface2);padding:1px 6px;border-radius:3px">tienda.com</code> o <code style="background:var(--surface2);padding:1px 6px;border-radius:3px">tienda.myshopify.com</code>). Te abre Meta Ad Library con todos los ads que mencionan ese dominio.</div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+                <input id="inv-spy-domain" type="text" placeholder="ej: tiendamagic.com" style="flex:1;min-width:200px;padding:9px 12px;border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:8px;font-size:12px;font-family:'DM Mono',monospace" onkeydown="if(event.key==='Enter')spyBuscarPorDominio()">
+                <button onclick="spyBuscarPorDominio()" style="background:#1877F2;color:#fff;border:none;border-radius:8px;padding:9px 14px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer;font-weight:700">↗ Ads del dominio</button>
+                <button onclick="spyBuscarPorDominio(true)" style="background:#1877F2;color:#fff;border:none;border-radius:8px;padding:9px 14px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer;font-weight:700" title="También busca por nombre de la marca (extraído del dominio)">↗ + marca</button>
+              </div>
+              <div id="inv-spy-domain-status" style="font-size:10px;color:var(--muted2);font-family:'DM Mono',monospace;margin-top:6px"></div>
+            </div>
+          </details>
           <details style="margin-bottom:10px" id="inv-spy-img-details">
             <summary style="cursor:pointer;font-size:11px;color:var(--accent);font-family:'DM Mono',monospace;font-weight:700;padding:6px 0">📸 Subir foto del producto (Gemini Vision identifica el producto exacto)</summary>
             <div style="margin-top:8px">
@@ -10439,6 +10451,75 @@ async function spyReverseSearch(engine){
     }
   }
   try { window.open(url, '_blank', 'noopener'); } catch(e){}
+}
+
+// Limpia un dominio: saca protocolo, www, trailing slash, paths.
+// "https://www.tienda.com/products/abc" → "tienda.com"
+function _spyCleanDomain(raw){
+  let d = String(raw || '').trim().toLowerCase();
+  d = d.replace(/^https?:\/\//, '');
+  d = d.replace(/^www\./, '');
+  d = d.split('/')[0];
+  d = d.split('?')[0];
+  d = d.split('#')[0];
+  return d;
+}
+
+// Extrae el "nombre de marca" candidato del dominio.
+// "tiendamagic.com" → "tiendamagic"
+// "tienda-magic.myshopify.com" → "tienda magic"
+function _spyDomainToBrand(domain){
+  let core = domain.split('.')[0];
+  // Si el primer fragmento es genérico (shop/store/get/try/the), usar el segundo
+  if(/^(shop|store|get|try|the|my|buy|go)$/i.test(core)){
+    const parts = domain.split('.');
+    if(parts[1] && !/^(com|net|org|io|co|store|shop)$/.test(parts[1])) core = parts[1];
+  }
+  return core.replace(/[-_]+/g, ' ').trim();
+}
+
+function spyBuscarPorDominio(alsoBrand){
+  const raw = (document.getElementById('inv-spy-domain').value || '').trim();
+  const country = document.getElementById('inv-spy-country').value || 'CL';
+  const status = document.getElementById('inv-spy-domain-status');
+  if(!raw){
+    status.textContent = '⚠ Pegá un dominio primero.';
+    status.style.color = 'var(--danger,#E74C3C)';
+    return;
+  }
+  const domain = _spyCleanDomain(raw);
+  if(!domain || !domain.includes('.')){
+    status.textContent = '⚠ Dominio inválido (ej: tienda.com)';
+    status.style.color = 'var(--danger,#E74C3C)';
+    return;
+  }
+  // Meta Ad Library — busca el dominio en el copy de los ads.
+  // No aplicamos restricción de fecha porque el usuario querría ver TODO
+  // el histórico del competidor, no solo los últimos 7-90 días.
+  const buildUrl = (q)=>{
+    const p = new URLSearchParams();
+    p.set('active_status', 'all');
+    p.set('ad_type', 'all');
+    p.set('country', country === 'ALL' ? 'ALL' : country);
+    p.set('q', q);
+    p.set('search_type', 'keyword_unordered');
+    return 'https://www.facebook.com/ads/library/?' + p.toString();
+  };
+  // Abrimos primero el de dominio
+  try { window.open(buildUrl(domain), '_blank', 'noopener'); } catch(e){}
+  if(alsoBrand){
+    const brand = _spyDomainToBrand(domain);
+    if(brand && brand !== domain){
+      // Pequeño delay para que el navegador no bloquee el segundo popup
+      setTimeout(()=>{ try { window.open(buildUrl(brand), '_blank', 'noopener'); } catch(e){} }, 200);
+      status.innerHTML = '✓ Abrí 2 pestañas: <strong>' + domain + '</strong> y <strong>' + brand + '</strong> (marca)';
+    } else {
+      status.innerHTML = '✓ Abrí Ad Library con: <strong>' + domain + '</strong>';
+    }
+  } else {
+    status.innerHTML = '✓ Abrí Ad Library con: <strong>' + domain + '</strong>';
+  }
+  status.style.color = 'var(--accent)';
 }
 
 function spyClearImg(){
