@@ -10236,7 +10236,7 @@ Devolveme SOLO JSON válido sin texto extra, en este formato:
     const en = Array.isArray(data.en) ? data.en.slice(0, 3) : [];
     if(!es.length && !en.length) throw new Error('No se generaron keywords válidas.');
 
-    spyRenderResultados(producto, country, es, en);
+    spyRenderResultados(producto, country, es, en, !!imgData);
     status.textContent = '✅ ' + (es.length + en.length) + ' keywords generadas.';
     status.style.color = 'var(--accent)';
   } catch(e){
@@ -10247,9 +10247,23 @@ Devolveme SOLO JSON válido sin texto extra, en este formato:
   }
 }
 
-function spyRenderResultados(producto, country, es, en){
+function spyRenderResultados(producto, country, es, en, hasImg){
   const results = document.getElementById('inv-spy-results');
   const escapeHtml = (s)=>String(s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  // Si hay imagen, mostrar arriba la búsqueda visual inversa — es lo más
+  // certero para encontrar el producto idéntico.
+  const visualBlock = hasImg ? `
+    <div style="background:linear-gradient(135deg, #4285F4 0%, #34A853 100%);border-radius:10px;padding:14px 16px;color:#fff;margin-bottom:14px">
+      <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:14px;margin-bottom:4px">🎯 Búsqueda visual inversa (lo más certero)</div>
+      <div style="font-size:11px;line-height:1.5;opacity:0.95;margin-bottom:10px">Las búsquedas de texto traen ads con copy "parecido", no productos idénticos. Para encontrar EL MISMO producto, hacé reverse image search con tu foto.</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button onclick="spyReverseSearch('google')" style="background:#fff;color:#4285F4;border:none;border-radius:6px;padding:9px 14px;font-size:11px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">🔍 Google Lens</button>
+        <button onclick="spyReverseSearch('bing')" style="background:#fff;color:#0078D4;border:none;border-radius:6px;padding:9px 14px;font-size:11px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">🔍 Bing Visual</button>
+        <button onclick="spyReverseSearch('yandex')" style="background:#fff;color:#FF0000;border:none;border-radius:6px;padding:9px 14px;font-size:11px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">🔍 Yandex (mejor para AliExpress)</button>
+      </div>
+      <div id="inv-spy-reverse-tip" style="font-size:10px;margin-top:8px;opacity:0.9;font-family:'DM Mono',monospace"></div>
+    </div>
+  ` : '';
   const card = (kw, lang)=>{
     const metaUrl  = buildMetaAdLibraryUrl(kw, country);
     const ttWebUrl = buildTikTokWebSearchUrl(kw);
@@ -10274,6 +10288,7 @@ function spyRenderResultados(producto, country, es, en){
   const grid = (items, lang)=>items.map(k=>card(k, lang)).join('');
   results.innerHTML = `
     <div style="display:flex;flex-direction:column;gap:14px">
+      ${visualBlock}
       <div>
         <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;margin-bottom:8px">🇪🇸 ESPAÑOL</div>
         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px">${grid(es, 'es')}</div>
@@ -10357,6 +10372,73 @@ function spyOnImgSelected(ev){
     info.style.color = 'var(--danger,#E74C3C)';
   };
   reader.readAsDataURL(f);
+}
+
+// Reverse image search en Google Lens / Bing / Yandex.
+// Ninguno acepta upload por URL para imágenes locales, así que:
+// 1. Copiamos la imagen al portapapeles (Web Clipboard API)
+// 2. Abrimos el sitio de reverse search
+// 3. El usuario hace Ctrl+V en el buscador de imagen
+async function spyReverseSearch(engine){
+  const imgData = window._spyImgData;
+  const tip = document.getElementById('inv-spy-reverse-tip');
+  if(!imgData){
+    if(tip) tip.textContent = '⚠ Primero subí una imagen.';
+    return;
+  }
+  const urls = {
+    google: 'https://www.google.com/imghp?hl=en',
+    bing:   'https://www.bing.com/visualsearch',
+    yandex: 'https://yandex.com/images/',
+  };
+  const url = urls[engine] || urls.google;
+  let copied = false;
+  // Convertir base64 → Blob → ClipboardItem
+  try {
+    const byteChars = atob(imgData.data);
+    const byteArr = new Uint8Array(byteChars.length);
+    for(let i=0;i<byteChars.length;i++) byteArr[i] = byteChars.charCodeAt(i);
+    const blob = new Blob([byteArr], { type: imgData.mimeType || 'image/jpeg' });
+    // Algunos navegadores solo permiten image/png en clipboard. Convertimos
+    // a PNG si hace falta usando canvas.
+    let finalBlob = blob;
+    if(navigator.clipboard && window.ClipboardItem){
+      try {
+        // Intentar primero con el mimeType original
+        await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
+        copied = true;
+      } catch(e1) {
+        // Fallback: convertir a PNG (universalmente aceptado)
+        try {
+          const pngBlob = await new Promise((resolve, reject)=>{
+            const img = new Image();
+            img.onload = ()=>{
+              const c = document.createElement('canvas');
+              c.width = img.width; c.height = img.height;
+              c.getContext('2d').drawImage(img, 0, 0);
+              c.toBlob(b => b ? resolve(b) : reject(new Error('toBlob failed')), 'image/png');
+            };
+            img.onerror = reject;
+            img.src = URL.createObjectURL(blob);
+          });
+          await navigator.clipboard.write([new ClipboardItem({ 'image/png': pngBlob })]);
+          copied = true;
+        } catch(e2){
+          console.warn('Clipboard PNG fallback failed', e2);
+        }
+      }
+    }
+  } catch(e){
+    console.warn('Reverse search copy failed', e);
+  }
+  if(tip){
+    if(copied){
+      tip.innerHTML = '✅ Imagen copiada al portapapeles. En el sitio que se abrió: click en el <strong>ícono de cámara</strong> del buscador → <strong>Ctrl+V</strong> para pegar.';
+    } else {
+      tip.innerHTML = '⚠ No se pudo copiar al portapapeles. En el sitio: click en el ícono de cámara → <strong>Arrastrá la foto desde el preview</strong> de arriba.';
+    }
+  }
+  try { window.open(url, '_blank', 'noopener'); } catch(e){}
 }
 
 function spyClearImg(){
