@@ -10112,8 +10112,10 @@ function _spyDateMinus(days){
   return d.toISOString().slice(0, 10); // YYYY-MM-DD
 }
 
-// Meta Ad Library: ads activos con video, que llevan ≥7 días corriendo
-// (start_date[max] = today-7d → solo ads que empezaron hace 7+ días)
+// Meta Ad Library: ads activos con video, que llevan entre 7 y 90 días.
+// - start_date[max] = today-7d → empezó hace 7+ días (mínimo de runtime)
+// - start_date[min] = today-90d → empezó hace ≤90 días (descartamos ads viejos
+//   ya saturados o de productos que ya no son tendencia)
 function buildMetaAdLibraryUrl(keyword, country){
   const params = new URLSearchParams();
   params.set('active_status', 'active');
@@ -10122,20 +10124,26 @@ function buildMetaAdLibraryUrl(keyword, country){
   params.set('media_type', 'video');
   params.set('q', keyword);
   params.set('search_type', 'keyword_unordered');
+  params.set('start_date[min]', _spyDateMinus(90));
   params.set('start_date[max]', _spyDateMinus(7));
   return 'https://www.facebook.com/ads/library/?' + params.toString();
 }
 
-// TikTok Creative Center: top ads del período por país.
-// No hay deep-link de keyword: abrimos top ads pre-filtrados por país
-// y el usuario tipea la keyword en el buscador interno.
+// TikTok web search directo: muestra videos REALES con likes visibles
+// (mucho más útil para productos dropshipping que Creative Center, que solo
+// indexa ads de brands grandes). El usuario filtra a ojo por likes >1.5k.
+function buildTikTokWebSearchUrl(keyword){
+  // /search/video filtra solo videos (no usuarios ni sonidos)
+  return 'https://www.tiktok.com/search/video?q=' + encodeURIComponent(keyword);
+}
+
+// TikTok Creative Center (opcional, ads de brands grandes).
+// El kw va en el hash porque TikTok no acepta deep-link por query param.
 function buildTikTokCreativeCenterUrl(keyword, country){
-  // region usa el código de país ISO; period 30 días; sort by like (más relevante para >1500 likes)
   const params = new URLSearchParams();
   params.set('period', '30');
   params.set('region', country || 'CL');
   params.set('sort_by', 'like');
-  // keyword se pasa por hash para que el usuario pueda copiarla rápido
   return 'https://ads.tiktok.com/business/creativecenter/inspiration/topads/pc/en?' + params.toString() + '#kw=' + encodeURIComponent(keyword);
 }
 
@@ -10217,8 +10225,10 @@ function spyRenderResultados(producto, country, es, en){
   const escapeHtml = (s)=>String(s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const card = (kw, lang)=>{
     const metaUrl  = buildMetaAdLibraryUrl(kw, country);
-    const ttUrl    = buildTikTokCreativeCenterUrl(kw, country);
+    const ttWebUrl = buildTikTokWebSearchUrl(kw);
+    const ttCcUrl  = buildTikTokCreativeCenterUrl(kw, country);
     const flag     = lang === 'es' ? '🇪🇸 ES' : '🇬🇧 EN';
+    const kwAttr   = JSON.stringify(kw).replace(/"/g,'&quot;');
     return `
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:8px">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
@@ -10226,9 +10236,10 @@ function spyRenderResultados(producto, country, es, en){
           <span style="font-size:9px;color:var(--muted2);font-family:'DM Mono',monospace;background:var(--surface2);padding:2px 8px;border-radius:10px;white-space:nowrap">${flag}</span>
         </div>
         <div style="display:flex;gap:6px;flex-wrap:wrap">
-          <a href="${metaUrl}" target="_blank" rel="noopener" style="flex:1;min-width:120px;text-align:center;background:#1877F2;color:#fff;text-decoration:none;border-radius:6px;padding:7px 10px;font-size:11px;font-family:'DM Mono',monospace;font-weight:700">↗ Meta (7d+ video)</a>
-          <a href="${ttUrl}" target="_blank" rel="noopener" style="flex:1;min-width:120px;text-align:center;background:#000;color:#fff;text-decoration:none;border-radius:6px;padding:7px 10px;font-size:11px;font-family:'DM Mono',monospace;font-weight:700">↗ TikTok CC</a>
-          <button onclick="spyCopyKw(this, ${JSON.stringify(kw).replace(/"/g,'&quot;')})" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:7px 10px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer" title="Copiar keyword">📋</button>
+          <a href="${metaUrl}" target="_blank" rel="noopener" style="flex:1;min-width:110px;text-align:center;background:#1877F2;color:#fff;text-decoration:none;border-radius:6px;padding:7px 10px;font-size:11px;font-family:'DM Mono',monospace;font-weight:700">↗ Meta (7d+)</a>
+          <a href="${ttWebUrl}" target="_blank" rel="noopener" style="flex:1;min-width:110px;text-align:center;background:#FE2C55;color:#fff;text-decoration:none;border-radius:6px;padding:7px 10px;font-size:11px;font-family:'DM Mono',monospace;font-weight:700">↗ TikTok</a>
+          <button onclick="spyOpenTtCc(this, ${kwAttr}, ${JSON.stringify(ttCcUrl).replace(/"/g,'&quot;')})" style="background:#000;color:#fff;border:1px solid #000;border-radius:6px;padding:7px 10px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer;font-weight:700" title="TikTok Creative Center (copia keyword + abre)">CC</button>
+          <button onclick="spyCopyKw(this, ${kwAttr})" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:7px 10px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer" title="Copiar keyword">📋</button>
         </div>
       </div>
     `;
@@ -10245,9 +10256,12 @@ function spyRenderResultados(producto, country, es, en){
         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px">${grid(en, 'en')}</div>
       </div>
       <div style="background:var(--surface2);border-radius:8px;padding:10px 14px;font-size:11px;color:var(--muted);line-height:1.5">
-        <strong>📌 Notas:</strong><br>
-        · <strong>Meta</strong> abre filtrado por <em>video activo ≥ 7 días</em> en ${escapeHtml(country)} — descartá los que llevan menos de 7 días corriendo.<br>
-        · <strong>TikTok Creative Center</strong> abre el top ads del país; tipeá la keyword en el buscador interno y filtrá manualmente <strong>likes &gt; 1.500</strong> ordenando por "Most Liked".
+        <strong>📌 Cómo usar cada botón:</strong><br>
+        · <strong style="color:#1877F2">↗ Meta</strong> — Ad Library con filtros: país ${escapeHtml(country)}, video, activo, corriendo entre <strong>7 y 90 días</strong> (sweet spot: validado pero no saturado).<br>
+        · <strong style="color:#FE2C55">↗ TikTok</strong> — búsqueda directa en tiktok.com/search/video. <strong>Mostrá los likes y filtrá a ojo &gt; 1.500</strong>. Es lo que más sirve para productos dropshipping reales.<br>
+        · <strong>CC</strong> — TikTok Creative Center (ads de brands grandes, casi nunca útil para drop). Al click copia la keyword al portapapeles → pegala (Ctrl+V) en el buscador interno.<br>
+        · <strong>📋</strong> — copia la keyword.<br><br>
+        <strong style="color:var(--text)">⚠ Si los resultados son imprecisos:</strong> pegá la descripción del producto en el textarea de arriba y regenerá — Gemini usa ese texto como fuente principal y devuelve keywords ultra-específicas en vez de genéricas.
       </div>
     </div>
   `;
@@ -10260,6 +10274,23 @@ function spyCopyKw(btn, kw){
       btn.textContent = '✓';
       setTimeout(()=>{ btn.textContent = old; }, 1200);
     }).catch(()=>{});
+  }
+}
+
+// TikTok Creative Center no acepta keyword vía URL — copiamos al portapapeles
+// y abrimos. El usuario solo hace Ctrl+V en el search box.
+function spyOpenTtCc(btn, kw, url){
+  const doOpen = ()=>{ try { window.open(url, '_blank', 'noopener'); } catch(e){} };
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(kw).then(()=>{
+      const old = btn.textContent;
+      btn.textContent = '✓';
+      btn.title = 'Keyword copiada — pegala (Ctrl+V) en el search box de TikTok CC';
+      setTimeout(()=>{ btn.textContent = old; }, 2000);
+      doOpen();
+    }).catch(()=>{ doOpen(); });
+  } else {
+    doOpen();
   }
 }
 
