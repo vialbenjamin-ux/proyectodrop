@@ -7874,6 +7874,11 @@ async function ejecutarBkVideo(key){
   const body  = document.getElementById('bk-output-body-'+key);
   const label = document.getElementById('bk-output-label-'+key);
 
+  // Guardar el video original para poder muxearlo después con el audio TTS.
+  // Indexado por key para soportar múltiples prompts (transcripcion, etc.)
+  window._bkVideoOriginal = window._bkVideoOriginal || {};
+  if(file) window._bkVideoOriginal[key] = file;
+
   const showError = (msg)=>{
     if(box){ box.classList.add('open','error'); box.classList.remove('loading'); }
     if(label){ label.textContent = 'Error'; }
@@ -8227,6 +8232,8 @@ async function renderTtsPanel(key, locText, voz){
     <div class="bk-tts-audio-wrap" id="bk-tts-audio-wrap-${key}">
       <audio class="bk-tts-audio" id="bk-tts-audio-${key}" controls></audio>
       <a class="bk-tts-download" id="bk-tts-download-${key}" download="locucion.mp3">⬇ Descargar MP3</a>
+      <button class="bk-tts-mux-btn" id="bk-tts-mux-${key}" style="display:none;background:linear-gradient(135deg,#FE2C55 0%,#7e22ce 100%);color:#fff;border:none;border-radius:8px;padding:9px 14px;font-size:12px;font-family:'DM Mono',monospace;cursor:pointer;font-weight:700;margin-left:8px" onclick="combinarVideoYAudio('${key}')">🎬 Bajar video con esta locución</button>
+      <div id="bk-tts-mux-status-${key}" style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;margin-top:6px;width:100%"></div>
     </div>
   `;
   outputBox.appendChild(panel);
@@ -8340,6 +8347,13 @@ async function generateTts(key){
     wrap.classList.add('open');
     btn.textContent = '✓ Audio generado';
     setTimeout(()=>audio.play().catch(()=>{}), 200);
+    // Guardar el audio generado para muxearlo con el video y mostrar el botón
+    window._bkTtsAudio = window._bkTtsAudio || {};
+    window._bkTtsAudio[key] = { base64: data.audioBase64, mimeType: data.mimeType || 'audio/mpeg' };
+    const muxBtn = document.getElementById('bk-tts-mux-'+key);
+    if(muxBtn && window._bkVideoOriginal && window._bkVideoOriginal[key]){
+      muxBtn.style.display = 'inline-block';
+    }
   } catch(err){
     if(panel){
       const errDiv = document.createElement('div');
@@ -8356,6 +8370,121 @@ async function generateTts(key){
 
 function escapeHtml(s){
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ===== MUX VIDEO + AUDIO con FFmpeg.wasm =====
+// Combina el video original (subido por el usuario) con el audio TTS generado.
+// Usa la versión single-threaded de @ffmpeg/core para evitar requerir
+// SharedArrayBuffer (que necesitaría headers COEP/COOP en Netlify).
+// La primera vez carga ~30 MB desde CDN; después queda en cache del browser.
+
+let _bkFfmpegInstance = null;
+async function _bkLoadFFmpeg(onProgress){
+  if(_bkFfmpegInstance) return _bkFfmpegInstance;
+  if(onProgress) onProgress('Cargando FFmpeg (30 MB, solo la primera vez)…');
+  // Cargar como ES module desde CDN
+  const ffmpegMod = await import('https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/esm/index.js');
+  const utilMod   = await import('https://unpkg.com/@ffmpeg/util@0.12.2/dist/esm/index.js');
+  const ffmpeg = new ffmpegMod.FFmpeg();
+  ffmpeg.on('progress', (p)=>{
+    if(onProgress && typeof p.progress === 'number'){
+      const pct = Math.max(0, Math.min(100, Math.round(p.progress * 100)));
+      onProgress('Procesando video… ' + pct + '%');
+    }
+  });
+  // ffmpeg-core single-thread (NO requiere SharedArrayBuffer)
+  const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
+  await ffmpeg.load({
+    coreURL: baseURL + '/ffmpeg-core.js',
+    wasmURL: baseURL + '/ffmpeg-core.wasm',
+  });
+  _bkFfmpegInstance = { ffmpeg, fetchFile: utilMod.fetchFile };
+  return _bkFfmpegInstance;
+}
+
+async function combinarVideoYAudio(key){
+  const muxBtn = document.getElementById('bk-tts-mux-'+key);
+  const statusEl = document.getElementById('bk-tts-mux-status-'+key);
+  const origVideo = window._bkVideoOriginal && window._bkVideoOriginal[key];
+  const tts = window._bkTtsAudio && window._bkTtsAudio[key];
+
+  const setStatus = (msg, color)=>{
+    if(statusEl){
+      statusEl.textContent = msg;
+      statusEl.style.color = color || 'var(--muted)';
+    }
+  };
+
+  if(!origVideo){
+    setStatus('⚠ No tengo el video original. Volvé a subirlo y procesalo.', 'var(--danger,#E74C3C)');
+    return;
+  }
+  if(!tts || !tts.base64){
+    setStatus('⚠ No hay audio generado todavía.', 'var(--danger,#E74C3C)');
+    return;
+  }
+
+  const origBtnHtml = muxBtn.innerHTML;
+  muxBtn.disabled = true;
+  muxBtn.innerHTML = '<span class="bk-spinner"></span> Procesando…';
+
+  try {
+    // 1. Cargar FFmpeg.wasm (lazy)
+    setStatus('Cargando FFmpeg…');
+    const { ffmpeg, fetchFile } = await _bkLoadFFmpeg((msg)=>setStatus(msg));
+
+    // 2. Escribir inputs al filesystem virtual
+    setStatus('Preparando archivos…');
+    const videoExt = (origVideo.type && /webm/i.test(origVideo.type)) ? 'webm' : 'mp4';
+    await ffmpeg.writeFile('in.' + videoExt, await fetchFile(origVideo));
+    // Audio: base64 → Uint8Array
+    const audioBytes = Uint8Array.from(atob(tts.base64), c => c.charCodeAt(0));
+    await ffmpeg.writeFile('in.mp3', audioBytes);
+
+    // 3. Ejecutar mux: video del original + audio nuevo, sin reencode de video
+    // -map 0:v       → video stream del primer input
+    // -map 1:a       → audio stream del segundo input
+    // -c:v copy      → copia codec de video (rápido)
+    // -c:a aac       → reencode audio a AAC (compatible MP4)
+    // -shortest      → cortar cuando termine el más corto
+    setStatus('Combinando video + audio nuevo (puede tardar 30-90s)…');
+    await ffmpeg.exec([
+      '-i', 'in.' + videoExt,
+      '-i', 'in.mp3',
+      '-map', '0:v:0',
+      '-map', '1:a:0',
+      '-c:v', 'copy',
+      '-c:a', 'aac',
+      '-b:a', '192k',
+      '-shortest',
+      'out.mp4'
+    ]);
+
+    // 4. Leer resultado y descargar
+    setStatus('Preparando descarga…');
+    const data = await ffmpeg.readFile('out.mp4');
+    const blob = new Blob([data.buffer], { type: 'video/mp4' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = (origVideo.name || 'video').replace(/\.[^.]+$/, '') + '-es-latino.mp4';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(()=>{ try { a.remove(); URL.revokeObjectURL(url); } catch(e){} }, 1000);
+
+    // 5. Cleanup filesystem virtual
+    try { await ffmpeg.deleteFile('in.' + videoExt); } catch(e){}
+    try { await ffmpeg.deleteFile('in.mp3'); } catch(e){}
+    try { await ffmpeg.deleteFile('out.mp4'); } catch(e){}
+
+    setStatus('✅ Video descargado (' + (blob.size/1024/1024).toFixed(1) + ' MB).', 'var(--accent)');
+  } catch(err){
+    console.error('Mux error:', err);
+    setStatus('❌ ' + (err.message || 'No se pudo combinar el video y el audio'), 'var(--danger,#E74C3C)');
+  } finally {
+    muxBtn.disabled = false;
+    muxBtn.innerHTML = origBtnHtml;
+  }
 }
 
 // Acciones rápidas sobre el textarea de respuesta del Master:
