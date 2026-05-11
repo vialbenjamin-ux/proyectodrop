@@ -1261,6 +1261,9 @@
       <button class="tab-btn ng-item" data-section="creativos" onclick="switchSection('creativos')">
         🎯 Creativos <span class="badge" id="badge-creativos" style="display:none">0</span>
       </button>
+      <button class="tab-btn ng-item" data-section="pipeline" onclick="switchSection('pipeline')">
+        📹 Pipeline <span class="badge" id="badge-pipeline" style="display:none">0</span>
+      </button>
     </div>
   </div>
 
@@ -2354,6 +2357,23 @@
     </div>
   </div>
 
+  <!-- 📹 PIPELINE — workflow de videos del equipo (Colab 1 + Supervisor + Colab 2) -->
+  <div id="section-pipeline" class="section">
+    <div style="max-width:1200px">
+      <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px;flex-wrap:wrap">
+        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:22px;color:var(--text)">📹 Pipeline de Videos</div>
+        <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;flex:1">Workflow del equipo: producción → revisión → escalado</div>
+        <div id="pipeline-role-tag" style="font-size:10px;letter-spacing:.5px;text-transform:uppercase;color:var(--accent);font-weight:700;font-family:'DM Mono',monospace;padding:5px 10px;background:var(--accent-soft);border:1.5px solid var(--accent);border-radius:8px"></div>
+      </div>
+
+      <!-- Tabs internos según rol (supervisor ve todos) -->
+      <div id="pipeline-tabs" style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap"></div>
+
+      <!-- Vistas (se muestran según rol/tab activa) -->
+      <div id="pipeline-content"></div>
+    </div>
+  </div>
+
   <div id="section-creativos" class="section">
     <div class="filter-row">
       <div style="display:flex;align-items:center;gap:10px;flex:1;flex-wrap:wrap">
@@ -3370,6 +3390,7 @@ function switchSection(s, silent){
   if(s==='prompts'){ renderPrompts(); loadBkVars(); }
   if(s==='reportes') initReportes();
   if(s==='creativos') renderCreativos();
+  if(s==='pipeline') renderPipeline();
   if(s==='bkfit') bkfitInit();
   if(s==='investigacion') bkInvInit();
 }
@@ -11426,6 +11447,497 @@ function preciosRow(label, price, hint, perUnitNote, primary, etiqueta) {
        + '<div style="' + priceStyle + ';white-space:nowrap">' + fmtCLP(price) + '</div>'
        + '</div>'
        + '</div>';
+}
+
+// ── 📹 PIPELINE — workflow de videos del equipo ──────────────────────────────
+// Roles:
+//   - Benjamin (admin/supervisor): ve TODO. Aprueba/rechaza. Marca winner/loser.
+//   - Colaborador 1: sube 3 videos base por producto. Ve solo lo suyo.
+//   - Colaborador 2: ve videos en state='winner'. Crea variaciones (tier='variation').
+//   - Colaborador 3: misma vista que Colab 1 por default.
+//
+// Datos en Firestore collection 'bkdrop_videos':
+//   { product_id, product_name, tier, parent_video_id, created_by, drive_link,
+//     tag, hook, state, comments, meta_campaign_id, reviewed_by, ts }
+
+const PIPELINE_TAGS = [
+  { id: 'hook_problema',  label: '🎯 Hook problema' },
+  { id: 'demostracion',   label: '🔬 Demostración' },
+  { id: 'antes_despues',  label: '↔️ Antes/Después' },
+  { id: 'testimonio',     label: '💬 Testimonio' },
+  { id: 'shock_visual',   label: '⚡ Shock visual' },
+  { id: 'ugc',            label: '📱 UGC' },
+  { id: 'voz_off',        label: '🎙 Voz en off' },
+  { id: 'musica_viral',   label: '🎵 Música viral' },
+  { id: 'otro',           label: '📦 Otro' },
+];
+
+const PIPELINE_STATES = {
+  pending_review: { label: '⏳ En revisión', color:'#D9A82E' },
+  approved:       { label: '✅ Aprobado',    color:'#3F7F5C' },
+  needs_changes:  { label: '⚠️ Cambios',     color:'#D88A2A' },
+  in_test:        { label: '🧪 En test',     color:'#5B7CBF' },
+  winner:         { label: '🏆 WINNER',      color:'#2C8B5C' },
+  loser:          { label: '❌ Loser',       color:'#C0392B' },
+};
+
+function pipelineUserRole(){
+  const u = (window._currentUser || '').toLowerCase();
+  if (u === 'benjamin') return 'supervisor';
+  if (u === 'colaborador 1') return 'colab1';
+  if (u === 'colaborador 2') return 'colab2';
+  return 'colab1'; // default para colaborador 3 u otros
+}
+
+let _pipelineCache = [];
+let _pipelineActiveTab = 'all';
+let _pipelineProducts = [];
+
+async function pipelineLoadAll(){
+  try {
+    if (typeof firebase === 'undefined' || !firebase.firestore) return [];
+    const db = firebase.firestore();
+    const snap = await db.collection('bkdrop_videos').orderBy('created_at', 'desc').limit(200).get();
+    _pipelineCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    return _pipelineCache;
+  } catch (e) { console.warn('pipelineLoadAll:', e); return []; }
+}
+
+async function pipelineAddVideo(data){
+  try {
+    const db = firebase.firestore();
+    const doc = {
+      product_id: data.product_id || '',
+      product_name: data.product_name || '',
+      tier: data.tier || 'base',
+      parent_video_id: data.parent_video_id || null,
+      created_by: window._currentUser || 'unknown',
+      drive_link: data.drive_link || '',
+      tag: data.tag || 'otro',
+      hook: data.hook || '',
+      state: 'pending_review',
+      comments: [],
+      meta_campaign_id: null,
+      reviewed_by: null,
+      created_at: firebase.firestore.FieldValue.serverTimestamp(),
+      updated_at: firebase.firestore.FieldValue.serverTimestamp(),
+    };
+    await db.collection('bkdrop_videos').add(doc);
+    return true;
+  } catch (e) {
+    showToast('Error al subir: ' + (e.message || '?'), '⚠️', 'error');
+    return false;
+  }
+}
+
+async function pipelineUpdateState(id, state, comment){
+  try {
+    const db = firebase.firestore();
+    const ref = db.collection('bkdrop_videos').doc(id);
+    const updates = {
+      state,
+      reviewed_by: window._currentUser || 'unknown',
+      updated_at: firebase.firestore.FieldValue.serverTimestamp(),
+    };
+    if (comment) {
+      const snap = await ref.get();
+      const existing = (snap.data() && snap.data().comments) || [];
+      existing.push({ author: window._currentUser, text: comment, ts: new Date().toISOString(), state_change: state });
+      updates.comments = existing;
+    }
+    await ref.update(updates);
+    return true;
+  } catch (e) {
+    showToast('Error actualizando estado: ' + (e.message || '?'), '⚠️', 'error');
+    return false;
+  }
+}
+
+async function pipelineAddComment(id, text){
+  try {
+    const db = firebase.firestore();
+    const ref = db.collection('bkdrop_videos').doc(id);
+    const snap = await ref.get();
+    const existing = (snap.data() && snap.data().comments) || [];
+    existing.push({ author: window._currentUser, text, ts: new Date().toISOString() });
+    await ref.update({ comments: existing, updated_at: firebase.firestore.FieldValue.serverTimestamp() });
+    return true;
+  } catch (e) {
+    showToast('Error: ' + (e.message || '?'), '⚠️', 'error');
+    return false;
+  }
+}
+
+async function pipelineDeleteVideo(id){
+  if (!confirm('¿Eliminar este video del pipeline? Esta acción no se puede deshacer.')) return false;
+  try {
+    const db = firebase.firestore();
+    await db.collection('bkdrop_videos').doc(id).delete();
+    return true;
+  } catch (e) {
+    showToast('Error: ' + (e.message || '?'), '⚠️', 'error');
+    return false;
+  }
+}
+
+// ── Renderizado principal según rol ───────────────────────────────────
+async function renderPipeline(){
+  const role = pipelineUserRole();
+  const tagEl = document.getElementById('pipeline-role-tag');
+  const tabsEl = document.getElementById('pipeline-tabs');
+  const contentEl = document.getElementById('pipeline-content');
+  if (!tagEl || !tabsEl || !contentEl) return;
+
+  // Cargar productos disponibles desde state global de BKDROP
+  _pipelineProducts = (window._appState && window._appState.products) || [];
+
+  // Tag de rol arriba a la derecha
+  const roleLabels = { supervisor: '👁 SUPERVISOR — Ve todo', colab1: '🎬 COLAB 1 — Producción base', colab2: '🚀 COLAB 2 — Escalado' };
+  tagEl.textContent = roleLabels[role] || 'COLABORADOR';
+
+  // Cargar videos
+  contentEl.innerHTML = '<div style="padding:30px;text-align:center;color:var(--muted);font-family:\'DM Mono\',monospace">Cargando pipeline…</div>';
+  await pipelineLoadAll();
+
+  // Render tabs según rol
+  const tabs = role === 'supervisor'
+    ? [
+        { id: 'queue',     label: '⏳ Cola de revisión (' + _pipelineCache.filter(v => v.state === 'pending_review').length + ')' },
+        { id: 'approved',  label: '✅ Aprobados / En test (' + _pipelineCache.filter(v => v.state === 'approved' || v.state === 'in_test').length + ')' },
+        { id: 'winners',   label: '🏆 Winners (' + _pipelineCache.filter(v => v.state === 'winner').length + ')' },
+        { id: 'losers',    label: '❌ Losers (' + _pipelineCache.filter(v => v.state === 'loser').length + ')' },
+        { id: 'changes',   label: '⚠️ Pidieron cambios (' + _pipelineCache.filter(v => v.state === 'needs_changes').length + ')' },
+        { id: 'dashboard', label: '📊 Patrones' },
+        { id: 'all',       label: '📂 Todo' },
+      ]
+    : role === 'colab1'
+    ? [
+        { id: 'colab1_mine',      label: '🎬 Mis videos (' + _pipelineCache.filter(v => v.created_by === window._currentUser).length + ')' },
+        { id: 'colab1_upload',    label: '➕ Subir nuevo' },
+        { id: 'colab1_changes',   label: '⚠️ Pidieron cambios (' + _pipelineCache.filter(v => v.created_by === window._currentUser && v.state === 'needs_changes').length + ')' },
+      ]
+    : [
+        { id: 'colab2_winners',   label: '🏆 Winners para escalar (' + _pipelineCache.filter(v => v.state === 'winner').length + ')' },
+        { id: 'colab2_mine',      label: '🚀 Mis variaciones (' + _pipelineCache.filter(v => v.created_by === window._currentUser && v.tier === 'variation').length + ')' },
+      ];
+
+  if (!tabs.find(t => t.id === _pipelineActiveTab)) _pipelineActiveTab = tabs[0].id;
+  tabsEl.innerHTML = tabs.map(t =>
+    '<button class="bk-step-btn" onclick="setPipelineTab(\'' + t.id + '\')" style="' +
+      (t.id === _pipelineActiveTab ? 'background:var(--accent);color:#fff' : '') + '">' + esc(t.label) + '</button>'
+  ).join('');
+
+  renderPipelineTab(_pipelineActiveTab, role);
+}
+
+function setPipelineTab(tab){
+  _pipelineActiveTab = tab;
+  renderPipeline();
+}
+
+function renderPipelineTab(tab, role){
+  const content = document.getElementById('pipeline-content');
+  if (!content) return;
+
+  // Filtrar
+  let filtered = [];
+  if (tab === 'queue')     filtered = _pipelineCache.filter(v => v.state === 'pending_review');
+  else if (tab === 'approved') filtered = _pipelineCache.filter(v => v.state === 'approved' || v.state === 'in_test');
+  else if (tab === 'winners')  filtered = _pipelineCache.filter(v => v.state === 'winner');
+  else if (tab === 'losers')   filtered = _pipelineCache.filter(v => v.state === 'loser');
+  else if (tab === 'changes')  filtered = _pipelineCache.filter(v => v.state === 'needs_changes');
+  else if (tab === 'all')      filtered = _pipelineCache;
+  else if (tab === 'colab1_mine')    filtered = _pipelineCache.filter(v => v.created_by === window._currentUser);
+  else if (tab === 'colab1_changes') filtered = _pipelineCache.filter(v => v.created_by === window._currentUser && v.state === 'needs_changes');
+  else if (tab === 'colab2_winners') filtered = _pipelineCache.filter(v => v.state === 'winner');
+  else if (tab === 'colab2_mine')    filtered = _pipelineCache.filter(v => v.created_by === window._currentUser && v.tier === 'variation');
+
+  if (tab === 'colab1_upload') {
+    content.innerHTML = pipelineRenderUploadForm('base');
+    return;
+  }
+  if (tab === 'dashboard') {
+    content.innerHTML = pipelineRenderDashboard();
+    return;
+  }
+  if (tab === 'colab2_winners') {
+    content.innerHTML = pipelineRenderWinnersForScaling(filtered);
+    return;
+  }
+
+  content.innerHTML = pipelineRenderVideoList(filtered, role);
+}
+
+function pipelineRenderVideoList(videos, role){
+  if (!videos.length) {
+    return '<div style="padding:40px;text-align:center;color:var(--muted);font-family:\'DM Mono\',monospace">Sin videos en esta vista.</div>';
+  }
+  return '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:14px">' +
+    videos.map(v => pipelineRenderVideoCard(v, role)).join('') +
+  '</div>';
+}
+
+function pipelineRenderVideoCard(v, role){
+  const stateInfo = PIPELINE_STATES[v.state] || PIPELINE_STATES.pending_review;
+  const tagInfo = PIPELINE_TAGS.find(t => t.id === v.tag) || PIPELINE_TAGS[PIPELINE_TAGS.length-1];
+  const fecha = v.created_at && v.created_at.toDate ? v.created_at.toDate().toLocaleString('es-CL', {day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) : '?';
+  const driveEmbed = pipelineDriveEmbedUrl(v.drive_link);
+  const commentsCount = (v.comments || []).length;
+  const tierBadge = v.tier === 'variation' ? '<span style="background:#7B5BB5;color:#fff;font-size:9px;padding:2px 6px;border-radius:4px;font-weight:700;letter-spacing:.3px">VARIACIÓN</span>' : '';
+
+  const showSupervisorActions = role === 'supervisor';
+  const canScale = role === 'colab2' && v.state === 'winner';
+
+  return '<div style="background:var(--surface);border:1.5px solid var(--border);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px">' +
+    // Header
+    '<div style="display:flex;align-items:flex-start;gap:8px">' +
+      '<div style="flex:1;min-width:0">' +
+        '<div style="font-size:13px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(v.product_name || '(sin producto)') + '</div>' +
+        '<div style="font-size:9px;color:var(--muted2);font-family:\'DM Mono\',monospace;margin-top:2px">' + esc(v.created_by || '?') + ' · ' + esc(fecha) + '</div>' +
+      '</div>' +
+      '<div style="background:' + stateInfo.color + ';color:#fff;font-size:10px;padding:3px 8px;border-radius:6px;font-weight:700;letter-spacing:.3px">' + stateInfo.label + '</div>' +
+    '</div>' +
+    // Tag + tier
+    '<div style="display:flex;gap:6px;flex-wrap:wrap">' +
+      '<span style="background:var(--accent-soft);color:var(--accent);font-size:9px;padding:2px 6px;border-radius:4px;font-weight:600">' + esc(tagInfo.label) + '</span>' +
+      tierBadge +
+    '</div>' +
+    // Hook
+    (v.hook ? '<div style="font-size:11px;color:var(--muted);line-height:1.4;font-style:italic">"' + esc(v.hook) + '"</div>' : '') +
+    // Drive embed o link
+    (driveEmbed ? '<iframe src="' + driveEmbed + '" style="width:100%;aspect-ratio:9/16;max-height:280px;border-radius:8px;border:1px solid var(--border);background:#000" allowfullscreen></iframe>'
+                : '<a href="' + esc(v.drive_link || '#') + '" target="_blank" style="font-size:11px;color:var(--accent);font-family:\'DM Mono\',monospace;word-break:break-all">' + esc(v.drive_link || '(sin link)') + '</a>') +
+    // Comments
+    (commentsCount ? '<button onclick="pipelineToggleComments(\'' + v.id + '\')" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:6px;font-size:10px;font-family:\'DM Mono\',monospace;cursor:pointer">💬 ' + commentsCount + ' comentario(s) — Ver</button>' : '') +
+    '<div id="comments-' + v.id + '" style="display:none">' + pipelineRenderComments(v.comments || []) + '</div>' +
+    // Actions según rol
+    (showSupervisorActions ? pipelineSupervisorActions(v) : '') +
+    (canScale ? '<button class="bk-step-btn" onclick="pipelineStartScaling(\'' + v.id + '\')" style="background:#7B5BB5;color:#fff;font-weight:700">🚀 Crear variación de este winner</button>' : '') +
+    (role === 'colab1' && v.created_by === window._currentUser && v.state === 'needs_changes' ? '<button class="bk-step-btn" onclick="pipelineResubmit(\'' + v.id + '\')" style="background:#10a37f;color:#fff">↻ Re-enviar a revisión</button>' : '') +
+  '</div>';
+}
+
+function pipelineSupervisorActions(v){
+  // Supervisor SIEMPRE puede forzar Winner desde cualquier estado, para
+  // poder escalar productos manualmente sin esperar métricas. Mismo con
+  // Loser para descartar rápido.
+  const forceActions =
+    '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">' +
+      (v.state !== 'winner' ? '<button class="bk-step-btn" onclick="pipelineMarkWinner(\'' + v.id + '\')" style="background:#2C8B5C;color:#fff;flex:1">🏆 Forzar Winner</button>' : '') +
+      (v.state !== 'loser' ? '<button class="bk-step-btn" onclick="pipelineMarkLoser(\'' + v.id + '\')" style="background:#C0392B;color:#fff;flex:1">❌ Marcar Loser</button>' : '') +
+    '</div>';
+
+  if (v.state === 'pending_review') {
+    return '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">' +
+      '<button class="bk-step-btn" onclick="pipelineApprove(\'' + v.id + '\')" style="background:#3F7F5C;color:#fff;flex:1">✅ VIDEO OK</button>' +
+      '<button class="bk-step-btn" onclick="pipelineRequestChanges(\'' + v.id + '\')" style="background:#D88A2A;color:#fff;flex:1">⚠️ Pedir cambios</button>' +
+    '</div>' + forceActions;
+  }
+  if (v.state === 'approved' || v.state === 'in_test' || v.state === 'needs_changes') {
+    return forceActions;
+  }
+  // Estado terminal (winner/loser): solo eliminar o cambiar a otro estado
+  return forceActions + '<button class="bk-step-btn" onclick="pipelineDeleteVideoUI(\'' + v.id + '\')" style="background:var(--surface2);color:var(--muted);border:1.5px solid var(--border);font-size:10px;padding:5px 10px;margin-top:6px">🗑 Eliminar</button>';
+}
+
+function pipelineRenderComments(comments){
+  if (!comments.length) return '';
+  return '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:8px;display:flex;flex-direction:column;gap:6px;margin-top:4px">' +
+    comments.map(c => {
+      const ts = c.ts ? new Date(c.ts).toLocaleString('es-CL', {day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) : '';
+      return '<div style="font-size:11px;color:var(--text);line-height:1.4">' +
+        '<b style="color:var(--accent)">' + esc(c.author || '?') + '</b> <span style="color:var(--muted2);font-size:9px">' + esc(ts) + '</span><br>' +
+        esc(c.text || '') +
+      '</div>';
+    }).join('') +
+  '</div>';
+}
+
+function pipelineToggleComments(id){
+  const el = document.getElementById('comments-' + id);
+  if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+function pipelineDriveEmbedUrl(driveLink){
+  if (!driveLink) return '';
+  // Convierte links de Drive a embeddable iframe URL
+  // https://drive.google.com/file/d/FILEID/view?... → https://drive.google.com/file/d/FILEID/preview
+  const m = driveLink.match(/\/file\/d\/([^/]+)/);
+  if (m) return 'https://drive.google.com/file/d/' + m[1] + '/preview';
+  return '';
+}
+
+// ── Acciones supervisor ───────────────────────────────────────────────
+async function pipelineApprove(id){
+  const ok = await pipelineUpdateState(id, 'approved');
+  if (ok) { showToast('✅ Video aprobado', '✅', 'success'); renderPipeline(); }
+}
+async function pipelineRequestChanges(id){
+  const comment = prompt('¿Qué cambios pedir? (obligatorio)');
+  if (!comment || !comment.trim()) return;
+  const ok = await pipelineUpdateState(id, 'needs_changes', comment.trim());
+  if (ok) { showToast('⚠️ Cambios solicitados', '⚠️', 'info'); renderPipeline(); }
+}
+async function pipelineMarkWinner(id){
+  const comment = prompt('Notas del winner (opcional, ej: ROAS 8.5x, CPA $2k, mejor hook fue X)') || '';
+  const ok = await pipelineUpdateState(id, 'winner', comment);
+  if (ok) { showToast('🏆 Winner marcado', '🏆', 'success'); renderPipeline(); }
+}
+async function pipelineMarkLoser(id){
+  const comment = prompt('¿Por qué loser? (opcional, ej: ROAS 1.2x, CPA muy alto)') || '';
+  const ok = await pipelineUpdateState(id, 'loser', comment);
+  if (ok) { showToast('❌ Marcado loser', '❌', 'info'); renderPipeline(); }
+}
+async function pipelineDeleteVideoUI(id){
+  const ok = await pipelineDeleteVideo(id);
+  if (ok) { showToast('🗑 Video eliminado', '🗑', 'success'); renderPipeline(); }
+}
+
+// ── Acciones Colab 1 ──────────────────────────────────────────────────
+async function pipelineResubmit(id){
+  const ok = await pipelineUpdateState(id, 'pending_review', 'Re-enviado tras cambios solicitados');
+  if (ok) { showToast('↻ Re-enviado a revisión', '↻', 'success'); renderPipeline(); }
+}
+
+// ── Form de subida (Colab 1 base / Colab 2 variation) ─────────────────
+let _pipelineUploadTier = 'base';
+let _pipelineUploadParent = null;
+
+function pipelineRenderUploadForm(tier, parentVideoId){
+  _pipelineUploadTier = tier;
+  _pipelineUploadParent = parentVideoId || null;
+  const productOptions = _pipelineProducts.map(p =>
+    '<option value="' + esc(String(p.id||'')) + '" data-name="' + esc(String(p.name||'')) + '">' + esc(p.name || '?') + '</option>'
+  ).join('');
+  const tagOptions = PIPELINE_TAGS.map(t => '<option value="' + t.id + '">' + esc(t.label) + '</option>').join('');
+  const tierBadge = tier === 'variation' ? '<div style="background:#7B5BB5;color:#fff;font-size:11px;padding:6px 10px;border-radius:6px;font-weight:700;letter-spacing:.5px;display:inline-block">VARIACIÓN de winner</div>' : '';
+
+  return '<div style="background:var(--surface);border:1.5px solid var(--accent);border-radius:12px;padding:16px;max-width:600px">' +
+    '<div style="font-size:14px;font-weight:700;color:var(--accent);font-family:\'Syne\',sans-serif;margin-bottom:12px">' +
+      (tier === 'base' ? '➕ Subir video base' : '🚀 Subir variación') +
+    '</div>' +
+    tierBadge +
+    '<div style="display:flex;flex-direction:column;gap:10px;margin-top:10px">' +
+      '<div><label style="font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace;display:block;margin-bottom:4px">PRODUCTO</label>' +
+        '<select id="pipeline-up-product" style="width:100%;padding:9px 12px;border-radius:8px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text);font-size:13px">' + productOptions + '</select>' +
+      '</div>' +
+      '<div><label style="font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace;display:block;margin-bottom:4px">LINK DE GOOGLE DRIVE (compartido)</label>' +
+        '<input id="pipeline-up-link" placeholder="https://drive.google.com/file/d/..." style="width:100%;padding:9px 12px;border-radius:8px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text);font-size:13px;font-family:\'DM Mono\',monospace;box-sizing:border-box">' +
+        '<div style="font-size:9px;color:var(--muted2);margin-top:4px">El link debe estar configurado como "Cualquier persona con el enlace puede ver". El embed se genera automático.</div>' +
+      '</div>' +
+      '<div><label style="font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace;display:block;margin-bottom:4px">TIPO DE VIDEO</label>' +
+        '<select id="pipeline-up-tag" style="width:100%;padding:9px 12px;border-radius:8px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text);font-size:13px">' + tagOptions + '</select>' +
+      '</div>' +
+      '<div><label style="font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace;display:block;margin-bottom:4px">HOOK / DESCRIPCIÓN BREVE (opcional)</label>' +
+        '<textarea id="pipeline-up-hook" placeholder="¿Cuál es la frase de apertura o concepto principal?" style="width:100%;padding:9px 12px;border-radius:8px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text);font-size:13px;min-height:60px;font-family:\'DM Mono\',monospace;resize:vertical;box-sizing:border-box"></textarea>' +
+      '</div>' +
+      '<button class="bk-step-btn" onclick="pipelineSubmitUpload()" style="background:var(--accent);color:#fff;font-weight:700">📤 Subir y enviar a revisión</button>' +
+    '</div>' +
+  '</div>';
+}
+
+async function pipelineSubmitUpload(){
+  const productSel = document.getElementById('pipeline-up-product');
+  const productId = productSel.value;
+  const productName = productSel.options[productSel.selectedIndex]?.dataset?.name || '';
+  const driveLink = document.getElementById('pipeline-up-link').value.trim();
+  const tag = document.getElementById('pipeline-up-tag').value;
+  const hook = document.getElementById('pipeline-up-hook').value.trim();
+
+  if (!productId) { showToast('Selecciona un producto', '⚠️', 'warn'); return; }
+  if (!driveLink || !/drive\.google\.com/.test(driveLink)) {
+    showToast('Pega un link válido de Google Drive', '⚠️', 'warn');
+    return;
+  }
+
+  const ok = await pipelineAddVideo({
+    product_id: productId,
+    product_name: productName,
+    drive_link: driveLink,
+    tag,
+    hook,
+    tier: _pipelineUploadTier,
+    parent_video_id: _pipelineUploadParent,
+  });
+  if (ok) {
+    showToast('✅ Video enviado a revisión', '📤', 'success');
+    _pipelineActiveTab = (_pipelineUploadTier === 'variation') ? 'colab2_mine' : 'colab1_mine';
+    renderPipeline();
+  }
+}
+
+function pipelineStartScaling(parentId){
+  _pipelineActiveTab = 'colab2_mine';
+  const content = document.getElementById('pipeline-content');
+  if (content) content.innerHTML = pipelineRenderUploadForm('variation', parentId);
+}
+
+function pipelineRenderWinnersForScaling(winners){
+  if (!winners.length) {
+    return '<div style="padding:40px;text-align:center;color:var(--muted);font-family:\'DM Mono\',monospace">Sin winners disponibles todavía. Esperá a que el supervisor marque alguno.</div>';
+  }
+  return '<div style="font-size:11px;color:var(--muted);font-family:\'DM Mono\',monospace;margin-bottom:12px">Click 🚀 sobre cualquier winner para crear una variación con tu nombre.</div>' +
+    pipelineRenderVideoList(winners, 'colab2');
+}
+
+// ── Dashboard de patrones (supervisor) ────────────────────────────────
+function pipelineRenderDashboard(){
+  const all = _pipelineCache;
+  if (!all.length) {
+    return '<div style="padding:40px;text-align:center;color:var(--muted);font-family:\'DM Mono\',monospace">Sin videos todavía. Vuelve cuando haya data.</div>';
+  }
+  // % winners por tag
+  const byTag = {};
+  PIPELINE_TAGS.forEach(t => { byTag[t.id] = { tag: t, winners: 0, losers: 0, total: 0 }; });
+  all.forEach(v => {
+    const t = v.tag || 'otro';
+    if (!byTag[t]) return;
+    byTag[t].total++;
+    if (v.state === 'winner') byTag[t].winners++;
+    if (v.state === 'loser') byTag[t].losers++;
+  });
+  const tagRows = Object.values(byTag).filter(r => r.total > 0).sort((a, b) => {
+    const aRate = a.total ? a.winners / a.total : 0;
+    const bRate = b.total ? b.winners / b.total : 0;
+    return bRate - aRate;
+  });
+
+  // % winners por colaborador
+  const byUser = {};
+  all.forEach(v => {
+    const u = v.created_by || 'unknown';
+    if (!byUser[u]) byUser[u] = { user: u, winners: 0, losers: 0, total: 0 };
+    byUser[u].total++;
+    if (v.state === 'winner') byUser[u].winners++;
+    if (v.state === 'loser') byUser[u].losers++;
+  });
+
+  return '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">' +
+    // Patrones por tag
+    '<div style="background:var(--surface);border:1.5px solid var(--border);border-radius:12px;padding:14px">' +
+      '<div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:10px;font-family:\'Syne\',sans-serif">🎯 Winners por tipo de video</div>' +
+      tagRows.map(r => {
+        const rate = r.total ? Math.round(r.winners / r.total * 100) : 0;
+        return '<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border)">' +
+          '<div style="flex:1;font-size:11px">' + esc(r.tag.label) + '</div>' +
+          '<div style="font-size:11px;color:var(--muted);font-family:\'DM Mono\',monospace">' + r.winners + '/' + r.total + '</div>' +
+          '<div style="width:50px;text-align:right;font-size:13px;font-weight:700;color:' + (rate >= 50 ? '#3F7F5C' : rate >= 25 ? '#D88A2A' : '#C0392B') + '">' + rate + '%</div>' +
+        '</div>';
+      }).join('') +
+    '</div>' +
+    // Patrones por colaborador
+    '<div style="background:var(--surface);border:1.5px solid var(--border);border-radius:12px;padding:14px">' +
+      '<div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:10px;font-family:\'Syne\',sans-serif">👥 Tasa de éxito por colaborador</div>' +
+      Object.values(byUser).sort((a,b) => (b.winners/b.total) - (a.winners/a.total)).map(r => {
+        const rate = r.total ? Math.round(r.winners / r.total * 100) : 0;
+        return '<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border)">' +
+          '<div style="flex:1;font-size:11px">' + esc(r.user) + '</div>' +
+          '<div style="font-size:11px;color:var(--muted);font-family:\'DM Mono\',monospace">' + r.winners + ' winners / ' + r.total + ' totales</div>' +
+          '<div style="width:50px;text-align:right;font-size:13px;font-weight:700;color:' + (rate >= 50 ? '#3F7F5C' : rate >= 25 ? '#D88A2A' : '#C0392B') + '">' + rate + '%</div>' +
+        '</div>';
+      }).join('') +
+    '</div>' +
+  '</div>';
 }
 
 // ── REPORTES — sub-tabs Shopify / Meta Ads ────────────────────────────────────
