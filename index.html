@@ -8385,6 +8385,7 @@ async function _bkLoadFFmpeg(onProgress){
   // Cargar como ES module desde CDN
   const ffmpegMod = await import('https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/esm/index.js');
   const utilMod   = await import('https://unpkg.com/@ffmpeg/util@0.12.2/dist/esm/index.js');
+  const { toBlobURL, fetchFile } = utilMod;
   const ffmpeg = new ffmpegMod.FFmpeg();
   ffmpeg.on('progress', (p)=>{
     if(onProgress && typeof p.progress === 'number'){
@@ -8392,13 +8393,23 @@ async function _bkLoadFFmpeg(onProgress){
       onProgress('Procesando video… ' + pct + '%');
     }
   });
+  // El worker.js se carga cross-origin por default y el navegador lo bloquea.
+  // toBlobURL hace fetch (respeta CORS del unpkg, que es *) y devuelve un
+  // blob: URL same-origin, que sí se puede usar para construir Worker.
+  // Lo mismo para coreURL y wasmURL para evitar cualquier problema.
+  if(onProgress) onProgress('Descargando worker FFmpeg…');
+  const workerURL = await toBlobURL(
+    'https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/esm/worker.js',
+    'text/javascript'
+  );
   // ffmpeg-core single-thread (NO requiere SharedArrayBuffer)
   const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
-  await ffmpeg.load({
-    coreURL: baseURL + '/ffmpeg-core.js',
-    wasmURL: baseURL + '/ffmpeg-core.wasm',
-  });
-  _bkFfmpegInstance = { ffmpeg, fetchFile: utilMod.fetchFile };
+  if(onProgress) onProgress('Descargando core FFmpeg (~30 MB)…');
+  const coreURL = await toBlobURL(baseURL + '/ffmpeg-core.js',  'text/javascript');
+  const wasmURL = await toBlobURL(baseURL + '/ffmpeg-core.wasm', 'application/wasm');
+  if(onProgress) onProgress('Inicializando FFmpeg…');
+  await ffmpeg.load({ classWorkerURL: workerURL, coreURL, wasmURL });
+  _bkFfmpegInstance = { ffmpeg, fetchFile };
   return _bkFfmpegInstance;
 }
 
