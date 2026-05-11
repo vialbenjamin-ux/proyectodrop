@@ -12010,9 +12010,13 @@ function pipelineRenderAssignmentsTab(role){
         '<div style="font-size:13px;font-weight:700;color:' + (progress >= 3 ? '#3F7F5C' : 'var(--accent)') + '">' + progress + '/3</div>' +
       '</div>' +
       // Notes
-      (a.notes ? '<div style="font-size:11px;color:var(--muted);line-height:1.5;background:var(--surface2);padding:8px;border-radius:6px;border-left:3px solid var(--accent)">📝 ' + esc(a.notes) + '</div>' : '') +
-      // Folder link/embed
-      '<a href="' + esc(a.raw_folder_link || '#') + '" target="_blank" style="background:var(--surface2);border:1px solid var(--border);color:var(--accent);padding:8px 10px;border-radius:6px;font-size:11px;font-family:\'DM Mono\',monospace;text-decoration:none;display:block;text-align:center">📁 Abrir carpeta Drive con raws</a>' +
+      (a.notes ? '<div style="font-size:11px;color:var(--muted);line-height:1.5;background:var(--surface2);padding:8px;border-radius:6px;border-left:3px solid var(--accent)">📝 <b>Briefing:</b> ' + esc(a.notes) + '</div>' : '') +
+      // Folder link/embed con label MUY visible para que el editor sepa de dónde bajar
+      '<div style="background:#FFF3CD;border:1.5px dashed #D9A82E;border-radius:8px;padding:10px;display:flex;flex-direction:column;gap:6px">' +
+        '<div style="font-size:10px;color:#7A5D00;font-weight:700;letter-spacing:.5px;text-transform:uppercase">📥 Videos en bruto — descargá de acá para editarlos</div>' +
+        '<a href="' + esc(a.raw_folder_link || '#') + '" target="_blank" style="background:#D9A82E;color:#fff;border:none;padding:9px 12px;border-radius:6px;font-size:12px;font-family:\'DM Mono\',monospace;text-decoration:none;display:block;text-align:center;font-weight:700">📁 Abrir carpeta Drive con los 3 raws ↗</a>' +
+        '<div style="font-size:9px;color:#7A5D00">Abrí, descargá los 3 videos, editalos, y subí cada terminado con el botón verde de abajo.</div>' +
+      '</div>' +
       // Action: upload edited video
       (canUpload ? '<button class="bk-step-btn" onclick="pipelineStartUploadForAssignment(\'' + a.id + '\')" style="background:#10a37f;color:#fff;font-weight:700">📤 Subir video editado ' + (progress + 1) + ' de 3</button>' : '') +
       // Supervisor: delete
