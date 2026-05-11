@@ -12027,9 +12027,14 @@ function pipelineRenderAssignmentForm(){
   const productOptions = _pipelineProducts.map(p =>
     '<option value="' + esc(String(p.id||'')) + '" data-name="' + esc(String(p.name||'')) + '" data-search="' + esc(String(p.name||'').toLowerCase()) + '">' + esc(p.name || '?') + '</option>'
   ).join('');
-  const colabOptions = ['Colaborador 1', 'Colaborador 2', 'Colaborador 3'].map(c =>
-    '<option value="' + esc(c) + '">' + esc(c) + '</option>'
-  ).join('');
+  // Sugerencias de colaboradores: extrae nombres de asignaciones previas
+  // y los predefinidos, así el usuario tiene autocomplete pero también puede
+  // escribir un nombre nuevo.
+  const prevColabs = new Set();
+  _pipelineAssignments.forEach(a => { if (a.assigned_to) prevColabs.add(a.assigned_to); });
+  const defaultColabs = ['Sofia', 'Colaborador 1', 'Colaborador 2', 'Colaborador 3'];
+  defaultColabs.forEach(c => prevColabs.add(c));
+  const colabDatalist = Array.from(prevColabs).map(c => '<option value="' + esc(c) + '">').join('');
 
   return '<div style="background:var(--surface);border:1.5px solid var(--accent);border-radius:12px;padding:16px;max-width:700px">' +
     '<div style="font-size:14px;font-weight:700;color:var(--accent);font-family:\'Syne\',sans-serif;margin-bottom:12px">📦 Crear asignación de edición</div>' +
@@ -12043,8 +12048,10 @@ function pipelineRenderAssignmentForm(){
         '<input id="pipeline-assign-folder" placeholder="https://drive.google.com/drive/folders/..." style="width:100%;padding:9px 12px;border-radius:8px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text);font-size:13px;font-family:\'DM Mono\',monospace;box-sizing:border-box">' +
         '<div style="font-size:9px;color:var(--muted2);margin-top:4px">Configurá la carpeta como "Cualquier persona con el enlace puede ver". Va a tener los 3 videos sin editar.</div>' +
       '</div>' +
-      '<div><label style="font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace;display:block;margin-bottom:4px">ASIGNAR A</label>' +
-        '<select id="pipeline-assign-to" style="width:100%;padding:9px 12px;border-radius:8px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text);font-size:13px">' + colabOptions + '</select>' +
+      '<div><label style="font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace;display:block;margin-bottom:4px">ASIGNAR A (nombre del colaborador)</label>' +
+        '<input id="pipeline-assign-to" list="pipeline-colab-suggestions" placeholder="Ej: Sofia, Juan, Maria..." style="width:100%;padding:9px 12px;border-radius:8px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text);font-size:13px;font-family:\'DM Mono\',monospace;box-sizing:border-box">' +
+        '<datalist id="pipeline-colab-suggestions">' + colabDatalist + '</datalist>' +
+        '<div style="font-size:9px;color:var(--muted2);margin-top:4px">Escribe libre o elige una sugerencia. Tiene que coincidir con el nombre del usuario logueado.</div>' +
       '</div>' +
       '<div><label style="font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace;display:block;margin-bottom:4px">BRIEFING / NOTAS PARA EL EDITOR (opcional)</label>' +
         '<textarea id="pipeline-assign-notes" placeholder="Ej: usar música upbeat, mostrar el producto en uso primero, agregar overlay con texto del beneficio..." style="width:100%;padding:9px 12px;border-radius:8px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text);font-size:13px;min-height:80px;resize:vertical;box-sizing:border-box;font-family:\'DM Mono\',monospace"></textarea>' +
