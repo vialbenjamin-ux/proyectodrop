@@ -1424,6 +1424,7 @@
             <button class="bk-step-btn" id="bk-btn-shopify-push" onclick="abrirShopifyPush()" style="background:#10a37f;color:#fff">📤 Pegar en producto</button>
             <button class="bk-step-btn" id="bk-btn-shrine-paste" onclick="abrirShrinePaste()" style="background:#7B5BB5;color:#fff">📋 Copy-paste manual</button>
             <button class="bk-step-btn" id="bk-btn-mis-landings" onclick="abrirMisLandings()" style="background:#5B7CBF;color:#fff">📚 Mis landings</button>
+            <button class="bk-step-btn" id="bk-btn-edit-section" onclick="abrirEditarSeccion()" style="background:#0EA5E9;color:#fff">🔧 Editar sección</button>
             <button class="bk-step-btn" id="bk-btn-template-inspect" onclick="inspeccionarTemplate()" style="background:#E89A4A;color:#fff">🔍 Inspector</button>
           </div>
           <div id="bk-extract-result" class="bk-step-hint"></div>
@@ -1497,6 +1498,20 @@
             </div>
 
             <div class="bk-shopify-status" id="bk-precios-status"></div>
+          </div>
+
+          <div class="bk-shopify-push" id="bk-edit-section" style="display:none;border-color:#0EA5E9">
+            <div class="bk-shopify-push-title" style="color:#0EA5E9">🔧 Editar una sección de plantilla aplicada</div>
+            <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;line-height:1.5">
+              Buscás el producto, BKDROP carga su plantilla actual, eliges qué sección está mal, editás y publicás solo esa sección — el resto del landing queda intacto.
+            </div>
+            <div class="bk-shopify-search-row">
+              <input type="text" id="bk-edit-section-search" placeholder="Producto" onkeydown="if(event.key==='Enter') buscarProductoEditarSeccion()">
+              <button onclick="buscarProductoEditarSeccion()">🔍 Buscar</button>
+            </div>
+            <div class="bk-shopify-results" id="bk-edit-section-results"></div>
+            <div id="bk-edit-section-sections" style="display:none;flex-direction:column;gap:10px;border-top:1px dashed var(--border);padding-top:10px"></div>
+            <div class="bk-shopify-status" id="bk-edit-section-status"></div>
           </div>
 
           <div id="bk-template-inspect" style="display:none;margin-top:14px;padding:14px;background:var(--surface);border:1.5px solid #E89A4A;border-radius:12px;flex-direction:column;gap:10px">
@@ -5613,6 +5628,289 @@ async function copyTemplateJson(){
   } catch (err) {
     showToast('No se pudo copiar: ' + (err.message || '?'), '⚠️', 'error');
   }
+}
+
+// ── Editar sección de plantilla aplicada ──────────────────────────────
+let _editSectionProduct = null;
+let _editSectionTemplate = null; // { json, assetKey }
+
+function abrirEditarSeccion(){
+  const panel = document.getElementById('bk-edit-section');
+  if (!panel) return;
+  const isVisible = (panel.style.display !== 'none');
+  panel.style.display = isVisible ? 'none' : 'flex';
+  if (!isVisible) {
+    buscarProductoEditarSeccion();
+    panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+}
+
+async function buscarProductoEditarSeccion(){
+  const q = document.getElementById('bk-edit-section-search')?.value || '';
+  const results = document.getElementById('bk-edit-section-results');
+  const status = document.getElementById('bk-edit-section-status');
+  if (!results) return;
+  results.innerHTML = '<div style="font-size:11px;color:var(--muted);padding:8px">Buscando…</div>';
+  if (status) status.textContent = '';
+  try {
+    const url = '/.netlify/functions/shopify-products?_=1' + (q ? '&q=' + encodeURIComponent(q) : '') + tenantParam();
+    const resp = await fetch(url);
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || ('HTTP ' + resp.status));
+    const products = data.products || [];
+    if (!products.length) { results.innerHTML = '<div style="font-size:11px;color:var(--muted);padding:8px">Sin resultados.</div>'; return; }
+    results.innerHTML = products.map(p => {
+      const img = p.image ? '<img src="' + esc(p.image) + '" alt="">' : '<img alt="">';
+      const titleAttr = String(p.title || '').replace(/'/g, "\\'");
+      return '<div class="bk-shopify-result" data-id="' + p.id + '" onclick="seleccionarProductoEditarSeccion(' + p.id + ", '" + titleAttr + '\')">' +
+        img + '<div class="info"><div class="title">' + esc(p.title || '') + '</div><div class="meta">' + esc(p.handle || '') + '</div></div></div>';
+    }).join('');
+  } catch (err) {
+    results.innerHTML = '';
+    if (status) status.textContent = '⚠️ ' + (err.message || 'error');
+  }
+}
+
+async function seleccionarProductoEditarSeccion(id, title){
+  const status = document.getElementById('bk-edit-section-status');
+  document.querySelectorAll('#bk-edit-section-results .bk-shopify-result').forEach(el => {
+    el.classList.toggle('selected', String(el.dataset.id) === String(id));
+  });
+  _editSectionProduct = { id, title };
+  if (status) status.textContent = '⏳ Cargando plantilla del producto…';
+
+  try {
+    // 1. Fetch del producto para obtener su template_suffix
+    const pResp = await fetch('/.netlify/functions/shopify-products?_=1&id=' + id + tenantParam());
+    const pData = await pResp.json();
+    if (!pResp.ok) throw new Error(pData.error || ('HTTP ' + pResp.status));
+    const tsuffix = pData.product?.template_suffix;
+    if (!tsuffix) {
+      if (status) status.innerHTML = '⚠️ Este producto no tiene plantilla custom asignada (usa la default). Solo podés editar plantillas creadas con "Auto-generar plantilla Shrine".';
+      document.getElementById('bk-edit-section-sections').style.display = 'none';
+      return;
+    }
+
+    // 2. Fetch del asset template
+    const assetKey = 'templates/product.' + tsuffix + '.json';
+    const tResp = await fetch('/.netlify/functions/shopify-themes?op=template&assetKey=' + encodeURIComponent(assetKey) + tenantParam());
+    const tData = await tResp.json();
+    if (!tResp.ok) throw new Error(tData.error || ('HTTP ' + tResp.status));
+    const json = JSON.parse(tData.value);
+    _editSectionTemplate = { json, assetKey };
+
+    if (status) status.textContent = '✓ Plantilla "' + tsuffix + '" cargada. Elige qué sección editar:';
+    renderSectionsParaEditar(json);
+  } catch (err) {
+    if (status) status.textContent = '⚠️ ' + (err.message || 'error');
+  }
+}
+
+function renderSectionsParaEditar(json){
+  const container = document.getElementById('bk-edit-section-sections');
+  if (!container) return;
+  // Identificar secciones editables del template
+  const sectionsList = [];
+  for (const key of Object.keys(json.sections || {})) {
+    const s = json.sections[key];
+    if (!s || !s.type) continue;
+    if (s.type === 'main-product' && s.blocks) {
+      // Buscar emoji_benefits y reviews dentro de main
+      for (const bk of Object.keys(s.blocks)) {
+        const b = s.blocks[bk];
+        if (b.type === 'emoji_benefits') sectionsList.push({ id: 'beneficios', sectionKey: key, blockKey: bk, label: '🟦 Beneficios clave (3 líneas con emoji)' });
+        if (b.type === 'reviews') sectionsList.push({ id: 'reviews', sectionKey: key, blockKey: bk, label: '🟨 Testimonios breves (3 con foto + autor)' });
+      }
+    }
+    if (s.type === 'image-with-text') {
+      const headBlock = Object.values(s.blocks || {}).find(b => b.type === 'heading');
+      const titulo = headBlock?.settings?.heading || '(sin título)';
+      sectionsList.push({ id: 'iwt:' + key, sectionKey: key, label: '🟧 Image-with-text: "' + String(titulo).slice(0, 60) + '"' });
+    }
+    if (s.type === 'testimonials') sectionsList.push({ id: 'testimonios', sectionKey: key, label: '🟪 Testimonios extensos (3 columnas con foto)' });
+    if (s.type === 'collapsible-content') sectionsList.push({ id: 'faq', sectionKey: key, label: '📌 Preguntas frecuentes (FAQ)' });
+  }
+  container.style.display = 'flex';
+  container.innerHTML = sectionsList.map(s =>
+    '<button class="bk-step-btn" onclick="editarSeccionEspecifica(\'' + s.id + '\',\'' + s.sectionKey + '\',\'' + (s.blockKey || '') + '\')" style="text-align:left;background:var(--surface2);color:var(--text);border:1.5px solid var(--border);padding:10px 14px">' +
+      esc(s.label) +
+    '</button>'
+  ).join('');
+}
+
+function editarSeccionEspecifica(id, sectionKey, blockKey){
+  const container = document.getElementById('bk-edit-section-sections');
+  if (!container || !_editSectionTemplate) return;
+  const json = _editSectionTemplate.json;
+  const section = json.sections[sectionKey];
+
+  let formHtml = '';
+  // ── Beneficios ──
+  if (id === 'beneficios') {
+    const block = section.blocks[blockKey];
+    const html = block.settings.benefits || '';
+    // Extraer las 3 líneas separadas por <br/>
+    const lines = html.replace(/^<p>/i, '').replace(/<\/p>$/i, '').split(/<br\s*\/?>/i).map(s => s.trim()).filter(Boolean);
+    while (lines.length < 3) lines.push('');
+    formHtml = '<div style="font-size:12px;font-weight:700;color:#0EA5E9;margin-bottom:8px">Editar 3 beneficios (incluí el emoji al inicio de cada línea)</div>' +
+      [0,1,2].map(i =>
+        '<input id="edit-benef-' + i + '" value="' + esc(lines[i] || '') + '" style="width:100%;padding:9px 12px;border-radius:8px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text);font-size:13px;font-family:\'DM Mono\',monospace;margin-bottom:6px;box-sizing:border-box">'
+      ).join('') +
+      '<button class="bk-step-btn" style="background:#0EA5E9;color:#fff" onclick="guardarBeneficios(\'' + sectionKey + '\',\'' + blockKey + '\')">💾 Guardar beneficios</button>';
+  }
+  // ── Reviews (testimonios breves) ──
+  else if (id === 'reviews') {
+    const block = section.blocks[blockKey];
+    const s = block.settings;
+    formHtml = '<div style="font-size:12px;font-weight:700;color:#0EA5E9;margin-bottom:8px">Editar testimonios breves (3 reviews)</div>';
+    for (let i = 1; i <= 3; i++) {
+      const author = (s['author_' + i] || '').replace(/<\/?em>/g, '').replace(/<\/?strong>/g, '').trim();
+      const text = (s['text_' + i] || '').replace(/<\/?p>/g, '').trim();
+      formHtml += '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:8px">' +
+        '<div style="font-size:10px;color:var(--muted);margin-bottom:4px">Review ' + i + '</div>' +
+        '<label style="font-size:10px;color:var(--muted)">Autor (nombre completo):</label>' +
+        '<input id="edit-rev-author-' + i + '" value="' + esc(author) + '" style="width:100%;padding:7px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:12px;font-family:\'DM Mono\',monospace;margin-bottom:4px;box-sizing:border-box">' +
+        '<label style="font-size:10px;color:var(--muted)">Texto:</label>' +
+        '<textarea id="edit-rev-text-' + i + '" style="width:100%;padding:7px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:12px;font-family:\'DM Mono\',monospace;min-height:50px;resize:vertical;box-sizing:border-box">' + esc(text) + '</textarea>' +
+      '</div>';
+    }
+    formHtml += '<button class="bk-step-btn" style="background:#0EA5E9;color:#fff" onclick="guardarReviews(\'' + sectionKey + '\',\'' + blockKey + '\')">💾 Guardar testimonios breves</button>';
+  }
+  // ── Image-with-text ──
+  else if (id.startsWith('iwt:')) {
+    const headBlockKey = Object.keys(section.blocks).find(k => section.blocks[k].type === 'heading');
+    const textBlockKey = Object.keys(section.blocks).find(k => section.blocks[k].type === 'text');
+    const heading = section.blocks[headBlockKey]?.settings?.heading || '';
+    const text = (section.blocks[textBlockKey]?.settings?.text || '').replace(/<\/?p>/g, '').replace(/<br\s*\/?>/g, '').trim();
+    formHtml = '<div style="font-size:12px;font-weight:700;color:#0EA5E9;margin-bottom:8px">Editar bullet de landing</div>' +
+      '<label style="font-size:10px;color:var(--muted)">Título:</label>' +
+      '<input id="edit-iwt-heading" value="' + esc(heading) + '" style="width:100%;padding:9px 12px;border-radius:8px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text);font-size:13px;margin-bottom:6px;box-sizing:border-box">' +
+      '<label style="font-size:10px;color:var(--muted)">Texto:</label>' +
+      '<textarea id="edit-iwt-text" style="width:100%;padding:9px 12px;border-radius:8px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text);font-size:13px;min-height:80px;resize:vertical;margin-bottom:8px;box-sizing:border-box">' + esc(text) + '</textarea>' +
+      '<button class="bk-step-btn" style="background:#0EA5E9;color:#fff" onclick="guardarImageWithText(\'' + sectionKey + '\',\'' + headBlockKey + '\',\'' + textBlockKey + '\')">💾 Guardar bullet</button>';
+  }
+  // ── Testimonios extensos ──
+  else if (id === 'testimonios') {
+    const cols = Object.keys(section.blocks).filter(k => section.blocks[k].type === 'column');
+    formHtml = '<div style="font-size:12px;font-weight:700;color:#0EA5E9;margin-bottom:8px">Editar testimonios extensos (3 columnas)</div>';
+    cols.slice(0, 3).forEach((colKey, idx) => {
+      const s = section.blocks[colKey].settings || {};
+      const titulo = s.title || '';
+      const texto = (s.text || '').replace(/<\/?p>/g, '').replace(/<br\s*\/?>/g, '').trim();
+      const autor = (s.author || '').replace(/<\/?em>/g, '').replace(/<\/?strong>/g, '').trim();
+      formHtml += '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:8px">' +
+        '<div style="font-size:10px;color:var(--muted);margin-bottom:4px">Columna ' + (idx + 1) + '</div>' +
+        '<label style="font-size:10px;color:var(--muted)">Título:</label>' +
+        '<input id="edit-test-titulo-' + idx + '" value="' + esc(titulo) + '" style="width:100%;padding:7px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:12px;margin-bottom:4px;box-sizing:border-box">' +
+        '<label style="font-size:10px;color:var(--muted)">Texto:</label>' +
+        '<textarea id="edit-test-texto-' + idx + '" style="width:100%;padding:7px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:12px;min-height:80px;resize:vertical;margin-bottom:4px;box-sizing:border-box">' + esc(texto) + '</textarea>' +
+        '<label style="font-size:10px;color:var(--muted)">Autor:</label>' +
+        '<input id="edit-test-autor-' + idx + '" value="' + esc(autor) + '" style="width:100%;padding:7px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:12px;box-sizing:border-box">' +
+      '</div>';
+    });
+    formHtml += '<button class="bk-step-btn" style="background:#0EA5E9;color:#fff" onclick="guardarTestimoniosExtensos(\'' + sectionKey + '\')">💾 Guardar testimonios</button>';
+  }
+  // ── FAQ ──
+  else if (id === 'faq') {
+    const rows = Object.keys(section.blocks).filter(k => section.blocks[k].type === 'collapsible_row');
+    formHtml = '<div style="font-size:12px;font-weight:700;color:#0EA5E9;margin-bottom:8px">Editar FAQ (' + rows.length + ' filas)</div>';
+    rows.forEach((rkey, idx) => {
+      const s = section.blocks[rkey].settings || {};
+      const heading = s.heading || '';
+      const content = (s.row_content || '').replace(/<\/?p>/g, '').replace(/<br\s*\/?>/g, '').trim();
+      formHtml += '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:8px">' +
+        '<div style="font-size:10px;color:var(--muted);margin-bottom:4px">Pregunta ' + (idx + 1) + (idx === rows.length - 1 ? ' (típicamente la del método de pago)' : '') + '</div>' +
+        '<label style="font-size:10px;color:var(--muted)">Pregunta:</label>' +
+        '<input id="edit-faq-q-' + idx + '" value="' + esc(heading) + '" style="width:100%;padding:7px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:12px;margin-bottom:4px;box-sizing:border-box">' +
+        '<label style="font-size:10px;color:var(--muted)">Respuesta:</label>' +
+        '<textarea id="edit-faq-a-' + idx + '" style="width:100%;padding:7px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:12px;min-height:60px;resize:vertical;box-sizing:border-box">' + esc(content) + '</textarea>' +
+      '</div>';
+    });
+    formHtml += '<button class="bk-step-btn" style="background:#0EA5E9;color:#fff" onclick="guardarFaq(\'' + sectionKey + '\')">💾 Guardar FAQ</button>';
+  }
+
+  container.innerHTML =
+    '<button onclick="renderSectionsParaEditar(_editSectionTemplate.json)" style="background:var(--surface2);border:1px solid var(--border);padding:5px 10px;border-radius:6px;font-size:10px;cursor:pointer;align-self:flex-start;color:var(--muted)">← volver a lista de secciones</button>' +
+    '<div style="background:var(--surface);border:1.5px solid #0EA5E9;border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:6px">' + formHtml + '</div>';
+}
+
+async function persistirTemplateEdit(){
+  if (!_editSectionTemplate) return false;
+  const status = document.getElementById('bk-edit-section-status');
+  if (status) status.textContent = '⏳ Guardando plantilla…';
+  try {
+    const resp = await fetch('/.netlify/functions/shopify-themes?_=1' + tenantParam(), {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        assetKey: _editSectionTemplate.assetKey,
+        value: JSON.stringify(_editSectionTemplate.json, null, 2),
+      }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || ('HTTP ' + resp.status));
+    if (status) status.innerHTML = '✅ Sección actualizada en plantilla "' + esc(_editSectionTemplate.assetKey.replace(/^templates\/product\./,'').replace(/\.json$/,'')) + '". El resto del landing quedó intacto.';
+    showToast('Sección publicada', '💾', 'success');
+    return true;
+  } catch (err) {
+    if (status) status.textContent = '⚠️ ' + (err.message || 'error');
+    showToast('Error guardando: ' + (err.message || '?'), '⚠️', 'error');
+    return false;
+  }
+}
+
+function guardarBeneficios(sectionKey, blockKey){
+  const lines = [0,1,2].map(i => document.getElementById('edit-benef-' + i)?.value.trim() || '').filter(Boolean);
+  if (!lines.length) { showToast('Ingresá al menos 1 beneficio', '⚠️', 'warn'); return; }
+  const html = '<p>' + lines.map(l => l.replace(/</g,'&lt;').replace(/>/g,'&gt;')).join('<br/>') + '</p>';
+  _editSectionTemplate.json.sections[sectionKey].blocks[blockKey].settings.benefits = html;
+  persistirTemplateEdit();
+}
+
+function guardarReviews(sectionKey, blockKey){
+  const block = _editSectionTemplate.json.sections[sectionKey].blocks[blockKey];
+  for (let i = 1; i <= 3; i++) {
+    const author = document.getElementById('edit-rev-author-' + i)?.value.trim() || '';
+    const text = document.getElementById('edit-rev-text-' + i)?.value.trim() || '';
+    block.settings['author_' + i] = '<em>' + author.replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</em>';
+    block.settings['text_' + i] = '<p>' + text.replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</p>';
+  }
+  persistirTemplateEdit();
+}
+
+function guardarImageWithText(sectionKey, headBlockKey, textBlockKey){
+  const heading = document.getElementById('edit-iwt-heading')?.value.trim() || '';
+  const text = document.getElementById('edit-iwt-text')?.value.trim() || '';
+  const section = _editSectionTemplate.json.sections[sectionKey];
+  if (section.blocks[headBlockKey]) section.blocks[headBlockKey].settings.heading = heading;
+  if (section.blocks[textBlockKey]) section.blocks[textBlockKey].settings.text = '<p><br/>' + text.replace(/</g,'&lt;').replace(/>/g,'&gt;') + '<br/><br/></p>';
+  persistirTemplateEdit();
+}
+
+function guardarTestimoniosExtensos(sectionKey){
+  const section = _editSectionTemplate.json.sections[sectionKey];
+  const cols = Object.keys(section.blocks).filter(k => section.blocks[k].type === 'column').slice(0, 3);
+  cols.forEach((colKey, idx) => {
+    const titulo = document.getElementById('edit-test-titulo-' + idx)?.value.trim() || '';
+    const texto = document.getElementById('edit-test-texto-' + idx)?.value.trim() || '';
+    const autor = document.getElementById('edit-test-autor-' + idx)?.value.trim() || '';
+    section.blocks[colKey].settings.title = titulo;
+    section.blocks[colKey].settings.text = '<p><br/>' + texto.replace(/</g,'&lt;').replace(/>/g,'&gt;') + '<br/><br/></p>';
+    section.blocks[colKey].settings.author = '<em><strong>' + autor.replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</strong></em>';
+  });
+  persistirTemplateEdit();
+}
+
+function guardarFaq(sectionKey){
+  const section = _editSectionTemplate.json.sections[sectionKey];
+  const rows = Object.keys(section.blocks).filter(k => section.blocks[k].type === 'collapsible_row');
+  rows.forEach((rkey, idx) => {
+    const q = document.getElementById('edit-faq-q-' + idx)?.value.trim() || '';
+    const a = document.getElementById('edit-faq-a-' + idx)?.value.trim() || '';
+    section.blocks[rkey].settings.heading = q;
+    section.blocks[rkey].settings.row_content = '<p><br/>' + a.replace(/</g,'&lt;').replace(/>/g,'&gt;') + '<br/><br/></p>';
+  });
+  persistirTemplateEdit();
 }
 
 // ── Mis Landings: auto-guardado en Firestore + descarga .doc ───────────
