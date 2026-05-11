@@ -12025,7 +12025,7 @@ function pipelineRenderAssignmentsTab(role){
 
 function pipelineRenderAssignmentForm(){
   const productOptions = _pipelineProducts.map(p =>
-    '<option value="' + esc(String(p.id||'')) + '" data-name="' + esc(String(p.name||'')) + '">' + esc(p.name || '?') + '</option>'
+    '<option value="' + esc(String(p.id||'')) + '" data-name="' + esc(String(p.name||'')) + '" data-search="' + esc(String(p.name||'').toLowerCase()) + '">' + esc(p.name || '?') + '</option>'
   ).join('');
   const colabOptions = ['Colaborador 1', 'Colaborador 2', 'Colaborador 3'].map(c =>
     '<option value="' + esc(c) + '">' + esc(c) + '</option>'
@@ -12034,8 +12034,10 @@ function pipelineRenderAssignmentForm(){
   return '<div style="background:var(--surface);border:1.5px solid var(--accent);border-radius:12px;padding:16px;max-width:700px">' +
     '<div style="font-size:14px;font-weight:700;color:var(--accent);font-family:\'Syne\',sans-serif;margin-bottom:12px">📦 Crear asignación de edición</div>' +
     '<div style="display:flex;flex-direction:column;gap:10px">' +
-      '<div><label style="font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace;display:block;margin-bottom:4px">PRODUCTO</label>' +
-        '<select id="pipeline-assign-product" style="width:100%;padding:9px 12px;border-radius:8px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text);font-size:13px">' + productOptions + '</select>' +
+      '<div><label style="font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace;display:block;margin-bottom:4px">PRODUCTO (escribe para buscar)</label>' +
+        '<input id="pipeline-assign-product-search" oninput="filterAssignProductOptions(this.value)" placeholder="🔍 Buscar por nombre..." style="width:100%;padding:9px 12px;border-radius:8px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text);font-size:13px;font-family:\'DM Mono\',monospace;box-sizing:border-box;margin-bottom:6px">' +
+        '<select id="pipeline-assign-product" size="6" style="width:100%;padding:6px;border-radius:8px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text);font-size:13px">' + productOptions + '</select>' +
+        '<div style="font-size:9px;color:var(--muted2);margin-top:4px">Click el producto en la lista para seleccionarlo</div>' +
       '</div>' +
       '<div><label style="font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace;display:block;margin-bottom:4px">CARPETA GOOGLE DRIVE CON LOS 3 RAWS</label>' +
         '<input id="pipeline-assign-folder" placeholder="https://drive.google.com/drive/folders/..." style="width:100%;padding:9px 12px;border-radius:8px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text);font-size:13px;font-family:\'DM Mono\',monospace;box-sizing:border-box">' +
@@ -12055,6 +12057,22 @@ function pipelineRenderAssignmentForm(){
 function pipelineToggleAssignmentForm(){
   const f = document.getElementById('pipeline-assignment-form');
   if (f) f.style.display = f.style.display === 'none' ? 'block' : 'none';
+}
+
+function filterAssignProductOptions(query){
+  const sel = document.getElementById('pipeline-assign-product');
+  if (!sel) return;
+  const q = (query || '').toLowerCase().trim();
+  let firstVisible = null;
+  Array.from(sel.options).forEach(opt => {
+    const text = (opt.dataset.search || opt.text || '').toLowerCase();
+    const visible = !q || text.includes(q);
+    opt.hidden = !visible;
+    opt.style.display = visible ? '' : 'none';
+    if (visible && !firstVisible) firstVisible = opt;
+  });
+  // Auto-seleccionar el primer resultado visible
+  if (firstVisible) sel.value = firstVisible.value;
 }
 
 async function pipelineSubmitAssignment(){
