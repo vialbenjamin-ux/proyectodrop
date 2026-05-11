@@ -11782,9 +11782,16 @@ function pipelineRenderVideoCard(v, role){
   const showSupervisorActions = role === 'supervisor';
   const canScale = role === 'colab2' && v.state === 'winner';
 
-  // Banner ticket WINNER (muy visible cuando aplica)
+  // Banner ticket WINNER (muy visible cuando aplica) + video label si se especificó
   const winnerBanner = v.winner_ticket
-    ? '<div style="background:linear-gradient(135deg,#2C8B5C,#1F6543);color:#fff;padding:10px 12px;border-radius:8px;text-align:center;font-weight:800;font-family:\'DM Mono\',monospace;letter-spacing:1.5px;box-shadow:0 2px 8px rgba(44,139,92,0.3)">🏆 TICKET ' + esc(v.winner_ticket) + '</div>'
+    ? '<div style="background:linear-gradient(135deg,#2C8B5C,#1F6543);color:#fff;padding:10px 12px;border-radius:8px;text-align:center;font-weight:800;font-family:\'DM Mono\',monospace;letter-spacing:1px;box-shadow:0 2px 8px rgba(44,139,92,0.3)">' +
+        '<div style="font-size:13px">🏆 TICKET ' + esc(v.winner_ticket) + '</div>' +
+        (v.winner_video_label
+          ? '<div style="font-size:11px;margin-top:4px;background:rgba(255,255,255,0.15);padding:4px 10px;border-radius:4px;display:inline-block">📹 ' + esc(v.winner_video_label) + '</div>'
+          : (role === 'supervisor' ? '<div style="font-size:9px;margin-top:6px;opacity:.9;cursor:pointer;text-decoration:underline" onclick="pipelineEditWinnerLabel(\'' + v.id + '\')">+ identificar cuál video de la carpeta ganó</div>' : '')
+        ) +
+        (v.winner_video_label && role === 'supervisor' ? ' <span style="font-size:9px;cursor:pointer;text-decoration:underline;opacity:.85" onclick="pipelineEditWinnerLabel(\'' + v.id + '\')">[editar]</span>' : '') +
+      '</div>'
     : '';
 
   // Bloque de métricas (si hay)
@@ -11930,7 +11937,10 @@ async function pipelineRequestChanges(id){
   if (ok) { showToast('⚠️ Cambios solicitados', '⚠️', 'info'); renderPipeline(); }
 }
 async function pipelineMarkWinner(id){
+  // Si en la carpeta del Drive hay varios videos, pedir que identifique cuál ganó
+  const winnerVideoLabel = prompt('Si la carpeta tiene varios videos, ¿cuál es el winner?\n\nEj: "Video 2", "El de la patada", "v3-final.mp4"\n\n(Dejá vacío si la carpeta tiene 1 solo video o si querés llenar después)') || '';
   const comment = prompt('Notas del winner (opcional, ej: ROAS 8.5x, CPA $2k, mejor hook fue X)') || '';
+
   // Generar ticket único formato WIN-AAAAMMDD-NNN
   const winnerCount = _pipelineCache.filter(v => v.state === 'winner' && v.winner_ticket).length;
   const today = new Date();
@@ -11941,22 +11951,44 @@ async function pipelineMarkWinner(id){
     const ref = db.collection('bkdrop_videos').doc(id);
     const snap = await ref.get();
     const existing = (snap.data() && snap.data().comments) || [];
+    const ticketMsg = '🏆 Marcado WINNER — Ticket ' + ticket + (winnerVideoLabel ? ' · Video: ' + winnerVideoLabel : '') + (comment ? '\n' + comment : '');
     existing.push({
       author: window._currentUser,
-      text: '🏆 Marcado WINNER — Ticket ' + ticket + (comment ? '\n' + comment : ''),
+      text: ticketMsg,
       ts: new Date().toISOString(),
       state_change: 'winner'
     });
     await ref.update({
       state: 'winner',
       winner_ticket: ticket,
+      winner_video_label: winnerVideoLabel,
       winner_marked_at: new Date().toISOString(),
       winner_marked_by: window._currentUser || 'unknown',
       reviewed_by: window._currentUser || 'unknown',
       comments: existing,
       updated_at: firebase.firestore.FieldValue.serverTimestamp(),
     });
-    showToast('🏆 Winner ' + ticket + ' creado', '🏆', 'success');
+    showToast('🏆 Winner ' + ticket + (winnerVideoLabel ? ' (' + winnerVideoLabel + ')' : '') + ' creado', '🏆', 'success');
+    renderPipeline();
+  } catch (e) {
+    showToast('Error: ' + (e.message || '?'), '⚠️', 'error');
+  }
+}
+
+// Permite editar el winner_video_label después si se olvidaron de poner cuál
+async function pipelineEditWinnerLabel(id){
+  const v = _pipelineCache.find(x => x.id === id);
+  if (!v) return;
+  const current = v.winner_video_label || '';
+  const newLabel = prompt('¿Cuál de los videos de la carpeta es el winner?\n\nEj: "Video 2", "v3-final.mp4"', current);
+  if (newLabel === null) return; // canceló
+  try {
+    const db = firebase.firestore();
+    await db.collection('bkdrop_videos').doc(id).update({
+      winner_video_label: newLabel.trim(),
+      updated_at: firebase.firestore.FieldValue.serverTimestamp(),
+    });
+    showToast('✓ Identificación del video actualizada', '✏️', 'success');
     renderPipeline();
   } catch (e) {
     showToast('Error: ' + (e.message || '?'), '⚠️', 'error');
