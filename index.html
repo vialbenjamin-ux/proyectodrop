@@ -95,6 +95,7 @@
   .card-stage-landingpub{border-top:3px solid #4ade80 !important;border-left:4px solid #4ade80 !important;background:linear-gradient(135deg,#f0fdf4,#f7fef9) !important}
   .card-stage-videos    {border-top:3px solid #a855f7 !important;border-left:4px solid #a855f7 !important;background:linear-gradient(135deg,#faf5ff,#fdf8ff) !important}
   .card-stage-releasit  {border-top:3px solid #f07070 !important;border-left:4px solid #f07070 !important;background:linear-gradient(135deg,#fff1f1,#fff7f7) !important}
+  .card-stage-standby   {border-top:3px solid #94a3b8 !important;border-left:4px solid #94a3b8 !important;background:linear-gradient(135deg,#f1f5f9,#f8fafc) !important}
   .card-stage-ads       {border-top:3px solid #f59e0b !important;border-left:4px solid #f59e0b !important;background:linear-gradient(135deg,#fffbeb,#fffdf5) !important}
   .card-stage-done      {border-top:3px solid #4ecdc4 !important;border-left:4px solid #4ecdc4 !important;background:linear-gradient(135deg,#f0fdfc,#f5fffe) !important}
   .stage-badge{display:inline-flex;align-items:center;gap:4px;font-size:10px;padding:3px 9px;border-radius:20px;font-weight:600;margin-bottom:6px}
@@ -3073,6 +3074,7 @@ const PROD_STAGES = [
   {id:'landingpub', label:'Landing Publicado', icon:'🌐', color:'#22C55E'},
   {id:'releasit',   label:'Config. Releasit',  icon:'⚙️', color:'#F07070'},
   {id:'videos',     label:'Creando Videos',    icon:'🎬', color:'#A855F7'},
+  {id:'standby',    label:'Stand by',          icon:'⏸️', color:'#94A3B8'},
   {id:'ads',        label:'Publicado en Ads',  icon:'🚀', color:'#F59E0B'},
   {id:'done',       label:'Terminado',         icon:'✅', color:'#4ECDC4'},
 ];
@@ -3850,13 +3852,14 @@ function renderProducts(){
     const imp = IMPORTANCE.find(i=>i.id===p.importance);
     const isDone       = !!stages.done;
     const isAds        = !!stages.ads && !isDone;
-    // Pipeline: landing → landingpub → releasit → videos → ads → done.
+    // Pipeline: landing → landingpub → releasit → videos → standby → ads → done.
     // El color refleja la etapa MÁS AVANZADA marcada, así que priorizamos
     // de derecha a izquierda del pipeline.
-    const isVideos     = !!stages.videos && !isDone && !isAds;
-    const isReleasit   = !!stages.releasit && !isDone && !isAds && !isVideos;
-    const isLandingPub = !!stages.landingpub && !isDone && !isAds && !isVideos && !isReleasit;
-    const isLandingWip = !!stages.landing && !isLandingPub && !isDone && !isAds && !isVideos && !isReleasit;
+    const isStandby    = !!stages.standby && !isDone && !isAds;
+    const isVideos     = !!stages.videos && !isDone && !isAds && !isStandby;
+    const isReleasit   = !!stages.releasit && !isDone && !isAds && !isStandby && !isVideos;
+    const isLandingPub = !!stages.landingpub && !isDone && !isAds && !isStandby && !isVideos && !isReleasit;
+    const isLandingWip = !!stages.landing && !isLandingPub && !isDone && !isAds && !isStandby && !isVideos && !isReleasit;
     const isEmpty      = !stages.landing;
 
     const oc = p.owner ? getOwnerColor(p.owner) : null;
@@ -3866,6 +3869,7 @@ function renderProducts(){
     let stageClass = '';
     if(isDone)        stageClass = 'card-stage-done';
     else if(isAds)    stageClass = 'card-stage-ads';
+    else if(isStandby) stageClass = 'card-stage-standby';
     else if(isReleasit) stageClass = 'card-stage-releasit';
     else if(isVideos) stageClass = 'card-stage-videos';
     else if(isLandingPub) stageClass = 'card-stage-landingpub';
@@ -3880,6 +3884,7 @@ function renderProducts(){
     // Badge de etapa actual
     const stageInfo = isDone ? {label:'Terminado',color:'#4ecdc4',bg:'#f0fdfc'}
       : isAds       ? {label:'En Ads',color:'#f59e0b',bg:'#fffbeb'}
+      : isStandby   ? {label:'Stand by',color:'#94a3b8',bg:'#f1f5f9'}
       : isReleasit  ? {label:'Config. Releasit',color:'#f07070',bg:'#fff1f1'}
       : isVideos    ? {label:'Creando Videos',color:'#a855f7',bg:'#faf5ff'}
       : isLandingPub? {label:'Landing Publicada',color:'#4ade80',bg:'#f0fdf4'}
