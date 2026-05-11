@@ -11599,27 +11599,27 @@ async function renderPipeline(){
   contentEl.innerHTML = '<div style="padding:30px;text-align:center;color:var(--muted);font-family:\'DM Mono\',monospace">Cargando pipeline…</div>';
   await pipelineLoadAll();
 
-  // Render tabs según rol
-  const tabs = role === 'supervisor'
-    ? [
-        { id: 'queue',     label: '⏳ Cola de revisión (' + _pipelineCache.filter(v => v.state === 'pending_review').length + ')' },
-        { id: 'approved',  label: '✅ Aprobados / En test (' + _pipelineCache.filter(v => v.state === 'approved' || v.state === 'in_test').length + ')' },
-        { id: 'winners',   label: '🏆 Winners (' + _pipelineCache.filter(v => v.state === 'winner').length + ')' },
-        { id: 'losers',    label: '❌ Losers (' + _pipelineCache.filter(v => v.state === 'loser').length + ')' },
-        { id: 'changes',   label: '⚠️ Pidieron cambios (' + _pipelineCache.filter(v => v.state === 'needs_changes').length + ')' },
-        { id: 'dashboard', label: '📊 Patrones' },
-        { id: 'all',       label: '📂 Todo' },
-      ]
-    : role === 'colab1'
-    ? [
-        { id: 'colab1_mine',      label: '🎬 Mis videos (' + _pipelineCache.filter(v => v.created_by === window._currentUser).length + ')' },
-        { id: 'colab1_upload',    label: '➕ Subir nuevo' },
-        { id: 'colab1_changes',   label: '⚠️ Pidieron cambios (' + _pipelineCache.filter(v => v.created_by === window._currentUser && v.state === 'needs_changes').length + ')' },
-      ]
-    : [
-        { id: 'colab2_winners',   label: '🏆 Winners para escalar (' + _pipelineCache.filter(v => v.state === 'winner').length + ')' },
-        { id: 'colab2_mine',      label: '🚀 Mis variaciones (' + _pipelineCache.filter(v => v.created_by === window._currentUser && v.tier === 'variation').length + ')' },
-      ];
+  // Todos los roles ven la pipeline COMPLETA (cola, winners, patrones, etc).
+  // Lo que cambia es qué ACCIONES puede hacer cada uno sobre cada video.
+  const totalMine = _pipelineCache.filter(v => v.created_by === window._currentUser).length;
+  const tabs = [
+    { id: 'queue',     label: '⏳ Cola de revisión (' + _pipelineCache.filter(v => v.state === 'pending_review').length + ')' },
+    { id: 'approved',  label: '✅ Aprobados / En test (' + _pipelineCache.filter(v => v.state === 'approved' || v.state === 'in_test').length + ')' },
+    { id: 'winners',   label: '🏆 Winners (' + _pipelineCache.filter(v => v.state === 'winner').length + ')' },
+    { id: 'losers',    label: '❌ Losers (' + _pipelineCache.filter(v => v.state === 'loser').length + ')' },
+    { id: 'changes',   label: '⚠️ Pidieron cambios (' + _pipelineCache.filter(v => v.state === 'needs_changes').length + ')' },
+    { id: 'colab1_mine', label: '🎬 Mis videos (' + totalMine + ')' },
+  ];
+  // Botón ➕ subir nuevo: visible para colab1 y colab3 (productores), supervisor también lo ve por si quiere subir directo
+  if (role === 'colab1' || role === 'supervisor') {
+    tabs.push({ id: 'colab1_upload', label: '➕ Subir video base' });
+  }
+  // Botón crear variación: solo colab2 lo ve. Pero los winners igual los ve todo el mundo en su tab.
+  if (role === 'colab2' || role === 'supervisor') {
+    tabs.push({ id: 'colab2_mine', label: '🚀 Mis variaciones (' + _pipelineCache.filter(v => v.created_by === window._currentUser && v.tier === 'variation').length + ')' });
+  }
+  tabs.push({ id: 'dashboard', label: '📊 Patrones' });
+  tabs.push({ id: 'all',       label: '📂 Todo' });
 
   if (!tabs.find(t => t.id === _pipelineActiveTab)) _pipelineActiveTab = tabs[0].id;
   tabsEl.innerHTML = tabs.map(t =>
@@ -11649,7 +11649,6 @@ function renderPipelineTab(tab, role){
   else if (tab === 'all')      filtered = _pipelineCache;
   else if (tab === 'colab1_mine')    filtered = _pipelineCache.filter(v => v.created_by === window._currentUser);
   else if (tab === 'colab1_changes') filtered = _pipelineCache.filter(v => v.created_by === window._currentUser && v.state === 'needs_changes');
-  else if (tab === 'colab2_winners') filtered = _pipelineCache.filter(v => v.state === 'winner');
   else if (tab === 'colab2_mine')    filtered = _pipelineCache.filter(v => v.created_by === window._currentUser && v.tier === 'variation');
 
   if (tab === 'colab1_upload') {
@@ -11660,11 +11659,8 @@ function renderPipelineTab(tab, role){
     content.innerHTML = pipelineRenderDashboard();
     return;
   }
-  if (tab === 'colab2_winners') {
-    content.innerHTML = pipelineRenderWinnersForScaling(filtered);
-    return;
-  }
-
+  // En el tab "Winners", colab2 ve cards con botón "🚀 Crear variación"
+  // automático por canScale logic. El resto solo ve los winners.
   content.innerHTML = pipelineRenderVideoList(filtered, role);
 }
 
