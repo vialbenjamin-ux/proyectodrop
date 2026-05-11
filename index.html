@@ -1426,6 +1426,7 @@
             <button class="bk-step-btn" id="bk-btn-shrine-paste" onclick="abrirShrinePaste()" style="background:#7B5BB5;color:#fff">📋 Copy-paste manual</button>
             <button class="bk-step-btn" id="bk-btn-mis-landings" onclick="abrirMisLandings()" style="background:#5B7CBF;color:#fff">📚 Mis landings</button>
             <button class="bk-step-btn" id="bk-btn-edit-section" onclick="abrirEditarSeccion()" style="background:#0EA5E9;color:#fff">🔧 Editar sección</button>
+            <button class="bk-step-btn" id="bk-btn-replicar-gt" onclick="abrirReplicarGT()" style="background:#22C55E;color:#fff">🔄 Replicar a GT</button>
             <button class="bk-step-btn" id="bk-btn-template-inspect" onclick="inspeccionarTemplate()" style="background:#E89A4A;color:#fff">🔍 Inspector</button>
           </div>
           <div id="bk-extract-result" class="bk-step-hint"></div>
@@ -1513,6 +1514,20 @@
             <div class="bk-shopify-results" id="bk-edit-section-results"></div>
             <div id="bk-edit-section-sections" style="display:none;flex-direction:column;gap:10px;border-top:1px dashed var(--border);padding-top:10px"></div>
             <div class="bk-shopify-status" id="bk-edit-section-status"></div>
+          </div>
+
+          <div class="bk-shopify-push" id="bk-replicar-gt" style="display:none;border-color:#22C55E">
+            <div class="bk-shopify-push-title" style="color:#22C55E">🔄 Replicar landing existente de Chile → Guatemala</div>
+            <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;line-height:1.5">
+              Buscás un producto en Chile que ya tenga landing aplicado. BKDROP lee su plantilla, busca el mismo handle en Shopify GT y copia la plantilla allí. <strong>Las imágenes deberás reasignarlas desde el editor de Shopify GT</strong> (las refs <code>shopify://shop_images/</code> son por tienda).
+            </div>
+            <div class="bk-shopify-search-row">
+              <input type="text" id="bk-replicar-gt-search" placeholder="Producto en Chile (título o handle)" onkeydown="if(event.key==='Enter') buscarProductoReplicarGT()">
+              <button onclick="buscarProductoReplicarGT()">🔍 Buscar en CL</button>
+            </div>
+            <div class="bk-shopify-results" id="bk-replicar-gt-results"></div>
+            <div id="bk-replicar-gt-detail" style="display:none;flex-direction:column;gap:10px;border-top:1px dashed var(--border);padding-top:10px"></div>
+            <div class="bk-shopify-status" id="bk-replicar-gt-status2"></div>
           </div>
 
           <div id="bk-template-inspect" style="display:none;margin-top:14px;padding:14px;background:var(--surface);border:1.5px solid #E89A4A;border-radius:12px;flex-direction:column;gap:10px">
@@ -5719,6 +5734,176 @@ async function copyTemplateJson(){
     showToast('JSON del template copiado', '📋', 'success');
   } catch (err) {
     showToast('No se pudo copiar: ' + (err.message || '?'), '⚠️', 'error');
+  }
+}
+
+// ── Replicar landing EXISTENTE de Chile → Guatemala ──────────────────
+// Caso de uso: ya tenés un producto con landing aplicado en CL y querés
+// replicar esa plantilla a tu Shopify de GT, donde el producto existe
+// con el mismo handle.
+let _replicarGtProduct = null;
+
+function abrirReplicarGT(){
+  const panel = document.getElementById('bk-replicar-gt');
+  if(!panel) return;
+  const visible = (panel.style.display !== 'none');
+  panel.style.display = visible ? 'none' : 'flex';
+  if(!visible){
+    buscarProductoReplicarGT();
+    panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+}
+
+async function buscarProductoReplicarGT(){
+  const q = document.getElementById('bk-replicar-gt-search')?.value || '';
+  const results = document.getElementById('bk-replicar-gt-results');
+  const status = document.getElementById('bk-replicar-gt-status2');
+  const detail = document.getElementById('bk-replicar-gt-detail');
+  if(!results) return;
+  results.innerHTML = '<div style="font-size:11px;color:var(--muted);padding:8px">Buscando productos en Chile…</div>';
+  if(status) status.textContent = '';
+  if(detail){ detail.style.display = 'none'; detail.innerHTML = ''; }
+  try {
+    // SIEMPRE buscamos en Chile (tenant=chile) sin importar el tenant activo
+    const url = '/.netlify/functions/shopify-products?_=1' + (q ? '&q=' + encodeURIComponent(q) : '') + '&tenant=chile';
+    const resp = await fetch(url);
+    const data = await resp.json();
+    if(!resp.ok) throw new Error(data.error || ('HTTP ' + resp.status));
+    const products = data.products || [];
+    if(!products.length){ results.innerHTML = '<div style="font-size:11px;color:var(--muted);padding:8px">Sin resultados en Shopify CL.</div>'; return; }
+    results.innerHTML = products.map(p => {
+      const img = p.image ? '<img src="' + esc(p.image) + '" alt="">' : '<img alt="">';
+      const titleAttr  = String(p.title  || '').replace(/'/g, "\\'");
+      const handleAttr = String(p.handle || '').replace(/'/g, "\\'");
+      return '<div class="bk-shopify-result" data-id="' + p.id + '" onclick="seleccionarProductoReplicarGT(' + p.id + ", '" + titleAttr + "', '" + handleAttr + '\')">' +
+        img + '<div class="info"><div class="title">' + esc(p.title || '') + '</div><div class="meta">handle: ' + esc(p.handle || '') + '</div></div></div>';
+    }).join('');
+  } catch(err){
+    results.innerHTML = '';
+    if(status) status.textContent = '⚠ ' + (err.message || 'error');
+  }
+}
+
+async function seleccionarProductoReplicarGT(id, title, handle){
+  const status = document.getElementById('bk-replicar-gt-status2');
+  const detail = document.getElementById('bk-replicar-gt-detail');
+  document.querySelectorAll('#bk-replicar-gt-results .bk-shopify-result').forEach(el => {
+    el.classList.toggle('selected', String(el.dataset.id) === String(id));
+  });
+  _replicarGtProduct = { id, title, handle };
+  if(status) status.textContent = '⏳ Leyendo template actual del producto en CL…';
+  if(detail){ detail.style.display = 'none'; detail.innerHTML = ''; }
+  try {
+    // 1. Leer producto en CL para obtener su template_suffix
+    const pResp = await fetch('/.netlify/functions/shopify-products?id=' + id + '&tenant=chile');
+    const pData = await pResp.json();
+    if(!pResp.ok) throw new Error(pData.error || ('HTTP ' + pResp.status));
+    const tsuffix = pData.product?.template_suffix;
+    if(!tsuffix){
+      if(status) status.innerHTML = '⚠ Este producto NO tiene template_suffix asignado (sin landing custom). Aplicale primero un landing en CL.';
+      return;
+    }
+    const assetKey = 'templates/product.' + tsuffix + '.json';
+
+    // 2. Leer el contenido del template
+    const tResp = await fetch('/.netlify/functions/shopify-themes?op=template&assetKey=' + encodeURIComponent(assetKey) + '&tenant=chile');
+    const tData = await tResp.json();
+    if(!tResp.ok) throw new Error(tData.error || 'No se pudo leer la plantilla');
+
+    // 3. Validar JSON
+    let parsed;
+    try { parsed = JSON.parse(tData.value); }
+    catch(e){ throw new Error('La plantilla no es JSON válido'); }
+
+    // 4. Mostrar resumen + verificar producto en GT con mismo handle
+    if(detail){
+      detail.style.display = 'flex';
+      detail.innerHTML =
+        '<div style="font-size:11px;color:var(--text);line-height:1.6">' +
+          '<div>📋 <strong>Producto CL:</strong> ' + esc(title) + ' · handle: <code>' + esc(handle) + '</code></div>' +
+          '<div>📂 <strong>Plantilla actual:</strong> <code>' + esc(tsuffix) + '</code> · ' + (parsed.sections ? Object.keys(parsed.sections).length : 0) + ' secciones</div>' +
+          '<div id="bk-replicar-gt-check" style="margin-top:8px;color:var(--muted);font-size:11px">⏳ Verificando producto en Shopify GT…</div>' +
+        '</div>' +
+        '<div style="display:flex;gap:6px;flex-wrap:wrap">' +
+          '<button id="bk-replicar-gt-exec" disabled onclick="ejecutarReplicacionGT()" style="background:#22C55E;color:#fff;border:none;border-radius:8px;padding:9px 14px;font-size:12px;font-family:\'DM Mono\',monospace;cursor:pointer;font-weight:700;opacity:0.5">🔄 Replicar a Shopify GT</button>' +
+        '</div>';
+    }
+    // Guardar el template para usar al ejecutar
+    _replicarGtProduct.suffix = tsuffix;
+    _replicarGtProduct.assetKey = assetKey;
+    _replicarGtProduct.jsonText = tData.value;
+
+    if(status) status.textContent = '';
+
+    // 5. Verificar producto en GT con mismo handle
+    const gtSearch = await fetch('/.netlify/functions/shopify-products?q=' + encodeURIComponent(handle) + '&tenant=gt');
+    const gtData = await gtSearch.json();
+    const checkEl = document.getElementById('bk-replicar-gt-check');
+    const execBtn = document.getElementById('bk-replicar-gt-exec');
+    if(!gtSearch.ok){
+      if(checkEl){ checkEl.textContent = '⚠ No se pudo buscar en GT: ' + (gtData.error || 'fallo'); checkEl.style.color = 'var(--danger,#E74C3C)'; }
+      return;
+    }
+    const gtMatch = (gtData.products || []).find(p => p.handle === handle);
+    if(!gtMatch){
+      if(checkEl){
+        checkEl.innerHTML = '❌ <strong>No existe</strong> el producto en Shopify GT con handle <code>' + esc(handle) + '</code>. Creálo en GT con ese handle exacto antes de replicar.';
+        checkEl.style.color = 'var(--danger,#E74C3C)';
+      }
+      return;
+    }
+    if(checkEl){
+      checkEl.innerHTML = '✅ Producto encontrado en Shopify GT: <strong>' + esc(gtMatch.title) + '</strong> (ID: ' + gtMatch.id + ')';
+      checkEl.style.color = 'var(--accent)';
+    }
+    _replicarGtProduct.gtId = gtMatch.id;
+    if(execBtn){ execBtn.disabled = false; execBtn.style.opacity = '1'; }
+  } catch(err){
+    if(status) status.textContent = '⚠ ' + (err.message || 'error');
+  }
+}
+
+async function ejecutarReplicacionGT(){
+  const status = document.getElementById('bk-replicar-gt-status2');
+  const btn = document.getElementById('bk-replicar-gt-exec');
+  const p = _replicarGtProduct;
+  if(!p || !p.suffix || !p.jsonText || !p.gtId){
+    if(status) status.textContent = '⚠ Datos incompletos. Volvé a seleccionar el producto.';
+    return;
+  }
+  if(btn){ btn.disabled = true; btn.textContent = '⏳ Replicando…'; }
+  try {
+    // 1. Subir el template al theme MAIN de GT con la misma assetKey
+    if(status) status.textContent = '1/2 · Subiendo plantilla al theme de GT…';
+    const wResp = await fetch('/.netlify/functions/shopify-themes?_=1&tenant=gt', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ assetKey: p.assetKey, value: p.jsonText }),
+    });
+    const wData = await wResp.json();
+    if(!wResp.ok) throw new Error('Subida template GT: ' + (wData.error || 'fallo'));
+
+    // 2. Asignar template_suffix al producto en GT
+    if(status) status.textContent = '2/2 · Asignando plantilla al producto en GT…';
+    const uResp = await fetch('/.netlify/functions/shopify-products?_=1&tenant=gt', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: p.gtId, template_suffix: p.suffix }),
+    });
+    const uData = await uResp.json();
+    if(!uResp.ok) throw new Error('Asignar template GT: ' + (uData.error || 'fallo'));
+
+    if(status){
+      status.innerHTML = '✅ Plantilla "<b>' + esc(p.suffix) + '</b>" replicada al producto de GT. ' +
+        '<br><span style="color:#F59E0B">⚠ Reasigná las imágenes desde el editor de Shopify GT</span>';
+      status.style.color = 'var(--accent)';
+    }
+    showToast('🔄 Landing replicado a GT', '✨', 'success');
+  } catch(err){
+    if(status){ status.textContent = '⚠ ' + (err.message || 'error'); status.style.color = 'var(--danger,#E74C3C)'; }
+    showToast('Error: ' + (err.message || '?'), '⚠️', 'error');
+  } finally {
+    if(btn){ btn.disabled = false; btn.textContent = '🔄 Replicar a Shopify GT'; }
   }
 }
 
