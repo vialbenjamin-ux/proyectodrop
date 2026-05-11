@@ -11625,6 +11625,28 @@ async function pipelineUpdateState(id, state, comment){
   }
 }
 
+async function pipelineUpdateMetrics(id, metrics){
+  try {
+    const db = firebase.firestore();
+    await db.collection('bkdrop_videos').doc(id).update({
+      metrics: {
+        roas: metrics.roas || null,
+        cpa: metrics.cpa || null,
+        sales: metrics.sales || null,
+        spend: metrics.spend || null,
+        notes: metrics.notes || '',
+        updated_at: new Date().toISOString(),
+        updated_by: window._currentUser || 'unknown',
+      },
+      updated_at: firebase.firestore.FieldValue.serverTimestamp(),
+    });
+    return true;
+  } catch (e) {
+    showToast('Error guardando métricas: ' + (e.message || '?'), '⚠️', 'error');
+    return false;
+  }
+}
+
 async function pipelineAddComment(id, text){
   try {
     const db = firebase.firestore();
@@ -11755,11 +11777,34 @@ function pipelineRenderVideoCard(v, role){
   const driveEmbed = pipelineDriveEmbedUrl(v.drive_link);
   const commentsCount = (v.comments || []).length;
   const tierBadge = v.tier === 'variation' ? '<span style="background:#7B5BB5;color:#fff;font-size:9px;padding:2px 6px;border-radius:4px;font-weight:700;letter-spacing:.3px">VARIACIÓN</span>' : '';
+  const canEditMetrics = role === 'supervisor' && (v.state === 'approved' || v.state === 'in_test' || v.state === 'winner' || v.state === 'loser');
 
   const showSupervisorActions = role === 'supervisor';
   const canScale = role === 'colab2' && v.state === 'winner';
 
+  // Banner ticket WINNER (muy visible cuando aplica)
+  const winnerBanner = v.winner_ticket
+    ? '<div style="background:linear-gradient(135deg,#2C8B5C,#1F6543);color:#fff;padding:10px 12px;border-radius:8px;text-align:center;font-weight:800;font-family:\'DM Mono\',monospace;letter-spacing:1.5px;box-shadow:0 2px 8px rgba(44,139,92,0.3)">🏆 TICKET ' + esc(v.winner_ticket) + '</div>'
+    : '';
+
+  // Bloque de métricas (si hay)
+  const metrics = v.metrics || {};
+  const hasMetrics = metrics.roas || metrics.cpa || metrics.sales || metrics.spend || metrics.notes;
+  const metricsBlock = hasMetrics
+    ? '<div style="background:var(--surface2);border:1.5px solid var(--border);border-radius:8px;padding:8px 10px;display:flex;flex-direction:column;gap:4px">' +
+        '<div style="font-size:9px;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);font-weight:700">📊 Métricas asignadas</div>' +
+        '<div style="display:flex;gap:10px;flex-wrap:wrap;font-size:11px;font-family:\'DM Mono\',monospace">' +
+          (metrics.roas  ? '<div><b style="color:var(--accent)">ROAS:</b> ' + esc(metrics.roas) + '</div>' : '') +
+          (metrics.cpa   ? '<div><b style="color:var(--accent)">CPA:</b> ' + esc(metrics.cpa) + '</div>' : '') +
+          (metrics.sales ? '<div><b style="color:var(--accent)">Ventas:</b> ' + esc(metrics.sales) + '</div>' : '') +
+          (metrics.spend ? '<div><b style="color:var(--accent)">Gasto:</b> ' + esc(metrics.spend) + '</div>' : '') +
+        '</div>' +
+        (metrics.notes ? '<div style="font-size:10px;color:var(--muted);line-height:1.4;margin-top:2px">📝 ' + esc(metrics.notes) + '</div>' : '') +
+      '</div>'
+    : '';
+
   return '<div style="background:var(--surface);border:1.5px solid var(--border);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px">' +
+    winnerBanner +
     // Header
     '<div style="display:flex;align-items:flex-start;gap:8px">' +
       '<div style="flex:1;min-width:0">' +
@@ -11778,6 +11823,21 @@ function pipelineRenderVideoCard(v, role){
     // Drive embed o link
     (driveEmbed ? '<iframe src="' + driveEmbed + '" style="width:100%;aspect-ratio:9/16;max-height:280px;border-radius:8px;border:1px solid var(--border);background:#000" allowfullscreen></iframe>'
                 : '<a href="' + esc(v.drive_link || '#') + '" target="_blank" style="font-size:11px;color:var(--accent);font-family:\'DM Mono\',monospace;word-break:break-all">' + esc(v.drive_link || '(sin link)') + '</a>') +
+    // Métricas display
+    metricsBlock +
+    // Botón métricas (supervisor only)
+    (canEditMetrics ? '<button onclick="pipelineToggleMetricsForm(\'' + v.id + '\')" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:6px;font-size:10px;font-family:\'DM Mono\',monospace;cursor:pointer">📊 ' + (hasMetrics ? 'Editar métricas' : 'Agregar métricas') + '</button>' : '') +
+    // Form inline de métricas (oculto por default)
+    (canEditMetrics ? '<div id="metrics-form-' + v.id + '" style="display:none;background:var(--surface2);border:1.5px solid var(--accent);border-radius:8px;padding:10px;display:none">' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">' +
+        '<input id="metr-roas-' + v.id + '" placeholder="ROAS (ej: 4.5)" value="' + esc(metrics.roas || '') + '" style="padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:11px;font-family:\'DM Mono\',monospace">' +
+        '<input id="metr-cpa-' + v.id + '" placeholder="CPA (ej: $3500)" value="' + esc(metrics.cpa || '') + '" style="padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:11px;font-family:\'DM Mono\',monospace">' +
+        '<input id="metr-sales-' + v.id + '" placeholder="Ventas (ej: 12)" value="' + esc(metrics.sales || '') + '" style="padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:11px;font-family:\'DM Mono\',monospace">' +
+        '<input id="metr-spend-' + v.id + '" placeholder="Gasto (ej: $42k)" value="' + esc(metrics.spend || '') + '" style="padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:11px;font-family:\'DM Mono\',monospace">' +
+      '</div>' +
+      '<textarea id="metr-notes-' + v.id + '" placeholder="Notas (ej: mejor hook fue X, audiencia A funcionó)" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:11px;font-family:\'DM Mono\',monospace;min-height:50px;resize:vertical;box-sizing:border-box;margin-bottom:6px">' + esc(metrics.notes || '') + '</textarea>' +
+      '<button onclick="pipelineSaveMetrics(\'' + v.id + '\')" style="background:var(--accent);color:#fff;border:none;padding:7px 14px;border-radius:6px;font-size:11px;font-family:\'DM Mono\',monospace;cursor:pointer;font-weight:700">💾 Guardar métricas</button>' +
+    '</div>' : '') +
     // Comments
     (commentsCount ? '<button onclick="pipelineToggleComments(\'' + v.id + '\')" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:6px;font-size:10px;font-family:\'DM Mono\',monospace;cursor:pointer">💬 ' + commentsCount + ' comentario(s) — Ver</button>' : '') +
     '<div id="comments-' + v.id + '" style="display:none">' + pipelineRenderComments(v.comments || []) + '</div>' +
@@ -11786,6 +11846,26 @@ function pipelineRenderVideoCard(v, role){
     (canScale ? '<button class="bk-step-btn" onclick="pipelineStartScaling(\'' + v.id + '\')" style="background:#7B5BB5;color:#fff;font-weight:700">🚀 Crear variación de este winner</button>' : '') +
     (role === 'colab1' && v.created_by === window._currentUser && v.state === 'needs_changes' ? '<button class="bk-step-btn" onclick="pipelineResubmit(\'' + v.id + '\')" style="background:#10a37f;color:#fff">↻ Re-enviar a revisión</button>' : '') +
   '</div>';
+}
+
+function pipelineToggleMetricsForm(id){
+  const el = document.getElementById('metrics-form-' + id);
+  if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+async function pipelineSaveMetrics(id){
+  const metrics = {
+    roas: document.getElementById('metr-roas-' + id).value.trim(),
+    cpa: document.getElementById('metr-cpa-' + id).value.trim(),
+    sales: document.getElementById('metr-sales-' + id).value.trim(),
+    spend: document.getElementById('metr-spend-' + id).value.trim(),
+    notes: document.getElementById('metr-notes-' + id).value.trim(),
+  };
+  const ok = await pipelineUpdateMetrics(id, metrics);
+  if (ok) {
+    showToast('📊 Métricas guardadas', '💾', 'success');
+    renderPipeline();
+  }
 }
 
 function pipelineSupervisorActions(v){
@@ -11851,8 +11931,36 @@ async function pipelineRequestChanges(id){
 }
 async function pipelineMarkWinner(id){
   const comment = prompt('Notas del winner (opcional, ej: ROAS 8.5x, CPA $2k, mejor hook fue X)') || '';
-  const ok = await pipelineUpdateState(id, 'winner', comment);
-  if (ok) { showToast('🏆 Winner marcado', '🏆', 'success'); renderPipeline(); }
+  // Generar ticket único formato WIN-AAAAMMDD-NNN
+  const winnerCount = _pipelineCache.filter(v => v.state === 'winner' && v.winner_ticket).length;
+  const today = new Date();
+  const dateStr = today.getFullYear() + String(today.getMonth() + 1).padStart(2, '0') + String(today.getDate()).padStart(2, '0');
+  const ticket = 'WIN-' + dateStr + '-' + String(winnerCount + 1).padStart(3, '0');
+  try {
+    const db = firebase.firestore();
+    const ref = db.collection('bkdrop_videos').doc(id);
+    const snap = await ref.get();
+    const existing = (snap.data() && snap.data().comments) || [];
+    existing.push({
+      author: window._currentUser,
+      text: '🏆 Marcado WINNER — Ticket ' + ticket + (comment ? '\n' + comment : ''),
+      ts: new Date().toISOString(),
+      state_change: 'winner'
+    });
+    await ref.update({
+      state: 'winner',
+      winner_ticket: ticket,
+      winner_marked_at: new Date().toISOString(),
+      winner_marked_by: window._currentUser || 'unknown',
+      reviewed_by: window._currentUser || 'unknown',
+      comments: existing,
+      updated_at: firebase.firestore.FieldValue.serverTimestamp(),
+    });
+    showToast('🏆 Winner ' + ticket + ' creado', '🏆', 'success');
+    renderPipeline();
+  } catch (e) {
+    showToast('Error: ' + (e.message || '?'), '⚠️', 'error');
+  }
 }
 async function pipelineMarkLoser(id){
   const comment = prompt('¿Por qué loser? (opcional, ej: ROAS 1.2x, CPA muy alto)') || '';
