@@ -2403,9 +2403,45 @@
       <!-- Sub-tabs -->
       <div class="report-subtabs">
         <button class="report-subtab active" data-tab="capturas" onclick="switchInvTab('capturas')">📥 Capturas</button>
+        <button class="report-subtab" data-tab="spy" onclick="switchInvTab('spy')">🕵 Spy Library</button>
         <button class="report-subtab" data-tab="pipeline" onclick="switchInvTab('pipeline')">🎯 Pipeline</button>
         <button class="report-subtab" data-tab="adn" onclick="switchInvTab('adn')">📋 Mi ADN</button>
         <button class="report-subtab" data-tab="install" onclick="switchInvTab('install')">📌 Instalar bookmarklet</button>
+      </div>
+
+      <!-- SPY LIBRARY -->
+      <div id="inv-tab-spy" class="inv-tab" style="display:none">
+        <div class="bkfit-card">
+          <div class="bkfit-card-title">🕵 Spy Library — búsqueda asistida en Meta + TikTok</div>
+          <div style="font-size:12px;color:var(--muted);margin:-6px 0 14px;line-height:1.5">
+            Escribí el producto y Gemini genera <strong>6 keywords</strong> (3 ES + 3 EN) con sus URLs pre-filtradas.
+            Meta: ads activos hace <strong>≥ 7 días</strong> con video. TikTok: top ads del país (filtrá manualmente <strong>&gt;1.500 likes</strong>).
+          </div>
+          <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:14px">
+            <div style="flex:1;min-width:220px">
+              <label style="display:block;font-size:10px;color:var(--muted2);font-family:'DM Mono',monospace;margin-bottom:4px">PRODUCTO</label>
+              <input id="inv-spy-producto" type="text" placeholder="ej: cepillo eléctrico para mascotas" style="width:100%;padding:9px 12px;border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:8px;font-size:13px;font-family:'DM Mono',monospace" onkeydown="if(event.key==='Enter')spyGenerarBusquedas()">
+            </div>
+            <div>
+              <label style="display:block;font-size:10px;color:var(--muted2);font-family:'DM Mono',monospace;margin-bottom:4px">PAÍS</label>
+              <select id="inv-spy-country" style="padding:9px 12px;border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:8px;font-size:13px;font-family:'DM Mono',monospace">
+                <option value="CL">🇨🇱 Chile</option>
+                <option value="CO">🇨🇴 Colombia</option>
+                <option value="MX">🇲🇽 México</option>
+                <option value="AR">🇦🇷 Argentina</option>
+                <option value="PE">🇵🇪 Perú</option>
+                <option value="EC">🇪🇨 Ecuador</option>
+                <option value="GT">🇬🇹 Guatemala</option>
+                <option value="ES">🇪🇸 España</option>
+                <option value="US">🇺🇸 USA</option>
+                <option value="ALL">🌍 Todos</option>
+              </select>
+            </div>
+            <button id="inv-spy-btn" onclick="spyGenerarBusquedas()" style="background:var(--accent);color:#fff;border:none;border-radius:8px;padding:10px 18px;font-size:13px;font-family:'DM Mono',monospace;cursor:pointer;font-weight:700">🔍 Generar búsquedas</button>
+          </div>
+          <div id="inv-spy-status" style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;margin-bottom:10px"></div>
+          <div id="inv-spy-results"></div>
+        </div>
       </div>
 
       <!-- INSTALL -->
@@ -10044,6 +10080,172 @@ function switchInvTab(tab){
   document.getElementById('inv-tab-'+tab).style.display='block';
   if(tab==='capturas') bkInvRenderCapturas();
   if(tab==='adn')      bkInvRenderADN();
+  if(tab==='spy')      spyInit();
+}
+
+// ============ SPY LIBRARY ============
+// Genera keywords ES + EN para un producto y arma URLs pre-filtradas
+// a Meta Ad Library + TikTok Creative Center.
+
+function spyInit(){
+  // Default país: chile→CL, gt→GT, otros→CL
+  const sel = document.getElementById('inv-spy-country');
+  if(sel && !sel.dataset.touched){
+    const t = (typeof getCurrentTenant === 'function') ? getCurrentTenant() : 'chile';
+    sel.value = (t === 'gt') ? 'GT' : 'CL';
+    sel.addEventListener('change', ()=>{ sel.dataset.touched = '1'; }, { once:true });
+  }
+  const input = document.getElementById('inv-spy-producto');
+  if(input) setTimeout(()=>{ try { input.focus(); } catch(e){} }, 80);
+}
+
+function _spyDateMinus(days){
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  return d.toISOString().slice(0, 10); // YYYY-MM-DD
+}
+
+// Meta Ad Library: ads activos con video, que llevan ≥7 días corriendo
+// (start_date[max] = today-7d → solo ads que empezaron hace 7+ días)
+function buildMetaAdLibraryUrl(keyword, country){
+  const params = new URLSearchParams();
+  params.set('active_status', 'active');
+  params.set('ad_type', 'all');
+  params.set('country', country || 'CL');
+  params.set('media_type', 'video');
+  params.set('q', keyword);
+  params.set('search_type', 'keyword_unordered');
+  params.set('start_date[max]', _spyDateMinus(7));
+  return 'https://www.facebook.com/ads/library/?' + params.toString();
+}
+
+// TikTok Creative Center: top ads del período por país.
+// No hay deep-link de keyword: abrimos top ads pre-filtrados por país
+// y el usuario tipea la keyword en el buscador interno.
+function buildTikTokCreativeCenterUrl(keyword, country){
+  // region usa el código de país ISO; period 30 días; sort by like (más relevante para >1500 likes)
+  const params = new URLSearchParams();
+  params.set('period', '30');
+  params.set('region', country || 'CL');
+  params.set('sort_by', 'like');
+  // keyword se pasa por hash para que el usuario pueda copiarla rápido
+  return 'https://ads.tiktok.com/business/creativecenter/inspiration/topads/pc/en?' + params.toString() + '#kw=' + encodeURIComponent(keyword);
+}
+
+async function spyGenerarBusquedas(){
+  const producto = (document.getElementById('inv-spy-producto').value || '').trim();
+  const country  = document.getElementById('inv-spy-country').value || 'CL';
+  const status   = document.getElementById('inv-spy-status');
+  const results  = document.getElementById('inv-spy-results');
+  const btn      = document.getElementById('inv-spy-btn');
+  if(!producto){
+    status.textContent = '⚠ Escribí el producto primero.';
+    status.style.color = 'var(--danger,#E74C3C)';
+    return;
+  }
+  status.textContent = '⏳ Generando keywords con Gemini...';
+  status.style.color = 'var(--muted)';
+  results.innerHTML = '';
+  if(btn){ btn.disabled = true; btn.textContent = '⏳ Generando...'; }
+
+  const prompt = `Sos un experto en dropshipping y spy ads. Te paso un producto y necesito que generes EXACTAMENTE 6 keywords para buscar ads de ese producto en Meta Ad Library y TikTok.
+
+PRODUCTO: "${producto}"
+
+Generá:
+- 3 keywords en ESPAÑOL (variando ángulo: descriptivo, beneficio, problema-solución)
+- 3 keywords en INGLÉS (variando ángulo: descriptivo, beneficio, problema-solución)
+
+REGLAS:
+- 2 a 4 palabras cada keyword (NO frases largas)
+- Sin marcas comerciales, sin emojis, sin comillas
+- Usá términos que un advertiser real pondría en el copy del ad
+- Variá entre genérico ("cepillo mascota") y específico ("cepillo masaje perro")
+
+Devolveme SOLO JSON válido sin texto extra, en este formato:
+{
+  "es": ["keyword 1", "keyword 2", "keyword 3"],
+  "en": ["keyword 1", "keyword 2", "keyword 3"]
+}`;
+
+  try {
+    const raw = await callGeminiProxy(prompt);
+    // Extraer JSON del response (Gemini a veces lo envuelve en ```json ... ```)
+    let jsonText = raw.trim();
+    const fence = jsonText.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if(fence) jsonText = fence[1].trim();
+    const firstBrace = jsonText.indexOf('{');
+    const lastBrace  = jsonText.lastIndexOf('}');
+    if(firstBrace >= 0 && lastBrace > firstBrace) jsonText = jsonText.slice(firstBrace, lastBrace + 1);
+    let data;
+    try { data = JSON.parse(jsonText); }
+    catch(e){
+      throw new Error('Gemini devolvió un formato inesperado. Respuesta: ' + raw.slice(0, 200));
+    }
+    const es = Array.isArray(data.es) ? data.es.slice(0, 3) : [];
+    const en = Array.isArray(data.en) ? data.en.slice(0, 3) : [];
+    if(!es.length && !en.length) throw new Error('No se generaron keywords válidas.');
+
+    spyRenderResultados(producto, country, es, en);
+    status.textContent = '✅ ' + (es.length + en.length) + ' keywords generadas.';
+    status.style.color = 'var(--accent)';
+  } catch(e){
+    status.textContent = '❌ ' + (e.message || 'error desconocido');
+    status.style.color = 'var(--danger,#E74C3C)';
+  } finally {
+    if(btn){ btn.disabled = false; btn.textContent = '🔍 Generar búsquedas'; }
+  }
+}
+
+function spyRenderResultados(producto, country, es, en){
+  const results = document.getElementById('inv-spy-results');
+  const escapeHtml = (s)=>String(s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const card = (kw, lang)=>{
+    const metaUrl  = buildMetaAdLibraryUrl(kw, country);
+    const ttUrl    = buildTikTokCreativeCenterUrl(kw, country);
+    const flag     = lang === 'es' ? '🇪🇸 ES' : '🇬🇧 EN';
+    return `
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:8px">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+          <div style="font-family:'DM Mono',monospace;font-size:13px;color:var(--text);font-weight:700;word-break:break-word">${escapeHtml(kw)}</div>
+          <span style="font-size:9px;color:var(--muted2);font-family:'DM Mono',monospace;background:var(--surface2);padding:2px 8px;border-radius:10px;white-space:nowrap">${flag}</span>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <a href="${metaUrl}" target="_blank" rel="noopener" style="flex:1;min-width:120px;text-align:center;background:#1877F2;color:#fff;text-decoration:none;border-radius:6px;padding:7px 10px;font-size:11px;font-family:'DM Mono',monospace;font-weight:700">↗ Meta (7d+ video)</a>
+          <a href="${ttUrl}" target="_blank" rel="noopener" style="flex:1;min-width:120px;text-align:center;background:#000;color:#fff;text-decoration:none;border-radius:6px;padding:7px 10px;font-size:11px;font-family:'DM Mono',monospace;font-weight:700">↗ TikTok CC</a>
+          <button onclick="spyCopyKw(this, ${JSON.stringify(kw).replace(/"/g,'&quot;')})" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:7px 10px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer" title="Copiar keyword">📋</button>
+        </div>
+      </div>
+    `;
+  };
+  const grid = (items, lang)=>items.map(k=>card(k, lang)).join('');
+  results.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <div>
+        <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;margin-bottom:8px">🇪🇸 ESPAÑOL</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px">${grid(es, 'es')}</div>
+      </div>
+      <div>
+        <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;margin-bottom:8px">🇬🇧 ENGLISH</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px">${grid(en, 'en')}</div>
+      </div>
+      <div style="background:var(--surface2);border-radius:8px;padding:10px 14px;font-size:11px;color:var(--muted);line-height:1.5">
+        <strong>📌 Notas:</strong><br>
+        · <strong>Meta</strong> abre filtrado por <em>video activo ≥ 7 días</em> en ${escapeHtml(country)} — descartá los que llevan menos de 7 días corriendo.<br>
+        · <strong>TikTok Creative Center</strong> abre el top ads del país; tipeá la keyword en el buscador interno y filtrá manualmente <strong>likes &gt; 1.500</strong> ordenando por "Most Liked".
+      </div>
+    </div>
+  `;
+}
+
+function spyCopyKw(btn, kw){
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(kw).then(()=>{
+      const old = btn.textContent;
+      btn.textContent = '✓';
+      setTimeout(()=>{ btn.textContent = old; }, 1200);
+    }).catch(()=>{});
+  }
 }
 
 function bkInvCopyBookmarklet(){
