@@ -5516,6 +5516,14 @@ function parseMasterToChunks(text){
     chunks.faq = extractFaq(sections.faq);
   }
 
+  // Cap a los slots reales del template para que el resumen de
+  // validación muestre conteos honestos (lo que realmente se aplica).
+  chunks.testimoniosBreves   = chunks.testimoniosBreves.slice(0, 3);
+  chunks.testimoniosExtensos = chunks.testimoniosExtensos.slice(0, 3);
+  chunks.beneficios          = chunks.beneficios.slice(0, 3);
+  chunks.bullets             = chunks.bullets.slice(0, 3);
+  chunks.faq                 = chunks.faq.slice(0, 6);
+
   return chunks;
 }
 
@@ -8374,14 +8382,32 @@ function extractFaq(sectionText){
   const lines = sectionText.split('\n');
   const out = [];
   let current = null;
+  // Detección permisiva de pregunta. Acepta cualquiera de:
+  //  - "¿pregunta?" (con signos de apertura)
+  //  - "emoji pregunta?" (emoji al inicio + signo cierre)
+  //  - "**pregunta?**" (bold con signo cierre)
+  //  - "1. ¿pregunta?" (numerado)
+  //  - "P: pregunta?" o "Q: pregunta?"
+  const emojiStart = /^[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u;
   for (const line of lines) {
     const t = line.trim();
     if (!t) continue;
-    if (/^[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u.test(t) && /\?/.test(t)) {
+    if (/^[🔴🟥🟦🟨🟧🟪🟩🟫📌⚠📦]/.test(t)) continue; // skip section sentinel
+    // Strip leading bullet/number/bold open
+    const cleaned = t.replace(/^[-*•]\s*/, '').replace(/^\d+[.)]\s*/, '').replace(/^[PQ]\s*[:.]\s*/i, '').trim();
+    const noBold = cleaned.replace(/\*\*/g, '');
+    const isQuestion = /\?/.test(noBold) && (
+      noBold.startsWith('¿') ||         // ¿pregunta?
+      emojiStart.test(noBold) ||         // 🤔 pregunta?
+      /^\*\*[^*]+\?\*\*/.test(cleaned) || // **pregunta?**
+      noBold.length < 200                // o cualquier pregunta corta con ?
+    );
+    if (isQuestion) {
       if (current) out.push(current);
-      current = { q: t.replace(/^[-*•]\s*/, '').replace(/\*\*/g, '').trim(), a: '' };
+      current = { q: noBold, a: '' };
     } else if (current) {
-      current.a += (current.a ? ' ' : '') + t.replace(/\*\*/g, '');
+      // Línea continuación de respuesta
+      current.a += (current.a ? ' ' : '') + noBold;
     }
   }
   if (current) out.push(current);
