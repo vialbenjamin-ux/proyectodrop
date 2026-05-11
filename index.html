@@ -10224,24 +10224,34 @@ async function spyGenerarBusquedas(){
     ? `\n\nFOTO DEL PRODUCTO: te paso una imagen. Analizala con atención y identificá:\n- Qué producto es exactamente (modelo, tipo, forma)\n- Marca/logo genérico si está visible (no marcas registradas grandes)\n- Términos técnicos visibles en el packaging o etiquetas\n- Categoría de uso\n\nLas keywords que generes deben describir LO QUE VES EN LA IMAGEN, no genéricos de la categoría.`
     : '';
 
-  const prompt = `Sos un experto en dropshipping y spy ads. Te paso un producto y necesito que generes EXACTAMENTE 6 keywords para buscar ads de ese producto en Meta Ad Library y TikTok.
+  const prompt = `Sos un experto en dropshipping y spy ads. Te paso un producto y necesito que generes keywords + hashtags virales para encontrar VIDEOS GANADORES en Meta Ad Library y TikTok.
 
 PRODUCTO (descripción del usuario): "${producto}"${contextoBlock}${imgBlock}
 
-Generá:
-- 3 keywords en ESPAÑOL (variando ángulo: descriptivo, beneficio, problema-solución)
-- 3 keywords en INGLÉS (variando ángulo: descriptivo, beneficio, problema-solución)
+Generá 3 cosas:
 
-REGLAS:
-- 2 a 4 palabras cada keyword (NO frases largas)
-- Sin marcas comerciales registradas, sin emojis, sin comillas
-- Usá términos que un advertiser real pondría en el copy del ad
-- ${(contexto || imgData) ? 'Priorizá especificidad sobre genérico: queremos encontrar ESE producto, no la categoría.' : 'Variá entre genérico ("cepillo mascota") y específico ("cepillo masaje perro")'}
+1. KEYWORDS ES (3) — para Meta Ad Library con país hispano
+2. KEYWORDS EN (3) — para Meta Ad Library con país inglés (USA, UK)
+3. HASHTAGS VIRALES (6) — para TikTok. Estos son CLAVE: los videos ganadores en TikTok no usan el nombre del producto, usan hashtags virales tipo amazonfinds, tiktokmademebuyit, etc. Mezclá:
+   - 2 hashtags generales virales de dropshipping/compras (#tiktokmademebuyit, #amazonfinds, #producthack, #viralproduct, etc.)
+   - 2 hashtags de CATEGORÍA del producto (#kitchengadget, #petgadgets, #homehack, según corresponda)
+   - 2 hashtags ESPECÍFICOS del producto en inglés (más útil para drop)
 
-Devolveme SOLO JSON válido sin texto extra, en este formato:
+REGLAS keywords:
+- 2-4 palabras, sin marcas comerciales, sin emojis
+- Términos que un advertiser real pondría en el copy
+
+REGLAS hashtags:
+- SIN el símbolo #
+- Una sola palabra o palabras pegadas (estilo TikTok)
+- En inglés excepto si el producto es muy regional latino
+- Que tengan TRACCIÓN real (no inventes hashtags raros)
+
+Devolveme SOLO JSON válido sin texto extra:
 {
   "es": ["keyword 1", "keyword 2", "keyword 3"],
-  "en": ["keyword 1", "keyword 2", "keyword 3"]
+  "en": ["keyword 1", "keyword 2", "keyword 3"],
+  "hashtags": ["hashtag1", "hashtag2", "hashtag3", "hashtag4", "hashtag5", "hashtag6"]
 }`;
 
   try {
@@ -10263,10 +10273,12 @@ Devolveme SOLO JSON válido sin texto extra, en este formato:
     }
     const es = Array.isArray(data.es) ? data.es.slice(0, 3) : [];
     const en = Array.isArray(data.en) ? data.en.slice(0, 3) : [];
+    const hashtags = Array.isArray(data.hashtags) ? data.hashtags.slice(0, 6).map(h => String(h).replace(/^#/, '').replace(/\s+/g,'').trim()).filter(Boolean) : [];
     if(!es.length && !en.length) throw new Error('No se generaron keywords válidas.');
 
-    spyRenderResultados(producto, country, es, en, !!imgData);
-    status.textContent = '✅ ' + (es.length + en.length) + ' keywords generadas.';
+    spyRenderResultados(producto, country, es, en, !!imgData, hashtags);
+    const total = es.length + en.length + hashtags.length;
+    status.textContent = '✅ ' + total + ' búsquedas generadas (' + (es.length + en.length) + ' keywords + ' + hashtags.length + ' hashtags virales).';
     status.style.color = 'var(--accent)';
   } catch(e){
     status.textContent = '❌ ' + (e.message || 'error desconocido');
@@ -10276,7 +10288,18 @@ Devolveme SOLO JSON válido sin texto extra, en este formato:
   }
 }
 
-function spyRenderResultados(producto, country, es, en, hasImg){
+// TikTok hashtag search: URL directa al feed del hashtag, ordenado por relevancia/likes
+function buildTikTokHashtagUrl(hashtag){
+  return 'https://www.tiktok.com/tag/' + encodeURIComponent(String(hashtag).replace(/^#/, '').trim());
+}
+
+// TikTok combo: hashtag + keyword del producto en el mismo search
+function buildTikTokHashtagComboUrl(hashtag, keyword){
+  return 'https://www.tiktok.com/search/video?q=' + encodeURIComponent('#' + hashtag + ' ' + keyword);
+}
+
+function spyRenderResultados(producto, country, es, en, hasImg, hashtags){
+  hashtags = hashtags || [];
   const results = document.getElementById('inv-spy-results');
   const escapeHtml = (s)=>String(s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   // Si hay imagen, mostrar arriba la búsqueda visual inversa — es lo más
@@ -10315,24 +10338,83 @@ function spyRenderResultados(producto, country, es, en, hasImg){
     `;
   };
   const grid = (items, lang)=>items.map(k=>card(k, lang)).join('');
+
+  // Cards de hashtags virales — feed TikTok ordenado por viralidad
+  const firstKw = (en[0] || es[0] || producto || '').toString().trim();
+  const hashtagCard = (h)=>{
+    const tagUrl   = buildTikTokHashtagUrl(h);
+    const comboUrl = firstKw ? buildTikTokHashtagComboUrl(h, firstKw) : null;
+    return `
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:8px">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+          <div style="font-family:'DM Mono',monospace;font-size:13px;color:var(--text);font-weight:700;word-break:break-word">#${escapeHtml(h)}</div>
+          <span style="font-size:9px;color:#fff;background:#FE2C55;padding:2px 8px;border-radius:10px;white-space:nowrap;font-family:'DM Mono',monospace;font-weight:700">VIRAL</span>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <a href="${tagUrl}" target="_blank" rel="noopener" style="flex:1;min-width:120px;text-align:center;background:#FE2C55;color:#fff;text-decoration:none;border-radius:6px;padding:7px 10px;font-size:11px;font-family:'DM Mono',monospace;font-weight:700">↗ Feed hashtag</a>
+          ${comboUrl ? `<a href="${comboUrl}" target="_blank" rel="noopener" style="flex:1;min-width:120px;text-align:center;background:#000;color:#fff;text-decoration:none;border-radius:6px;padding:7px 10px;font-size:11px;font-family:'DM Mono',monospace;font-weight:700" title="Combina #${escapeHtml(h)} + '${escapeHtml(firstKw)}'">↗ + producto</a>` : ''}
+        </div>
+      </div>
+    `;
+  };
+
+  const hashtagsBlock = hashtags.length ? `
+    <div style="background:linear-gradient(135deg,#FE2C55 0%,#000 100%);border-radius:10px;padding:14px 16px;color:#fff">
+      <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:14px;margin-bottom:4px">🔥 Hashtags virales TikTok (lo que más funciona)</div>
+      <div style="font-size:11px;line-height:1.5;opacity:0.95;margin-bottom:10px">Los videos ganadores de drop NO usan el nombre del producto, usan estos hashtags. Click en "Feed hashtag" para ver todos los videos del tag ordenados por TikTok (los más vistos arriba). "+ producto" combina hashtag + keyword para resultados más específicos.</div>
+    </div>
+    <div>
+      <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;margin-bottom:8px">🏷️ HASHTAGS</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px">${hashtags.map(hashtagCard).join('')}</div>
+    </div>
+  ` : '';
+
+  // Guía visual: cómo identificar un ganador
+  const winnerGuide = `
+    <details style="background:var(--surface2);border-radius:8px;padding:10px 14px">
+      <summary style="cursor:pointer;font-size:12px;color:var(--text);font-family:'Syne',sans-serif;font-weight:800">🏆 Cómo identificar un VIDEO GANADOR (no cualquier video)</summary>
+      <div style="font-size:11px;color:var(--muted);line-height:1.7;margin-top:10px">
+        <strong style="color:var(--text)">En TikTok (videos orgánicos virales):</strong><br>
+        ✅ <strong>&gt; 100k views</strong> — mínimo para considerar viral<br>
+        ✅ <strong>&gt; 5k likes</strong> — ratio engagement sano<br>
+        ✅ <strong>Comentarios preguntando "¿dónde lo compro?"</strong> — señal #1 de demanda<br>
+        ✅ <strong>Múltiples versiones del mismo video</strong> de distintos creadores = producto viral confirmado<br>
+        ✅ <strong>Subido en últimas 4-6 semanas</strong> — todavía en pico de viralidad<br><br>
+
+        <strong style="color:var(--text)">En Meta Ad Library (ads pagos):</strong><br>
+        ✅ <strong>3+ variantes del mismo ad</strong> activas = el advertiser ya validó y está escalando<br>
+        ✅ <strong>14+ días corriendo</strong> = no es test, está funcionando<br>
+        ✅ <strong>Múltiples advertisers</strong> corriendo el mismo creativo = producto viral confirmado<br>
+        ✅ <strong>Copy con urgencia/escasez</strong> ("Últimas unidades", "50% OFF") = tienen budget para escalar<br>
+        ⚠ <strong>Ad nuevo (1-7 días)</strong> = puede ser test, esperá<br>
+        ❌ <strong>Solo 1 variante &gt; 60 días sin cambios</strong> = ad estancado, NO replicar<br><br>
+
+        <strong style="color:var(--text)">Test final del winner:</strong><br>
+        Si encontrás un creativo y lo ves corriendo en <strong>≥ 3 advertisers diferentes</strong> + <strong>≥ 100k views en TikTok orgánico</strong> = es un winner confirmado. Bajalo, adaptalo, lanzá.
+      </div>
+    </details>
+  `;
+
   results.innerHTML = `
     <div style="display:flex;flex-direction:column;gap:14px">
       ${visualBlock}
+      ${hashtagsBlock}
       <div>
-        <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;margin-bottom:8px">🇪🇸 ESPAÑOL</div>
+        <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;margin-bottom:8px">🇪🇸 ESPAÑOL · keywords para Meta</div>
         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px">${grid(es, 'es')}</div>
       </div>
       <div>
-        <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;margin-bottom:8px">🇬🇧 ENGLISH</div>
+        <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;margin-bottom:8px">🇬🇧 ENGLISH · keywords para Meta</div>
         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px">${grid(en, 'en')}</div>
       </div>
+      ${winnerGuide}
       <div style="background:var(--surface2);border-radius:8px;padding:10px 14px;font-size:11px;color:var(--muted);line-height:1.5">
         <strong>📌 Cómo usar cada botón:</strong><br>
-        · <strong style="color:#1877F2">↗ Meta</strong> — Ad Library con filtros: país ${escapeHtml(country)}, video, activo, corriendo entre <strong>7 y 90 días</strong> (sweet spot: validado pero no saturado).<br>
-        · <strong style="color:#FE2C55">↗ TikTok</strong> — búsqueda directa en tiktok.com/search/video. <strong>Mostrá los likes y filtrá a ojo &gt; 1.500</strong>. Es lo que más sirve para productos dropshipping reales.<br>
-        · <strong>CC</strong> — TikTok Creative Center (ads de brands grandes, casi nunca útil para drop). Al click copia la keyword al portapapeles → pegala (Ctrl+V) en el buscador interno.<br>
-        · <strong>📋</strong> — copia la keyword.<br><br>
-        <strong style="color:var(--text)">⚠ Si los resultados son imprecisos:</strong> pegá la descripción del producto en el textarea de arriba y regenerá — Gemini usa ese texto como fuente principal y devuelve keywords ultra-específicas en vez de genéricas.
+        · <strong style="color:#FE2C55">↗ Feed hashtag</strong> — feed TikTok del hashtag, ordenado por TikTok (top arriba). Aquí están los virales reales.<br>
+        · <strong style="color:#000;background:#fff;padding:0 4px;border-radius:3px">↗ + producto</strong> — combina hashtag + keyword del producto. Más específico.<br>
+        · <strong style="color:#1877F2">↗ Meta</strong> — Ad Library con filtros país ${escapeHtml(country)}, video, activo, 7-90 días.<br>
+        · <strong style="color:#FE2C55">↗ TikTok</strong> — búsqueda directa por keyword (menos efectiva que hashtag).<br>
+        · <strong>CC</strong> — TikTok Creative Center (solo brands grandes, casi inútil para drop).
       </div>
     </div>
   `;
