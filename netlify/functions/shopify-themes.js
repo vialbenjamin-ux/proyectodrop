@@ -43,7 +43,11 @@ exports.handler = async function (event) {
         if (!assetKey) return respond(400, { error: 'Falta handle o assetKey' });
         return await readAsset(domain, headers, assetKey);
       }
-      return respond(400, { error: 'op no válido (list, list-templates, template)' });
+      if (op === 'find-file') {
+        if (!qs.filename) return respond(400, { error: 'Falta filename' });
+        return await findFileByName(domain, headers, qs.filename);
+      }
+      return respond(400, { error: 'op no válido (list, list-templates, template, find-file)' });
     }
 
     if (event.httpMethod === 'PUT') {
@@ -157,6 +161,68 @@ async function writeAsset(domain, headers, assetKey, value) {
   }
   const data = await resp.json();
   return respond(200, { themeId, asset: data.asset, ok: true });
+}
+
+// Busca un archivo en Files library por filename. Devuelve el CDN URL real
+// (que es lo que necesitamos para descargarlo y re-subirlo al otro store).
+async function findFileByName(domain, headers, filename) {
+  const gqlUrl = `https://${domain}/admin/api/2024-10/graphql.json`;
+  // Probamos primero con el filename exacto (puede tener encoding raro)
+  const q = String(filename || '').trim();
+  const query = `
+    query findFile($qstr: String!) {
+      files(first: 5, query: $qstr) {
+        edges {
+          node {
+            ... on MediaImage {
+              id alt fileStatus
+              image { url width height }
+            }
+            ... on GenericFile { id alt fileStatus url }
+          }
+        }
+      }
+    }
+  `;
+  // Probamos varias estrategias de query para maximizar el match
+  const queries = [
+    `filename:"${q}"`,
+    `filename:${q}`,
+    q,
+  ];
+  let foundFile = null;
+  let foundUrl = null;
+  for (const qstr of queries) {
+    const resp = await fetch(gqlUrl, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ query, variables: { qstr } }),
+    });
+    if (!resp.ok) continue;
+    const data = await resp.json();
+    const edges = data?.data?.files?.edges || [];
+    for (const edge of edges) {
+      const node = edge.node;
+      const url = (node.image && node.image.url) || node.url;
+      if (!url) continue;
+      // Verificar que el filename matchee (Shopify a veces devuelve archivos similares)
+      // El URL termina con /files/FILENAME?... — extraer y comparar
+      const m = url.match(/\/files\/([^?]+)/);
+      if (m) {
+        const urlFilename = decodeURIComponent(m[1]);
+        if (urlFilename === q || urlFilename.split('.')[0] === q.split('.')[0]) {
+          foundFile = node;
+          foundUrl = url;
+          break;
+        }
+      }
+      // Fallback: primer match si no hay matches exactos en ningún query
+      if (!foundFile) { foundFile = node; foundUrl = url; }
+    }
+    if (foundFile) break;
+  }
+  if (!foundFile) return respond(404, { error: 'Archivo no encontrado: ' + q });
+  return respond(200, { file: foundFile, url: foundUrl, filename: q });
 }
 
 // Upload a file al Files library global de Shopify. Flujo GraphQL en 3 pasos:
