@@ -1265,6 +1265,10 @@
     </div>
   </div>
 
+  <button class="tab-btn ng-standalone" data-section="videos-prod" onclick="switchSection('videos-prod')">
+    🎞️ Videos
+  </button>
+
   <button class="tab-btn ng-standalone" data-section="calculadora" onclick="switchSection('calculadora')">
     🧮 Calculadora
   </button>
@@ -2877,6 +2881,28 @@
     <div class="cards-grid" id="archivo-cards"></div>
   </div>
 
+  <!-- ── VIDEOS POR PRODUCTO (Drive) ──────────────────────────── -->
+  <div id="section-videos-prod" class="section">
+    <div style="max-width:1200px;margin:0 auto">
+      <div style="margin-bottom:18px">
+        <h2 style="font-family:'Syne',sans-serif;font-weight:800;font-size:22px;margin:0 0 4px">🎞️ Videos por producto</h2>
+        <div style="font-size:12px;color:var(--muted);line-height:1.5">
+          Estructura: cada producto con landing aplicada tiene 3 carpetas en Drive (<strong>1 - Brutos</strong>, <strong>2 - Testeo</strong>, <strong>3 - Escalado</strong>).
+          En Testeo, asigná un ranking del 1 al 7 (7 = ultra ganador) para saber cuál escalar.
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
+        <input type="text" id="vp-search" placeholder="Filtrar productos…" style="flex:1;min-width:200px;padding:9px 12px;border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:8px;font-size:13px;font-family:'DM Mono',monospace" oninput="filterVideosProdList()">
+        <button onclick="initVideosProd(true)" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:9px 14px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer">🔄 Recargar</button>
+        <a href="https://drive.google.com/drive/folders/1JqerUrGaRgcQGY0uTDvcoyccdekCpj62" target="_blank" rel="noopener" style="background:#4285F4;color:#fff;border-radius:8px;padding:9px 14px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer;text-decoration:none">↗ Abrir carpeta raíz en Drive</a>
+      </div>
+
+      <div id="vp-status" style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;margin-bottom:10px"></div>
+      <div id="vp-list" style="display:flex;flex-direction:column;gap:12px"></div>
+    </div>
+  </div>
+
   <div id="section-calculadora" class="section">
     <div style="max-width:620px;margin:0 auto">
 
@@ -3270,6 +3296,7 @@ function switchSection(s, silent){
     g.classList.toggle('has-active', !!has);
   });
   if(s==='videos') renderVideos();
+  if(s==='videos-prod') initVideosProd();
   if(s==='calendario') renderCalendar();
   if(s==='prompts'){ renderPrompts(); loadBkVars(); }
   if(s==='reportes') initReportes();
@@ -6863,9 +6890,10 @@ async function crearCarpetasDriveDelProducto(handle, title){
 
     // Guardar mapping en Firestore para que la UI pueda enlazar producto → carpetas
     // sin llamar a Drive cada vez.
-    if (typeof db !== 'undefined' && db && db.collection) {
-      try {
-        await db.collection('bkdrop_drive_product_folders').doc(handle).set({
+    try {
+      if (typeof firebase !== 'undefined' && firebase.firestore) {
+        const fdb = firebase.firestore();
+        await fdb.collection('bkdrop_drive_product_folders').doc(handle).set({
           handle,
           title: data.title || title || handle,
           productFolderId: data.productFolder?.id,
@@ -6874,9 +6902,9 @@ async function crearCarpetasDriveDelProducto(handle, title){
           escaladoId: data.escaladoId,
           updatedAt: Date.now(),
         }, { merge: true });
-      } catch (e) {
-        console.warn('[drive-folders] no se pudo guardar en Firestore:', e);
       }
+    } catch (e) {
+      console.warn('[drive-folders] no se pudo guardar en Firestore:', e);
     }
 
     showToast('📁 Carpetas de Drive listas: Brutos / Testeo / Escalado', '☁️', 'success');
@@ -13060,6 +13088,247 @@ const ASSIGNMENT_STATES = {
   in_edit:      { label: '✂️ Editando',    color: '#5B7CBF' },
   completed:    { label: '✅ Completada',   color: '#3F7F5C' },
 };
+
+// ═══════════════════════════════════════════════════════════════════════
+// VIDEOS POR PRODUCTO (Google Drive integration)
+// ═══════════════════════════════════════════════════════════════════════
+
+// Cache: productos con sus folder IDs (de Firestore) + contenido folders (de Drive)
+window._vpData = window._vpData || { products: [], rankings: {}, folderContents: {} };
+
+async function initVideosProd(forceReload){
+  const status = document.getElementById('vp-status');
+  const list   = document.getElementById('vp-list');
+  if (!list) return;
+
+  if (forceReload) { window._vpData.folderContents = {}; }
+  if (status) status.textContent = '⏳ Cargando productos con carpetas Drive…';
+  if (list && (!window._vpData.products.length || forceReload)) list.innerHTML = '';
+
+  try {
+    if (typeof firebase === 'undefined' || !firebase.firestore) {
+      throw new Error('Firestore no inicializado');
+    }
+    const db = firebase.firestore();
+    const [prodsSnap, ranksSnap] = await Promise.all([
+      db.collection('bkdrop_drive_product_folders').orderBy('updatedAt', 'desc').get(),
+      db.collection('bkdrop_video_rankings').get(),
+    ]);
+    const products = [];
+    prodsSnap.forEach(doc => products.push({ id: doc.id, ...doc.data() }));
+    const rankings = {};
+    ranksSnap.forEach(doc => { rankings[doc.id] = doc.data(); });
+
+    window._vpData.products = products;
+    window._vpData.rankings = rankings;
+
+    if (!products.length) {
+      if (list) list.innerHTML = '<div style="background:var(--surface);border:1px dashed var(--border);border-radius:12px;padding:24px;text-align:center;color:var(--muted);font-size:13px;line-height:1.6">📁 Sin productos cargados aún.<br>Aplicá un landing en cualquier producto desde <strong>BK DROP</strong> (Auto-Shrine o Replicar a GT) y las carpetas se crean automáticamente en Drive.</div>';
+      if (status) status.textContent = '';
+      return;
+    }
+    renderVideosProdList();
+    if (status) status.textContent = '✓ ' + products.length + ' productos con carpetas Drive · ' + Object.keys(rankings).length + ' rankings asignados';
+  } catch (err) {
+    console.error('[videos-prod] error cargando:', err);
+    if (status) { status.textContent = '⚠ ' + (err.message || 'error'); status.style.color = 'var(--danger,#E74C3C)'; }
+  }
+}
+
+function filterVideosProdList(){
+  const q = (document.getElementById('vp-search')?.value || '').toLowerCase().trim();
+  document.querySelectorAll('#vp-list .vp-product-card').forEach(card => {
+    const title = (card.dataset.title || '').toLowerCase();
+    const handle = (card.dataset.handle || '').toLowerCase();
+    card.style.display = (!q || title.includes(q) || handle.includes(q)) ? '' : 'none';
+  });
+}
+
+function renderVideosProdList(){
+  const list = document.getElementById('vp-list');
+  if (!list) return;
+  const html = window._vpData.products.map(p => renderVideosProdCard(p)).join('');
+  list.innerHTML = html;
+}
+
+function renderVideosProdCard(p){
+  const handle = p.handle || p.id;
+  const title  = p.title || handle;
+  const driveUrl = p.productFolderId ? 'https://drive.google.com/drive/folders/' + p.productFolderId : null;
+  return `
+    <div class="vp-product-card" data-handle="${esc(handle)}" data-title="${esc(title)}" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;cursor:pointer;gap:8px" onclick="toggleVideosProdCard('${esc(handle)}')">
+        <div style="flex:1;min-width:0">
+          <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:14px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(title)}</div>
+          <div style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">handle: ${esc(handle)}</div>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
+          ${driveUrl ? `<a href="${driveUrl}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="background:#4285F4;color:#fff;text-decoration:none;border-radius:6px;padding:5px 10px;font-size:10px;font-family:'DM Mono',monospace">↗ Drive</a>` : ''}
+          <span class="vp-chevron" style="font-size:18px;color:var(--muted);transition:transform 0.2s">▾</span>
+        </div>
+      </div>
+      <div class="vp-folders" id="vp-folders-${esc(handle)}" style="display:none;border-top:1px solid var(--border);padding:12px;background:var(--surface2)">
+        ${renderVideosProdFolders(p)}
+      </div>
+    </div>
+  `;
+}
+
+function renderVideosProdFolders(p){
+  const folders = [
+    { type: 'brutos',   id: p.brutosId,   label: '1 — Brutos',   color: '#94A3B8', icon: '🎬' },
+    { type: 'testeo',   id: p.testeoId,   label: '2 — Testeo',   color: '#F59E0B', icon: '🧪' },
+    { type: 'escalado', id: p.escaladoId, label: '3 — Escalado', color: '#22C55E', icon: '🚀' },
+  ];
+  return folders.map(f => `
+    <div style="margin-bottom:12px;background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:${f.color}1a;border-bottom:1px solid var(--border)">
+        <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:13px;color:${f.color}">${f.icon} ${f.label}</div>
+        <a href="https://drive.google.com/drive/folders/${f.id}" target="_blank" rel="noopener" style="background:#4285F4;color:#fff;text-decoration:none;border-radius:5px;padding:4px 8px;font-size:9px;font-family:'DM Mono',monospace">↗ Abrir en Drive</a>
+      </div>
+      <div id="vp-folder-${esc(p.handle || p.id)}-${f.type}" style="padding:8px">
+        <div style="font-size:11px;color:var(--muted);text-align:center;padding:8px">⏳ Cargando videos…</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function toggleVideosProdCard(handle){
+  const folders = document.getElementById('vp-folders-' + handle);
+  if (!folders) return;
+  const card = folders.closest('.vp-product-card');
+  const chev = card?.querySelector('.vp-chevron');
+  const isOpen = folders.style.display !== 'none';
+  if (isOpen) {
+    folders.style.display = 'none';
+    if (chev) chev.style.transform = '';
+  } else {
+    folders.style.display = 'block';
+    if (chev) chev.style.transform = 'rotate(180deg)';
+    // Cargar contenido si no se cargó antes
+    const p = window._vpData.products.find(x => (x.handle || x.id) === handle);
+    if (!p) return;
+    if (!window._vpData.folderContents[handle]) {
+      window._vpData.folderContents[handle] = {};
+      await loadAllFoldersForProduct(p);
+    }
+  }
+}
+
+async function loadAllFoldersForProduct(p){
+  const handle = p.handle || p.id;
+  const folders = [
+    { type: 'brutos',   id: p.brutosId },
+    { type: 'testeo',   id: p.testeoId },
+    { type: 'escalado', id: p.escaladoId },
+  ];
+  await Promise.all(folders.map(f => loadDriveFolder(handle, f.type, f.id)));
+}
+
+async function loadDriveFolder(handle, type, folderId){
+  const container = document.getElementById('vp-folder-' + handle + '-' + type);
+  if (!container) return;
+  if (!folderId) {
+    container.innerHTML = '<div style="font-size:11px;color:var(--muted);text-align:center;padding:8px">⚠ Carpeta no creada</div>';
+    return;
+  }
+  try {
+    const resp = await fetch('/.netlify/functions/drive-folders?op=list&folderId=' + encodeURIComponent(folderId));
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'list fail');
+    const files = data.files || [];
+    window._vpData.folderContents[handle][type] = files;
+    container.innerHTML = renderVideosList(files, type, handle);
+  } catch (err) {
+    container.innerHTML = '<div style="font-size:11px;color:var(--danger,#E74C3C);text-align:center;padding:8px">⚠ ' + esc(err.message || 'error') + '</div>';
+  }
+}
+
+function renderVideosList(files, type, handle){
+  if (!files.length) {
+    return '<div style="font-size:11px;color:var(--muted);text-align:center;padding:12px 8px;font-style:italic">Sin videos todavía</div>';
+  }
+  const showRank = (type === 'testeo');
+  return '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px">' +
+    files.map(f => renderVideoCard(f, type, handle, showRank)).join('') +
+    '</div>';
+}
+
+function renderVideoCard(file, type, handle, showRank){
+  const isVideo = (file.mimeType || '').startsWith('video/');
+  const thumb = file.thumbnailLink || file.iconLink || null;
+  const sizeKB = file.size ? Math.round(file.size / 1024) : null;
+  const sizeStr = sizeKB ? (sizeKB > 1024 ? (sizeKB/1024).toFixed(1) + ' MB' : sizeKB + ' KB') : '';
+  const date = file.createdTime ? new Date(file.createdTime).toLocaleDateString('es-CL') : '';
+  const viewUrl = file.webViewLink || ('https://drive.google.com/file/d/' + file.id + '/view');
+  // Rank guardado
+  const r = window._vpData.rankings[file.id];
+  const currentRank = r ? r.rank : 0;
+
+  let rankHtml = '';
+  if (showRank) {
+    const colorByRank = (n) => n >= 6 ? '#22C55E' : n >= 4 ? '#F59E0B' : n >= 1 ? '#E74C3C' : 'var(--muted)';
+    rankHtml = `
+      <div style="display:flex;align-items:center;gap:4px;margin-top:6px">
+        <span style="font-size:9px;color:var(--muted);font-family:'DM Mono',monospace">RANK:</span>
+        <select onchange="setVideoRank('${file.id}', this.value, '${esc(handle)}', '${esc(file.name)}')" style="flex:1;background:var(--surface);border:1px solid var(--border);color:${colorByRank(currentRank)};font-size:11px;font-family:'DM Mono',monospace;font-weight:700;padding:3px 6px;border-radius:4px">
+          <option value="0"${currentRank===0?' selected':''}>—</option>
+          <option value="1"${currentRank===1?' selected':''}>1 · muy perdedor</option>
+          <option value="2"${currentRank===2?' selected':''}>2 · perdedor</option>
+          <option value="3"${currentRank===3?' selected':''}>3 · regular-malo</option>
+          <option value="4"${currentRank===4?' selected':''}>4 · neutro</option>
+          <option value="5"${currentRank===5?' selected':''}>5 · regular-bueno</option>
+          <option value="6"${currentRank===6?' selected':''}>6 · ganador</option>
+          <option value="7"${currentRank===7?' selected':''}>7 · 🏆 ultra ganador</option>
+        </select>
+      </div>
+    `;
+  }
+
+  return `
+    <a href="${viewUrl}" target="_blank" rel="noopener" style="display:flex;flex-direction:column;background:var(--surface2);border:1px solid var(--border);border-radius:8px;overflow:hidden;text-decoration:none;color:inherit;transition:transform 0.1s" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform=''">
+      <div style="aspect-ratio:16/9;background:#000;display:flex;align-items:center;justify-content:center;overflow:hidden">
+        ${thumb ? `<img src="${esc(thumb)}" alt="" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display='none';this.parentNode.innerHTML='<span style=\\'color:#666;font-size:32px\\'>${isVideo?'🎬':'📄'}</span>'">` : `<span style="color:#666;font-size:32px">${isVideo?'🎬':'📄'}</span>`}
+      </div>
+      <div style="padding:8px 10px" onclick="event.stopPropagation()">
+        <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(file.name)}">${esc(file.name)}</div>
+        <div style="font-size:9px;color:var(--muted);font-family:'DM Mono',monospace;margin-top:2px">${sizeStr}${sizeStr && date ? ' · ' : ''}${date}</div>
+        ${rankHtml}
+      </div>
+    </a>
+  `;
+}
+
+async function setVideoRank(fileId, rank, handle, fileName){
+  const n = Number(rank);
+  try {
+    if (typeof firebase === 'undefined' || !firebase.firestore) throw new Error('Firestore no disponible');
+    const db = firebase.firestore();
+    if (n === 0) {
+      // Borrar el ranking
+      await db.collection('bkdrop_video_rankings').doc(fileId).delete();
+      delete window._vpData.rankings[fileId];
+    } else {
+      const doc = {
+        rank: n,
+        productHandle: handle,
+        fileName: fileName,
+        updatedAt: Date.now(),
+      };
+      await db.collection('bkdrop_video_rankings').doc(fileId).set(doc, { merge: true });
+      window._vpData.rankings[fileId] = doc;
+    }
+    showToast('Ranking actualizado: ' + (n || '—'), '⭐', 'success');
+    // Re-render solo el folder de testeo para refrescar colores
+    const p = window._vpData.products.find(x => (x.handle || x.id) === handle);
+    if (p && window._vpData.folderContents[handle]?.testeo) {
+      const container = document.getElementById('vp-folder-' + handle + '-testeo');
+      if (container) container.innerHTML = renderVideosList(window._vpData.folderContents[handle].testeo, 'testeo', handle);
+    }
+  } catch (err) {
+    showToast('Error guardando rank: ' + (err.message || '?'), '⚠️', 'error');
+  }
+}
 
 async function pipelineLoadAll(){
   try {
