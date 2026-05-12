@@ -5912,6 +5912,10 @@ async function ejecutarReplicacionGT(){
       status.style.color = 'var(--accent)';
     }
     showToast('🔄 Landing + imágenes replicados a GT', '✨', 'success');
+
+    // Crear carpetas Drive para el producto (idempotente: si ya existe la
+    // carpeta del CL no se duplica, se reusa)
+    crearCarpetasDriveDelProducto(p.handle, p.title);
   } catch(err){
     if(status){ status.textContent = '⚠ ' + (err.message || 'error'); status.style.color = 'var(--danger,#E74C3C)'; }
     showToast('Error: ' + (err.message || '?'), '⚠️', 'error');
@@ -6819,6 +6823,11 @@ async function ejecutarAutoShrine(){
       '<div id="bk-replicar-gt-status" style="font-size:11px;margin-top:8px;font-family:\'DM Mono\',monospace"></div>' +
       '</div>';
     showToast('🚀 Plantilla generada y aplicada', '✨', 'success');
+
+    // Crear (idempotente) las 3 carpetas de Drive para el workflow de videos.
+    // En background — no rompe el flow principal si falla. El usuario ve el
+    // resultado en el banner.
+    crearCarpetasDriveDelProducto(_autoShrineProduct.handle, _autoShrineProduct.title);
   } catch (err) {
     const m = err && err.message ? err.message : '?';
     if (status) status.textContent = '⚠️ ' + m;
@@ -6826,6 +6835,56 @@ async function ejecutarAutoShrine(){
   } finally {
     goBtn.disabled = false;
     goBtn.textContent = '🚀 Generar plantilla y aplicar al producto';
+  }
+}
+
+// Crea (idempotente) en Google Drive la estructura de carpetas para el
+// workflow de videos: [producto] / { Brutos, Testeo, Escalado }. Si las
+// carpetas ya existen, las devuelve sin duplicar. Guarda los IDs en
+// Firestore (collection bkdrop_drive_product_folders) usando handle como
+// doc id, para no llamar a Drive en cada visita después.
+//
+// El resultado se muestra como un mini-toast/banner inline en el status
+// element activo (auto-shrine, replicación, etc.) sin romper el flow.
+async function crearCarpetasDriveDelProducto(handle, title){
+  if (!handle) return null;
+  try {
+    const resp = await fetch('/.netlify/functions/drive-folders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        op: 'ensure-product-folders',
+        productHandle: handle,
+        productTitle: title || handle,
+      }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || ('HTTP ' + resp.status));
+
+    // Guardar mapping en Firestore para que la UI pueda enlazar producto → carpetas
+    // sin llamar a Drive cada vez.
+    if (typeof db !== 'undefined' && db && db.collection) {
+      try {
+        await db.collection('bkdrop_drive_product_folders').doc(handle).set({
+          handle,
+          title: data.title || title || handle,
+          productFolderId: data.productFolder?.id,
+          brutosId:   data.brutosId,
+          testeoId:   data.testeoId,
+          escaladoId: data.escaladoId,
+          updatedAt: Date.now(),
+        }, { merge: true });
+      } catch (e) {
+        console.warn('[drive-folders] no se pudo guardar en Firestore:', e);
+      }
+    }
+
+    showToast('📁 Carpetas de Drive listas: Brutos / Testeo / Escalado', '☁️', 'success');
+    return data;
+  } catch (err) {
+    console.warn('[drive-folders] error:', err);
+    showToast('⚠ No se pudieron crear carpetas en Drive: ' + (err.message || '?'), '☁️', 'warn');
+    return null;
   }
 }
 
@@ -7061,6 +7120,9 @@ async function replicarTemplateAGT(){
       '✅ Plantilla "<b>' + esc(last.suffix) + '</b>" + imágenes replicadas en Shopify GT y asignadas al producto.'
     );
     showToast('🔄 Landing + imágenes replicados a GT', '✨', 'success');
+
+    // Crear carpetas Drive también para el producto de GT (mismo handle)
+    crearCarpetasDriveDelProducto(last.handle, last.title);
   } catch(err){
     setStatus('⚠ ' + (err.message || 'Error desconocido'), '#FCA5A5');
     showToast('Error replicando: ' + (err.message || '?'), '⚠️', 'error');
