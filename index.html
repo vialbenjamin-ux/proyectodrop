@@ -7110,8 +7110,19 @@ function buildAutoShrineTemplate(base, masterText, gifsRefs, fotosRefs){
           block.settings.text = '<p><br/>' + escapeHtmlForShrine(t.texto || '') + '<br/><br/></p>';
           block.settings.author = '<em><strong>' + escapeHtmlForShrine(t.autor || '') + '</strong></em>';
         }
-        if (fotosRefs[colIdx]) {
-          block.settings.image = fotosRefs[colIdx].shopifyRef;
+        // Asignar foto al testimonio. Es importante chequear que el
+        // shopifyRef tenga valor — el upload puede devolver una respuesta
+        // sin ref válido (raro pero ocurre con Files API si el archivo
+        // entra en estado UPLOADED pero no READY). Si falta o está vacío,
+        // reusamos la primera foto válida disponible para no dejar la
+        // columna sin imagen.
+        const refForCol = fotosRefs[colIdx] && fotosRefs[colIdx].shopifyRef;
+        if (refForCol) {
+          block.settings.image = refForCol;
+        } else {
+          const fallback = fotosRefs.find(f => f && f.shopifyRef);
+          if (fallback) block.settings.image = fallback.shopifyRef;
+          if (!refForCol) console.warn('[auto-shrine] foto', colIdx, 'sin shopifyRef · usando fallback');
         }
         colIdx++;
       }
