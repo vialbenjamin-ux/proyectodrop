@@ -13933,8 +13933,9 @@ async function fetchTfAcciones(){
 
     // Calcular gananciaReal y veredicto para cada una
     const byProd = data.byProduct || [];
+    const costOverrides = getCostOverrides();
     allCamps.forEach(c => {
-      const totalCost = getCampaignTotalCost(c, byProd);
+      const totalCost = getCampaignTotalCost(c, byProd, costOverrides);
       const cod = applyCodMetrics({
         realPurchases: c.realPurchases,
         realRevenue: c.realRevenue,
@@ -16097,7 +16098,7 @@ function adsetBatchCellHtml(a){
 }
 
 // Calcula totalCost agregado de una campaña a partir de byProduct (matching por nombre)
-function getCampaignTotalCost(campRow, byProductArr){
+function getCampaignTotalCost(campRow, byProductArr, costOverrides){
   if (!byProductArr || !byProductArr.length) return null;
   const byName = {};
   byProductArr.forEach(p => { byName[p.name] = p; });
@@ -16105,8 +16106,20 @@ function getCampaignTotalCost(campRow, byProductArr){
   let any = false;
   Object.entries(campRow.attributedProducts || {}).forEach(([name, p]) => {
     const bp = byName[name];
-    if (bp && bp.unitCost != null && p.qty > 0){
-      total += bp.unitCost * p.qty;
+    if (!bp || !(p.qty > 0)) return;
+    // Priorizar costo override del usuario sobre el cargado en Shopify.
+    // Si el costo de Shopify está mal o no está cargado, el usuario lo
+    // edita en la columna COSTO del cruce y eso queda guardado como
+    // override. Antes el veredicto de campaña ignoraba ese override y
+    // calculaba gananciaReal con el costo malo de Shopify, generando
+    // falsos "Apagar" para campañas rentables.
+    const overrideKey = (bp.variantIds && bp.variantIds.length)
+      ? 'v:' + bp.variantIds[0]
+      : 'p:' + bp.name;
+    const overrideCost = costOverrides ? costOverrides[overrideKey] : null;
+    const effCost = (overrideCost != null) ? overrideCost : bp.unitCost;
+    if (effCost != null){
+      total += effCost * p.qty;
       any = true;
     }
   });
@@ -16138,8 +16151,9 @@ function renderCrossCampaignsTable(data){
   const rows = showPaused ? allRows : allRows.filter(isLive);
   // Adjuntar gananciaReal y veredicto a cada campaña usando applyCodMetrics
   const byProd = data.byProduct || [];
+  const costOverrides = getCostOverrides();
   rows.forEach(r => {
-    const totalCost = getCampaignTotalCost(r, byProd);
+    const totalCost = getCampaignTotalCost(r, byProd, costOverrides);
     const cod = applyCodMetrics({
       realPurchases: r.realPurchases,
       realRevenue: r.realRevenue,
