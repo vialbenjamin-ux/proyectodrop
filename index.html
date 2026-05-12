@@ -6088,6 +6088,10 @@ function editarSeccionEspecifica(id, sectionKey, blockKey){
       const titulo = s.title || '';
       const texto = (s.text || '').replace(/<\/?p>/g, '').replace(/<br\s*\/?>/g, '').trim();
       const autor = (s.author || '').replace(/<\/?em>/g, '').replace(/<\/?strong>/g, '').trim();
+      const currentImage = s.image || '';
+      const imgStatus = currentImage
+        ? '<div style="font-size:10px;color:#22C55E;margin-bottom:2px">✓ Imagen actual: <code style="background:var(--surface);padding:1px 4px;border-radius:3px;font-size:9px;word-break:break-all">' + esc(currentImage) + '</code></div>'
+        : '<div style="font-size:10px;color:#E74C3C;margin-bottom:2px">⚠ Sin imagen — subí una abajo</div>';
       formHtml += '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:8px">' +
         '<div style="font-size:10px;color:var(--muted);margin-bottom:4px">Columna ' + (idx + 1) + '</div>' +
         '<label style="font-size:10px;color:var(--muted)">Título:</label>' +
@@ -6095,7 +6099,10 @@ function editarSeccionEspecifica(id, sectionKey, blockKey){
         '<label style="font-size:10px;color:var(--muted)">Texto:</label>' +
         '<textarea id="edit-test-texto-' + idx + '" style="width:100%;padding:7px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:12px;min-height:80px;resize:vertical;margin-bottom:4px;box-sizing:border-box">' + esc(texto) + '</textarea>' +
         '<label style="font-size:10px;color:var(--muted)">Autor:</label>' +
-        '<input id="edit-test-autor-' + idx + '" value="' + esc(autor) + '" style="width:100%;padding:7px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:12px;box-sizing:border-box">' +
+        '<input id="edit-test-autor-' + idx + '" value="' + esc(autor) + '" style="width:100%;padding:7px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:12px;margin-bottom:8px;box-sizing:border-box">' +
+        '<label style="font-size:10px;color:var(--muted);display:block;margin-top:4px">Foto (opcional · reemplaza la actual):</label>' +
+        imgStatus +
+        '<input type="file" id="edit-test-foto-' + idx + '" accept="image/*" style="width:100%;font-size:11px;padding:4px;color:var(--text)">' +
       '</div>';
     });
     formHtml += '<button class="bk-step-btn" style="background:#0EA5E9;color:#fff" onclick="guardarTestimoniosExtensos(\'' + sectionKey + '\')">💾 Guardar testimonios</button>';
@@ -6177,9 +6184,38 @@ function guardarImageWithText(sectionKey, headBlockKey, textBlockKey){
   persistirTemplateEdit();
 }
 
-function guardarTestimoniosExtensos(sectionKey){
+async function guardarTestimoniosExtensos(sectionKey){
   const section = _editSectionTemplate.json.sections[sectionKey];
   const cols = Object.keys(section.blocks).filter(k => section.blocks[k].type === 'column').slice(0, 3);
+  const status = document.getElementById('bk-edit-section-status');
+
+  // Recolectar fotos nuevas a subir (si las hay)
+  const fotosToUpload = [];
+  cols.forEach((colKey, idx) => {
+    const fi = document.getElementById('edit-test-foto-' + idx);
+    const file = fi && fi.files && fi.files[0];
+    if (file) fotosToUpload.push({ idx, colKey, file });
+  });
+
+  // Subir fotos nuevas (si las hay) ANTES de guardar el template
+  for (let i = 0; i < fotosToUpload.length; i++) {
+    const { idx, colKey, file } = fotosToUpload[i];
+    if (status) status.textContent = '⏳ Subiendo foto ' + (i+1) + '/' + fotosToUpload.length + ' (col ' + (idx+1) + ')…';
+    try {
+      const ref = await uploadToShopifyFiles(file, 'testimonio-edit-' + (idx+1));
+      if (ref && ref.shopifyRef) {
+        section.blocks[colKey].settings.image = ref.shopifyRef;
+      } else {
+        console.warn('[edit-test] foto col', idx, 'subida sin shopifyRef', ref);
+      }
+    } catch(err) {
+      console.warn('[edit-test] error subiendo foto col', idx, err);
+      if (status) status.textContent = '⚠ Foto col ' + (idx+1) + ' falló: ' + (err.message || '?');
+      // continúa con las demás
+    }
+  }
+
+  // Textos
   cols.forEach((colKey, idx) => {
     const titulo = document.getElementById('edit-test-titulo-' + idx)?.value.trim() || '';
     const texto = document.getElementById('edit-test-texto-' + idx)?.value.trim() || '';
@@ -6188,7 +6224,8 @@ function guardarTestimoniosExtensos(sectionKey){
     section.blocks[colKey].settings.text = '<p><br/>' + texto.replace(/</g,'&lt;').replace(/>/g,'&gt;') + '<br/><br/></p>';
     section.blocks[colKey].settings.author = '<em><strong>' + autor.replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</strong></em>';
   });
-  persistirTemplateEdit();
+
+  await persistirTemplateEdit();
 }
 
 function guardarFaq(sectionKey){
