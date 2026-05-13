@@ -68,13 +68,23 @@
   html[data-theme="dark"]{
     --bg:#15171C; --surface:#1E2128; --surface2:#272B33;
     --border:#353A44; --border2:#454B57;
-    --text:#E8E6E1; --muted:#9095A1; --muted2:#5A6070;
+    /* --muted más claro para mejor contraste con fondos oscuros */
+    --text:#E8E6E1; --muted:#B8BDC9; --muted2:#7A8090;
     --accent:#6BC197; --accent-soft:#1F3A2D;
     --teal:#85D9D0;  --teal-soft:#1A3835;
     --peach:#F09F8C; --peach-soft:#3D2A24;
     --yellow:#EFC65A;--yellow-soft:#3A3220;
     --green:#8FD3A8; --green-soft:#1F3A2D;
     --red:#EF9999;   --red-soft:#3A2424;
+  }
+  /* Override del inline style color:var(--muted) en stage-check-label.
+     Cuando no está checked, queremos var(--text) en dark para mejor lectura. */
+  html[data-theme="dark"] .stage-check-item:not(.checked) .stage-check-label {
+    color: var(--text) !important;
+    opacity: 0.92;
+  }
+  html[data-theme="dark"] .stage-check-item.checked .stage-check-label {
+    color: var(--accent) !important;
   }
   html[data-theme="dark"] img { opacity: 0.95; }
   /* Ajuste especial: el body en dark debe tener el bg correcto */
