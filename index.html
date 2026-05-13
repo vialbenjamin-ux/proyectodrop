@@ -13142,8 +13142,10 @@ const ASSIGNMENT_STATES = {
 // VIDEOS POR PRODUCTO (Google Drive integration)
 // ═══════════════════════════════════════════════════════════════════════
 
-// Cache: productos con sus folder IDs (de Firestore) + contenido folders (de Drive)
-window._vpData = window._vpData || { products: [], rankings: {}, folderContents: {} };
+// Cache: productos, rankings, asignaciones + contenido folders.
+// Asignación de responsable = string libre (cualquier nombre), guardado
+// en Firestore (bkdrop_drive_folder_assignments) por par handle+folderType.
+window._vpData = window._vpData || { products: [], rankings: {}, folderContents: {}, assignments: {} };
 
 async function initVideosProd(forceReload){
   const status = document.getElementById('vp-status');
@@ -13159,17 +13161,21 @@ async function initVideosProd(forceReload){
       throw new Error('Firestore no inicializado');
     }
     const db = firebase.firestore();
-    const [prodsSnap, ranksSnap] = await Promise.all([
+    const [prodsSnap, ranksSnap, assignsSnap] = await Promise.all([
       db.collection('bkdrop_drive_product_folders').orderBy('updatedAt', 'desc').get(),
       db.collection('bkdrop_video_rankings').get(),
+      db.collection('bkdrop_drive_folder_assignments').get(),
     ]);
     const products = [];
     prodsSnap.forEach(doc => products.push({ id: doc.id, ...doc.data() }));
     const rankings = {};
     ranksSnap.forEach(doc => { rankings[doc.id] = doc.data(); });
+    const assignments = {};
+    assignsSnap.forEach(doc => { assignments[doc.id] = doc.data(); });
 
     window._vpData.products = products;
     window._vpData.rankings = rankings;
+    window._vpData.assignments = assignments;
 
     if (!products.length) {
       if (list) list.innerHTML = '<div style="background:var(--surface);border:1px dashed var(--border);border-radius:12px;padding:24px;text-align:center;color:var(--muted);font-size:13px;line-height:1.6">📁 Sin productos cargados aún.<br>Aplicá un landing en cualquier producto desde <strong>BK DROP</strong> (Auto-Shrine o Replicar a GT) y las carpetas se crean automáticamente en Drive.</div>';
@@ -13224,22 +13230,32 @@ function renderVideosProdCard(p){
 }
 
 function renderVideosProdFolders(p){
+  const handle = p.handle || p.id;
   const folders = [
     { type: 'brutos',   id: p.brutosId,   label: '1 — Brutos',   color: '#94A3B8', icon: '🎬' },
     { type: 'testeo',   id: p.testeoId,   label: '2 — Testeo',   color: '#F59E0B', icon: '🧪' },
     { type: 'escalado', id: p.escaladoId, label: '3 — Escalado', color: '#22C55E', icon: '🚀' },
   ];
-  return folders.map(f => `
+  return folders.map(f => {
+    const assignKey = handle + '__' + f.type;
+    const assignment = window._vpData.assignments[assignKey];
+    const responsible = (assignment && assignment.responsible) ? assignment.responsible : '';
+    return `
     <div style="margin-bottom:12px;background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden">
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:${f.color}1a;border-bottom:1px solid var(--border)">
-        <div style="font-family:'DM Sans',sans-serif;font-weight:700;font-size:13px;color:${f.color}">${f.icon} ${f.label}</div>
-        <a href="https://drive.google.com/drive/folders/${f.id}" target="_blank" rel="noopener" style="background:#4285F4;color:#fff;text-decoration:none;border-radius:5px;padding:4px 8px;font-size:9px;font-family:'DM Mono',monospace">↗ Abrir en Drive</a>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:${f.color}1a;border-bottom:1px solid var(--border);gap:8px;flex-wrap:wrap">
+        <div style="font-family:'DM Sans',sans-serif;font-weight:700;font-size:13px;color:${f.color};white-space:nowrap">${f.icon} ${f.label}</div>
+        <div style="display:flex;align-items:center;gap:6px;flex:1;justify-content:flex-end">
+          <label style="font-size:9px;color:var(--muted);font-family:'DM Mono',monospace;white-space:nowrap">👤 Responsable:</label>
+          <input type="text" placeholder="(sin asignar)" value="${esc(responsible)}" data-handle="${esc(handle)}" data-folder-type="${f.type}" onblur="setFolderResponsible(this.dataset.handle, this.dataset.folderType, this.value)" onkeydown="if(event.key==='Enter'){this.blur();}" style="min-width:120px;max-width:180px;background:var(--surface);border:1px solid var(--border);color:var(--text);font-size:11px;font-family:'DM Mono',monospace;padding:4px 8px;border-radius:5px">
+          <a href="https://drive.google.com/drive/folders/${f.id}" target="_blank" rel="noopener" style="background:#4285F4;color:#fff;text-decoration:none;border-radius:5px;padding:4px 8px;font-size:9px;font-family:'DM Mono',monospace;white-space:nowrap">↗ Drive</a>
+        </div>
       </div>
-      <div id="vp-folder-${esc(p.handle || p.id)}-${f.type}" style="padding:8px">
+      <div id="vp-folder-${esc(handle)}-${f.type}" style="padding:8px">
         <div style="font-size:11px;color:var(--muted);text-align:center;padding:8px">⏳ Cargando videos…</div>
       </div>
     </div>
-  `).join('');
+    `;
+  }).join('');
 }
 
 async function toggleVideosProdCard(handle){
@@ -13420,6 +13436,38 @@ async function vpLinkProduct(id, title, handle){
     }, 1500);
   } catch (err) {
     if (status) { status.textContent = '⚠ ' + (err.message || 'error'); status.style.color = 'var(--danger,#E74C3C)'; }
+  }
+}
+
+// Asigna (o limpia) el responsable de una carpeta del producto.
+// folderType: 'brutos' | 'testeo' | 'escalado'
+// responsible: string libre (cualquier nombre) o vacío para des-asignar
+async function setFolderResponsible(handle, folderType, responsible){
+  const docId = handle + '__' + folderType;
+  const value = (responsible || '').trim();
+  try {
+    if (typeof firebase === 'undefined' || !firebase.firestore) throw new Error('Firestore no disponible');
+    const db = firebase.firestore();
+    // Comparar contra el valor actual para no escribir si no cambió
+    const prev = window._vpData.assignments[docId];
+    const prevValue = prev && prev.responsible ? prev.responsible : '';
+    if (value === prevValue) return;
+
+    if (!value) {
+      await db.collection('bkdrop_drive_folder_assignments').doc(docId).delete();
+      delete window._vpData.assignments[docId];
+      showToast('Responsable removido', '👤', 'success');
+    } else {
+      const doc = {
+        handle, folderType, responsible: value,
+        updatedAt: Date.now(),
+      };
+      await db.collection('bkdrop_drive_folder_assignments').doc(docId).set(doc, { merge: true });
+      window._vpData.assignments[docId] = doc;
+      showToast('Responsable: ' + value, '👤', 'success');
+    }
+  } catch (err) {
+    showToast('Error guardando responsable: ' + (err.message || '?'), '⚠️', 'error');
   }
 }
 
