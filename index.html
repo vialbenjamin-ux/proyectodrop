@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-title" content="BKDROP">
 <meta name="application-name" content="BKDROP">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=DM+Sans:wght@400;500;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=DM+Sans:wght@400;500;700;800&family=Syne:wght@700;800&display=swap" rel="stylesheet">
 <script>
   // Aplicar tema guardado ANTES del render para evitar flash de tema claro
   (function(){
@@ -79,6 +79,48 @@
   html[data-theme="dark"] img { opacity: 0.95; }
   /* Ajuste especial: el body en dark debe tener el bg correcto */
   html[data-theme="dark"] body { background: var(--bg); color: var(--text); }
+
+  /* ── DARK MODE: forzar contraste donde hay backgrounds claros hardcoded ──
+     Hay muchos chips/badges/cards en la app con colores hardcoded tipo
+     #DFF2E8, #FDF3D0, etc. En dark mode esos fondos quedan claros pero
+     el texto encima sigue siendo del color del acento (también claro)
+     resultando ilegible. Forzamos color oscuro al texto descendiente
+     cuando detectamos fondos claros conocidos. */
+  html[data-theme="dark"] [style*="background:#DFF2E8"],
+  html[data-theme="dark"] [style*="background: #DFF2E8"],
+  html[data-theme="dark"] [style*="background:#FDF3D0"],
+  html[data-theme="dark"] [style*="background: #FDF3D0"],
+  html[data-theme="dark"] [style*="background:#FDE8E3"],
+  html[data-theme="dark"] [style*="background: #FDE8E3"],
+  html[data-theme="dark"] [style*="background:#DDF4F1"],
+  html[data-theme="dark"] [style*="background: #DDF4F1"],
+  html[data-theme="dark"] [style*="background:#FCEAEA"],
+  html[data-theme="dark"] [style*="background: #FCEAEA"] {
+    color: #1A1A1A !important;
+  }
+  /* Mismo principio para "soft" via var() */
+  html[data-theme="dark"] [style*="background:var(--accent-soft)"],
+  html[data-theme="dark"] [style*="background:var(--green-soft)"],
+  html[data-theme="dark"] [style*="background:var(--teal-soft)"],
+  html[data-theme="dark"] [style*="background:var(--peach-soft)"],
+  html[data-theme="dark"] [style*="background:var(--yellow-soft)"],
+  html[data-theme="dark"] [style*="background:var(--red-soft)"] {
+    color: var(--text);
+  }
+  /* Ajuste tarjetas kanban con fondo verde/peach/etc light — mantenemos
+     el fondo claro original pero forzamos texto oscuro adentro */
+  html[data-theme="dark"] [style*="background:#DFF2E8"] *,
+  html[data-theme="dark"] [style*="background: #DFF2E8"] *,
+  html[data-theme="dark"] [style*="background:#FDF3D0"] *,
+  html[data-theme="dark"] [style*="background: #FDF3D0"] *,
+  html[data-theme="dark"] [style*="background:#FDE8E3"] *,
+  html[data-theme="dark"] [style*="background: #FDE8E3"] *,
+  html[data-theme="dark"] [style*="background:#DDF4F1"] *,
+  html[data-theme="dark"] [style*="background: #DDF4F1"] *,
+  html[data-theme="dark"] [style*="background:#FCEAEA"] *,
+  html[data-theme="dark"] [style*="background: #FCEAEA"] * {
+    color: #1A1A1A !important;
+  }
   /* Toggle button styling */
   .theme-toggle{background:none;border:1px solid var(--border);border-radius:20px;padding:5px 10px;font-size:14px;color:var(--muted);margin-right:6px;cursor:pointer;transition:all .15s;line-height:1}
   .theme-toggle:hover{border-color:var(--accent);color:var(--accent)}
@@ -92,7 +134,7 @@
 
   /* NAV */
   #nav{border-bottom:1px solid var(--border);padding:14px 28px;display:flex;align-items:center;gap:4px;position:sticky;top:0;background:var(--surface);z-index:100;box-shadow:0 1px 12px rgba(0,0,0,.04)}
-  .logo{font-family:'DM Sans',sans-serif;font-weight:800;font-size:20px;letter-spacing:-1px;color:var(--accent);margin-right:20px;border:none;background:none}
+  .logo{font-family:'Syne',sans-serif;font-weight:800;font-size:20px;letter-spacing:-1px;color:var(--accent);margin-right:20px;border:none;background:none}
   .logo span{color:var(--text)}
   .tab-btn{background:none;border:none;border-bottom:2px solid transparent;padding:10px 16px;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);position:relative;cursor:pointer}
   .tab-btn.active{border-bottom:2px solid var(--accent);color:var(--accent)}
