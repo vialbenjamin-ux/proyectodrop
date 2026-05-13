@@ -11,6 +11,32 @@
 <meta name="application-name" content="BKDROP">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=DM+Sans:wght@400;500;700;800&display=swap" rel="stylesheet">
+<script>
+  // Aplicar tema guardado ANTES del render para evitar flash de tema claro
+  (function(){
+    try {
+      var saved = localStorage.getItem('bkdrop_theme');
+      if (saved === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+    } catch(e){}
+  })();
+  // Toggle disponible globalmente desde el botón
+  function toggleTheme(){
+    var current = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+    var next = current === 'dark' ? 'light' : 'dark';
+    if (next === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+    else document.documentElement.removeAttribute('data-theme');
+    try { localStorage.setItem('bkdrop_theme', next); } catch(e){}
+    var btn = document.getElementById('theme-toggle-btn');
+    if (btn) btn.textContent = (next === 'dark') ? '☀️' : '🌙';
+  }
+  // Sincronizar el ícono del botón al cargar
+  document.addEventListener('DOMContentLoaded', function(){
+    var btn = document.getElementById('theme-toggle-btn');
+    if (!btn) return;
+    var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    btn.textContent = isDark ? '☀️' : '🌙';
+  });
+</script>
 <style>
   /* ── PASTEL PALETTE ──────────────────────────────────────────────────────────
      bg:        #F7F4F0  (warm off-white)
@@ -36,6 +62,26 @@
     --green:#85C99E; --green-soft:#DFF2E8;
     --red:#E88A8A;   --red-soft:#FCEAEA;
   }
+  /* Dark mode — activado con data-theme="dark" en <html>.
+     Mantiene los acentos pero ajusta bg/surface/text para baja luz.
+     Los "soft" se oscurecen pero conservan tinte del acento original. */
+  html[data-theme="dark"]{
+    --bg:#15171C; --surface:#1E2128; --surface2:#272B33;
+    --border:#353A44; --border2:#454B57;
+    --text:#E8E6E1; --muted:#9095A1; --muted2:#5A6070;
+    --accent:#6BC197; --accent-soft:#1F3A2D;
+    --teal:#85D9D0;  --teal-soft:#1A3835;
+    --peach:#F09F8C; --peach-soft:#3D2A24;
+    --yellow:#EFC65A;--yellow-soft:#3A3220;
+    --green:#8FD3A8; --green-soft:#1F3A2D;
+    --red:#EF9999;   --red-soft:#3A2424;
+  }
+  html[data-theme="dark"] img { opacity: 0.95; }
+  /* Ajuste especial: el body en dark debe tener el bg correcto */
+  html[data-theme="dark"] body { background: var(--bg); color: var(--text); }
+  /* Toggle button styling */
+  .theme-toggle{background:none;border:1px solid var(--border);border-radius:20px;padding:5px 10px;font-size:14px;color:var(--muted);margin-right:6px;cursor:pointer;transition:all .15s;line-height:1}
+  .theme-toggle:hover{border-color:var(--accent);color:var(--accent)}
   *{box-sizing:border-box;margin:0;padding:0}
   body{font-family:'DM Mono',monospace;background:var(--bg);min-height:100vh;color:var(--text)}
   ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:var(--accent);border-radius:4px}
@@ -1314,6 +1360,7 @@
     </div>
   </div>
 
+  <button id="theme-toggle-btn" class="theme-toggle" onclick="toggleTheme()" title="Cambiar tema">🌙</button>
   <button id="admin-nav-btn" onclick="openAdmin()" title="Administrar accesos" style="display:none;background:none;border:1px solid var(--border);border-radius:20px;padding:5px 12px;font-size:11px;color:var(--muted);margin-right:6px">⚙️ Admin</button>
   <button id="login-user-chip" onclick="doLogout()" title="Cerrar sesión">
     <span id="nav-user-name">—</span> · salir
