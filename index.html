@@ -151,6 +151,38 @@
   html[data-theme="dark"] [style*="background:var(--red-soft)"] {
     color: var(--text);
   }
+
+  /* ── DARK MODE: tarjetas de producto del kanban .card-stage-*
+     Tienen background: linear-gradient(...) con colores hardcoded claros.
+     Las reglas [style*="background:#xxx"] de arriba NO las matcheaban
+     porque los gradients no empiezan con #xxx. Fix específico aquí. */
+  html[data-theme="dark"] .card-stage-landing,
+  html[data-theme="dark"] .card-stage-landingpub,
+  html[data-theme="dark"] .card-stage-videos,
+  html[data-theme="dark"] .card-stage-releasit,
+  html[data-theme="dark"] .card-stage-standby,
+  html[data-theme="dark"] .card-stage-ads,
+  html[data-theme="dark"] .card-stage-done {
+    color: #1A1A1A !important;
+  }
+  html[data-theme="dark"] .card-stage-landing *,
+  html[data-theme="dark"] .card-stage-landingpub *,
+  html[data-theme="dark"] .card-stage-videos *,
+  html[data-theme="dark"] .card-stage-releasit *,
+  html[data-theme="dark"] .card-stage-standby *,
+  html[data-theme="dark"] .card-stage-ads *,
+  html[data-theme="dark"] .card-stage-done * {
+    color: #1A1A1A !important;
+  }
+  /* Excepciones para botones e imágenes dentro de las cards — deben
+     mantener su color para no romper iconografía/botones de acción */
+  html[data-theme="dark"] .card-stage-landing img,
+  html[data-theme="dark"] .card-stage-landingpub img,
+  html[data-theme="dark"] .card-stage-videos img,
+  html[data-theme="dark"] .card-stage-releasit img,
+  html[data-theme="dark"] .card-stage-standby img,
+  html[data-theme="dark"] .card-stage-ads img,
+  html[data-theme="dark"] .card-stage-done img { color: inherit; }
   /* Toggle button styling */
   .theme-toggle{background:none;border:1px solid var(--border);border-radius:20px;padding:5px 10px;font-size:14px;color:var(--muted);margin-right:6px;cursor:pointer;transition:all .15s;line-height:1}
   .theme-toggle:hover{border-color:var(--accent);color:var(--accent)}
