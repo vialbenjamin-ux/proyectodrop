@@ -6883,36 +6883,68 @@ async function ejecutarAutoShrine(){
 }
 
 // Crea (idempotente) en Google Drive la estructura de carpetas para el
-// workflow de videos: [producto] / { Brutos, Testeo, Escalado }. Si las
-// carpetas ya existen, las devuelve sin duplicar. Guarda los IDs en
-// Firestore (collection bkdrop_drive_product_folders) usando handle como
-// doc id, para no llamar a Drive en cada visita después.
+// workflow de videos: [producto] / { Brutos, Testeo, Escalado }.
 //
-// El resultado se muestra como un mini-toast/banner inline en el status
-// element activo (auto-shrine, replicación, etc.) sin romper el flow.
+// Idempotencia en 2 capas:
+// 1. Firestore mapping por handle: si ya existe → return cached (no llama a Drive)
+// 2. Backend ensure-product-folders: si la carpeta existe por nombre, reusa
+//
+// El nombre de la carpeta padre se prefija con MMDD + nombre del producto
+// (ej: "0512 - Cafetera automática"). El día solo afecta la PRIMERA creación;
+// llamadas posteriores reusan la carpeta original por el mapping de Firestore.
 async function crearCarpetasDriveDelProducto(handle, title){
   if (!handle) return null;
   try {
+    // 1. Verificar mapping existente en Firestore (idempotencia rápida)
+    if (typeof firebase !== 'undefined' && firebase.firestore) {
+      try {
+        const fdb = firebase.firestore();
+        const doc = await fdb.collection('bkdrop_drive_product_folders').doc(handle).get();
+        if (doc.exists) {
+          const existing = doc.data();
+          if (existing.productFolderId && existing.brutosId && existing.testeoId && existing.escaladoId) {
+            showToast('📁 Carpetas Drive ya existen — reusando', '☁️', 'success');
+            return {
+              productFolder: { id: existing.productFolderId, name: existing.title },
+              brutosId: existing.brutosId,
+              testeoId: existing.testeoId,
+              escaladoId: existing.escaladoId,
+              handle: existing.handle,
+              title: existing.title,
+              cached: true,
+            };
+          }
+        }
+      } catch (e) { console.warn('[drive-folders] firestore check failed:', e); }
+    }
+
+    // 2. No existe — crear con prefijo de fecha MMDD
+    const d = new Date();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    const datePrefix = mm + dd;
+    const baseTitle = (title || handle).trim();
+    const titleWithDate = baseTitle ? `${datePrefix} - ${baseTitle}` : datePrefix;
+
     const resp = await fetch('/.netlify/functions/drive-folders', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         op: 'ensure-product-folders',
         productHandle: handle,
-        productTitle: title || handle,
+        productTitle: titleWithDate,
       }),
     });
     const data = await resp.json();
     if (!resp.ok) throw new Error(data.error || ('HTTP ' + resp.status));
 
-    // Guardar mapping en Firestore para que la UI pueda enlazar producto → carpetas
-    // sin llamar a Drive cada vez.
+    // Guardar mapping en Firestore
     try {
       if (typeof firebase !== 'undefined' && firebase.firestore) {
         const fdb = firebase.firestore();
         await fdb.collection('bkdrop_drive_product_folders').doc(handle).set({
           handle,
-          title: data.title || title || handle,
+          title: data.title || titleWithDate,
           productFolderId: data.productFolder?.id,
           brutosId:   data.brutosId,
           testeoId:   data.testeoId,
@@ -6924,7 +6956,7 @@ async function crearCarpetasDriveDelProducto(handle, title){
       console.warn('[drive-folders] no se pudo guardar en Firestore:', e);
     }
 
-    showToast('📁 Carpetas de Drive listas: Brutos / Testeo / Escalado', '☁️', 'success');
+    showToast('📁 Carpetas Drive creadas: ' + titleWithDate, '☁️', 'success');
     return data;
   } catch (err) {
     console.warn('[drive-folders] error:', err);
