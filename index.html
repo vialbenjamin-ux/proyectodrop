@@ -2894,8 +2894,25 @@
 
       <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
         <input type="text" id="vp-search" placeholder="Filtrar productos…" style="flex:1;min-width:200px;padding:9px 12px;border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:8px;font-size:13px;font-family:'DM Mono',monospace" oninput="filterVideosProdList()">
+        <button onclick="vpToggleAddPanel()" id="vp-add-btn" style="background:#22C55E;color:#fff;border:none;border-radius:8px;padding:9px 14px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer;font-weight:700">+ Agregar producto</button>
         <button onclick="initVideosProd(true)" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:9px 14px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer">🔄 Recargar</button>
-        <a href="https://drive.google.com/drive/folders/1JqerUrGaRgcQGY0uTDvcoyccdekCpj62" target="_blank" rel="noopener" style="background:#4285F4;color:#fff;border-radius:8px;padding:9px 14px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer;text-decoration:none">↗ Abrir carpeta raíz en Drive</a>
+        <a href="https://drive.google.com/drive/folders/1JqerUrGaRgcQGY0uTDvcoyccdekCpj62" target="_blank" rel="noopener" style="background:#4285F4;color:#fff;border-radius:8px;padding:9px 14px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer;text-decoration:none">↗ Abrir Drive</a>
+      </div>
+
+      <!-- Panel para agregar producto (oculto por default) -->
+      <div id="vp-add-panel" style="display:none;background:var(--surface);border:2px solid #22C55E;border-radius:12px;padding:14px;margin-bottom:14px">
+        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:14px;color:#22C55E;margin-bottom:6px">+ Vincular producto existente</div>
+        <div style="font-size:11px;color:var(--muted);line-height:1.5;margin-bottom:10px">Buscá un producto de tu Shopify (CL o GT) y crea sus 3 carpetas en Drive. Útil para landings que aplicaste antes de tener esta integración.</div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+          <select id="vp-add-tenant" style="padding:8px 10px;border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:6px;font-size:12px;font-family:'DM Mono',monospace">
+            <option value="chile">🇨🇱 Shopify Chile</option>
+            <option value="gt">🇬🇹 Shopify Guatemala</option>
+          </select>
+          <input type="text" id="vp-add-search" placeholder="Buscar producto…" style="flex:1;min-width:200px;padding:8px 10px;border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:6px;font-size:12px;font-family:'DM Mono',monospace" onkeydown="if(event.key==='Enter') vpSearchShopify()">
+          <button onclick="vpSearchShopify()" style="background:var(--accent);color:#fff;border:none;border-radius:6px;padding:8px 14px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer">🔍 Buscar</button>
+        </div>
+        <div id="vp-add-results" style="display:flex;flex-direction:column;gap:6px;max-height:300px;overflow-y:auto"></div>
+        <div id="vp-add-status" style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;margin-top:8px"></div>
       </div>
 
       <div id="vp-status" style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;margin-bottom:10px"></div>
@@ -13297,6 +13314,74 @@ function renderVideoCard(file, type, handle, showRank){
       </div>
     </a>
   `;
+}
+
+function vpToggleAddPanel(){
+  const panel = document.getElementById('vp-add-panel');
+  if (!panel) return;
+  const open = panel.style.display !== 'none';
+  panel.style.display = open ? 'none' : 'block';
+  if (!open) {
+    const input = document.getElementById('vp-add-search');
+    if (input) setTimeout(()=>{ try { input.focus(); } catch(e){} }, 80);
+  }
+}
+
+async function vpSearchShopify(){
+  const q = (document.getElementById('vp-add-search')?.value || '').trim();
+  const tenant = document.getElementById('vp-add-tenant')?.value || 'chile';
+  const results = document.getElementById('vp-add-results');
+  const status = document.getElementById('vp-add-status');
+  if (!results) return;
+  results.innerHTML = '<div style="font-size:11px;color:var(--muted);padding:8px">Buscando en Shopify ' + tenant.toUpperCase() + '…</div>';
+  if (status) status.textContent = '';
+  try {
+    const url = '/.netlify/functions/shopify-products?_=1' + (q ? '&q=' + encodeURIComponent(q) : '') + '&tenant=' + tenant;
+    const resp = await fetch(url);
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || ('HTTP ' + resp.status));
+    const products = data.products || [];
+    if (!products.length) {
+      results.innerHTML = '<div style="font-size:11px;color:var(--muted);padding:8px">Sin resultados.</div>';
+      return;
+    }
+    // Filtrar solo los que tienen handle (todos deberían, pero por las dudas)
+    results.innerHTML = products.map(p => {
+      const titleAttr = String(p.title || '').replace(/'/g, "\\'");
+      const handleAttr = String(p.handle || '').replace(/'/g, "\\'");
+      const alreadyExists = window._vpData.products.find(x => (x.handle || x.id) === p.handle);
+      const indicator = alreadyExists
+        ? '<span style="font-size:9px;background:#22C55E;color:#fff;padding:2px 6px;border-radius:10px;font-family:\'DM Mono\',monospace;font-weight:700;white-space:nowrap">✓ ya vinculado</span>'
+        : '<button onclick="vpLinkProduct(' + p.id + ", '" + titleAttr + "', '" + handleAttr + "')\" style=\"background:#22C55E;color:#fff;border:none;border-radius:5px;padding:5px 10px;font-size:10px;font-family:'DM Mono',monospace;cursor:pointer;font-weight:700;white-space:nowrap\">+ Crear carpetas</button>";
+      return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px">' +
+        '<div style="flex:1;min-width:0">' +
+          '<div style="font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc(p.title || '') + '">' + esc(p.title || '') + '</div>' +
+          '<div style="font-size:9px;color:var(--muted);font-family:\'DM Mono\',monospace">handle: ' + esc(p.handle || '') + '</div>' +
+        '</div>' +
+        indicator +
+      '</div>';
+    }).join('');
+  } catch (err) {
+    results.innerHTML = '';
+    if (status) { status.textContent = '⚠ ' + (err.message || 'error'); status.style.color = 'var(--danger,#E74C3C)'; }
+  }
+}
+
+async function vpLinkProduct(id, title, handle){
+  const status = document.getElementById('vp-add-status');
+  if (status) { status.textContent = '⏳ Creando carpetas en Drive para "' + title + '"…'; status.style.color = 'var(--muted)'; }
+  try {
+    const result = await crearCarpetasDriveDelProducto(handle, title);
+    if (!result) throw new Error('No se pudieron crear las carpetas (ver consola)');
+    if (status) { status.innerHTML = '✅ Carpetas creadas: <strong>' + esc(handle) + '</strong>. Refrescando lista…'; status.style.color = 'var(--accent)'; }
+    // Refrescar lista de productos
+    setTimeout(() => {
+      initVideosProd(true);
+      vpToggleAddPanel(); // cerrar el panel
+    }, 1500);
+  } catch (err) {
+    if (status) { status.textContent = '⚠ ' + (err.message || 'error'); status.style.color = 'var(--danger,#E74C3C)'; }
+  }
 }
 
 async function setVideoRank(fileId, rank, handle, fileName){
