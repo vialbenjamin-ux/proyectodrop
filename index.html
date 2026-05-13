@@ -13297,7 +13297,8 @@ function renderVideosList(files, type, handle){
   if (!files.length) {
     return '<div style="font-size:11px;color:var(--muted);text-align:center;padding:12px 8px;font-style:italic">Sin videos todavía</div>';
   }
-  const showRank = (type === 'testeo');
+  // Ranking disponible en Testeo Y Escalado (Brutos sin ranking — son crudos)
+  const showRank = (type === 'testeo' || type === 'escalado');
   return '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px">' +
     files.map(f => renderVideoCard(f, type, handle, showRank)).join('') +
     '</div>';
@@ -13317,10 +13318,12 @@ function renderVideoCard(file, type, handle, showRank){
   let rankHtml = '';
   if (showRank) {
     const colorByRank = (n) => n >= 6 ? '#22C55E' : n >= 4 ? '#F59E0B' : n >= 1 ? '#E74C3C' : 'var(--muted)';
+    // El select debe estar FUERA del <a> envolvente, sino el click se
+    // propaga al link y abre el video en vez de abrir el dropdown.
     rankHtml = `
-      <div style="display:flex;align-items:center;gap:4px;margin-top:6px">
+      <div class="vp-rank-row" style="display:flex;align-items:center;gap:4px;padding:6px 10px 10px;border-top:1px dashed var(--border);background:var(--surface2)">
         <span style="font-size:9px;color:var(--muted);font-family:'DM Mono',monospace">RANK:</span>
-        <select onchange="setVideoRank('${file.id}', this.value, '${esc(handle)}', '${esc(file.name)}')" style="flex:1;background:var(--surface);border:1px solid var(--border);color:${colorByRank(currentRank)};font-size:11px;font-family:'DM Mono',monospace;font-weight:700;padding:3px 6px;border-radius:4px">
+        <select onclick="event.stopPropagation()" onmousedown="event.stopPropagation()" onchange="setVideoRank('${file.id}', this.value, '${esc(handle)}', '${esc(file.name)}')" style="flex:1;background:var(--surface);border:1px solid var(--border);color:${colorByRank(currentRank)};font-size:11px;font-family:'DM Mono',monospace;font-weight:700;padding:3px 6px;border-radius:4px;cursor:pointer">
           <option value="0"${currentRank===0?' selected':''}>—</option>
           <option value="1"${currentRank===1?' selected':''}>1 · muy perdedor</option>
           <option value="2"${currentRank===2?' selected':''}>2 · perdedor</option>
@@ -13334,17 +13337,21 @@ function renderVideoCard(file, type, handle, showRank){
     `;
   }
 
+  // Card en 2 piezas: el <a> envuelve solo thumbnail + meta. El dropdown
+  // del rank queda como hermano fuera del <a> para no capturar el click.
   return `
-    <a href="${viewUrl}" target="_blank" rel="noopener" style="display:flex;flex-direction:column;background:var(--surface2);border:1px solid var(--border);border-radius:8px;overflow:hidden;text-decoration:none;color:inherit;transition:transform 0.1s" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform=''">
-      <div style="aspect-ratio:16/9;background:#000;display:flex;align-items:center;justify-content:center;overflow:hidden">
-        ${thumb ? `<img src="${esc(thumb)}" alt="" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display='none';this.parentNode.innerHTML='<span style=\\'color:#666;font-size:32px\\'>${isVideo?'🎬':'📄'}</span>'">` : `<span style="color:#666;font-size:32px">${isVideo?'🎬':'📄'}</span>`}
-      </div>
-      <div style="padding:8px 10px" onclick="event.stopPropagation()">
-        <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(file.name)}">${esc(file.name)}</div>
-        <div style="font-size:9px;color:var(--muted);font-family:'DM Mono',monospace;margin-top:2px">${sizeStr}${sizeStr && date ? ' · ' : ''}${date}</div>
-        ${rankHtml}
-      </div>
-    </a>
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;overflow:hidden;display:flex;flex-direction:column">
+      <a href="${viewUrl}" target="_blank" rel="noopener" style="display:flex;flex-direction:column;text-decoration:none;color:inherit;transition:transform 0.1s" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform=''">
+        <div style="aspect-ratio:16/9;background:#000;display:flex;align-items:center;justify-content:center;overflow:hidden">
+          ${thumb ? `<img src="${esc(thumb)}" alt="" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display='none';this.parentNode.innerHTML='<span style=\\'color:#666;font-size:32px\\'>${isVideo?'🎬':'📄'}</span>'">` : `<span style="color:#666;font-size:32px">${isVideo?'🎬':'📄'}</span>`}
+        </div>
+        <div style="padding:8px 10px">
+          <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(file.name)}">${esc(file.name)}</div>
+          <div style="font-size:9px;color:var(--muted);font-family:'DM Mono',monospace;margin-top:2px">${sizeStr}${sizeStr && date ? ' · ' : ''}${date}</div>
+        </div>
+      </a>
+      ${rankHtml}
+    </div>
   `;
 }
 
@@ -13436,12 +13443,14 @@ async function setVideoRank(fileId, rank, handle, fileName){
       window._vpData.rankings[fileId] = doc;
     }
     showToast('Ranking actualizado: ' + (n || '—'), '⭐', 'success');
-    // Re-render solo el folder de testeo para refrescar colores
-    const p = window._vpData.products.find(x => (x.handle || x.id) === handle);
-    if (p && window._vpData.folderContents[handle]?.testeo) {
-      const container = document.getElementById('vp-folder-' + handle + '-testeo');
-      if (container) container.innerHTML = renderVideosList(window._vpData.folderContents[handle].testeo, 'testeo', handle);
-    }
+    // Re-render folder(s) que contengan este file para refrescar el color del select
+    const contents = window._vpData.folderContents[handle] || {};
+    ['testeo', 'escalado'].forEach(t => {
+      if (contents[t] && contents[t].some(f => f.id === fileId)) {
+        const container = document.getElementById('vp-folder-' + handle + '-' + t);
+        if (container) container.innerHTML = renderVideosList(contents[t], t, handle);
+      }
+    });
   } catch (err) {
     showToast('Error guardando rank: ' + (err.message || '?'), '⚠️', 'error');
   }
