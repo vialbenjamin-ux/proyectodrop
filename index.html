@@ -772,7 +772,8 @@
   .bk-prompt-output-copy{background:var(--yellow);color:#6B5818;border:none;border-radius:14px;padding:4px 12px;font-size:10px;cursor:pointer;font-family:'DM Mono',monospace;font-weight:600}
   .bk-prompt-output-copy.copied{background:var(--green);color:#fff}
   .bk-prompt-output-close{background:none;border:none;color:#A6862A;cursor:pointer;font-size:13px;padding:2px 4px;line-height:1}
-  .bk-prompt-output-body{padding:12px 14px;white-space:pre-wrap;max-height:360px;overflow-y:auto}
+  .bk-prompt-output-body{padding:14px 16px;white-space:pre-wrap;max-height:640px;overflow-y:auto;font-size:13px;line-height:1.7}
+  .bk-prompt-output.expanded .bk-prompt-output-body{max-height:80vh;font-size:14px}
   .bk-prompt-output-body.editable{cursor:text;outline:none;transition:background .15s}
   .bk-prompt-output-body.editable:hover{background:#FFFEF7}
   .bk-prompt-output-body.editable:focus{background:#FFFEF0;box-shadow:inset 0 0 0 2px var(--yellow)}
@@ -1463,17 +1464,6 @@
     🧮 Calculadora
   </button>
 
-  <div class="nav-group" data-group="personal">
-    <button class="tab-group-btn" onclick="toggleNavGroup('personal', event)">
-      🎯 Personal <span class="ng-arrow">▾</span>
-    </button>
-    <div class="nav-dropdown">
-      <button class="tab-btn ng-item" data-section="bkfit" onclick="switchSection('bkfit')">
-        🏋️ BKfit
-      </button>
-    </div>
-  </div>
-
   <div style="flex:1"></div>
 
   <!-- Stock alert bell -->
@@ -1821,6 +1811,7 @@
             <div class="bk-prompt-output-head">
               <span class="bk-prompt-output-label" id="bk-output-label-imagenes">Respuesta de Gemini</span>
               <button class="bk-prompt-output-copy" id="bk-output-copy-imagenes" onclick="copyBkOutput('imagenes')">📋 Copiar</button>
+              <button class="bk-prompt-output-close" onclick="toggleBkOutputExpand('imagenes')" title="Expandir/contraer" style="font-size:13px">⛶</button>
               <button class="bk-prompt-output-close" onclick="closeBkOutput('imagenes')" title="Cerrar">✕</button>
             </div>
             <div class="bk-prompt-output-body" id="bk-output-body-imagenes"></div>
@@ -1903,6 +1894,7 @@
             <div class="bk-prompt-output-head">
               <span class="bk-prompt-output-label" id="bk-output-label-copys">Respuesta de Gemini</span>
               <button class="bk-prompt-output-copy" id="bk-output-copy-copys" onclick="copyBkOutput('copys')">📋 Copiar</button>
+              <button class="bk-prompt-output-close" onclick="toggleBkOutputExpand('copys')" title="Expandir/contraer" style="font-size:13px">⛶</button>
               <button class="bk-prompt-output-close" onclick="closeBkOutput('copys')" title="Cerrar">✕</button>
             </div>
             <div class="bk-prompt-output-body" id="bk-output-body-copys"></div>
@@ -1910,63 +1902,9 @@
         </div>
       </div>
 
-      <!-- ANÁLISIS DE VIDEO -->
-      <div class="bk-prompts-sub">🎬 Análisis de video</div>
+      <!-- IMAGEN PUBLICITARIA -->
+      <div class="bk-prompts-sub">🖼️ Imagen publicitaria de video</div>
       <div class="bk-prompts-hero">
-        <div class="bk-prompt-card tone-transcripcion">
-          <div class="bk-prompt-card-head">
-            <div class="bk-prompt-card-icon">🎙️</div>
-            <div>
-              <div class="bk-prompt-card-tag">Voz en off</div>
-              <div class="bk-prompt-card-title">Transcripción VO</div>
-            </div>
-          </div>
-          <div class="bk-prompt-card-desc">Transcribe la locución del video y traduce a español neutro latinoamericano. Listo para grabar como voz en off.</div>
-          <input type="file" accept="video/*" id="bkv-file-transcripcion" class="bk-video-input" onchange="updateBkVideoLabel('transcripcion')">
-          <label for="bkv-file-transcripcion" class="bk-video-label" id="bk-video-label-transcripcion">📁 Elegir video MP4 (≤50MB, se comprime solo)</label>
-          <div class="bk-prompt-card-actions">
-            <button class="bk-prompt-copy-big" id="bk-copy-transcripcion" onclick="ejecutarBkVideo('transcripcion')">▶ Ejecutar</button>
-            <button class="bk-prompt-view-btn" onclick="copyBkPrompt('transcripcion')" title="Solo copiar el prompt">📋</button>
-            <button class="bk-prompt-view-btn" onclick="toggleBkPrompt('transcripcion')">Ver</button>
-          </div>
-          <div class="bk-prompt-full" id="bk-full-transcripcion"></div>
-          <div class="bk-prompt-output" id="bk-output-transcripcion">
-            <div class="bk-prompt-output-head">
-              <span class="bk-prompt-output-label" id="bk-output-label-transcripcion">Respuesta de Gemini</span>
-              <button class="bk-prompt-output-copy" id="bk-output-copy-transcripcion" onclick="copyBkOutput('transcripcion')">📋 Copiar</button>
-              <button class="bk-prompt-output-close" onclick="closeBkOutput('transcripcion')" title="Cerrar">✕</button>
-            </div>
-            <div class="bk-prompt-output-body" id="bk-output-body-transcripcion"></div>
-          </div>
-        </div>
-
-        <div class="bk-prompt-card tone-analisis">
-          <div class="bk-prompt-card-head">
-            <div class="bk-prompt-card-icon">🎬</div>
-            <div>
-              <div class="bk-prompt-card-tag">Creative strategist</div>
-              <div class="bk-prompt-card-title">Análisis Estratégico</div>
-            </div>
-          </div>
-          <div class="bk-prompt-card-desc">Ingeniería inversa del anuncio: hook, framework, copy, conversión + 5 nuevas voces en off testables.</div>
-          <input type="file" accept="video/*" id="bkv-file-analisis" class="bk-video-input" onchange="updateBkVideoLabel('analisis')">
-          <label for="bkv-file-analisis" class="bk-video-label" id="bk-video-label-analisis">📁 Elegir video MP4 (≤50MB, se comprime solo)</label>
-          <div class="bk-prompt-card-actions">
-            <button class="bk-prompt-copy-big" id="bk-copy-analisis" onclick="ejecutarBkVideo('analisis')">▶ Ejecutar</button>
-            <button class="bk-prompt-view-btn" onclick="copyBkPrompt('analisis')" title="Solo copiar el prompt">📋</button>
-            <button class="bk-prompt-view-btn" onclick="toggleBkPrompt('analisis')">Ver</button>
-          </div>
-          <div class="bk-prompt-full" id="bk-full-analisis"></div>
-          <div class="bk-prompt-output" id="bk-output-analisis">
-            <div class="bk-prompt-output-head">
-              <span class="bk-prompt-output-label" id="bk-output-label-analisis">Respuesta de Gemini</span>
-              <button class="bk-prompt-output-copy" id="bk-output-copy-analisis" onclick="copyBkOutput('analisis')">📋 Copiar</button>
-              <button class="bk-prompt-output-close" onclick="closeBkOutput('analisis')" title="Cerrar">✕</button>
-            </div>
-            <div class="bk-prompt-output-body" id="bk-output-body-analisis"></div>
-          </div>
-        </div>
-
         <div class="bk-prompt-card tone-imgad">
           <div class="bk-prompt-card-head">
             <div class="bk-prompt-card-icon">🖼️</div>
@@ -3021,7 +2959,68 @@
   <!-- ── VIDEOS POR PRODUCTO (Drive) ──────────────────────────── -->
   <div id="section-videos-prod" class="section">
     <div style="max-width:1200px;margin:0 auto">
-      <div style="margin-bottom:18px">
+
+      <!-- ANÁLISIS DE VIDEO — herramientas IA para procesar videos -->
+      <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin:0 0 10px;font-weight:700">🎬 Análisis de video con IA</div>
+      <div class="bk-prompts-hero">
+        <div class="bk-prompt-card tone-transcripcion">
+          <div class="bk-prompt-card-head">
+            <div class="bk-prompt-card-icon">🎙️</div>
+            <div>
+              <div class="bk-prompt-card-tag">Voz en off</div>
+              <div class="bk-prompt-card-title">Transcripción VO</div>
+            </div>
+          </div>
+          <div class="bk-prompt-card-desc">Transcribe la locución del video y traduce a español neutro latinoamericano. Listo para grabar como voz en off.</div>
+          <input type="file" accept="video/*" id="bkv-file-transcripcion" class="bk-video-input" onchange="updateBkVideoLabel('transcripcion')">
+          <label for="bkv-file-transcripcion" class="bk-video-label" id="bk-video-label-transcripcion">📁 Elegir video MP4 (≤50MB, se comprime solo)</label>
+          <div class="bk-prompt-card-actions">
+            <button class="bk-prompt-copy-big" id="bk-copy-transcripcion" onclick="ejecutarBkVideo('transcripcion')">▶ Ejecutar</button>
+            <button class="bk-prompt-view-btn" onclick="copyBkPrompt('transcripcion')" title="Solo copiar el prompt">📋</button>
+            <button class="bk-prompt-view-btn" onclick="toggleBkPrompt('transcripcion')">Ver</button>
+          </div>
+          <div class="bk-prompt-full" id="bk-full-transcripcion"></div>
+          <div class="bk-prompt-output" id="bk-output-transcripcion">
+            <div class="bk-prompt-output-head">
+              <span class="bk-prompt-output-label" id="bk-output-label-transcripcion">Respuesta de Gemini</span>
+              <button class="bk-prompt-output-copy" id="bk-output-copy-transcripcion" onclick="copyBkOutput('transcripcion')">📋 Copiar</button>
+              <button class="bk-prompt-output-close" onclick="toggleBkOutputExpand('transcripcion')" title="Expandir/contraer" style="font-size:13px">⛶</button>
+              <button class="bk-prompt-output-close" onclick="closeBkOutput('transcripcion')" title="Cerrar">✕</button>
+            </div>
+            <div class="bk-prompt-output-body" id="bk-output-body-transcripcion"></div>
+          </div>
+        </div>
+
+        <div class="bk-prompt-card tone-analisis">
+          <div class="bk-prompt-card-head">
+            <div class="bk-prompt-card-icon">🎬</div>
+            <div>
+              <div class="bk-prompt-card-tag">Creative strategist</div>
+              <div class="bk-prompt-card-title">Análisis Estratégico</div>
+            </div>
+          </div>
+          <div class="bk-prompt-card-desc">Ingeniería inversa del anuncio: hook, framework, copy, conversión + 5 nuevas voces en off testables.</div>
+          <input type="file" accept="video/*" id="bkv-file-analisis" class="bk-video-input" onchange="updateBkVideoLabel('analisis')">
+          <label for="bkv-file-analisis" class="bk-video-label" id="bk-video-label-analisis">📁 Elegir video MP4 (≤50MB, se comprime solo)</label>
+          <div class="bk-prompt-card-actions">
+            <button class="bk-prompt-copy-big" id="bk-copy-analisis" onclick="ejecutarBkVideo('analisis')">▶ Ejecutar</button>
+            <button class="bk-prompt-view-btn" onclick="copyBkPrompt('analisis')" title="Solo copiar el prompt">📋</button>
+            <button class="bk-prompt-view-btn" onclick="toggleBkPrompt('analisis')">Ver</button>
+          </div>
+          <div class="bk-prompt-full" id="bk-full-analisis"></div>
+          <div class="bk-prompt-output" id="bk-output-analisis">
+            <div class="bk-prompt-output-head">
+              <span class="bk-prompt-output-label" id="bk-output-label-analisis">Respuesta de Gemini</span>
+              <button class="bk-prompt-output-copy" id="bk-output-copy-analisis" onclick="copyBkOutput('analisis')">📋 Copiar</button>
+              <button class="bk-prompt-output-close" onclick="toggleBkOutputExpand('analisis')" title="Expandir/contraer" style="font-size:13px">⛶</button>
+              <button class="bk-prompt-output-close" onclick="closeBkOutput('analisis')" title="Cerrar">✕</button>
+            </div>
+            <div class="bk-prompt-output-body" id="bk-output-body-analisis"></div>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin:28px 0 18px">
         <h2 style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:22px;margin:0 0 4px">🎞️ Videos por producto</h2>
         <div style="font-size:12px;color:var(--muted);line-height:1.5">
           Estructura: cada producto con landing aplicada tiene 3 carpetas en Drive (<strong>1 - Brutos</strong>, <strong>2 - Testeo</strong>, <strong>3 - Escalado</strong>).
@@ -3455,7 +3454,7 @@ function switchSection(s, silent){
   if(s==='prompts'){ renderPrompts(); loadBkVars(); }
   if(s==='reportes') initReportes();
   // Pipeline removido — la sección ya no existe en el nav
-  if(s==='bkfit') bkfitInit();
+  // Sección Personal/bkfit removida del nav
   if(s==='investigacion') bkInvInit();
 }
 
@@ -7563,6 +7562,16 @@ async function ejecutarBkPromptApi(key, prompt){
     if(btnEl && !btnEl.disabled){ btnEl.disabled = false; }
     setTimeout(()=>{ const b=document.getElementById('bk-copy-'+key); if(b && !b.disabled){ b.textContent = '▶ Ejecutar'; b.classList.remove('copied'); } }, 4000);
   }
+}
+
+// Expandir/contraer el cuadro de respuesta del prompt (imagenes/copys/
+// transcripcion/analisis). Agrega/quita la clase 'expanded' que el CSS
+// usa para mostrar el body en max-height:80vh con font más grande.
+function toggleBkOutputExpand(key){
+  const box = document.getElementById('bk-output-' + key);
+  if (!box) return;
+  box.classList.toggle('expanded');
+  if (box.classList.contains('expanded')) box.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function copyBkOutput(key){
@@ -13534,15 +13543,31 @@ function renderVideosProdFolders(p){
   ];
   return folders.map(f => {
     const assignKey = handle + '__' + f.type;
-    const assignment = window._vpData.assignments[assignKey];
-    const responsible = (assignment && assignment.responsible) ? assignment.responsible : '';
+    const assignment = window._vpData.assignments[assignKey] || {};
+    const responsible = assignment.responsible || '';
+    const status = assignment.status || 'pending';
+    // Botones de estado solo en testeo y escalado (no brutos — son crudos)
+    const showStatus = (f.type === 'testeo' || f.type === 'escalado');
+    let statusBtn = '';
+    if (showStatus) {
+      if (status === 'pending') {
+        statusBtn = `<button onclick="setFolderStatus('${esc(handle)}','${f.type}','started')" style="background:#F59E0B;color:#fff;border:none;border-radius:5px;padding:4px 10px;font-size:10px;font-family:'DM Mono',monospace;cursor:pointer;font-weight:700;white-space:nowrap">▶ Empezar</button>`;
+      } else if (status === 'started') {
+        statusBtn = `<span style="font-size:9px;color:#F59E0B;background:#F59E0B1a;padding:3px 8px;border-radius:10px;font-family:'DM Mono',monospace;font-weight:700">🔵 EN CURSO</span><button onclick="setFolderStatus('${esc(handle)}','${f.type}','completed')" style="background:#22C55E;color:#fff;border:none;border-radius:5px;padding:4px 10px;font-size:10px;font-family:'DM Mono',monospace;cursor:pointer;font-weight:700;white-space:nowrap">✓ Terminar</button>`;
+      } else if (status === 'completed') {
+        statusBtn = `<span style="font-size:9px;color:#22C55E;background:#22C55E1a;padding:3px 8px;border-radius:10px;font-family:'DM Mono',monospace;font-weight:700">✅ TERMINADO</span><button onclick="setFolderStatus('${esc(handle)}','${f.type}','pending')" title="Reabrir" style="background:transparent;color:var(--muted);border:1px solid var(--border);border-radius:5px;padding:3px 8px;font-size:9px;font-family:'DM Mono',monospace;cursor:pointer">↩</button>`;
+      }
+    }
     return `
     <div style="margin-bottom:12px;background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden">
       <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:${f.color}1a;border-bottom:1px solid var(--border);gap:8px;flex-wrap:wrap">
-        <div style="font-family:'Montserrat',sans-serif;font-weight:700;font-size:13px;color:${f.color};white-space:nowrap">${f.icon} ${f.label}</div>
-        <div style="display:flex;align-items:center;gap:6px;flex:1;justify-content:flex-end">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <div style="font-family:'Montserrat',sans-serif;font-weight:700;font-size:13px;color:${f.color};white-space:nowrap">${f.icon} ${f.label}</div>
+          ${statusBtn}
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;flex:1;justify-content:flex-end;flex-wrap:wrap">
           <label style="font-size:9px;color:var(--muted);font-family:'DM Mono',monospace;white-space:nowrap">👤 Responsable:</label>
-          <input type="text" placeholder="(sin asignar)" value="${esc(responsible)}" data-handle="${esc(handle)}" data-folder-type="${f.type}" onblur="setFolderResponsible(this.dataset.handle, this.dataset.folderType, this.value)" onkeydown="if(event.key==='Enter'){this.blur();}" style="min-width:120px;max-width:180px;background:var(--surface);border:1px solid var(--border);color:var(--text);font-size:11px;font-family:'DM Mono',monospace;padding:4px 8px;border-radius:5px">
+          <input type="text" placeholder="(sin asignar)" value="${esc(responsible)}" data-handle="${esc(handle)}" data-folder-type="${f.type}" onblur="setFolderResponsible(this.dataset.handle, this.dataset.folderType, this.value)" onkeydown="if(event.key==='Enter'){this.blur();}" style="min-width:110px;max-width:160px;background:var(--surface);border:1px solid var(--border);color:var(--text);font-size:11px;font-family:'DM Mono',monospace;padding:4px 8px;border-radius:5px">
           <a href="https://drive.google.com/drive/folders/${f.id}" target="_blank" rel="noopener" style="background:#4285F4;color:#fff;text-decoration:none;border-radius:5px;padding:4px 8px;font-size:9px;font-family:'DM Mono',monospace;white-space:nowrap">↗ Drive</a>
         </div>
       </div>
@@ -13552,6 +13577,46 @@ function renderVideosProdFolders(p){
     </div>
     `;
   }).join('');
+}
+
+// Cambia el status de una carpeta (testeo/escalado) entre pending/started/completed.
+// Guarda en el mismo doc de assignments junto con timestamps de transición.
+async function setFolderStatus(handle, folderType, newStatus){
+  const docId = handle + '__' + folderType;
+  try {
+    if (typeof firebase === 'undefined' || !firebase.firestore) throw new Error('Firestore no disponible');
+    const db = firebase.firestore();
+    const prev = window._vpData.assignments[docId] || {};
+    const update = {
+      handle, folderType,
+      responsible: prev.responsible || '',
+      status: newStatus,
+      updatedAt: Date.now(),
+    };
+    if (newStatus === 'started')   update.startedAt   = Date.now();
+    if (newStatus === 'completed') update.completedAt = Date.now();
+    await db.collection('bkdrop_drive_folder_assignments').doc(docId).set(update, { merge: true });
+    window._vpData.assignments[docId] = { ...prev, ...update };
+    const labels = { pending: 'Pendiente', started: 'En curso', completed: 'Terminado' };
+    showToast(folderType + ' → ' + labels[newStatus], '🔄', 'success');
+    // Re-render la card del producto y re-poblar carpetas ya cargadas
+    const p = window._vpData.products.find(x => (x.handle || x.id) === handle);
+    if (p) {
+      const folders = document.getElementById('vp-folders-' + handle);
+      if (folders) {
+        folders.innerHTML = renderVideosProdFolders(p);
+        const contents = window._vpData.folderContents[handle] || {};
+        ['brutos','testeo','escalado'].forEach(t => {
+          if (contents[t]) {
+            const container = document.getElementById('vp-folder-' + handle + '-' + t);
+            if (container) container.innerHTML = renderVideosList(contents[t], t, handle);
+          }
+        });
+      }
+    }
+  } catch (err) {
+    showToast('Error: ' + (err.message || '?'), '⚠️', 'error');
+  }
 }
 
 async function toggleVideosProdCard(handle){
@@ -13630,21 +13695,32 @@ function renderVideoCard(file, type, handle, showRank){
   let rankHtml = '';
   if (showRank) {
     const colorByRank = (n) => n >= 6 ? '#22C55E' : n >= 4 ? '#F59E0B' : n >= 1 ? '#E74C3C' : 'var(--muted)';
-    // El select debe estar FUERA del <a> envolvente, sino el click se
-    // propaga al link y abre el video en vez de abrir el dropdown.
+    // Métricas del video guardadas en el mismo doc bkdrop_video_rankings
+    const salesToday = (r && r.salesToday != null) ? r.salesToday : '';
+    const cpa        = (r && r.cpa != null)        ? r.cpa        : '';
+    // El select debe estar FUERA del <a> envolvente para que el click no
+    // propague al link y abra el video en vez del dropdown.
     rankHtml = `
-      <div class="vp-rank-row" style="display:flex;align-items:center;gap:4px;padding:6px 10px 10px;border-top:1px dashed var(--border);background:var(--surface2)">
-        <span style="font-size:9px;color:var(--muted);font-family:'DM Mono',monospace">RANK:</span>
-        <select onclick="event.stopPropagation()" onmousedown="event.stopPropagation()" onchange="setVideoRank('${file.id}', this.value, '${esc(handle)}', '${esc(file.name)}')" style="flex:1;background:var(--surface);border:1px solid var(--border);color:${colorByRank(currentRank)};font-size:11px;font-family:'DM Mono',monospace;font-weight:700;padding:3px 6px;border-radius:4px;cursor:pointer">
-          <option value="0"${currentRank===0?' selected':''}>—</option>
-          <option value="1"${currentRank===1?' selected':''}>1 · muy perdedor</option>
-          <option value="2"${currentRank===2?' selected':''}>2 · perdedor</option>
-          <option value="3"${currentRank===3?' selected':''}>3 · regular-malo</option>
-          <option value="4"${currentRank===4?' selected':''}>4 · neutro</option>
-          <option value="5"${currentRank===5?' selected':''}>5 · regular-bueno</option>
-          <option value="6"${currentRank===6?' selected':''}>6 · ganador</option>
-          <option value="7"${currentRank===7?' selected':''}>7 · 🏆 ultra ganador</option>
-        </select>
+      <div class="vp-rank-row" style="display:flex;flex-direction:column;gap:6px;padding:6px 10px 10px;border-top:1px dashed var(--border);background:var(--surface2)">
+        <div style="display:flex;align-items:center;gap:4px">
+          <span style="font-size:9px;color:var(--muted);font-family:'DM Mono',monospace">RANK:</span>
+          <select onclick="event.stopPropagation()" onmousedown="event.stopPropagation()" onchange="setVideoRank('${file.id}', this.value, '${esc(handle)}', '${esc(file.name)}')" style="flex:1;background:var(--surface);border:1px solid var(--border);color:${colorByRank(currentRank)};font-size:11px;font-family:'DM Mono',monospace;font-weight:700;padding:3px 6px;border-radius:4px;cursor:pointer">
+            <option value="0"${currentRank===0?' selected':''}>—</option>
+            <option value="1"${currentRank===1?' selected':''}>1 · muy perdedor</option>
+            <option value="2"${currentRank===2?' selected':''}>2 · perdedor</option>
+            <option value="3"${currentRank===3?' selected':''}>3 · regular-malo</option>
+            <option value="4"${currentRank===4?' selected':''}>4 · neutro</option>
+            <option value="5"${currentRank===5?' selected':''}>5 · regular-bueno</option>
+            <option value="6"${currentRank===6?' selected':''}>6 · ganador</option>
+            <option value="7"${currentRank===7?' selected':''}>7 · 🏆 ultra ganador</option>
+          </select>
+        </div>
+        <div style="display:flex;align-items:center;gap:4px" onclick="event.stopPropagation()">
+          <span style="font-size:9px;color:var(--muted);font-family:'DM Mono',monospace;white-space:nowrap">VENTAS:</span>
+          <input type="number" min="0" step="1" value="${salesToday}" placeholder="0" onclick="event.stopPropagation()" onmousedown="event.stopPropagation()" onblur="setVideoMetrics('${file.id}', 'salesToday', this.value, '${esc(handle)}', '${esc(file.name)}')" style="width:50px;background:var(--surface);border:1px solid var(--border);color:var(--text);font-size:11px;font-family:'DM Mono',monospace;padding:3px 6px;border-radius:4px">
+          <span style="font-size:9px;color:var(--muted);font-family:'DM Mono',monospace;white-space:nowrap">CPA:</span>
+          <input type="number" min="0" step="any" value="${cpa}" placeholder="0" onclick="event.stopPropagation()" onmousedown="event.stopPropagation()" onblur="setVideoMetrics('${file.id}', 'cpa', this.value, '${esc(handle)}', '${esc(file.name)}')" style="flex:1;min-width:60px;background:var(--surface);border:1px solid var(--border);color:var(--text);font-size:11px;font-family:'DM Mono',monospace;padding:3px 6px;border-radius:4px">
+        </div>
       </div>
     `;
   }
@@ -13764,6 +13840,34 @@ async function setFolderResponsible(handle, folderType, responsible){
     }
   } catch (err) {
     showToast('Error guardando responsable: ' + (err.message || '?'), '⚠️', 'error');
+  }
+}
+
+// Guarda métricas del video (ventas del día, CPA) en el mismo doc del ranking.
+// field: 'salesToday' o 'cpa'. value: número (puede ser string vacío = limpiar).
+async function setVideoMetrics(fileId, field, value, handle, fileName){
+  const n = (value === '' || value === null || value === undefined) ? null : Number(value);
+  if (n != null && (!isFinite(n) || n < 0)) {
+    showToast('Valor inválido', '⚠️', 'warn');
+    return;
+  }
+  try {
+    if (typeof firebase === 'undefined' || !firebase.firestore) throw new Error('Firestore no disponible');
+    const db = firebase.firestore();
+    const prev = window._vpData.rankings[fileId] || {};
+    const update = {
+      productHandle: handle,
+      fileName: fileName,
+      rank: prev.rank || 0,
+      [field]: n,
+      updatedAt: Date.now(),
+    };
+    await db.collection('bkdrop_video_rankings').doc(fileId).set(update, { merge: true });
+    window._vpData.rankings[fileId] = { ...prev, ...update };
+    if (field === 'salesToday') showToast('Ventas: ' + (n != null ? n : '—'), '📊', 'success');
+    else if (field === 'cpa')   showToast('CPA: ' + (n != null ? '$'+n : '—'), '💰', 'success');
+  } catch (err) {
+    showToast('Error: ' + (err.message || '?'), '⚠️', 'error');
   }
 }
 
