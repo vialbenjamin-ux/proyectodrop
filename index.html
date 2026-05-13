@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-title" content="BKDROP">
 <meta name="application-name" content="BKDROP">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=DM+Sans:wght@400;500;700;800&display=swap" rel="stylesheet">
 <style>
   /* ── PASTEL PALETTE ──────────────────────────────────────────────────────────
      bg:        #F7F4F0  (warm off-white)
@@ -46,7 +46,7 @@
 
   /* NAV */
   #nav{border-bottom:1px solid var(--border);padding:14px 28px;display:flex;align-items:center;gap:4px;position:sticky;top:0;background:var(--surface);z-index:100;box-shadow:0 1px 12px rgba(0,0,0,.04)}
-  .logo{font-family:'Syne',sans-serif;font-weight:800;font-size:20px;letter-spacing:-1px;color:var(--accent);margin-right:20px;border:none;background:none}
+  .logo{font-family:'DM Sans',sans-serif;font-weight:800;font-size:20px;letter-spacing:-1px;color:var(--accent);margin-right:20px;border:none;background:none}
   .logo span{color:var(--text)}
   .tab-btn{background:none;border:none;border-bottom:2px solid transparent;padding:10px 16px;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);position:relative;cursor:pointer}
   .tab-btn.active{border-bottom:2px solid var(--accent);color:var(--accent)}
@@ -88,7 +88,7 @@
   .pipe-seg{flex:1;min-width:110px;padding:12px 14px;text-align:center;border:1.5px solid var(--border);background:var(--surface);border-radius:12px}
   .pipe-icon{font-size:18px}
   .pipe-label{font-size:10px;color:var(--muted);margin-top:4px;letter-spacing:.5px}
-  .pipe-count{font-family:'Syne',sans-serif;font-weight:800;font-size:22px;color:var(--muted2);margin-top:2px}
+  .pipe-count{font-family:'DM Sans',sans-serif;font-weight:800;font-size:22px;color:var(--muted2);margin-top:2px}
 
   /* COLORES POR ETAPA */
   .card-stage-landing   {border-top:3px solid #60a5fa !important;border-left:4px solid #60a5fa !important;background:linear-gradient(135deg,#eff6ff,#f5f9ff) !important}
@@ -101,7 +101,7 @@
   .stage-badge{display:inline-flex;align-items:center;gap:4px;font-size:10px;padding:3px 9px;border-radius:20px;font-weight:600;margin-bottom:6px}
   .cards-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:14px}
   .card{background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,.04);position:relative}
-  .card-title{font-family:'Syne',sans-serif;font-size:16px;font-weight:800;flex:1;color:var(--text)}
+  .card-title{font-family:'DM Sans',sans-serif;font-size:16px;font-weight:800;flex:1;color:var(--text)}
   .card-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px}
   .card-actions{display:flex;gap:4px;align-items:center}
   .icon-btn{background:none;border:none;color:var(--muted2);font-size:13px;padding:2px}
@@ -152,15 +152,15 @@
   .meta-sem-card.alcanzada{border-color:#85C99E;background:#DFF2E8}
   .meta-sem-card.cerca{border-color:#E8B840;background:#FDF3D0}
   .meta-sem-label{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:4px}
-  .meta-sem-owner{font-family:'Syne',sans-serif;font-weight:800;font-size:14px;color:var(--text);margin-bottom:6px}
-  .meta-sem-count{font-size:26px;font-weight:800;font-family:'Syne',sans-serif;line-height:1}
+  .meta-sem-owner{font-family:'DM Sans',sans-serif;font-weight:800;font-size:14px;color:var(--text);margin-bottom:6px}
+  .meta-sem-count{font-size:26px;font-weight:800;font-family:'DM Sans',sans-serif;line-height:1}
   .meta-sem-bar-wrap{height:7px;background:var(--border);border-radius:4px;overflow:hidden;margin:8px 0 5px}
   .meta-sem-bar-fill{height:100%;border-radius:4px;transition:width .5s}
   .meta-sem-falta{font-size:11px;color:var(--muted)}
 
   /* PENDIENTES PRIORITARIOS PANEL */
   #priority-panel{background:var(--surface);border:2px solid var(--red);border-radius:14px;padding:16px 18px;margin-bottom:20px}
-  .priority-panel-title{font-family:'Syne',sans-serif;font-weight:800;font-size:13px;color:var(--red);display:flex;align-items:center;gap:6px;margin-bottom:12px}
+  .priority-panel-title{font-family:'DM Sans',sans-serif;font-weight:800;font-size:13px;color:var(--red);display:flex;align-items:center;gap:6px;margin-bottom:12px}
   .priority-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:10px;background:var(--red-soft);border:1px solid #f0a0a0;margin-bottom:6px;transition:all .2s}
   .priority-item:last-child{margin-bottom:0}
   .priority-item.done{opacity:.45;background:var(--surface2);border-color:var(--border)}
@@ -192,7 +192,7 @@
   #modal-overlay.open{display:flex}
   #modal-box{background:var(--surface);border:1.5px solid var(--border);border-radius:16px;width:100%;max-width:460px;box-shadow:0 20px 60px rgba(0,0,0,.12)}
   #modal-header{padding:20px 24px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
-  #modal-title{font-family:'Syne',sans-serif;font-weight:800;font-size:16px;color:var(--text)}
+  #modal-title{font-family:'DM Sans',sans-serif;font-weight:800;font-size:16px;color:var(--text)}
   #modal-close{background:none;border:none;color:var(--muted);font-size:22px}
   #modal-body{padding:24px;display:flex;flex-direction:column;gap:14px}
   .field label{font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);display:block;margin-bottom:6px}
@@ -211,11 +211,11 @@
   .calc-input-wrap input{flex:1;border:none;background:transparent;color:var(--text);padding:10px 12px;font-size:14px;font-family:'DM Mono',monospace;min-width:0}
   .calc-result-box{border-radius:14px;padding:20px 24px;margin-bottom:14px}
   .calc-result-label{font-size:10px;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:6px}
-  .calc-big{font-family:'Syne',sans-serif;font-weight:800;font-size:34px}
+  .calc-big{font-family:'DM Sans',sans-serif;font-weight:800;font-size:34px}
   .calc-sub{font-size:10px;color:var(--muted);margin-top:4px}
   .beroas-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:14px}
   .beroas-item-label{font-size:10px;color:var(--muted);margin-bottom:3px}
-  .beroas-item-val{font-family:'Syne',sans-serif;font-weight:800;font-size:17px;color:var(--text)}
+  .beroas-item-val{font-family:'DM Sans',sans-serif;font-weight:800;font-size:17px;color:var(--text)}
   .beroas-divider{border-top:1px solid rgba(0,0,0,.08);margin:12px 0 10px}
   /* SPLASH */
   /* CALCULADORA */
@@ -227,11 +227,11 @@
   .calc-input-wrap input{flex:1;border:none;background:transparent;padding:10px 12px;font-size:14px;color:var(--text);font-family:'DM Mono',monospace;width:100%}
   .calc-result-box{border-radius:14px;padding:20px 24px;margin-bottom:14px}
   .calc-result-label{font-size:10px;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:8px}
-  .calc-big{font-family:'Syne',sans-serif;font-weight:800;font-size:36px;margin-bottom:4px}
+  .calc-big{font-family:'DM Sans',sans-serif;font-weight:800;font-size:36px;margin-bottom:4px}
   .calc-sub{font-size:11px;color:var(--muted);margin-top:4px}
   .beroas-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:12px 0}
   .beroas-item-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
-  .beroas-item-val{font-family:'Syne',sans-serif;font-weight:800;font-size:18px;color:var(--text)}
+  .beroas-item-val{font-family:'DM Sans',sans-serif;font-weight:800;font-size:18px;color:var(--text)}
   .beroas-divider{border:none;border-top:1px solid var(--border);margin:12px 0}
 
   /* RESPONSABLE */
@@ -250,8 +250,8 @@
   #comments-drawer-header-top{display:flex;align-items:center;gap:12px;padding:16px 18px}
   #comments-back-btn{background:none;border:none;color:#fff;font-size:20px;cursor:pointer;padding:0;opacity:.85;flex-shrink:0}
   #comments-back-btn:hover{opacity:1}
-  #comments-drawer-title{font-family:'Syne',sans-serif;font-weight:800;font-size:15px;flex:1;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  #comments-header-avatar{width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:800;font-size:14px;color:#fff;flex-shrink:0}
+  #comments-drawer-title{font-family:'DM Sans',sans-serif;font-weight:800;font-size:15px;flex:1;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #comments-header-avatar{width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-family:'DM Sans',sans-serif;font-weight:800;font-size:14px;color:#fff;flex-shrink:0}
   #comments-drawer-sub{font-size:11px;color:rgba(255,255,255,.8);padding:0 18px 14px;margin-top:-6px}
 
   /* Thread */
@@ -314,7 +314,7 @@
   #login-screen{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:1000;padding:20px}
   #login-screen.hidden{display:none}
   #login-box{background:var(--surface);border:1.5px solid var(--border);border-radius:20px;padding:40px 36px;width:100%;max-width:380px;box-shadow:0 20px 60px rgba(0,0,0,.08)}
-  #login-logo{font-family:'Syne',sans-serif;font-weight:800;font-size:32px;letter-spacing:-1.5px;color:var(--accent);margin-bottom:4px}
+  #login-logo{font-family:'DM Sans',sans-serif;font-weight:800;font-size:32px;letter-spacing:-1.5px;color:var(--accent);margin-bottom:4px}
   #login-logo span{color:var(--text)}
   #login-sub{font-size:11px;color:var(--muted);letter-spacing:2px;margin-bottom:32px}
   #login-error{font-size:11px;color:var(--red);background:var(--red-soft);border:1px solid var(--red);border-radius:8px;padding:8px 12px;margin-bottom:16px;display:none}
@@ -333,7 +333,7 @@
   #admin-panel.open{display:flex}
   #admin-box{background:var(--surface);border:1.5px solid var(--border);border-radius:18px;width:100%;max-width:480px;box-shadow:0 20px 60px rgba(0,0,0,.12);max-height:90vh;display:flex;flex-direction:column}
   #admin-header{padding:20px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
-  #admin-header-title{font-family:'Syne',sans-serif;font-weight:800;font-size:16px;flex:1;color:var(--text)}
+  #admin-header-title{font-family:'DM Sans',sans-serif;font-weight:800;font-size:16px;flex:1;color:var(--text)}
   #admin-close{background:none;border:none;font-size:22px;color:var(--muted);cursor:pointer}
   #admin-body{padding:20px 24px;overflow-y:auto;display:flex;flex-direction:column;gap:10px}
   .admin-user-row{display:flex;align-items:center;gap:10px;background:var(--surface2);border:1.5px solid var(--border);border-radius:12px;padding:10px 14px}
@@ -354,7 +354,7 @@
   /* TEMÁTICAS (videos y prompts) */
   .tematica-block{margin-bottom:24px}
   .tematica-header{display:flex;align-items:center;gap:10px;margin-bottom:10px}
-  .tematica-title{font-family:'Syne',sans-serif;font-weight:800;font-size:14px;color:var(--text);flex:1}
+  .tematica-title{font-family:'DM Sans',sans-serif;font-weight:800;font-size:14px;color:var(--text);flex:1}
   .tematica-badge{font-size:10px;color:var(--muted);background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:2px 10px}
   .tematica-del{background:none;border:none;color:var(--muted2);font-size:12px;cursor:pointer;padding:2px 5px}
   .tematica-del:hover{color:var(--red)}
@@ -384,7 +384,7 @@
   /* BK PROMPTS — panel de variables del producto */
   .bk-vars-panel{background:linear-gradient(135deg,var(--accent-soft),#F7F4F0);border:1.5px solid var(--accent);border-radius:16px;padding:18px 20px;margin-top:18px;margin-bottom:6px;box-shadow:0 2px 12px rgba(91,168,130,.1)}
   .bk-vars-head{display:flex;align-items:center;gap:10px;margin-bottom:14px}
-  .bk-vars-title{font-family:'Syne',sans-serif;font-weight:800;font-size:14px;color:var(--accent);letter-spacing:.5px;flex:1}
+  .bk-vars-title{font-family:'DM Sans',sans-serif;font-weight:800;font-size:14px;color:var(--accent);letter-spacing:.5px;flex:1}
   .bk-vars-sub{font-size:10px;color:var(--muted);letter-spacing:.3px;margin-top:-10px;margin-bottom:12px}
   .bk-vars-clear{background:none;border:1.5px solid var(--border);color:var(--muted);border-radius:20px;padding:5px 14px;font-size:11px;cursor:pointer;font-family:'DM Mono',monospace}
   .bk-vars-clear:hover{border-color:var(--red);color:var(--red)}
@@ -402,7 +402,7 @@
   .bk-step{padding:14px 0;border-top:1px dashed rgba(91,168,130,.25)}
   .bk-step:first-of-type{border-top:none;padding-top:4px}
   .bk-step-label{display:flex;align-items:center;gap:10px;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text);font-weight:600;margin-bottom:10px}
-  .bk-step-num{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:var(--accent);color:#fff;font-family:'Syne',sans-serif;font-weight:800;font-size:12px;flex-shrink:0}
+  .bk-step-num{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:var(--accent);color:#fff;font-family:'DM Sans',sans-serif;font-weight:800;font-size:12px;flex-shrink:0}
   .bk-optional{font-size:10px;text-transform:none;letter-spacing:.3px;color:var(--muted);font-weight:400;margin-left:auto}
   .bk-step-input{background:var(--surface);border:1.5px solid var(--border);color:var(--text);padding:10px 14px;border-radius:12px;font-size:12px;font-family:'DM Mono',monospace;width:100%;resize:vertical;min-height:60px;line-height:1.5}
   .bk-step-input:focus{border-color:var(--accent);outline:none}
@@ -452,7 +452,7 @@
   .bk-angulo-card:hover{border-color:var(--accent);background:var(--accent-soft);transform:translateY(-1px)}
   .bk-angulo-card.selected{border-color:var(--accent);background:var(--accent-soft);box-shadow:0 0 0 3px var(--accent-soft)}
   .bk-angulo-card-tag{font-size:9px;letter-spacing:1px;color:var(--accent);text-transform:uppercase;font-weight:700;font-family:'DM Mono',monospace}
-  .bk-angulo-card-title{font-size:13px;font-weight:700;color:var(--text);font-family:'Syne',sans-serif;line-height:1.3}
+  .bk-angulo-card-title{font-size:13px;font-weight:700;color:var(--text);font-family:'DM Sans',sans-serif;line-height:1.3}
   .bk-angulo-card-meta{font-size:10px;color:var(--muted2);font-family:'DM Mono',monospace;letter-spacing:.3px}
   .bk-angulo-card-prob{font-size:11px;color:var(--muted);line-height:1.4;font-family:'DM Mono',monospace}
   /* Panel para editar el prompt de imagen + adjuntar imagen + abrir ChatGPT */
@@ -559,7 +559,7 @@
   .bk-video-label.has-file{border-style:solid;border-color:var(--accent);color:var(--accent);background:var(--accent-soft);font-weight:500}
   .bk-prompt-card-head{display:flex;align-items:center;gap:12px}
   .bk-prompt-card-icon{width:44px;height:44px;border-radius:12px;border:1.5px solid;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
-  .bk-prompt-card-title{font-family:'Syne',sans-serif;font-weight:800;font-size:15px;color:var(--text);letter-spacing:.3px;line-height:1.2}
+  .bk-prompt-card-title{font-family:'DM Sans',sans-serif;font-weight:800;font-size:15px;color:var(--text);letter-spacing:.3px;line-height:1.2}
   .bk-prompt-card-tag{font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-top:2px}
   .bk-prompt-card-desc{font-size:11px;color:var(--muted);line-height:1.6;min-height:34px}
   .bk-prompt-card-actions{display:flex;gap:8px;margin-top:2px}
@@ -588,9 +588,9 @@
   /* Panel "rate limit alcanzado" — countdown amigable */
   .bk-rate-limit{display:flex;flex-direction:column;align-items:center;gap:10px;padding:16px;text-align:center}
   .bk-rate-limit-icon{font-size:28px}
-  .bk-rate-limit-title{font-family:'Syne',sans-serif;font-weight:800;font-size:14px;color:var(--text)}
+  .bk-rate-limit-title{font-family:'DM Sans',sans-serif;font-weight:800;font-size:14px;color:var(--text)}
   .bk-rate-limit-sub{font-size:11px;color:var(--muted);line-height:1.5;max-width:340px}
-  .bk-rate-limit-countdown{font-family:'Syne',sans-serif;font-weight:800;font-size:32px;color:var(--accent);letter-spacing:.5px;margin:4px 0}
+  .bk-rate-limit-countdown{font-family:'DM Sans',sans-serif;font-weight:800;font-size:32px;color:var(--accent);letter-spacing:.5px;margin:4px 0}
   .bk-rate-limit-countdown small{font-size:14px;color:var(--muted);font-weight:400;margin-left:4px}
   .bk-rate-limit-retry{background:var(--accent);color:#fff;border:none;border-radius:22px;padding:9px 22px;font-size:12px;font-weight:600;cursor:pointer;font-family:'DM Mono',monospace;letter-spacing:.3px;box-shadow:0 2px 8px rgba(91,168,130,.3)}
   .bk-rate-limit-retry:hover{filter:brightness(1.08)}
@@ -631,7 +631,7 @@
   /* HOY PANEL */
   .hoy-card{background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:14px 18px;display:flex;align-items:flex-start;gap:16px;box-shadow:0 2px 8px rgba(0,0,0,.04)}
   .hoy-date-block{text-align:center;flex-shrink:0;min-width:48px}
-  .hoy-day-num{font-family:'Syne',sans-serif;font-weight:800;font-size:32px;color:var(--accent);line-height:1}
+  .hoy-day-num{font-family:'DM Sans',sans-serif;font-weight:800;font-size:32px;color:var(--accent);line-height:1}
   .hoy-day-name{font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);font-family:'DM Mono',monospace}
   .hoy-divider{width:1.5px;background:var(--border);align-self:stretch;flex-shrink:0}
   .hoy-events{flex:1;min-width:0;display:flex;flex-direction:column;gap:5px}
@@ -652,17 +652,17 @@
   .meta-semanal-card{border-radius:14px;padding:14px 16px;border:2px solid;display:flex;align-items:center;gap:14px;transition:all .2s}
   .meta-semanal-progress{flex:1}
   .meta-semanal-label{font-size:10px;text-transform:uppercase;letter-spacing:1.5px;font-family:'DM Mono',monospace;margin-bottom:4px;font-weight:700}
-  .meta-semanal-name{font-family:'Syne',sans-serif;font-weight:800;font-size:14px;margin-bottom:6px}
+  .meta-semanal-name{font-family:'DM Sans',sans-serif;font-weight:800;font-size:14px;margin-bottom:6px}
   .meta-semanal-track{height:10px;border-radius:6px;background:rgba(0,0,0,.08);overflow:hidden;margin-bottom:5px}
   .meta-semanal-fill{height:100%;border-radius:6px;transition:width .5s}
   .meta-semanal-nums{display:flex;justify-content:space-between;font-size:11px;font-family:'DM Mono',monospace}
-  .meta-semanal-big{font-family:'Syne',sans-serif;font-weight:800;font-size:28px;flex-shrink:0;line-height:1}
+  .meta-semanal-big{font-family:'DM Sans',sans-serif;font-weight:800;font-size:28px;flex-shrink:0;line-height:1}
   .ranking-card{border-radius:16px;padding:20px 18px;display:flex;flex-direction:column;gap:6px;position:relative;overflow:hidden;border:2px solid transparent}
   .ranking-card-medal{font-size:28px;line-height:1;margin-bottom:2px}
   .ranking-card-avatar{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;border:2.5px solid rgba(255,255,255,.5);margin-bottom:4px}
-  .ranking-card-name{font-family:'Syne',sans-serif;font-weight:800;font-size:15px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ranking-card-name{font-family:'DM Sans',sans-serif;font-weight:800;font-size:15px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .ranking-card-count{font-size:11px;color:var(--muted);font-family:'DM Mono',monospace}
-  .ranking-card-amount{font-family:'Syne',sans-serif;font-weight:800;font-size:22px;margin-top:4px}
+  .ranking-card-amount{font-family:'DM Sans',sans-serif;font-weight:800;font-size:22px;margin-top:4px}
   .ranking-card-bar{height:4px;border-radius:4px;background:rgba(0,0,0,.08);overflow:hidden;margin-top:4px}
   .ranking-card-bar-fill{height:100%;border-radius:4px;transition:width .5s}
   .ranking-empty{font-size:11px;color:var(--muted2);font-style:italic;text-align:center;padding:8px 0}
@@ -687,13 +687,13 @@
   .owner-group-chevron{ font-size:11px;transition:transform .2s;flex-shrink:0 }
   .owner-group.collapsed .owner-group-chevron{ transform:rotate(-90deg) }
   .owner-group.collapsed .owner-group-cards{ display:none }
-  .owner-group-name{ font-family:'Syne',sans-serif;font-weight:800;font-size:13px;flex:1 }
+  .owner-group-name{ font-family:'DM Sans',sans-serif;font-weight:800;font-size:13px;flex:1 }
   .owner-group-count{ font-size:10px;padding:2px 9px;border-radius:20px;opacity:.8 }
 
   /* SELECCIÓN MÚLTIPLE */
   #bulk-bar{display:none;position:sticky;top:58px;z-index:90;background:var(--accent);color:#fff;padding:10px 18px;border-radius:12px;margin-bottom:14px;align-items:center;gap:10px;flex-wrap:wrap;box-shadow:0 4px 16px rgba(91,168,130,.35)}
   #bulk-bar.active{display:flex}
-  #bulk-count{font-family:'Syne',sans-serif;font-weight:800;font-size:14px;flex:1}
+  #bulk-count{font-family:'DM Sans',sans-serif;font-weight:800;font-size:14px;flex:1}
   #bulk-owner-input{background:rgba(255,255,255,.2);border:1.5px solid rgba(255,255,255,.4);color:#fff;padding:7px 12px;border-radius:20px;font-size:12px;font-family:'DM Mono',monospace;width:160px}
   #bulk-owner-input::placeholder{color:rgba(255,255,255,.6)}
   #bulk-owner-input:focus{outline:none;background:rgba(255,255,255,.3)}
@@ -762,7 +762,7 @@
   #mobile-menu{display:none;position:fixed;inset:0;background:var(--surface);z-index:200;flex-direction:column;padding:0}
   #mobile-menu.open{display:flex}
   #mobile-menu-header{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border)}
-  #mobile-menu-logo{font-family:'Syne',sans-serif;font-weight:800;font-size:22px;letter-spacing:-1px;color:var(--accent)}
+  #mobile-menu-logo{font-family:'DM Sans',sans-serif;font-weight:800;font-size:22px;letter-spacing:-1px;color:var(--accent)}
   #mobile-menu-logo span{color:var(--text)}
   #mobile-menu-close{background:none;border:none;font-size:26px;color:var(--muted);cursor:pointer}
   #mobile-menu-user{padding:12px 20px;font-size:12px;color:var(--muted);border-bottom:1px solid var(--border);font-family:'DM Mono',monospace}
@@ -811,7 +811,7 @@
   .cal-header{display:flex;align-items:center;gap:10px;margin-bottom:14px}
   .cal-nav{background:none;border:1.5px solid var(--border);border-radius:20px;padding:4px 12px;font-size:13px;color:var(--muted);cursor:pointer;font-family:'DM Mono',monospace}
   .cal-nav:hover{border-color:var(--accent);color:var(--accent)}
-  .cal-month-label{font-family:'Syne',sans-serif;font-weight:800;font-size:18px;color:var(--text);flex:1;text-align:center}
+  .cal-month-label{font-family:'DM Sans',sans-serif;font-weight:800;font-size:18px;color:var(--text);flex:1;text-align:center}
   .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;min-width:280px}
   .cal-day-name{text-align:center;font-size:10px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;padding:4px 0;font-family:'DM Mono',monospace}
   .cal-day{min-height:52px;border-radius:10px;padding:5px 6px;border:1.5px solid var(--border);background:var(--surface);cursor:pointer;transition:all .15s;position:relative;display:flex;flex-direction:column;gap:2px}
@@ -819,13 +819,13 @@
   .cal-day.empty{background:none;border-color:transparent;cursor:default}
   .cal-day.today{border-color:var(--accent);background:var(--accent-soft)}
   .cal-day.selected{border-color:var(--accent);background:var(--accent);color:#fff}
-  .cal-day-num{font-family:'Syne',sans-serif;font-weight:800;font-size:13px;color:var(--text)}
+  .cal-day-num{font-family:'DM Sans',sans-serif;font-weight:800;font-size:13px;color:var(--text)}
   .cal-day.today .cal-day-num{color:var(--accent)}
   .cal-day.selected .cal-day-num{color:#fff}
   .cal-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0;display:inline-block}
   .cal-dots{display:flex;gap:2px;flex-wrap:wrap;margin-top:2px}
   .cal-panel{flex:1;min-width:260px}
-  .cal-panel-header{font-family:'Syne',sans-serif;font-weight:800;font-size:15px;color:var(--text);margin-bottom:12px}
+  .cal-panel-header{font-family:'DM Sans',sans-serif;font-weight:800;font-size:15px;color:var(--text);margin-bottom:12px}
   .cal-event{background:var(--surface);border:1.5px solid var(--border);border-radius:10px;padding:10px 13px;margin-bottom:7px;display:flex;align-items:flex-start;gap:10px;transition:all .15s}
   .cal-event:hover{border-color:var(--accent)}
   .cal-event-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;margin-top:3px}
@@ -869,10 +869,10 @@
   .bkfit-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
   .bkfit-stat-card{background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:14px 18px}
   .bkfit-stat-label{font-size:9px;color:var(--muted);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:6px;font-family:'DM Mono',monospace}
-  .bkfit-stat-value{font-family:'Syne',sans-serif;font-weight:800;font-size:26px;color:var(--accent);line-height:1.1}
+  .bkfit-stat-value{font-family:'DM Sans',sans-serif;font-weight:800;font-size:26px;color:var(--accent);line-height:1.1}
   .bkfit-stat-sub{font-size:10px;color:var(--muted2);margin-top:4px;font-family:'DM Mono',monospace}
   .bkfit-card{background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:18px}
-  .bkfit-card-title{font-family:'Syne',sans-serif;font-weight:800;font-size:14px;color:var(--text);margin-bottom:14px;letter-spacing:.3px}
+  .bkfit-card-title{font-family:'DM Sans',sans-serif;font-weight:800;font-size:14px;color:var(--text);margin-bottom:14px;letter-spacing:.3px}
   .bkfit-field{display:flex;flex-direction:column;gap:5px}
   .bkfit-field>span{font-size:10px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;font-family:'DM Mono',monospace}
   .bkfit-field input,.bkfit-field select,.bkfit-field textarea{background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px 12px;border-radius:8px;font-size:12px;font-family:'DM Mono',monospace;outline:none}
@@ -890,7 +890,7 @@
   .bkfit-week-day.today{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
   .bkfit-week-day.rest{background:var(--surface2);opacity:0.6}
   .bkfit-week-day-label{font-size:9px;color:var(--muted);letter-spacing:1.2px;font-family:'DM Mono',monospace}
-  .bkfit-week-day-num{font-family:'Syne',sans-serif;font-weight:800;font-size:18px;color:var(--text);line-height:1}
+  .bkfit-week-day-num{font-family:'DM Sans',sans-serif;font-weight:800;font-size:18px;color:var(--text);line-height:1}
   .bkfit-week-day-act{font-size:9px;color:var(--text);font-family:'DM Mono',monospace;margin-top:6px;line-height:1.3}
   .bkfit-week-day-status{font-size:14px;margin-top:4px}
   .bkfit-filter{background:var(--surface2);border:1.5px solid var(--border);border-radius:18px;padding:5px 12px;font-size:11px;color:var(--muted);cursor:pointer;font-family:'DM Mono',monospace}
@@ -914,7 +914,7 @@
   .meta-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:24px}
   .meta-kpi{background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:14px 18px}
   .meta-kpi-label{font-size:9px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px}
-  .meta-kpi-val{font-family:'Syne',sans-serif;font-weight:800;font-size:22px;color:var(--text);line-height:1.1}
+  .meta-kpi-val{font-family:'DM Sans',sans-serif;font-weight:800;font-size:22px;color:var(--text);line-height:1.1}
 
   /* Tabla Meta */
   #meta-table tbody tr{border-bottom:1px solid var(--border);transition:background .15s}
@@ -942,7 +942,7 @@
   /* Backup anti-baneo */
   .meta-backup-card{background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:18px 20px;margin-top:24px;border-left:4px solid #C4674F}
   .meta-backup-head{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;flex-wrap:wrap}
-  .meta-backup-title{font-family:'Syne',sans-serif;font-weight:800;font-size:16px;color:var(--text);margin-bottom:4px}
+  .meta-backup-title{font-family:'DM Sans',sans-serif;font-weight:800;font-size:16px;color:var(--text);margin-bottom:4px}
   .meta-backup-desc{font-size:11px;color:var(--muted);line-height:1.5;max-width:560px}
   .meta-backup-actions{display:flex;gap:8px;flex-wrap:wrap}
   .meta-backup-btn{background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px 14px;border-radius:20px;font-size:11px;letter-spacing:.5px;cursor:pointer;font-family:'DM Mono',monospace;transition:all .15s}
@@ -972,7 +972,7 @@
   .creativo-card.v-investigar{border-left-color:#7B3FB5}
   .creativo-card.v-pendiente{border-left-color:var(--border)}
   .creativo-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:8px}
-  .creativo-card-name{font-family:'Syne',sans-serif;font-weight:700;font-size:14px;color:var(--text);line-height:1.3;flex:1}
+  .creativo-card-name{font-family:'DM Sans',sans-serif;font-weight:700;font-size:14px;color:var(--text);line-height:1.3;flex:1}
   .creativo-card-prod{font-size:10px;color:var(--muted);letter-spacing:.5px;margin-bottom:8px;text-transform:uppercase}
   .creativo-card-hook{font-size:11px;color:var(--text);font-style:italic;background:var(--surface2);padding:6px 10px;border-radius:8px;margin-bottom:10px;line-height:1.4;border-left:2px solid var(--accent)}
   .creativo-card-stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;font-family:'DM Mono',monospace;font-size:10px}
@@ -997,7 +997,7 @@
   .creativo-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;display:flex;align-items:flex-start;justify-content:center;padding:40px 20px;overflow-y:auto}
   .creativo-modal{background:var(--surface);border-radius:16px;width:100%;max-width:780px;box-shadow:0 24px 60px rgba(0,0,0,.2);display:flex;flex-direction:column;max-height:calc(100vh - 80px)}
   .creativo-modal-head{padding:18px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
-  .creativo-modal-title{font-family:'Syne',sans-serif;font-weight:800;font-size:18px;color:var(--text)}
+  .creativo-modal-title{font-family:'DM Sans',sans-serif;font-weight:800;font-size:18px;color:var(--text)}
   .creativo-modal-close{background:none;border:none;font-size:18px;color:var(--muted);cursor:pointer;padding:4px 10px;border-radius:8px}
   .creativo-modal-close:hover{background:var(--surface2);color:var(--text)}
   .creativo-modal-body{padding:18px 22px;overflow-y:auto;flex:1}
@@ -1024,7 +1024,7 @@
   .creativo-campañas-list{margin-top:12px;max-height:300px;overflow-y:auto;display:flex;flex-direction:column;gap:6px}
   .creativo-campaña-row{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px;cursor:pointer;display:grid;grid-template-columns:1fr auto auto auto auto;gap:10px;align-items:center;font-size:11px;font-family:'DM Mono',monospace;transition:background .15s,border-color .15s}
   .creativo-campaña-row:hover{background:var(--accent-soft);border-color:var(--accent)}
-  .creativo-campaña-row .name{color:var(--text);font-weight:600;font-family:'Syne',sans-serif;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .creativo-campaña-row .name{color:var(--text);font-weight:600;font-family:'DM Sans',sans-serif;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .creativo-campaña-row .stat{color:var(--muted);text-align:right;min-width:70px}
   .creativo-campaña-row .stat b{color:var(--text);font-weight:700}
   .creativo-campaña-empty{font-size:11px;color:var(--muted);text-align:center;padding:18px}
@@ -1064,7 +1064,7 @@
   .cross-kpi.cross-kpi-real{border-color:var(--accent);background:var(--accent-soft)}
   .cross-kpi-label{font-size:9px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px}
   .cross-kpi.cross-kpi-real .cross-kpi-label{color:var(--accent);font-weight:600}
-  .cross-kpi-val{font-family:'Syne',sans-serif;font-weight:800;font-size:22px;color:var(--text);line-height:1.1}
+  .cross-kpi-val{font-family:'DM Sans',sans-serif;font-weight:800;font-size:22px;color:var(--text);line-height:1.1}
   .cross-kpi.cross-kpi-real .cross-kpi-val{color:var(--accent)}
   .cross-kpi-sub{font-size:10px;color:var(--muted2);margin-top:4px;font-family:'DM Mono',monospace}
 
@@ -1099,7 +1099,7 @@
   .bk-cod-field input{background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:5px 10px;border-radius:8px;font-size:11px;font-family:'DM Mono',monospace;outline:none;width:64px;text-align:right}
   .bk-cod-field input:focus{border-color:var(--accent)}
   .bk-cod-eff{font-size:11px;color:var(--accent);font-weight:600;margin-left:auto;font-family:'DM Mono',monospace}
-  .bk-cod-eff b{font-family:'Syne',sans-serif;font-size:14px}
+  .bk-cod-eff b{font-family:'DM Sans',sans-serif;font-size:14px}
   .bk-cod-reset{background:none;border:1px solid var(--border);color:var(--muted);font-size:10px;padding:3px 8px;border-radius:6px;cursor:pointer;font-family:'DM Mono',monospace}
   .bk-cod-reset:hover{color:var(--text);border-color:var(--border2)}
 
@@ -1109,12 +1109,12 @@
   .stock-bell-btn:hover{transform:scale(1.1)}
   .stock-bell-btn.has-alerts{animation:bellShake 1.5s ease-in-out infinite}
   @keyframes bellShake{0%,100%{transform:rotate(0)}10%,30%{transform:rotate(-12deg)}20%,40%{transform:rotate(12deg)}50%,100%{transform:rotate(0)}}
-  .stock-bell-badge{position:absolute;top:0;right:0;background:var(--red);color:#fff;font-family:'Syne',sans-serif;font-weight:800;font-size:10px;min-width:18px;height:18px;border-radius:9px;display:flex;align-items:center;justify-content:center;padding:0 5px;border:1.5px solid var(--surface)}
+  .stock-bell-badge{position:absolute;top:0;right:0;background:var(--red);color:#fff;font-family:'DM Sans',sans-serif;font-weight:800;font-size:10px;min-width:18px;height:18px;border-radius:9px;display:flex;align-items:center;justify-content:center;padding:0 5px;border:1.5px solid var(--surface)}
   .stock-bell-badge.warning-only{background:var(--yellow);color:#6B5818}
   .stock-bell-panel{display:none;position:absolute;right:0;top:38px;width:380px;max-height:500px;background:var(--surface);border:1.5px solid var(--border);border-radius:14px;box-shadow:0 8px 30px rgba(0,0,0,.15);z-index:150;flex-direction:column;overflow:hidden}
   .stock-bell-panel.open{display:flex}
   .stock-bell-header{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px}
-  .stock-bell-title{font-family:'Syne',sans-serif;font-weight:800;font-size:14px;color:var(--text);flex:1}
+  .stock-bell-title{font-family:'DM Sans',sans-serif;font-weight:800;font-size:14px;color:var(--text);flex:1}
   .stock-bell-config{display:flex;align-items:center;gap:6px;padding:8px 16px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:10px;color:var(--muted)}
   .stock-bell-config input{width:48px;background:var(--surface);border:1.5px solid var(--border);color:var(--text);padding:3px 8px;border-radius:6px;font-size:10px;font-family:'DM Mono',monospace;text-align:right;outline:none}
   .stock-bell-list{flex:1;overflow-y:auto;padding:6px 0}
@@ -1125,7 +1125,7 @@
   .stock-bell-info{flex:1;min-width:0}
   .stock-bell-pname{font-size:12px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .stock-bell-pmeta{font-size:10px;color:var(--muted);margin-top:2px;font-family:'DM Mono',monospace}
-  .stock-bell-stock{font-family:'Syne',sans-serif;font-weight:800;font-size:18px;flex-shrink:0;text-align:right;min-width:46px}
+  .stock-bell-stock{font-family:'DM Sans',sans-serif;font-weight:800;font-size:18px;flex-shrink:0;text-align:right;min-width:46px}
   .stock-bell-stock.critical{color:var(--red)}
   .stock-bell-stock.warning{color:#A6862A}
   .stock-bell-empty{padding:30px 20px;text-align:center;color:var(--muted);font-size:11px;font-style:italic}
@@ -1133,7 +1133,7 @@
 
   #splash{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:999;transition:opacity .6s ease, visibility .6s ease}
   #splash.hidden{opacity:0;visibility:hidden}
-  #splash-logo{font-family:'Syne',sans-serif;font-weight:800;font-size:42px;letter-spacing:-2px;color:var(--accent);opacity:0;transform:translateY(10px);transition:opacity .7s ease, transform .7s ease}
+  #splash-logo{font-family:'DM Sans',sans-serif;font-weight:800;font-size:42px;letter-spacing:-2px;color:var(--accent);opacity:0;transform:translateY(10px);transition:opacity .7s ease, transform .7s ease}
   #splash-logo span{color:var(--text)}
   #splash-sub{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);letter-spacing:3px;margin-top:10px;opacity:0;transition:opacity .7s ease .3s}
   #splash-logo.show{opacity:1;transform:translateY(0)}
@@ -1371,7 +1371,7 @@
     <div style="max-width:700px">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:10px">
         <div>
-          <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:20px;color:var(--text);margin-bottom:3px">Tutorial BK</div>
+          <div style="font-family:'DM Sans',sans-serif;font-weight:800;font-size:20px;color:var(--text);margin-bottom:3px">Tutorial BK</div>
           <div style="font-size:11px;color:var(--muted)">Links de videos explicativos para el equipo</div>
         </div>
       </div>
@@ -1388,7 +1388,7 @@
     <div style="max-width:980px">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:10px">
         <div>
-          <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:22px;color:var(--text);margin-bottom:3px">Prompts BK DROP</div>
+          <div style="font-family:'DM Sans',sans-serif;font-weight:800;font-size:22px;color:var(--text);margin-bottom:3px">Prompts BK DROP</div>
           <div style="font-size:11px;color:var(--muted)">Los prompts que usas a diario, listos para copiar y pegar en Gemini o ChatGPT</div>
         </div>
       </div>
@@ -1807,7 +1807,7 @@
             </div>
             <div class="bk-prompt-output-body">
               <div style="font-size:10px;color:var(--muted);letter-spacing:.5px;text-transform:uppercase;margin-bottom:4px;font-weight:600">Hook (editable)</div>
-              <input type="text" id="imgad-hook" oninput="renderImgAdAll()" style="width:100%;background:var(--surface2);border:1.5px solid var(--accent);color:var(--text);padding:9px 12px;border-radius:8px;font-size:13px;font-family:'Syne',sans-serif;font-weight:700;outline:none;margin-bottom:10px">
+              <input type="text" id="imgad-hook" oninput="renderImgAdAll()" style="width:100%;background:var(--surface2);border:1.5px solid var(--accent);color:var(--text);padding:9px 12px;border-radius:8px;font-size:13px;font-family:'DM Sans',sans-serif;font-weight:700;outline:none;margin-bottom:10px">
               <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
                 <button id="bk-imgad-ai-btn" onclick="mejorarFrameConAI()" style="background:#7B5BB5;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer;display:flex;align-items:center;gap:6px">🎨 Mejorar fondo con AI</button>
                 <button onclick="restaurarFrameOriginal()" style="background:var(--surface);color:var(--muted);border:1.5px solid var(--border);border-radius:8px;padding:7px 12px;font-size:10px;font-family:'DM Mono',monospace;cursor:pointer">↺ Frame original</button>
@@ -1919,7 +1919,7 @@
     <div style="max-width:1100px">
       <!-- HEADER -->
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
-        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:18px;color:var(--text)">📅 Calendario</div>
+        <div style="font-family:'DM Sans',sans-serif;font-weight:800;font-size:18px;color:var(--text)">📅 Calendario</div>
         <button class="cal-nav" onclick="calWeekShift(-1)">‹</button>
         <button class="cal-nav" onclick="calWeekShift(1)">›</button>
         <button class="cal-nav" onclick="calWeekToday()">Hoy</button>
@@ -1934,7 +1934,7 @@
     <!-- MODAL EVENTO -->
     <div id="cal-modal-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:300;align-items:center;justify-content:center" onclick="if(event.target===this)closeCalModal()">
       <div style="background:var(--surface);border-radius:16px;padding:22px;width:340px;max-width:94vw;box-shadow:0 8px 32px rgba(0,0,0,.18)">
-        <div id="cal-modal-title" style="font-family:'Syne',sans-serif;font-weight:800;font-size:15px;color:var(--text);margin-bottom:14px"></div>
+        <div id="cal-modal-title" style="font-family:'DM Sans',sans-serif;font-weight:800;font-size:15px;color:var(--text);margin-bottom:14px"></div>
         <input id="cal-ev-title" placeholder="Título del evento..." maxlength="80" style="width:100%;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px 12px;border-radius:8px;font-size:13px;font-family:'DM Mono',monospace;margin-bottom:8px">
         <div style="display:flex;gap:8px;margin-bottom:8px">
           <input id="cal-ev-time-start" type="time" style="flex:1;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px 10px;border-radius:8px;font-size:12px;font-family:'DM Mono',monospace">
@@ -1989,7 +1989,7 @@
       <!-- Header -->
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px">
         <div>
-          <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:22px;color:var(--text)">📊 Reporte del Día</div>
+          <div style="font-family:'DM Sans',sans-serif;font-weight:800;font-size:22px;color:var(--text)">📊 Reporte del Día</div>
           <div id="reporte-fecha" style="font-size:11px;color:var(--muted);margin-top:2px;letter-spacing:.5px"></div>
         </div>
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
@@ -2010,16 +2010,16 @@
       <div class="reporte-kpis" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:24px">
         <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:18px 20px">
           <div style="font-size:10px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">Órdenes hoy</div>
-          <div id="reporte-total-orders" style="font-family:'Syne',sans-serif;font-weight:800;font-size:32px;color:var(--accent)">—</div>
+          <div id="reporte-total-orders" style="font-family:'DM Sans',sans-serif;font-weight:800;font-size:32px;color:var(--accent)">—</div>
           <div id="reporte-total-orders-delta" style="font-size:11px;font-family:'DM Mono',monospace;margin-top:4px;letter-spacing:.3px;min-height:14px"></div>
         </div>
         <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:18px 20px">
           <div style="font-size:10px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">Unidades vendidas</div>
-          <div id="reporte-total-products" style="font-family:'Syne',sans-serif;font-weight:800;font-size:32px;color:var(--teal)">—</div>
+          <div id="reporte-total-products" style="font-family:'DM Sans',sans-serif;font-weight:800;font-size:32px;color:var(--teal)">—</div>
         </div>
         <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:18px 20px">
           <div style="font-size:10px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">Ventas netas</div>
-          <div id="reporte-total-revenue" style="font-family:'Syne',sans-serif;font-weight:800;font-size:26px;color:var(--accent)">—</div>
+          <div id="reporte-total-revenue" style="font-family:'DM Sans',sans-serif;font-weight:800;font-size:26px;color:var(--accent)">—</div>
           <div id="reporte-total-revenue-delta" style="font-size:11px;font-family:'DM Mono',monospace;margin-top:4px;letter-spacing:.3px;min-height:14px"></div>
         </div>
       </div>
@@ -2094,7 +2094,7 @@
         <!-- Header Meta -->
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px">
           <div>
-            <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:22px;color:var(--text)">📈 Meta Ads</div>
+            <div style="font-family:'DM Sans',sans-serif;font-weight:800;font-size:22px;color:var(--text)">📈 Meta Ads</div>
             <div id="meta-account-name" style="font-size:11px;color:var(--muted);margin-top:2px;letter-spacing:.5px"></div>
           </div>
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
@@ -2190,7 +2190,7 @@
         <!-- Header Cross -->
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:12px">
           <div>
-            <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:22px;color:var(--text)">📐 Cruce real (Shopify × Meta)</div>
+            <div style="font-family:'DM Sans',sans-serif;font-weight:800;font-size:22px;color:var(--text)">📐 Cruce real (Shopify × Meta)</div>
             <div id="cross-account-name" style="font-size:11px;color:var(--muted);margin-top:2px;letter-spacing:.5px"></div>
           </div>
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
@@ -2340,7 +2340,7 @@
       <div id="report-tab-topflop" style="display:none">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:12px">
           <div>
-            <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:22px;color:var(--text)">🏆 Top / Flop por producto</div>
+            <div style="font-family:'DM Sans',sans-serif;font-weight:800;font-size:22px;color:var(--text)">🏆 Top / Flop por producto</div>
             <div style="font-size:11px;color:var(--muted);margin-top:2px;letter-spacing:.3px">Ranking de productos por ventas, ROAS y CPA — cruzando Shopify × Meta</div>
           </div>
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
@@ -2393,7 +2393,7 @@
   <div id="section-pipeline" class="section">
     <div style="max-width:1200px">
       <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px;flex-wrap:wrap">
-        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:22px;color:var(--text)">📹 Pipeline de Videos</div>
+        <div style="font-family:'DM Sans',sans-serif;font-weight:800;font-size:22px;color:var(--text)">📹 Pipeline de Videos</div>
         <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;flex:1">Workflow del equipo: producción → revisión → escalado</div>
         <div id="pipeline-role-tag" style="font-size:10px;letter-spacing:.5px;text-transform:uppercase;color:var(--accent);font-weight:700;font-family:'DM Mono',monospace;padding:5px 10px;background:var(--accent-soft);border:1.5px solid var(--accent);border-radius:8px"></div>
       </div>
@@ -2412,7 +2412,7 @@
 
       <!-- Header -->
       <div style="display:flex;align-items:center;gap:14px;margin-bottom:18px;flex-wrap:wrap">
-        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:22px;color:var(--text)">🔍 Investigación</div>
+        <div style="font-family:'DM Sans',sans-serif;font-weight:800;font-size:22px;color:var(--text)">🔍 Investigación</div>
         <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;letter-spacing:1px">DESCUBRIMIENTO LATAM+US → CHILE · Auto Lun + Jue 7 AM</div>
         <div style="flex:1"></div>
         <button onclick="bkInvBuscarAhora()" style="background:none;color:var(--text);border:1.5px solid var(--border);border-radius:8px;padding:7px 12px;font-size:12px;font-family:'DM Mono',monospace;cursor:pointer" title="Disparar el descubrimiento ahora (sin esperar al cron). Tarda ~3 min.">🤖 Buscar ahora</button>
@@ -2433,7 +2433,7 @@
 
         <!-- BLOQUE DESCARGA -->
         <div class="bkfit-card" style="background:linear-gradient(135deg,#FE2C55 0%,#7e22ce 100%);color:#fff;border:none">
-          <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:16px;margin-bottom:4px">📥 Descargar video ganador</div>
+          <div style="font-family:'DM Sans',sans-serif;font-weight:800;font-size:16px;margin-bottom:4px">📥 Descargar video ganador</div>
           <div style="font-size:12px;opacity:0.92;margin-bottom:12px;line-height:1.5">Pegá la URL del ad de Meta Ad Library o del video de TikTok. Te abro los mejores downloaders con la URL ya copiada al portapapeles — solo hacés Ctrl+V y descargás.</div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
             <input id="inv-spy-dl-url" type="text" placeholder="https://www.tiktok.com/@user/video/123  o  https://www.facebook.com/ads/library/?id=123" style="flex:1;min-width:240px;padding:10px 12px;border:none;border-radius:8px;font-size:12px;font-family:'DM Mono',monospace;background:#fff;color:#222" onkeydown="if(event.key==='Enter')spyDetectPlatform()" oninput="spyDetectPlatform(true)">
@@ -2541,7 +2541,7 @@
       <div id="inv-tab-capturas" class="inv-tab" style="display:block">
         <!-- Leyenda explicando los badges -->
         <details class="bkfit-card" style="margin-bottom:14px">
-          <summary style="cursor:pointer;font-family:'Syne',sans-serif;font-weight:800;font-size:13px;color:var(--text);list-style:none;display:flex;align-items:center;gap:8px">
+          <summary style="cursor:pointer;font-family:'DM Sans',sans-serif;font-weight:800;font-size:13px;color:var(--text);list-style:none;display:flex;align-items:center;gap:8px">
             <span style="font-size:14px">❓</span> Cómo leer estas recomendaciones
           </summary>
           <div style="margin-top:14px;font-size:12px;color:var(--text);line-height:1.7">
@@ -2596,7 +2596,7 @@
 
       <!-- Header con datos del usuario -->
       <div style="display:flex;align-items:center;gap:14px;margin-bottom:18px;flex-wrap:wrap">
-        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:22px;color:var(--text)">🏋️ BKfit</div>
+        <div style="font-family:'DM Sans',sans-serif;font-weight:800;font-size:22px;color:var(--text)">🏋️ BKfit</div>
         <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;letter-spacing:1px">PLAN PERSONAL · LUN 04 MAY → DOM 26 JUL 2026</div>
         <div style="flex:1"></div>
         <button onclick="bkfitGenerarCalendario()" style="background:var(--accent);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-family:'DM Mono',monospace;cursor:pointer">📅 Cargar plan al calendario</button>
@@ -2885,7 +2885,7 @@
   <div id="section-videos-prod" class="section">
     <div style="max-width:1200px;margin:0 auto">
       <div style="margin-bottom:18px">
-        <h2 style="font-family:'Syne',sans-serif;font-weight:800;font-size:22px;margin:0 0 4px">🎞️ Videos por producto</h2>
+        <h2 style="font-family:'DM Sans',sans-serif;font-weight:800;font-size:22px;margin:0 0 4px">🎞️ Videos por producto</h2>
         <div style="font-size:12px;color:var(--muted);line-height:1.5">
           Estructura: cada producto con landing aplicada tiene 3 carpetas en Drive (<strong>1 - Brutos</strong>, <strong>2 - Testeo</strong>, <strong>3 - Escalado</strong>).
           En Testeo, asigná un ranking del 1 al 7 (7 = ultra ganador) para saber cuál escalar.
@@ -2901,7 +2901,7 @@
 
       <!-- Panel para agregar producto (oculto por default) -->
       <div id="vp-add-panel" style="display:none;background:var(--surface);border:2px solid #22C55E;border-radius:12px;padding:14px;margin-bottom:14px">
-        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:14px;color:#22C55E;margin-bottom:6px">+ Vincular producto existente</div>
+        <div style="font-family:'DM Sans',sans-serif;font-weight:800;font-size:14px;color:#22C55E;margin-bottom:6px">+ Vincular producto existente</div>
         <div style="font-size:11px;color:var(--muted);line-height:1.5;margin-bottom:10px">Buscá un producto de tu Shopify (CL o GT) y crea sus 3 carpetas en Drive. Útil para landings que aplicaste antes de tener esta integración.</div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
           <select id="vp-add-tenant" style="padding:8px 10px;border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:6px;font-size:12px;font-family:'DM Mono',monospace">
@@ -2924,7 +2924,7 @@
     <div style="max-width:620px;margin:0 auto">
 
       <div style="margin-bottom:18px">
-        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:20px;color:var(--text);margin-bottom:4px">Calculadoras</div>
+        <div style="font-family:'DM Sans',sans-serif;font-weight:800;font-size:20px;color:var(--text);margin-bottom:4px">Calculadoras</div>
       </div>
 
       <!-- SUB-TABS -->
@@ -3051,9 +3051,9 @@
           <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:20px;margin-bottom:14px">
             <label style="display:block;font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:8px;font-weight:600">Costo del producto (CLP)</label>
             <div style="display:flex;align-items:center;gap:8px">
-              <span style="font-family:'Syne',sans-serif;font-size:24px;color:var(--muted2)">$</span>
+              <span style="font-family:'DM Sans',sans-serif;font-size:24px;color:var(--muted2)">$</span>
               <input type="number" id="precios-input-cost" inputmode="numeric" placeholder="4500"
-                style="flex:1;background:var(--surface2);border:1.5px solid var(--border);border-radius:10px;padding:12px 14px;font-size:20px;font-family:'Syne',sans-serif;font-weight:700;color:var(--text);outline:none"
+                style="flex:1;background:var(--surface2);border:1.5px solid var(--border);border-radius:10px;padding:12px 14px;font-size:20px;font-family:'DM Sans',sans-serif;font-weight:700;color:var(--text);outline:none"
                 oninput="renderPreciosOutput()"
                 onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'">
             </div>
@@ -3654,7 +3654,7 @@ function renderRanking(){
 
   panel.innerHTML=`
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-      <span style="font-family:'Syne',sans-serif;font-weight:800;font-size:13px;color:var(--text)">🏆 Ranking</span>
+      <span style="font-family:'DM Sans',sans-serif;font-weight:800;font-size:13px;color:var(--text)">🏆 Ranking</span>
       <span style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">⭐ Meta semanal: ${META_SEMANAL_LANDINGS} landings = +${fmtCLP(BONO_META_SEMANAL)}</span>
     </div>
     ${metaSemanalHtml}
@@ -3662,7 +3662,7 @@ function renderRanking(){
     <div class="ranking-cards">${rows}</div>
     <div style="border-top:1px solid var(--border);margin-top:4px;padding-top:10px;display:flex;justify-content:space-between;align-items:center">
       <span style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:1px">Total bonos · ${fmtCLP(BONO_POR_PRODUCTO)} c/u · meta ${fmtCLP(BONO_META_SEMANAL)}/sem</span>
-      <span style="font-family:'Syne',sans-serif;font-weight:800;font-size:16px;color:var(--green)">${fmtCLP(totalBonos)}</span>
+      <span style="font-family:'DM Sans',sans-serif;font-weight:800;font-size:16px;color:var(--green)">${fmtCLP(totalBonos)}</span>
     </div>`;
 }
 
@@ -4266,7 +4266,7 @@ function renderVideos(){
         onclick="window.open('${esc(v.url)}','_blank')"
       >
         <div style="width:100%;aspect-ratio:16/9;border-radius:10px;background:${bgColor};display:flex;align-items:center;justify-content:center;margin-bottom:8px;padding:10px;text-align:center">
-          <span style="font-family:'Syne',sans-serif;font-weight:800;font-size:12px;color:${textColor};line-height:1.3">${esc(v.title)}</span>
+          <span style="font-family:'DM Sans',sans-serif;font-weight:800;font-size:12px;color:${textColor};line-height:1.3">${esc(v.title)}</span>
         </div>
         <div style="display:flex;align-items:center;justify-content:space-between" onclick="event.stopPropagation()">
           <a href="${esc(v.url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="font-size:11px;background:var(--accent);color:#fff;border:none;border-radius:20px;padding:5px 14px;text-decoration:none;font-family:'DM Mono',monospace;white-space:nowrap">↗ Abrir</a>
@@ -10117,7 +10117,7 @@ function renderSuppliers(){
 
       <!-- ARCHIVOS -->
       <div style="border-top:1px solid var(--border);padding-top:12px;margin-top:4px">
-        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:12px;color:var(--text);margin-bottom:10px">📁 Archivos</div>
+        <div style="font-family:'DM Sans',sans-serif;font-weight:800;font-size:12px;color:var(--text);margin-bottom:10px">📁 Archivos</div>
         ${archivosHtml || '<div style="font-size:11px;color:var(--muted2);font-style:italic;margin-bottom:10px">Sin archivos aún.</div>'}
         <!-- Formulario agregar archivo -->
         <div id="arch-form-${s.id}" style="display:none;background:var(--surface2);border:1.5px dashed var(--border2);border-radius:10px;padding:10px;margin-top:6px">
@@ -11100,7 +11100,7 @@ function spyRenderResultados(producto, country, es, en, hasImg, hashtags){
   // certero para encontrar el producto idéntico.
   const visualBlock = hasImg ? `
     <div style="background:linear-gradient(135deg, #4285F4 0%, #34A853 100%);border-radius:10px;padding:14px 16px;color:#fff;margin-bottom:14px">
-      <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:14px;margin-bottom:4px">🎯 Búsqueda visual inversa (lo más certero)</div>
+      <div style="font-family:'DM Sans',sans-serif;font-weight:800;font-size:14px;margin-bottom:4px">🎯 Búsqueda visual inversa (lo más certero)</div>
       <div style="font-size:11px;line-height:1.5;opacity:0.95;margin-bottom:10px">Las búsquedas de texto traen ads con copy "parecido", no productos idénticos. Para encontrar EL MISMO producto, hacé reverse image search con tu foto.</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button onclick="spyReverseSearch('google')" style="background:#fff;color:#4285F4;border:none;border-radius:6px;padding:9px 14px;font-size:11px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">🔍 Google Lens</button>
@@ -11154,7 +11154,7 @@ function spyRenderResultados(producto, country, es, en, hasImg, hashtags){
 
   const hashtagsBlock = hashtags.length ? `
     <div style="background:linear-gradient(135deg,#FE2C55 0%,#000 100%);border-radius:10px;padding:14px 16px;color:#fff">
-      <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:14px;margin-bottom:4px">🔥 Hashtags virales TikTok (lo que más funciona)</div>
+      <div style="font-family:'DM Sans',sans-serif;font-weight:800;font-size:14px;margin-bottom:4px">🔥 Hashtags virales TikTok (lo que más funciona)</div>
       <div style="font-size:11px;line-height:1.5;opacity:0.95;margin-bottom:10px">Los videos ganadores de drop NO usan el nombre del producto, usan estos hashtags. Click en "Feed hashtag" para ver todos los videos del tag ordenados por TikTok (los más vistos arriba). "+ producto" combina hashtag + keyword para resultados más específicos.</div>
     </div>
     <div>
@@ -11166,7 +11166,7 @@ function spyRenderResultados(producto, country, es, en, hasImg, hashtags){
   // Guía visual: cómo identificar un ganador
   const winnerGuide = `
     <details style="background:var(--surface2);border-radius:8px;padding:10px 14px">
-      <summary style="cursor:pointer;font-size:12px;color:var(--text);font-family:'Syne',sans-serif;font-weight:800">🏆 Cómo identificar un VIDEO GANADOR (no cualquier video)</summary>
+      <summary style="cursor:pointer;font-size:12px;color:var(--text);font-family:'DM Sans',sans-serif;font-weight:800">🏆 Cómo identificar un VIDEO GANADOR (no cualquier video)</summary>
       <div style="font-size:11px;color:var(--muted);line-height:1.7;margin-top:10px">
         <strong style="color:var(--text)">En TikTok (videos orgánicos virales):</strong><br>
         ✅ <strong>&gt; 100k views</strong> — mínimo para considerar viral<br>
@@ -11707,7 +11707,7 @@ function bkInvRenderCapturas(){
       <div style="display:flex;gap:12px">
         ${c.thumb_url ? `<img src="${esc(c.thumb_url)}" style="width:90px;height:90px;object-fit:cover;border-radius:8px;flex-shrink:0" onerror="this.style.display='none'">` : '<div style="width:90px;height:90px;background:var(--border);border-radius:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:24px">📷</div>'}
         <div style="flex:1;min-width:0;padding-right:130px">
-          ${c.product_name ? `<div style="font-family:'Syne',sans-serif;font-weight:800;font-size:17px;color:var(--text);line-height:1.2;margin-bottom:4px;display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span>🎁 ${esc(c.product_name)}</span><button onclick="bkInvBuscar(decodeURIComponent('${encodeURIComponent(c.product_name)}'))" title="Buscar este producto" style="background:none;border:1px solid var(--border);border-radius:14px;padding:2px 8px;font-size:10px;color:var(--muted);cursor:pointer;font-family:'DM Mono',monospace">🔍 Buscar</button></div>` : ''}
+          ${c.product_name ? `<div style="font-family:'DM Sans',sans-serif;font-weight:800;font-size:17px;color:var(--text);line-height:1.2;margin-bottom:4px;display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span>🎁 ${esc(c.product_name)}</span><button onclick="bkInvBuscar(decodeURIComponent('${encodeURIComponent(c.product_name)}'))" title="Buscar este producto" style="background:none;border:1px solid var(--border);border-radius:14px;padding:2px 8px;font-size:10px;color:var(--muted);cursor:pointer;font-family:'DM Mono',monospace">🔍 Buscar</button></div>` : ''}
           <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
             <span>${esc(c.page_name || '?')}</span>
             <span>· 🌎 ${esc(c.country || '?')}</span>
@@ -11791,7 +11791,7 @@ function bkInvRenderADN(){
       <strong>Sweet spot:</strong> ${BK_ADN.sweet_spot_clp}<br>
       <strong>Patrón ganador:</strong> ${BK_ADN.pattern}
     </div>
-    <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:13px;margin:12px 0 6px;color:var(--text)">✅ Categorías que SÍ buscamos</div>
+    <div style="font-family:'DM Sans',sans-serif;font-weight:800;font-size:13px;margin:12px 0 6px;color:var(--text)">✅ Categorías que SÍ buscamos</div>
     ${BK_ADN.pilares.map(p => `
       <div style="display:flex;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
         <div style="font-size:18px;width:30px;text-align:center">${p.emoji}</div>
@@ -11802,7 +11802,7 @@ function bkInvRenderADN(){
         <div style="font-size:14px;color:var(--accent);font-weight:700;font-family:'DM Mono',monospace">${p.share}%</div>
       </div>
     `).join('')}
-    <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:13px;margin:18px 0 6px;color:var(--text)">❌ Categorías excluidas</div>
+    <div style="font-family:'DM Sans',sans-serif;font-weight:800;font-size:13px;margin:18px 0 6px;color:var(--text)">❌ Categorías excluidas</div>
     ${BK_ADN.excluidos.map(e => `
       <div style="display:flex;gap:10px;align-items:center;padding:6px 0">
         <div style="font-size:16px;width:30px;text-align:center">${e.emoji}</div>
@@ -12561,7 +12561,7 @@ function renderCalendar(){
     const key = calKey(d.getFullYear(),d.getMonth(),d.getDate());
     html+=`<div style="text-align:center;padding:8px 2px;border-right:1px solid var(--border);cursor:pointer;${isToday?'background:var(--accent-soft)':''}" onclick="openCalModal('${key}',null)">
       <div style="font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:${isToday?'var(--accent)':'var(--muted)'};font-family:'DM Mono',monospace">${dias[i]}</div>
-      <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:18px;color:${isToday?'var(--accent)':'var(--text)'};line-height:1.2">${d.getDate()}</div>
+      <div style="font-family:'DM Sans',sans-serif;font-weight:800;font-size:18px;color:${isToday?'var(--accent)':'var(--text)'};line-height:1.2">${d.getDate()}</div>
     </div>`;
   });
   html += `</div>`;
@@ -12652,7 +12652,7 @@ function renderCalUpcoming(){
     const d=new Date(e.date+'T12:00:00');
     return `<div class="cal-event" onclick="calJumpTo('${e.date}')" style="cursor:pointer">
       <div style="text-align:center;flex-shrink:0;width:32px">
-        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:16px;color:var(--accent);line-height:1">${d.getDate()}</div>
+        <div style="font-family:'DM Sans',sans-serif;font-weight:800;font-size:16px;color:var(--accent);line-height:1">${d.getDate()}</div>
         <div style="font-size:9px;color:var(--muted);text-transform:uppercase">${meses[d.getMonth()]}</div>
       </div>
       <div class="cal-event-dot" style="background:${CAL_COLORS[e.type]||'var(--accent)'}"></div>
@@ -13066,11 +13066,11 @@ function preciosRow(label, price, hint, perUnitNote, primary, etiqueta) {
     ? 'font-size:13px;font-weight:600;color:var(--text)'
     : 'font-size:12px;color:var(--muted)';
   const priceStyle = primary
-    ? 'font-family:\'Syne\',sans-serif;font-weight:800;font-size:24px;color:var(--accent)'
-    : 'font-family:\'Syne\',sans-serif;font-weight:700;font-size:18px;color:var(--text)';
+    ? 'font-family:\'DM Sans\',sans-serif;font-weight:800;font-size:24px;color:var(--accent)'
+    : 'font-family:\'DM Sans\',sans-serif;font-weight:700;font-size:18px;color:var(--text)';
   const etiquetaHtml = etiqueta
     ? '<div style="display:inline-block;background:' + etiqueta.bg + ';border:1.5px solid ' + etiqueta.border + ';border-radius:8px;padding:5px 10px;margin-bottom:6px">'
-      + '<div style="font-family:\'Syne\',sans-serif;font-weight:800;font-size:11px;color:' + etiqueta.fg + ';line-height:1.2">' + etiqueta.main + '</div>'
+      + '<div style="font-family:\'DM Sans\',sans-serif;font-weight:800;font-size:11px;color:' + etiqueta.fg + ';line-height:1.2">' + etiqueta.main + '</div>'
       + '<div style="font-size:9px;color:' + etiqueta.fg + ';opacity:.85;letter-spacing:.5px;text-transform:uppercase;margin-top:2px;font-weight:600">' + etiqueta.sub + '</div>'
       + '</div>'
     : '';
@@ -13208,7 +13208,7 @@ function renderVideosProdCard(p){
     <div class="vp-product-card" data-handle="${esc(handle)}" data-title="${esc(title)}" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden">
       <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;cursor:pointer;gap:8px" onclick="toggleVideosProdCard('${esc(handle)}')">
         <div style="flex:1;min-width:0">
-          <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:14px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(title)}</div>
+          <div style="font-family:'DM Sans',sans-serif;font-weight:800;font-size:14px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(title)}</div>
           <div style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">handle: ${esc(handle)}</div>
         </div>
         <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
@@ -13232,7 +13232,7 @@ function renderVideosProdFolders(p){
   return folders.map(f => `
     <div style="margin-bottom:12px;background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden">
       <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:${f.color}1a;border-bottom:1px solid var(--border)">
-        <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:13px;color:${f.color}">${f.icon} ${f.label}</div>
+        <div style="font-family:'DM Sans',sans-serif;font-weight:700;font-size:13px;color:${f.color}">${f.icon} ${f.label}</div>
         <a href="https://drive.google.com/drive/folders/${f.id}" target="_blank" rel="noopener" style="background:#4285F4;color:#fff;text-decoration:none;border-radius:5px;padding:4px 8px;font-size:9px;font-family:'DM Mono',monospace">↗ Abrir en Drive</a>
       </div>
       <div id="vp-folder-${esc(p.handle || p.id)}-${f.type}" style="padding:8px">
@@ -13988,7 +13988,7 @@ function pipelineRenderUploadForm(tier, parentVideoId, assignment){
     : '';
 
   return '<div style="background:var(--surface);border:1.5px solid var(--accent);border-radius:12px;padding:16px;max-width:600px">' +
-    '<div style="font-size:14px;font-weight:700;color:var(--accent);font-family:\'Syne\',sans-serif;margin-bottom:12px">' +
+    '<div style="font-size:14px;font-weight:700;color:var(--accent);font-family:\'DM Sans\',sans-serif;margin-bottom:12px">' +
       (assignment ? '📤 Subir video EDITADO de asignación' : (tier === 'base' ? '➕ Subir video base' : '🚀 Subir variación')) +
     '</div>' +
     assignmentBadge +
@@ -14136,7 +14136,7 @@ function pipelineRenderAssignmentForm(){
   const colabDatalist = Array.from(prevColabs).map(c => '<option value="' + esc(c) + '">').join('');
 
   return '<div style="background:var(--surface);border:1.5px solid var(--accent);border-radius:12px;padding:16px;max-width:700px">' +
-    '<div style="font-size:14px;font-weight:700;color:var(--accent);font-family:\'Syne\',sans-serif;margin-bottom:12px">📦 Crear asignación de edición</div>' +
+    '<div style="font-size:14px;font-weight:700;color:var(--accent);font-family:\'DM Sans\',sans-serif;margin-bottom:12px">📦 Crear asignación de edición</div>' +
     '<div style="display:flex;flex-direction:column;gap:10px">' +
       '<div><label style="font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace;display:block;margin-bottom:4px">PRODUCTO (escribe para buscar)</label>' +
         '<input id="pipeline-assign-product-search" oninput="filterAssignProductOptions(this.value)" placeholder="🔍 Buscar por nombre..." style="width:100%;padding:9px 12px;border-radius:8px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text);font-size:13px;font-family:\'DM Mono\',monospace;box-sizing:border-box;margin-bottom:6px">' +
@@ -14273,7 +14273,7 @@ function pipelineRenderDashboard(){
   return '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">' +
     // Patrones por tag
     '<div style="background:var(--surface);border:1.5px solid var(--border);border-radius:12px;padding:14px">' +
-      '<div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:10px;font-family:\'Syne\',sans-serif">🎯 Winners por tipo de video</div>' +
+      '<div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:10px;font-family:\'DM Sans\',sans-serif">🎯 Winners por tipo de video</div>' +
       tagRows.map(r => {
         const rate = r.total ? Math.round(r.winners / r.total * 100) : 0;
         return '<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border)">' +
@@ -14285,7 +14285,7 @@ function pipelineRenderDashboard(){
     '</div>' +
     // Patrones por colaborador
     '<div style="background:var(--surface);border:1.5px solid var(--border);border-radius:12px;padding:14px">' +
-      '<div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:10px;font-family:\'Syne\',sans-serif">👥 Tasa de éxito por colaborador</div>' +
+      '<div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:10px;font-family:\'DM Sans\',sans-serif">👥 Tasa de éxito por colaborador</div>' +
       Object.values(byUser).sort((a,b) => (b.winners/b.total) - (a.winners/a.total)).map(r => {
         const rate = r.total ? Math.round(r.winners / r.total * 100) : 0;
         return '<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border)">' +
@@ -14617,7 +14617,7 @@ function tfRow(rank, p, valueFn, hintFn){
       <div style="font-size:12px;color:var(--text);font-weight:600;line-height:1.3">${rank}. ${name}</div>
       <div style="font-size:10px;color:var(--muted2);margin-top:2px">${hintFn(p)}</div>
     </div>
-    <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:14px;color:var(--text);white-space:nowrap">${valueFn(p)}</div>
+    <div style="font-family:'DM Sans',sans-serif;font-weight:800;font-size:14px;color:var(--text);white-space:nowrap">${valueFn(p)}</div>
   </div>`;
 }
 
