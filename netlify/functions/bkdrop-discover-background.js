@@ -654,6 +654,11 @@ export default async (req) => {
   }
 };
 
-export const config = {
-  schedule: '0 11 * * 1,4'  // Lun + Jue 11:00 UTC = 7:00 AM Chile (winter UTC-4)
-};
+// NOTA: antes esta función tenía `export const config = { schedule: '...' }`
+// que la registraba como Scheduled Function. El efecto colateral era que las
+// invocaciones HTTP devolvían 202 pero NO ejecutaban nada (Netlify Scheduled
+// solo corre cuando dispara el cron). Lo quitamos para que sí responda a
+// triggers manuales desde la UI ("Buscar productos winners ahora").
+// El naming -background.js mantiene el timeout extendido (hasta 15 min).
+// Si querés volver al cron Lun/Jue 7AM, agregar un archivo separado
+// `bkdrop-discover-cron.js` que invoque esta función vía HTTP.
