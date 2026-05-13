@@ -11766,20 +11766,120 @@ function bkInvCopyBookmarklet(){
 async function bkInvBuscarAhora(){
   const btn = event && event.target;
   const oldText = btn ? btn.textContent : '';
-  if(!confirm('Esto dispara el descubrimiento automático ahora mismo (Apify + filtrado).\n\nTarda ~3 minutos y consume ~$0.30 USD del crédito Apify.\n\nDespués hacé click en "🔄 Sincronizar" para ver los resultados.\n\n¿Continuar?')) return;
+  if(!confirm('Esto dispara el descubrimiento automático ahora mismo (Apify + filtrado).\n\nTarda ~3 minutos y consume ~$0.30 USD del crédito Apify.\n\nVoy a checkear la cola automáticamente cada 30s hasta que lleguen los resultados.\n\n¿Continuar?')) return;
   if(btn){ btn.disabled = true; btn.textContent = '⏳ Disparando...'; }
   try {
     const r = await fetch('/.netlify/functions/bkdrop-discover-background', { method:'POST' });
-    if (r.status === 202 || r.ok){
-      alert('✅ Búsqueda iniciada. En ~3 minutos hacé click en "🔄 Sincronizar" para traer los nuevos winners.');
-    } else {
+    if (r.status !== 202 && !r.ok){
       alert('Error: HTTP ' + r.status);
+      return;
     }
+    // ÉXITO: en lugar de alert + esperar a que el usuario haga click, mostramos
+    // un panel con countdown que auto-poll cada 30s y trae las capturas cuando
+    // estén listas. Cancela si el usuario navega o pasa el tiempo máximo.
+    bkInvIniciarPollingAutomatico();
   } catch(e){
     alert('Error de red: ' + e.message);
   } finally {
     if(btn){ btn.disabled = false; btn.textContent = oldText; }
   }
+}
+
+// Polling automático tras disparar Apify discovery. Cada 30 segundos hace
+// un bkInvSyncSilent() para ver si ya hay capturas en la cola. Para a los
+// 6 minutos o cuando trae capturas (lo que pase primero).
+async function bkInvIniciarPollingAutomatico(){
+  const el = document.getElementById('inv-capturas-list');
+  if (!el) return;
+  // Reemplazar el empty state por un panel "buscando..."
+  let secs = 0;
+  const TOTAL_SECS = 360; // 6 min máx
+  const POLL_EVERY = 30;
+  const renderPolling = () => {
+    const mins = Math.floor((TOTAL_SECS - secs) / 60);
+    const secsRem = (TOTAL_SECS - secs) % 60;
+    el.innerHTML = `
+      <div style="background:linear-gradient(135deg,#5BA882 0%,#7ECEC4 100%);color:#fff;border-radius:14px;padding:28px 24px;text-align:center">
+        <div style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:20px;margin-bottom:6px">🔍 Buscando winners…</div>
+        <div style="font-size:13px;opacity:0.95;line-height:1.5;margin-bottom:14px">
+          Apify está scrapeando Meta Ad Library. Voy a chequear automáticamente cada ~30s.<br>
+          Apenas lleguen capturas, aparecen acá.
+        </div>
+        <div style="font-family:'DM Mono',monospace;font-size:14px;opacity:0.95;margin-bottom:14px">
+          ⏱ Hasta <strong>${mins}m ${String(secsRem).padStart(2,'0')}s</strong> restantes
+        </div>
+        <button onclick="bkInvCancelarPolling()" style="background:rgba(255,255,255,0.18);border:1px solid rgba(255,255,255,0.5);color:#fff;border-radius:8px;padding:8px 18px;font-size:12px;font-family:'DM Mono',monospace;cursor:pointer">✕ Cancelar polling</button>
+      </div>
+    `;
+  };
+  renderPolling();
+  window._bkInvPollingCancelled = false;
+
+  // Tick interval para countdown visual
+  const tickInterval = setInterval(() => {
+    if (window._bkInvPollingCancelled){ clearInterval(tickInterval); return; }
+    secs += 1;
+    renderPolling();
+  }, 1000);
+
+  // Loop async de polling
+  while (secs < TOTAL_SECS && !window._bkInvPollingCancelled) {
+    await new Promise(r => setTimeout(r, POLL_EVERY * 1000));
+    if (window._bkInvPollingCancelled) break;
+    // Intentar drenar la cola
+    try {
+      const r = await fetch('/api/bkdrop-captures-drain', {
+        method: 'POST',
+        headers: { 'X-BK-Capture-Token': BK_INV_TOKEN }
+      });
+      if (r.ok) {
+        const j = await r.json();
+        if (j.count && j.items && j.items.length) {
+          // ¡Llegaron capturas! Procesarlas y mostrarlas
+          if (!state.investigacion_capturas) state.investigacion_capturas = [];
+          const byLibId = new Map();
+          state.investigacion_capturas.forEach(c => { if (c.library_id) byLibId.set(c.library_id, c); });
+          const existingInternalIds = new Set(state.investigacion_capturas.map(c => c.id));
+          const newOnes = [];
+          const now = Date.now();
+          for (const c of j.items) {
+            if (existingInternalIds.has(c.id)) continue;
+            if (c.library_id && byLibId.has(c.library_id)) {
+              const existing = byLibId.get(c.library_id);
+              existing.last_seen_at = now;
+              existing.times_seen = (existing.times_seen || 1) + 1;
+              if (c.days_active != null) existing.days_active = c.days_active;
+              continue;
+            }
+            c.last_seen_at = now;
+            c.times_seen = 1;
+            newOnes.push(c);
+            if (c.library_id) byLibId.set(c.library_id, c);
+          }
+          if (newOnes.length) {
+            state.investigacion_capturas.push(...newOnes);
+            save();
+            clearInterval(tickInterval);
+            showToast(newOnes.length + ' winners encontrados', '🎯', 'success');
+            bkInvRenderCapturas();
+            return; // termina el polling
+          }
+        }
+      }
+    } catch(e) { /* continuar */ }
+  }
+  clearInterval(tickInterval);
+  if (!window._bkInvPollingCancelled) {
+    // Tiempo agotado sin resultados — volver al empty state
+    showToast('Búsqueda completada — sin nuevos winners detectados', '🤖', 'warn');
+    bkInvRenderCapturas();
+  }
+}
+
+function bkInvCancelarPolling(){
+  window._bkInvPollingCancelled = true;
+  bkInvRenderCapturas();
+  showToast('Polling cancelado — usá Sincronizar manualmente cuando quieras', '⏹', 'info');
 }
 
 async function bkInvSync(){
