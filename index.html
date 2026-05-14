@@ -6016,7 +6016,7 @@ async function seleccionarProductoReplicarGT(id, title, handle){
 
     if(status) status.textContent = '';
 
-    // 5. Verificar producto en GT con mismo handle
+    // 5. Verificar producto en GT — primero por handle exacto, después por título.
     const gtSearch = await fetch('/.netlify/functions/shopify-products?q=' + encodeURIComponent(handle) + '&tenant=gt');
     const gtData = await gtSearch.json();
     const checkEl = document.getElementById('bk-replicar-gt-check');
@@ -6025,16 +6025,39 @@ async function seleccionarProductoReplicarGT(id, title, handle){
       if(checkEl){ checkEl.textContent = '⚠ No se pudo buscar en GT: ' + (gtData.error || 'fallo'); checkEl.style.color = 'var(--danger,#E74C3C)'; }
       return;
     }
-    const gtMatch = (gtData.products || []).find(p => p.handle === handle);
+    let gtMatch = (gtData.products || []).find(p => p.handle === handle);
+
+    // Fallback: si no hay match exacto por handle, buscar por título completo
+    if(!gtMatch && title){
+      if(checkEl){ checkEl.innerHTML = '⏳ Sin match por handle. Buscando en GT por título…'; checkEl.style.color = 'var(--muted)'; }
+      const gtSearch2 = await fetch('/.netlify/functions/shopify-products?q=' + encodeURIComponent(title) + '&tenant=gt');
+      const gtData2 = await gtSearch2.json();
+      if (gtSearch2.ok) {
+        const titleMatches = gtData2.products || [];
+        if (titleMatches.length === 1) {
+          gtMatch = titleMatches[0];
+        } else if (titleMatches.length > 1) {
+          // Si hay varios, tomar el de handle más parecido al CL como heurística
+          gtMatch = titleMatches.find(p => p.handle && p.handle.includes(handle.split('-')[0])) || titleMatches[0];
+        }
+      }
+    }
+
     if(!gtMatch){
       if(checkEl){
-        checkEl.innerHTML = '❌ <strong>No existe</strong> el producto en Shopify GT con handle <code>' + esc(handle) + '</code>. Creálo en GT con ese handle exacto antes de replicar.';
+        checkEl.innerHTML = '❌ <strong>No existe</strong> el producto en Shopify GT.<br>' +
+          '<span style="font-size:10px">CL handle: <code>' + esc(handle) + '</code></span><br>' +
+          '<span style="font-size:10px">CL título: ' + esc(title) + '</span><br>' +
+          '<span style="font-size:10px">Verificá que esté <strong>publicado</strong> en Shopify GT (status: active). Si lo está, probá cambiar el título en GT para que matchee.</span>';
         checkEl.style.color = 'var(--danger,#E74C3C)';
       }
       return;
     }
     if(checkEl){
-      checkEl.innerHTML = '✅ Producto encontrado en Shopify GT: <strong>' + esc(gtMatch.title) + '</strong> (ID: ' + gtMatch.id + ')';
+      const handleNote = (gtMatch.handle === handle)
+        ? ''
+        : ' <span style="font-size:10px;color:var(--muted)">(handle GT: <code>' + esc(gtMatch.handle) + '</code>, distinto al CL)</span>';
+      checkEl.innerHTML = '✅ Producto encontrado en Shopify GT: <strong>' + esc(gtMatch.title) + '</strong> (ID: ' + gtMatch.id + ')' + handleNote;
       checkEl.style.color = 'var(--accent)';
     }
     _replicarGtProduct.gtId = gtMatch.id;
