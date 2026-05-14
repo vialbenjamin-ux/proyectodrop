@@ -1435,19 +1435,13 @@
     </div>
   </div>
 
-  <div class="nav-group" data-group="analisis">
-    <button class="tab-group-btn" onclick="toggleNavGroup('analisis', event)">
-      📊 Análisis <span class="ng-arrow">▾</span>
-    </button>
-    <div class="nav-dropdown">
-      <button class="tab-btn ng-item" data-section="reportes" onclick="switchSection('reportes')">
-        📊 Reportes
-      </button>
-      <button class="tab-btn ng-item" data-section="investigacion" onclick="switchSection('investigacion')">
-        🔍 Investigación
-      </button>
-    </div>
-  </div>
+  <button class="tab-btn ng-standalone" data-section="reportes" onclick="switchSection('reportes')">
+    📊 Reportes
+  </button>
+
+  <button class="tab-btn ng-standalone" data-section="investigacion" onclick="switchSection('investigacion')">
+    🔍 Investigación
+  </button>
 
   <div class="nav-group" data-group="optimiza">
     <button class="tab-group-btn" onclick="toggleNavGroup('optimiza', event)">
