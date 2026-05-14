@@ -774,6 +774,13 @@
   .bk-prompt-output-close{background:none;border:none;color:#A6862A;cursor:pointer;font-size:13px;padding:2px 4px;line-height:1}
   .bk-prompt-output-body{padding:14px 16px;white-space:pre-wrap;max-height:640px;overflow-y:auto;font-size:13px;line-height:1.7}
   .bk-prompt-output.expanded .bk-prompt-output-body{max-height:80vh;font-size:14px}
+  /* Dark mode: el output usa #FFFEF7 (crema claro) hardcoded en el CSS,
+     que en dark queda con texto claro encima → ilegible. Override para
+     que use surface oscuro + texto claro del theme. */
+  html[data-theme="dark"] .bk-prompt-output{background:var(--surface)!important;color:var(--text)!important;border-color:var(--yellow)!important}
+  html[data-theme="dark"] .bk-prompt-output-body{background:var(--surface)!important;color:var(--text)!important}
+  html[data-theme="dark"] .bk-prompt-output-body.editable:hover{background:var(--surface2)!important}
+  html[data-theme="dark"] .bk-prompt-output-body.editable:focus{background:var(--surface2)!important;box-shadow:inset 0 0 0 2px var(--yellow)!important}
   .bk-prompt-output-body.editable{cursor:text;outline:none;transition:background .15s}
   .bk-prompt-output-body.editable:hover{background:#FFFEF7}
   .bk-prompt-output-body.editable:focus{background:#FFFEF0;box-shadow:inset 0 0 0 2px var(--yellow)}
