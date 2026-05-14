@@ -7290,16 +7290,35 @@ async function replicarTemplateAGT(){
   }
   if(btn){ btn.disabled = true; btn.textContent = '⏳ Replicando…'; }
   try {
-    // 1. Buscar producto en GT con mismo handle (forzando tenant=gt en la URL)
+    // 1. Buscar producto en GT — primero por handle exacto, después fallback por título.
     setStatus('1/4 · Buscando producto en GT con handle "<b>' + esc(last.handle) + '</b>"…');
     const searchResp = await fetch('/.netlify/functions/shopify-products?q=' + encodeURIComponent(last.handle) + '&tenant=gt');
     const searchData = await searchResp.json();
     if(!searchResp.ok) throw new Error('Búsqueda GT: ' + (searchData.error || 'fallo'));
-    const matches = (searchData.products || []).filter(p => p.handle === last.handle);
-    if(!matches.length){
+    let matches = (searchData.products || []).filter(p => p.handle === last.handle);
+    let gtProduct;
+    if (matches.length) {
+      gtProduct = matches[0];
+    } else if (last.title) {
+      // Fallback: buscar por título (accent-insensitive, multi-palabra AND).
+      setStatus('1/4 · Sin match por handle. Buscando por título "<b>' + esc(last.title.slice(0,60)) + '…</b>"…');
+      const searchResp2 = await fetch('/.netlify/functions/shopify-products?q=' + encodeURIComponent(last.title) + '&tenant=gt');
+      const searchData2 = await searchResp2.json();
+      if(!searchResp2.ok) throw new Error('Búsqueda GT por título: ' + (searchData2.error || 'fallo'));
+      const titleMatches = (searchData2.products || []);
+      if (titleMatches.length === 1) {
+        gtProduct = titleMatches[0];
+        setStatus('1/4 · ✓ Encontrado por título: handle GT = "<b>' + esc(gtProduct.handle) + '</b>" (distinto al CL)');
+      } else if (titleMatches.length > 1) {
+        // Mostrar opciones para que el usuario elija
+        const opts = titleMatches.slice(0, 5).map(p => '• ' + p.title + ' (handle: ' + p.handle + ')').join('\n');
+        throw new Error('Encontré varios productos en GT con título similar. Especificá cuál:\n\n' + opts);
+      } else {
+        throw new Error('No encontré el producto en Shopify GT.\nHandle CL: "' + last.handle + '"\nTítulo CL: "' + last.title + '"\n\nVerificá que esté publicado en GT y que el título o handle coincidan.');
+      }
+    } else {
       throw new Error('No encontré ningún producto en GT con handle exacto "' + last.handle + '". Creálo primero en Shopify GT con el mismo handle.');
     }
-    const gtProduct = matches[0];
 
     // 2. Clonar imágenes y subir el template (con refs reescritas) al theme MAIN de GT
     setStatus('2/4 · Clonando imágenes del template…');
