@@ -13457,7 +13457,15 @@ const ASSIGNMENT_STATES = {
 // Cache: productos, rankings, asignaciones + contenido folders.
 // Asignación de responsable = string libre (cualquier nombre), guardado
 // en Firestore (bkdrop_drive_folder_assignments) por par handle+folderType.
-window._vpData = window._vpData || { products: [], rankings: {}, folderContents: {}, assignments: {} };
+window._vpData = window._vpData || { products: [], rankings: {}, folderContents: {}, assignments: {}, productTasks: {} };
+
+// Estado de tarea diaria a nivel PRODUCTO (independiente del status por carpeta).
+// Permite al admin asignar al trabajador "este producto está en testeo / escalado".
+const VP_TASK_STATES = {
+  not_started: { label: '⚪ NO EMPEZADO',     barColor: 'transparent', tagBg: '#94A3B81a', tagColor: '#94A3B8' },
+  testing:     { label: '🟢 VIDEOS TESTEOS',  barColor: '#22C55E',     tagBg: '#22C55E22', tagColor: '#22C55E' },
+  scaling:     { label: '🔵 VIDEOS ESCALADOS', barColor: '#3B82F6',    tagBg: '#3B82F622', tagColor: '#3B82F6' }
+};
 
 async function initVideosProd(forceReload){
   const status = document.getElementById('vp-status');
@@ -13473,10 +13481,11 @@ async function initVideosProd(forceReload){
       throw new Error('Firestore no inicializado');
     }
     const db = firebase.firestore();
-    const [prodsSnap, ranksSnap, assignsSnap] = await Promise.all([
+    const [prodsSnap, ranksSnap, assignsSnap, tasksSnap] = await Promise.all([
       db.collection('bkdrop_drive_product_folders').orderBy('updatedAt', 'desc').get(),
       db.collection('bkdrop_video_rankings').get(),
       db.collection('bkdrop_drive_folder_assignments').get(),
+      db.collection('bkdrop_video_product_tasks').get(),
     ]);
     const products = [];
     prodsSnap.forEach(doc => products.push({ id: doc.id, ...doc.data() }));
@@ -13484,10 +13493,13 @@ async function initVideosProd(forceReload){
     ranksSnap.forEach(doc => { rankings[doc.id] = doc.data(); });
     const assignments = {};
     assignsSnap.forEach(doc => { assignments[doc.id] = doc.data(); });
+    const productTasks = {};
+    tasksSnap.forEach(doc => { productTasks[doc.id] = doc.data(); });
 
     window._vpData.products = products;
     window._vpData.rankings = rankings;
     window._vpData.assignments = assignments;
+    window._vpData.productTasks = productTasks;
 
     if (!products.length) {
       if (list) list.innerHTML = '<div style="background:var(--surface);border:1px dashed var(--border);border-radius:12px;padding:24px;text-align:center;color:var(--muted);font-size:13px;line-height:1.6">📁 Sin productos cargados aún.<br>Aplicá un landing en cualquier producto desde <strong>BK DROP</strong> (Auto-Shrine o Replicar a GT) y las carpetas se crean automáticamente en Drive.</div>';
@@ -13522,12 +13534,63 @@ function renderVideosProdCard(p){
   const handle = p.handle || p.id;
   const title  = p.title || handle;
   const driveUrl = p.productFolderId ? 'https://drive.google.com/drive/folders/' + p.productFolderId : null;
+  const task = window._vpData.productTasks[handle] || {};
+  const status = task.status || 'not_started';
+  const cfg = VP_TASK_STATES[status] || VP_TASK_STATES.not_started;
+  const isDone = !!task.done;
+  const admin = (typeof isAdmin === 'function') ? isAdmin() : false;
+  const startDate = task.startDate || '';
+  const endDate = task.endDate || '';
+
+  // Barra lateral coloreada según estado
+  const leftBar = status !== 'not_started'
+    ? `box-shadow:inset 6px 0 0 ${cfg.barColor}`
+    : '';
+
+  // Botones de admin (cambiar estado) vs worker (marcar terminado)
+  let statusControls = '';
+  if (admin) {
+    // 3 botones de cambio de estado
+    statusControls = `
+      <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap" onclick="event.stopPropagation()">
+        ${Object.entries(VP_TASK_STATES).map(([key, c]) => {
+          const isActive = status === key;
+          return `<button onclick="setProductTaskStatus('${esc(handle)}','${key}')" style="background:${isActive?c.tagBg:'transparent'};color:${isActive?c.tagColor:'var(--muted)'};border:1px solid ${isActive?c.tagColor:'var(--border)'};border-radius:14px;padding:3px 10px;font-size:10px;font-family:'DM Mono',monospace;font-weight:${isActive?700:400};cursor:pointer;white-space:nowrap">${c.label}</button>`;
+        }).join('')}
+      </div>`;
+  } else {
+    // Worker ve solo el badge del estado + botón terminar (si aplica)
+    statusControls = `
+      <div style="display:flex;gap:6px;align-items:center" onclick="event.stopPropagation()">
+        <span style="background:${cfg.tagBg};color:${cfg.tagColor};border-radius:14px;padding:3px 10px;font-size:10px;font-family:'DM Mono',monospace;font-weight:700;white-space:nowrap">${cfg.label}${isDone?' · ✅ TERMINADO':''}</span>
+        ${(status !== 'not_started' && !isDone) ? `<button onclick="markProductTaskDone('${esc(handle)}')" style="background:#22C55E;color:#fff;border:none;border-radius:14px;padding:3px 10px;font-size:10px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer;white-space:nowrap">✓ TERMINADO</button>` : ''}
+      </div>`;
+  }
+
+  // Fechas: editables para admin, solo lectura para worker
+  let datesUI = '';
+  if (admin) {
+    datesUI = `
+      <div style="display:flex;gap:8px;align-items:center;font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;flex-wrap:wrap" onclick="event.stopPropagation()">
+        <label style="display:flex;align-items:center;gap:4px">📅 Desde:<input type="date" value="${esc(startDate)}" onchange="setProductTaskDate('${esc(handle)}','startDate',this.value)" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);font-size:10px;font-family:'DM Mono',monospace;padding:2px 6px;border-radius:5px"></label>
+        <label style="display:flex;align-items:center;gap:4px">→ Hasta:<input type="date" value="${esc(endDate)}" onchange="setProductTaskDate('${esc(handle)}','endDate',this.value)" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);font-size:10px;font-family:'DM Mono',monospace;padding:2px 6px;border-radius:5px"></label>
+        ${isDone ? `<button onclick="event.stopPropagation();unmarkProductTaskDone('${esc(handle)}')" title="Reabrir tarea" style="background:transparent;color:var(--muted);border:1px solid var(--border);border-radius:14px;padding:2px 8px;font-size:9px;font-family:'DM Mono',monospace;cursor:pointer">↩ Reabrir</button>` : ''}
+        ${isDone ? `<span style="color:#22C55E;font-weight:700">✅ TERMINADO</span>` : ''}
+      </div>`;
+  } else if (startDate || endDate) {
+    datesUI = `<div style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">📅 ${startDate?'Desde '+startDate:''}${startDate&&endDate?' → ':''}${endDate?'Hasta '+endDate:''}</div>`;
+  }
+
   return `
-    <div class="vp-product-card" data-handle="${esc(handle)}" data-title="${esc(title)}" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden">
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;cursor:pointer;gap:8px" onclick="toggleVideosProdCard('${esc(handle)}')">
+    <div class="vp-product-card" data-handle="${esc(handle)}" data-title="${esc(title)}" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;${leftBar}">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;padding:12px 14px;cursor:pointer;gap:8px" onclick="toggleVideosProdCard('${esc(handle)}')">
         <div style="flex:1;min-width:0">
           <div style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:14px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(title)}</div>
-          <div style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">handle: ${esc(handle)}</div>
+          <div style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;margin-bottom:6px">handle: ${esc(handle)}</div>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            ${statusControls}
+            ${datesUI}
+          </div>
         </div>
         <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
           ${driveUrl ? `<a href="${driveUrl}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="background:#4285F4;color:#fff;text-decoration:none;border-radius:6px;padding:5px 10px;font-size:10px;font-family:'DM Mono',monospace">↗ Drive</a>` : ''}
@@ -13539,6 +13602,85 @@ function renderVideosProdCard(p){
       </div>
     </div>
   `;
+}
+
+// Cambia el estado de tarea diaria del producto (NO EMPEZADO / TESTEOS / ESCALADOS).
+// Solo admin. Al cambiar de estado, resetea done=false.
+async function setProductTaskStatus(handle, newStatus){
+  if (typeof isAdmin === 'function' && !isAdmin()) {
+    showToast('Solo el administrador puede cambiar el estado', '🔒', 'error');
+    return;
+  }
+  try {
+    if (typeof firebase === 'undefined' || !firebase.firestore) throw new Error('Firestore no disponible');
+    const db = firebase.firestore();
+    const prev = window._vpData.productTasks[handle] || {};
+    const update = {
+      handle,
+      status: newStatus,
+      done: false,
+      updatedAt: Date.now()
+    };
+    await db.collection('bkdrop_video_product_tasks').doc(handle).set(update, { merge: true });
+    window._vpData.productTasks[handle] = { ...prev, ...update };
+    renderVideosProdList();
+    const label = (VP_TASK_STATES[newStatus] || {}).label || newStatus;
+    showToast('Estado → ' + label, '🔄', 'success');
+  } catch (err) {
+    showToast('Error: ' + (err.message || '?'), '⚠️', 'error');
+  }
+}
+
+// Cambia una fecha (startDate o endDate). Solo admin.
+async function setProductTaskDate(handle, field, value){
+  if (typeof isAdmin === 'function' && !isAdmin()) {
+    showToast('Solo el administrador puede ajustar las fechas', '🔒', 'error');
+    return;
+  }
+  try {
+    const db = firebase.firestore();
+    const prev = window._vpData.productTasks[handle] || {};
+    const update = { handle, [field]: value, updatedAt: Date.now() };
+    await db.collection('bkdrop_video_product_tasks').doc(handle).set(update, { merge: true });
+    window._vpData.productTasks[handle] = { ...prev, ...update };
+  } catch (err) {
+    showToast('Error: ' + (err.message || '?'), '⚠️', 'error');
+  }
+}
+
+// Trabajador marca tarea como terminada (puede hacerlo cualquier usuario logueado).
+async function markProductTaskDone(handle){
+  try {
+    const db = firebase.firestore();
+    const prev = window._vpData.productTasks[handle] || {};
+    if (!prev.status || prev.status === 'not_started') {
+      showToast('No hay tarea activa para marcar terminada', '⚠️', 'error');
+      return;
+    }
+    const update = { handle, done: true, doneAt: Date.now(), updatedAt: Date.now() };
+    await db.collection('bkdrop_video_product_tasks').doc(handle).set(update, { merge: true });
+    window._vpData.productTasks[handle] = { ...prev, ...update };
+    renderVideosProdList();
+    showToast('✓ Tarea marcada como terminada', '✅', 'success');
+  } catch (err) {
+    showToast('Error: ' + (err.message || '?'), '⚠️', 'error');
+  }
+}
+
+// Admin reabre una tarea que estaba terminada.
+async function unmarkProductTaskDone(handle){
+  if (typeof isAdmin === 'function' && !isAdmin()) return;
+  try {
+    const db = firebase.firestore();
+    const prev = window._vpData.productTasks[handle] || {};
+    const update = { handle, done: false, updatedAt: Date.now() };
+    await db.collection('bkdrop_video_product_tasks').doc(handle).set(update, { merge: true });
+    window._vpData.productTasks[handle] = { ...prev, ...update };
+    renderVideosProdList();
+    showToast('Tarea reabierta', '↩', 'success');
+  } catch (err) {
+    showToast('Error: ' + (err.message || '?'), '⚠️', 'error');
+  }
 }
 
 function renderVideosProdFolders(p){
