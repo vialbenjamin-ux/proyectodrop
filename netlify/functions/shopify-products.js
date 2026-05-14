@@ -60,14 +60,24 @@ exports.handler = async function (event) {
   }
 };
 
+// Normaliza para búsqueda accent-insensitive y case-insensitive.
+// "Estación" → "estacion", "ÁRBOL" → "arbol", "ñ" → "n".
+function normalizeForSearch(s) {
+  return String(s || '')
+    .normalize('NFD')                  // descompone los acentos
+    .replace(/[̀-ͯ]/g, '')   // remueve los diacríticos
+    .replace(/ñ/gi, 'n')               // ñ → n
+    .toLowerCase()
+    .trim();
+}
+
 async function searchProducts(domain, headers, q) {
   // La API REST de Shopify usa `title=` como match EXACTO, no contiene.
-  // Para que la búsqueda sea útil, paginamos hasta 500 productos y
-  // filtramos del lado del servidor por substring case-insensitive
-  // contra title y handle.
+  // Para que la búsqueda sea útil, paginamos y filtramos del lado del servidor
+  // por substring case-insensitive + accent-insensitive contra title y handle.
   const FIELDS = 'id,title,handle,image,updated_at,status';
-  const PAGE_SIZE = 250; // máximo permitido por Shopify
-  const MAX_PAGES = q ? 4 : 1; // con query: hasta 1000 productos. Sin query: 250.
+  const PAGE_SIZE = 250;
+  const MAX_PAGES = q ? 8 : 1; // con query: hasta 2000 productos (antes 1000).
 
   let all = [];
   let pageUrl = `https://${domain}/admin/api/2024-10/products.json?limit=${PAGE_SIZE}&fields=${FIELDS}`;
@@ -90,11 +100,16 @@ async function searchProducts(domain, headers, q) {
 
   let filtered = all;
   if (q) {
-    const ql = q.toLowerCase();
-    filtered = all.filter(p =>
-      (p.title  && p.title.toLowerCase().includes(ql)) ||
-      (p.handle && p.handle.toLowerCase().includes(ql))
-    );
+    // Normalizar el query: quitar acentos, ñ → n, case-fold.
+    const ql = normalizeForSearch(q);
+    // Soportar múltiples palabras: TODAS deben aparecer (AND).
+    const terms = ql.split(/\s+/).filter(Boolean);
+    filtered = all.filter(p => {
+      const hayTitle  = normalizeForSearch(p.title);
+      const hayHandle = normalizeForSearch(p.handle);
+      const hay = hayTitle + ' ' + hayHandle;
+      return terms.every(t => hay.includes(t));
+    });
   }
 
   // Limitar a 100 resultados visibles para no saturar la UI
