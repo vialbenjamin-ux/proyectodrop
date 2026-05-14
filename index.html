@@ -3036,6 +3036,17 @@
         <a href="https://drive.google.com/drive/folders/1JqerUrGaRgcQGY0uTDvcoyccdekCpj62" target="_blank" rel="noopener" style="background:#4285F4;color:#fff;border-radius:8px;padding:9px 14px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer;text-decoration:none">↗ Abrir Drive</a>
       </div>
 
+      <!-- Filtros por estado -->
+      <div id="vp-status-filters" style="display:flex;gap:6px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
+        <span style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;letter-spacing:1px;text-transform:uppercase">Estado:</span>
+        <button class="vp-status-filter active" data-status-filter="all"          onclick="setVpStatusFilter('all', event)"          style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:14px;padding:4px 12px;font-size:10px;font-family:'DM Mono',monospace;cursor:pointer">📋 TODOS</button>
+        <button class="vp-status-filter"        data-status-filter="not_started"  onclick="setVpStatusFilter('not_started', event)"  style="background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:14px;padding:4px 12px;font-size:10px;font-family:'DM Mono',monospace;cursor:pointer">⚪ NO EMPEZADO</button>
+        <button class="vp-status-filter"        data-status-filter="testing"      onclick="setVpStatusFilter('testing', event)"      style="background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:14px;padding:4px 12px;font-size:10px;font-family:'DM Mono',monospace;cursor:pointer">🟢 VIDEOS TESTEOS</button>
+        <button class="vp-status-filter"        data-status-filter="scaling"      onclick="setVpStatusFilter('scaling', event)"      style="background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:14px;padding:4px 12px;font-size:10px;font-family:'DM Mono',monospace;cursor:pointer">🔵 VIDEOS ESCALADOS</button>
+        <button class="vp-status-filter"        data-status-filter="task_done"    onclick="setVpStatusFilter('task_done', event)"    style="background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:14px;padding:4px 12px;font-size:10px;font-family:'DM Mono',monospace;cursor:pointer">✅ TAREA TERMINADA</button>
+        <span id="vp-status-filter-count" style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;margin-left:auto"></span>
+      </div>
+
       <!-- Panel para agregar producto (oculto por default) -->
       <div id="vp-add-panel" style="display:none;background:var(--surface);border:2px solid #22C55E;border-radius:12px;padding:14px;margin-bottom:14px">
         <div style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:14px;color:#22C55E;margin-bottom:6px">+ Vincular producto existente</div>
@@ -13557,11 +13568,43 @@ async function initVideosProd(forceReload){
 
 function filterVideosProdList(){
   const q = (document.getElementById('vp-search')?.value || '').toLowerCase().trim();
+  const statusFilter = window._vpStatusFilter || 'all';
+  let visible = 0, total = 0;
   document.querySelectorAll('#vp-list .vp-product-card').forEach(card => {
+    total++;
     const title = (card.dataset.title || '').toLowerCase();
     const handle = (card.dataset.handle || '').toLowerCase();
-    card.style.display = (!q || title.includes(q) || handle.includes(q)) ? '' : 'none';
+    const cardStatus = card.dataset.taskStatus || 'not_started';
+    const matchText = !q || title.includes(q) || handle.includes(q);
+    const matchStatus = statusFilter === 'all' || cardStatus === statusFilter;
+    const show = matchText && matchStatus;
+    card.style.display = show ? '' : 'none';
+    if (show) visible++;
   });
+  const counter = document.getElementById('vp-status-filter-count');
+  if (counter) counter.textContent = (statusFilter === 'all' && !q) ? '' : `${visible}/${total}`;
+}
+
+function setVpStatusFilter(status, ev){
+  if (ev) ev.preventDefault();
+  window._vpStatusFilter = status;
+  // Actualizar visual de los chips
+  document.querySelectorAll('.vp-status-filter').forEach(btn => {
+    const isActive = btn.dataset.statusFilter === status;
+    btn.classList.toggle('active', isActive);
+    if (isActive) {
+      btn.style.background = 'var(--accent-soft, var(--surface2))';
+      btn.style.borderColor = 'var(--accent)';
+      btn.style.color = 'var(--accent)';
+      btn.style.fontWeight = '700';
+    } else {
+      btn.style.background = 'transparent';
+      btn.style.borderColor = 'var(--border)';
+      btn.style.color = 'var(--muted)';
+      btn.style.fontWeight = '400';
+    }
+  });
+  filterVideosProdList();
 }
 
 function renderVideosProdList(){
@@ -13569,6 +13612,8 @@ function renderVideosProdList(){
   if (!list) return;
   const html = window._vpData.products.map(p => renderVideosProdCard(p)).join('');
   list.innerHTML = html;
+  // Re-aplicar filtros (texto + estado) después de re-renderizar
+  filterVideosProdList();
 }
 
 function renderVideosProdCard(p){
@@ -13622,7 +13667,7 @@ function renderVideosProdCard(p){
   }
 
   return `
-    <div class="vp-product-card" data-handle="${esc(handle)}" data-title="${esc(title)}" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;${leftBar}">
+    <div class="vp-product-card" data-handle="${esc(handle)}" data-title="${esc(title)}" data-task-status="${esc(status)}" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;${leftBar}">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;padding:12px 14px;cursor:pointer;gap:8px" onclick="toggleVideosProdCard('${esc(handle)}')">
         <div style="flex:1;min-width:0">
           <div style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:14px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(title)}</div>
