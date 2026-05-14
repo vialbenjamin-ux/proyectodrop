@@ -13458,10 +13458,12 @@ window._vpData = window._vpData || { products: [], rankings: {}, folderContents:
 
 // Estado de tarea diaria a nivel PRODUCTO (independiente del status por carpeta).
 // Permite al admin asignar al trabajador "este producto está en testeo / escalado".
+// task_done = trabajo confirmado terminado (admin O colaborador pueden marcarlo).
 const VP_TASK_STATES = {
-  not_started: { label: '⚪ NO EMPEZADO',     barColor: 'transparent', tagBg: '#94A3B81a', tagColor: '#94A3B8' },
-  testing:     { label: '🟢 VIDEOS TESTEOS',  barColor: '#22C55E',     tagBg: '#22C55E22', tagColor: '#22C55E' },
-  scaling:     { label: '🔵 VIDEOS ESCALADOS', barColor: '#3B82F6',    tagBg: '#3B82F622', tagColor: '#3B82F6' }
+  not_started: { label: '⚪ NO EMPEZADO',      barColor: 'transparent', tagBg: '#94A3B81a', tagColor: '#94A3B8' },
+  testing:     { label: '🟢 VIDEOS TESTEOS',   barColor: '#22C55E',     tagBg: '#22C55E22', tagColor: '#22C55E' },
+  scaling:     { label: '🔵 VIDEOS ESCALADOS', barColor: '#3B82F6',     tagBg: '#3B82F622', tagColor: '#3B82F6' },
+  task_done:   { label: '✅ TAREA TERMINADA',  barColor: '#10B981',     tagBg: '#10B98122', tagColor: '#10B981' }
 };
 
 async function initVideosProd(forceReload){
@@ -13545,25 +13547,19 @@ function renderVideosProdCard(p){
     ? `box-shadow:inset 6px 0 0 ${cfg.barColor}`
     : '';
 
-  // Botones de admin (cambiar estado) vs worker (marcar terminado)
-  let statusControls = '';
-  if (admin) {
-    // 3 botones de cambio de estado
-    statusControls = `
-      <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap" onclick="event.stopPropagation()">
-        ${Object.entries(VP_TASK_STATES).map(([key, c]) => {
-          const isActive = status === key;
-          return `<button onclick="setProductTaskStatus('${esc(handle)}','${key}')" style="background:${isActive?c.tagBg:'transparent'};color:${isActive?c.tagColor:'var(--muted)'};border:1px solid ${isActive?c.tagColor:'var(--border)'};border-radius:14px;padding:3px 10px;font-size:10px;font-family:'DM Mono',monospace;font-weight:${isActive?700:400};cursor:pointer;white-space:nowrap">${c.label}</button>`;
-        }).join('')}
-      </div>`;
-  } else {
-    // Worker ve solo el badge del estado + botón terminar (si aplica)
-    statusControls = `
-      <div style="display:flex;gap:6px;align-items:center" onclick="event.stopPropagation()">
-        <span style="background:${cfg.tagBg};color:${cfg.tagColor};border-radius:14px;padding:3px 10px;font-size:10px;font-family:'DM Mono',monospace;font-weight:700;white-space:nowrap">${cfg.label}${isDone?' · ✅ TERMINADO':''}</span>
-        ${(status !== 'not_started' && !isDone) ? `<button onclick="markProductTaskDone('${esc(handle)}')" style="background:#22C55E;color:#fff;border:none;border-radius:14px;padding:3px 10px;font-size:10px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer;white-space:nowrap">✓ TERMINADO</button>` : ''}
-      </div>`;
-  }
+  // Botones de estado. Admin puede clickear cualquiera. Worker SOLO puede clickear TAREA TERMINADA.
+  // El estado "task_done" es el confirma-listo, tanto admin como worker pueden marcarlo.
+  const statusControls = `
+    <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap" onclick="event.stopPropagation()">
+      ${Object.entries(VP_TASK_STATES).map(([key, c]) => {
+        const isActive = status === key;
+        const canClick = admin || key === 'task_done';
+        const cursor = canClick ? 'pointer' : 'default';
+        const onClickAttr = canClick ? `onclick="setProductTaskStatus('${esc(handle)}','${key}')"` : '';
+        const opacity = (!canClick && !isActive) ? '0.55' : '1';
+        return `<button ${onClickAttr} style="background:${isActive?c.tagBg:'transparent'};color:${isActive?c.tagColor:'var(--muted)'};border:1px solid ${isActive?c.tagColor:'var(--border)'};border-radius:14px;padding:3px 10px;font-size:10px;font-family:'DM Mono',monospace;font-weight:${isActive?700:400};cursor:${cursor};white-space:nowrap;opacity:${opacity}" ${canClick?'':'disabled'}>${c.label}</button>`;
+      }).join('')}
+    </div>`;
 
   // Fechas + Responsable: editables para admin, solo lectura para worker
   let datesUI = '';
@@ -13606,11 +13602,16 @@ function renderVideosProdCard(p){
   `;
 }
 
-// Cambia el estado de tarea diaria del producto (NO EMPEZADO / TESTEOS / ESCALADOS).
-// Solo admin. Al cambiar de estado, resetea done=false.
+// Cambia el estado de tarea (NO EMPEZADO / TESTEOS / ESCALADOS / TAREA TERMINADA).
+// Admin puede setear cualquiera. Worker SOLO puede setear "task_done".
 async function setProductTaskStatus(handle, newStatus){
-  if (typeof isAdmin === 'function' && !isAdmin()) {
-    showToast('Solo el administrador puede cambiar el estado', '🔒', 'error');
+  const admin = (typeof isAdmin === 'function') && isAdmin();
+  if (!admin && newStatus !== 'task_done') {
+    showToast('Solo el administrador puede cambiar este estado', '🔒', 'error');
+    return;
+  }
+  if (!VP_TASK_STATES[newStatus]) {
+    showToast('Estado inválido', '⚠️', 'error');
     return;
   }
   try {
@@ -13620,9 +13621,15 @@ async function setProductTaskStatus(handle, newStatus){
     const update = {
       handle,
       status: newStatus,
-      done: false,
       updatedAt: Date.now()
     };
+    if (newStatus === 'task_done') {
+      update.done = true;
+      update.doneAt = Date.now();
+      update.doneBy = (typeof currentUser !== 'undefined' && currentUser) ? currentUser : '';
+    } else {
+      update.done = false;
+    }
     await db.collection('bkdrop_video_product_tasks').doc(handle).set(update, { merge: true });
     window._vpData.productTasks[handle] = { ...prev, ...update };
     renderVideosProdList();
