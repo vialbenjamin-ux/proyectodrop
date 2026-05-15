@@ -1,28 +1,28 @@
-// TikTok Marketing API OAuth callback.
+// TikTok Marketing API OAuth callback (Netlify Functions v2).
 // Flow: usuario hace click en "Conectar TikTok" en BKDROP → es redirigido a TikTok
 // auth URL → autoriza → TikTok redirige acá con ?code=XXX&state=YYY.
-// Acá intercambiamos el code por un access_token usando el secret del backend
+// Intercambiamos el code por un access_token usando el secret del backend
 // (que NUNCA viaja al cliente) y lo guardamos en Netlify Blobs ('bk-tokens')
 // para que sea compartido entre browsers (AdsPower / Chrome normal).
 
-const { getStore } = require('@netlify/blobs');
+import { getStore } from '@netlify/blobs';
 
-exports.handler = async (event) => {
-  const params = event.queryStringParameters || {};
-  const code = params.code || params.auth_code;
-  const errorMsg = params.error || params.error_description;
+export default async function handler(req) {
+  const url = new URL(req.url);
+  const code = url.searchParams.get('code') || url.searchParams.get('auth_code');
+  const errorMsg = url.searchParams.get('error') || url.searchParams.get('error_description');
 
   if (errorMsg) {
-    return renderHtml('Error al autorizar TikTok', `<p>TikTok devolvió un error: <b>${escapeHtml(errorMsg)}</b></p><p>Intentá de nuevo desde BKDROP.</p>`);
+    return htmlResponse('Error al autorizar TikTok', `<p>TikTok devolvió un error: <b>${escapeHtml(errorMsg)}</b></p><p>Intentá de nuevo desde BKDROP.</p>`);
   }
   if (!code) {
-    return renderHtml('Falta el código de autorización', '<p>TikTok no envió el parámetro <code>code</code>. Reintentá la conexión desde BKDROP.</p>');
+    return htmlResponse('Falta el código de autorización', '<p>TikTok no envió el parámetro <code>code</code>. Reintentá la conexión desde BKDROP.</p>');
   }
 
   const appId  = process.env.TIKTOK_APP_ID;
   const secret = process.env.TIKTOK_APP_SECRET;
   if (!appId || !secret) {
-    return renderHtml('Faltan credenciales', '<p>El servidor no tiene <code>TIKTOK_APP_ID</code> y/o <code>TIKTOK_APP_SECRET</code> configuradas.</p>');
+    return htmlResponse('Faltan credenciales', '<p>El servidor no tiene <code>TIKTOK_APP_ID</code> y/o <code>TIKTOK_APP_SECRET</code> configuradas.</p>');
   }
 
   try {
@@ -33,10 +33,9 @@ exports.handler = async (event) => {
     });
     const data = await resp.json();
 
-    // Estructura típica: { code: 0, message: "OK", data: { access_token, scope: [...], advertiser_ids: [...], ... } }
     if (!resp.ok || data.code !== 0 || !data.data || !data.data.access_token) {
       const msg = (data && (data.message || JSON.stringify(data))) || ('HTTP ' + resp.status);
-      return renderHtml('No se pudo obtener el token', `<p>TikTok respondió:</p><pre>${escapeHtml(msg).slice(0,500)}</pre>`);
+      return htmlResponse('No se pudo obtener el token', `<p>TikTok respondió:</p><pre>${escapeHtml(msg).slice(0,500)}</pre>`);
     }
 
     const payload = {
@@ -46,22 +45,19 @@ exports.handler = async (event) => {
       connected_at: new Date().toISOString(),
     };
 
-    // Guardar en Netlify Blobs (server-side, compartido entre browsers).
     try {
       const store = getStore({ name: 'bk-tokens', consistency: 'strong' });
       await store.setJSON('tiktok_auth', payload);
     } catch (e) {
-      return renderHtml('No se pudo guardar el token', `<p>Falló el storage del servidor: <code>${escapeHtml(e.message || 'error')}</code></p>`);
+      return htmlResponse('No se pudo guardar el token', `<p>Falló el storage del servidor: <code>${escapeHtml(e.message || 'error')}</code></p>`);
     }
 
-    // El frontend también guarda una marca en localStorage para no llamar al
-    // server cada vez que abre la pestaña. Embebemos los IDs (no el token) para
-    // la marca local.
-    const embedded = JSON.stringify({
+    // Marca local en el browser (sin el token) para evitar pegarle al server en el first load.
+    const meta = JSON.stringify({
       advertiser_ids: payload.advertiser_ids,
       connected_at: payload.connected_at,
     });
-    const safeEmbedded = embedded.replace(/</g, '\\u003c').replace(/>/g, '\\u003e');
+    const safeMeta = meta.replace(/</g, '\\u003c').replace(/>/g, '\\u003e');
 
     const html = `<!doctype html><html><head><meta charset="utf-8"><title>Conectando TikTok…</title>
 <style>
@@ -80,8 +76,7 @@ exports.handler = async (event) => {
 <script>
 (function(){
   try {
-    var meta = ${safeEmbedded};
-    // Marca local sin el token (el token vive en el server).
+    var meta = ${safeMeta};
     localStorage.setItem('bkdrop_tiktok_connected', JSON.stringify(meta));
     setTimeout(function(){ location.replace('/#reportes-tiktok-conectado'); }, 1500);
   } catch (e) {
@@ -91,17 +86,16 @@ exports.handler = async (event) => {
 </script>
 </body></html>`;
 
-    return {
-      statusCode: 200,
+    return new Response(html, {
+      status: 200,
       headers: { 'Content-Type': 'text/html; charset=utf-8' },
-      body: html,
-    };
+    });
   } catch (err) {
-    return renderHtml('Error de red', `<p>No pudimos contactar TikTok: <code>${escapeHtml(err.message || 'error')}</code></p>`);
+    return htmlResponse('Error de red', `<p>No pudimos contactar TikTok: <code>${escapeHtml(err.message || 'error')}</code></p>`);
   }
-};
+}
 
-function renderHtml(title, bodyHtml) {
+function htmlResponse(title, bodyHtml) {
   const html = `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title>
 <style>
   body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0f1115;color:#e5e7eb;margin:0;padding:40px 20px;display:flex;align-items:center;justify-content:center;min-height:100vh}
@@ -118,9 +112,14 @@ function renderHtml(title, bodyHtml) {
   <p><a href="/">← Volver a BKDROP</a></p>
 </div>
 </body></html>`;
-  return { statusCode: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' }, body: html };
+  return new Response(html, {
+    status: 200,
+    headers: { 'Content-Type': 'text/html; charset=utf-8' },
+  });
 }
 
 function escapeHtml(s) {
   return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
+
+export const config = { path: '/.netlify/functions/tiktok-oauth-callback' };

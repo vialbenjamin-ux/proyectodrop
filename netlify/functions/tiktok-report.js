@@ -1,45 +1,47 @@
 // TikTok Ads insights por campaña, formato unificado con meta-ads-insights.
 //
-// GET  /.netlify/functions/tiktok-report?advertiser_id=XXX&date_preset=last_7d
-// POST también acepta { advertiser_id, date_preset } por body (legacy).
-// El access_token se lee de Netlify Blobs ('bk-tokens'/'tiktok_auth'), compartido
-// entre browsers.
+// GET /.netlify/functions/tiktok-report?advertiser_id=XXX&date_preset=last_7d
+// access_token leído de Netlify Blobs ('bk-tokens'/'tiktok_auth').
+// Si la cuenta no es CLP, convierte automáticamente a CLP via open.er-api.com.
 
-const { getStore } = require('@netlify/blobs');
+import { getStore } from '@netlify/blobs';
 
-exports.handler = async (event) => {
-  if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 204, headers: corsHeaders(), body: '' };
-  }
-  if (event.httpMethod !== 'GET' && event.httpMethod !== 'POST') {
-    return respond(405, { error: 'Method not allowed' });
-  }
+function cors() {
+  return {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+  };
+}
+function json(status, payload) {
+  return new Response(JSON.stringify(payload), {
+    status,
+    headers: { 'Content-Type': 'application/json', ...cors() },
+  });
+}
 
-  // Parámetros: pueden venir por query o por body.
-  const qs = event.queryStringParameters || {};
-  let bodyJson = {};
-  if (event.httpMethod === 'POST') {
-    try { bodyJson = JSON.parse(event.body || '{}'); } catch {}
-  }
-  const advertiserId = qs.advertiser_id || bodyJson.advertiser_id;
-  if (!advertiserId) {
-    return respond(400, { error: 'Falta advertiser_id' });
-  }
+export default async function handler(req) {
+  if (req.method === 'OPTIONS') return new Response('', { status: 204, headers: cors() });
+  if (req.method !== 'GET' && req.method !== 'POST') return json(405, { error: 'Method not allowed' });
+
+  const url = new URL(req.url);
+  const advertiserId = url.searchParams.get('advertiser_id');
+  const datePreset = url.searchParams.get('date_preset') || 'today';
+  if (!advertiserId) return json(400, { error: 'Falta advertiser_id' });
+
+  const range = computeDateRange(datePreset);
+  if (!range) return json(400, { error: 'date_preset inválido' });
 
   // Token: leer de Netlify Blobs
   let token;
   try {
     const store = getStore({ name: 'bk-tokens', consistency: 'strong' });
     const auth = await store.get('tiktok_auth', { type: 'json' });
-    if (!auth || !auth.access_token) return respond(401, { error: 'NOT_CONNECTED' });
+    if (!auth || !auth.access_token) return json(401, { error: 'NOT_CONNECTED' });
     token = auth.access_token;
   } catch (e) {
-    return respond(500, { error: 'Storage error: ' + (e.message || 'unknown') });
+    return json(500, { error: 'Storage error: ' + (e.message || 'unknown') });
   }
-
-  const datePreset = qs.date_preset || bodyJson.date_preset || 'today';
-  const range = computeDateRange(datePreset);
-  if (!range) return respond(400, { error: 'date_preset inválido' });
 
   const metrics = [
     'spend','impressions','clicks','ctr','cpc','cpm','conversion','cost_per_conversion',
@@ -58,7 +60,6 @@ exports.handler = async (event) => {
     page: '1',
     page_size: '200',
   });
-
   const reportUrl   = 'https://business-api.tiktok.com/open_api/v1.3/report/integrated/get/?' + reportQs.toString();
   const campaignsUrl = 'https://business-api.tiktok.com/open_api/v1.3/campaign/get/?' +
     new URLSearchParams({
@@ -79,14 +80,12 @@ exports.handler = async (event) => {
     const campsData  = await campsR.json();
     const advData    = await advR.json();
 
-    // FX: si la cuenta no es CLP, convertimos a CLP usando frankfurter.app.
-    // TikTok puede devolver advertiser/info como data:[...] o data:{list:[...]}
     const advertiserPreview = extractAdvertiserInfo(advData);
     const sourceCurrency = (advertiserPreview.currency || 'USD').toUpperCase();
     const fxRate = sourceCurrency === 'CLP' ? 1 : await getFxToClpRate(sourceCurrency);
 
     if (reportData.code !== 0) {
-      return respond(400, { error: 'TikTok report: ' + (reportData.message || 'error') });
+      return json(400, { error: 'TikTok report: ' + (reportData.message || 'error') });
     }
 
     const campsById = {};
@@ -102,8 +101,7 @@ exports.handler = async (event) => {
       }
     }
 
-    const advertiser = advertiserPreview;
-    const accountName = advertiser.name || '';
+    const accountName = advertiserPreview.name || '';
     const willConvert = fxRate && fxRate !== 1;
     const currency = willConvert ? 'CLP' : sourceCurrency;
 
@@ -113,11 +111,10 @@ exports.handler = async (event) => {
       const m   = r.metrics || {};
       const campId = dim.campaign_id;
       const camp = campsById[campId] || {};
-      const purchases    = parseFloat(m.complete_payment || m.conversion || 0);
+      const purchases     = parseFloat(m.complete_payment || m.conversion || 0);
       const purchaseValue = purchases > 0 ? (purchases * parseFloat(m.value_per_complete_payment || 0)) : 0;
       const roas          = parseFloat(m.complete_payment_roas || 0);
       const cpa           = parseFloat(m.cost_per_conversion || 0) || null;
-
       return {
         id: campId,
         name: camp.name || dim.campaign_name || '(sin nombre)',
@@ -140,7 +137,6 @@ exports.handler = async (event) => {
       };
     });
 
-    // Aplicar conversión a CLP si la cuenta original no es CLP.
     if (willConvert) {
       const moneyFields = ['dailyBudget','lifetimeBudget','spend','cpc','cpm','purchaseValue','cpa'];
       for (const row of rows) {
@@ -150,7 +146,7 @@ exports.handler = async (event) => {
 
     rows.sort((a, b) => b.spend - a.spend);
 
-    return respond(200, {
+    return json(200, {
       rows,
       currency,
       originalCurrency: sourceCurrency,
@@ -162,43 +158,10 @@ exports.handler = async (event) => {
       endDate: range.end,
     });
   } catch (err) {
-    return respond(502, { error: 'Red TikTok: ' + (err.message || 'error') });
-  }
-};
-
-// Convierte date_preset estilo Meta a un rango YYYY-MM-DD para TikTok.
-function computeDateRange(preset) {
-  const today = new Date();
-  const fmt = (d) => d.toISOString().slice(0,10);
-  const minus = (n) => { const d = new Date(today); d.setUTCDate(d.getUTCDate() - n); return d; };
-
-  switch (preset) {
-    case 'today':       return { start: fmt(today),        end: fmt(today) };
-    case 'yesterday':   return { start: fmt(minus(1)),     end: fmt(minus(1)) };
-    case 'last_3d':     return { start: fmt(minus(3)),     end: fmt(minus(1)) };
-    case 'last_7d':     return { start: fmt(minus(7)),     end: fmt(minus(1)) };
-    case 'last_14d':    return { start: fmt(minus(14)),    end: fmt(minus(1)) };
-    case 'last_28d':    return { start: fmt(minus(28)),    end: fmt(minus(1)) };
-    case 'last_30d':    return { start: fmt(minus(30)),    end: fmt(minus(1)) };
-    case 'last_90d':    return { start: fmt(minus(90)),    end: fmt(minus(1)) };
-    case 'this_month': {
-      const start = new Date(today.getUTCFullYear(), today.getUTCMonth(), 1);
-      return { start: fmt(start), end: fmt(today) };
-    }
-    case 'last_month': {
-      const start = new Date(today.getUTCFullYear(), today.getUTCMonth() - 1, 1);
-      const end   = new Date(today.getUTCFullYear(), today.getUTCMonth(), 0);
-      return { start: fmt(start), end: fmt(end) };
-    }
-    case 'maximum':     return { start: '2020-01-01',      end: fmt(today) };
-    default: return null;
+    return json(502, { error: 'Red TikTok: ' + (err.message || 'error') });
   }
 }
 
-// TikTok devuelve advertiser/info en formatos distintos según versión:
-// - { code:0, data:[{...}] }
-// - { code:0, data:{ list:[{...}] } }
-// Probamos ambos para extraer el primer advertiser.
 function extractAdvertiserInfo(advData) {
   if (!advData || advData.code !== 0) return {};
   if (Array.isArray(advData.data)) return advData.data[0] || {};
@@ -207,7 +170,6 @@ function extractAdvertiserInfo(advData) {
 }
 
 async function getFxToClpRate(fromCurrency) {
-  // open.er-api.com es gratis, sin API key, y soporta COP/CLP (frankfurter solo majors).
   try {
     const r = await fetch('https://open.er-api.com/v6/latest/' + encodeURIComponent(fromCurrency));
     if (!r.ok) return null;
@@ -218,17 +180,31 @@ async function getFxToClpRate(fromCurrency) {
   } catch { return null; }
 }
 
-function corsHeaders() {
-  return {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
-  };
+function computeDateRange(preset) {
+  const today = new Date();
+  const fmt = (d) => d.toISOString().slice(0,10);
+  const minus = (n) => { const d = new Date(today); d.setUTCDate(d.getUTCDate() - n); return d; };
+  switch (preset) {
+    case 'today':       return { start: fmt(today),     end: fmt(today) };
+    case 'yesterday':   return { start: fmt(minus(1)),  end: fmt(minus(1)) };
+    case 'last_3d':     return { start: fmt(minus(3)),  end: fmt(minus(1)) };
+    case 'last_7d':     return { start: fmt(minus(7)),  end: fmt(minus(1)) };
+    case 'last_14d':    return { start: fmt(minus(14)), end: fmt(minus(1)) };
+    case 'last_28d':    return { start: fmt(minus(28)), end: fmt(minus(1)) };
+    case 'last_30d':    return { start: fmt(minus(30)), end: fmt(minus(1)) };
+    case 'last_90d':    return { start: fmt(minus(90)), end: fmt(minus(1)) };
+    case 'this_month': {
+      const start = new Date(today.getUTCFullYear(), today.getUTCMonth(), 1);
+      return { start: fmt(start), end: fmt(today) };
+    }
+    case 'last_month': {
+      const start = new Date(today.getUTCFullYear(), today.getUTCMonth() - 1, 1);
+      const end   = new Date(today.getUTCFullYear(), today.getUTCMonth(), 0);
+      return { start: fmt(start), end: fmt(end) };
+    }
+    case 'maximum':     return { start: '2020-01-01', end: fmt(today) };
+    default: return null;
+  }
 }
-function respond(statusCode, payload) {
-  return {
-    statusCode,
-    headers: { 'Content-Type': 'application/json', ...corsHeaders() },
-    body: JSON.stringify(payload),
-  };
-}
+
+export const config = { path: '/.netlify/functions/tiktok-report' };
