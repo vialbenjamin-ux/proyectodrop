@@ -2138,7 +2138,7 @@
       </div>
 
       <!-- KPIs -->
-      <div class="reporte-kpis" style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:14px;margin-bottom:24px">
+      <div class="reporte-kpis" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:24px">
         <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:18px 20px">
           <div style="font-size:10px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">Órdenes hoy</div>
           <div id="reporte-total-orders" style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:32px;color:var(--accent)">—</div>
@@ -2152,11 +2152,6 @@
           <div style="font-size:10px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">Ventas netas</div>
           <div id="reporte-total-revenue" style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:26px;color:var(--accent)">—</div>
           <div id="reporte-total-revenue-delta" style="font-size:11px;font-family:'DM Mono',monospace;margin-top:4px;letter-spacing:.3px;min-height:14px"></div>
-        </div>
-        <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:18px 20px" title="Cruce real Meta×Shopify (con COGS) + spend TikTok + modelo COD. Respeta el rango Desde/Hasta.">
-          <div style="font-size:10px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">Ganancia (período) <span style="color:var(--muted2);font-size:9px;text-transform:none;letter-spacing:0">(con COGS · COD)</span></div>
-          <div id="reporte-ganancia-hoy" style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:26px;color:var(--muted2)">—</div>
-          <div id="reporte-ganancia-hoy-detail" style="font-size:10px;font-family:'DM Mono',monospace;margin-top:4px;letter-spacing:.3px;min-height:14px;color:var(--muted2)"></div>
         </div>
       </div>
 
@@ -13206,7 +13201,6 @@ async function fetchShopifyReport() {
       document.getElementById('reporte-total-revenue').textContent =
         '$' + Math.round(data.totals.totalRevenue).toLocaleString('es-CL');
       document.getElementById('reporte-fecha').textContent = '📅 ' + dateFrom + ' → ' + dateTo;
-      try { actualizarGananciaHoy({ totalRevenue: data.totals.totalRevenue, totalOrders: data.totals.totalOrders, totalProducts: data.totals.totalProducts }); } catch(e) {}
 
       var rHtml = '';
       data.days.forEach(function(d, i) {
@@ -13253,7 +13247,6 @@ async function fetchShopifyReport() {
       document.getElementById('reporte-fecha').textContent = '📅 ' + data.date;
       setReporteDelta('reporte-total-orders-delta', data.totalOrders, data.previousDay && data.previousDay.totalOrders);
       setReporteDelta('reporte-total-revenue-delta', data.totalRevenue, data.previousDay && data.previousDay.totalRevenue);
-      try { actualizarGananciaHoy({ totalRevenue: data.totalRevenue, totalOrders: data.totalOrders, totalProducts: data.totalProducts }); } catch(e) {}
 
       var srcHtml = '';
       var srcDefs = [
@@ -15317,117 +15310,6 @@ function renderTikTokKpisAndTable(){
 
 function escapeHtmlSafe(s){
   return String(s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-}
-
-// ── GANANCIA del período (cruce real con COGS + modelo COD + spend TikTok) ──
-// Usa cross-report (Meta × Shopify con COGS) para todas las cuentas del tenant,
-// suma gasto TikTok separado, aplica el modelo COD (confirm × entrega + envío).
-async function actualizarGananciaHoy(data){
-  const el       = document.getElementById('reporte-ganancia-hoy');
-  const detailEl = document.getElementById('reporte-ganancia-hoy-detail');
-  if (!el) return;
-  el.textContent = 'Calculando…';
-  el.style.color = 'var(--muted2)';
-  detailEl.textContent = '';
-
-  const ventas  = Number(data && data.totalRevenue) || 0;
-  const ordenes = Number(data && data.totalOrders) || 0;
-
-  // Leer rango del reporte (si los inputs no existen, default a hoy)
-  const fromInput = document.getElementById('reporte-date-from');
-  const toInput   = document.getElementById('reporte-date-to');
-  const todayISO  = new Date().toISOString().slice(0,10);
-  const since = (fromInput && fromInput.value) || todayISO;
-  const until = (toInput   && toInput.value)   || todayISO;
-
-  const tenant = (typeof getCurrentTenant === 'function') ? getCurrentTenant() : 'chile';
-  const tParam = tenant === 'gt' ? '&tenant=gt' : '';
-
-  // Meta: usar cross-report (incluye COGS y revenue del cruce con Shopify)
-  const metaPromise = (async () => {
-    try {
-      const accRes = await fetch('/.netlify/functions/meta-ad-accounts?tenant=' + encodeURIComponent(tenant));
-      const accData = await accRes.json();
-      const accounts = accData.accounts || [];
-      if (!accounts.length) return { spend: 0, cogs: 0, revenueMeta: 0, accounts: 0 };
-      const results = await Promise.all(accounts.map(async (a) => {
-        try {
-          const url = '/.netlify/functions/cross-report?account_id=' + encodeURIComponent(a.id)
-                    + '&since=' + encodeURIComponent(since) + '&until=' + encodeURIComponent(until) + tParam;
-          const r = await fetch(url);
-          if (!r.ok) return { spend: 0, cogs: 0, revenueMeta: 0 };
-          const d = await r.json();
-          const k = d.kpis || {};
-          return {
-            spend: k.spend || 0,
-            cogs:  k.cogs  || 0,
-            revenueMeta: k.realRevenue || 0,
-          };
-        } catch { return { spend: 0, cogs: 0, revenueMeta: 0 }; }
-      }));
-      return results.reduce((acc, r) => ({
-        spend: acc.spend + r.spend,
-        cogs: acc.cogs + r.cogs,
-        revenueMeta: acc.revenueMeta + r.revenueMeta,
-        accounts: accounts.length,
-      }), { spend: 0, cogs: 0, revenueMeta: 0, accounts: 0 });
-    } catch { return { spend: 0, cogs: 0, revenueMeta: 0, accounts: 0 }; }
-  })();
-
-  // TikTok: spend del rango (no incluido en cross-report)
-  const tiktokPromise = (async () => {
-    const auth = (typeof getTikTokAuth === 'function') ? getTikTokAuth() : null;
-    if (!auth) return { spend: 0, connected: false };
-    const advId = localStorage.getItem('bkdrop_tiktok_advertiser') || (auth.advertiser_ids && auth.advertiser_ids[0]);
-    if (!advId) return { spend: 0, connected: false };
-    try {
-      const url = '/.netlify/functions/tiktok-report?advertiser_id=' + encodeURIComponent(advId)
-                + '&since=' + encodeURIComponent(since) + '&until=' + encodeURIComponent(until);
-      const r = await fetch(url);
-      if (r.status === 401) return { spend: 0, connected: false };
-      const d = await r.json();
-      const spend = (d.rows || []).reduce((s, row) => s + (row.spend || 0), 0);
-      return { spend, connected: true };
-    } catch { return { spend: 0, connected: true }; }
-  })();
-
-  const [meta, tt] = await Promise.all([metaPromise, tiktokPromise]);
-
-  // COGS total estimado: si el cross-report tiene COGS de productos Meta,
-  // extrapolamos el ratio (cogs/revenueMeta) a las ventas totales (incluyendo
-  // orgánicas/TikTok). Si no hay datos Meta, COGS = 0 (mejor mostrar sin COGS
-  // que mostrar nada).
-  const cogsRatio = meta.revenueMeta > 0 ? (meta.cogs / meta.revenueMeta) : 0;
-  const cogsTotalEstimado = ventas * cogsRatio;
-
-  // Modelo COD
-  const cfg = (typeof getCodConfig === 'function') ? getCodConfig() : { confirmacion: 70, entrega: 70, envio: 8000 };
-  const tasaConfirm = cfg.confirmacion / 100;
-  const tasaEntrega = tasaConfirm * (cfg.entrega / 100);
-  const revenueReal = ventas * tasaEntrega;
-  const cogsReal    = cogsTotalEstimado * tasaEntrega;
-  const ordenesConfirmadas = ordenes * tasaConfirm;
-  const envioTotal  = ordenesConfirmadas * cfg.envio;
-  const spendAds    = meta.spend + tt.spend;
-  const ganancia    = revenueReal - cogsReal - envioTotal - spendAds;
-
-  const fmt = (v) => '$' + Math.round(v).toLocaleString('es-CL');
-  el.textContent = fmt(ganancia);
-  el.style.color = ganancia >= 0 ? '#22C55E' : '#E74C3C';
-
-  const cogsLabel = cogsRatio > 0
-    ? 'COGS: -' + fmt(cogsReal) + ' (' + Math.round(cogsRatio*100) + '%)'
-    : 'COGS: sin datos';
-  const parts = [
-    'Revenue real: ' + fmt(revenueReal),
-    cogsLabel,
-    'Envío: -' + fmt(envioTotal),
-    'Meta: -' + fmt(meta.spend),
-    (tt.connected ? 'TikTok: -' + fmt(tt.spend) : 'TikTok: sin conectar'),
-    '(' + cfg.confirmacion + '% conf · ' + cfg.entrega + '% entr · período: ' + since + ' → ' + until + ')',
-  ];
-  detailEl.textContent = parts.join(' · ');
-  detailEl.title = 'Cross-report (Meta×Shopify con COGS) + spend TikTok + modelo COD. Ajustar % en Cruce real → Config COD.';
 }
 
 // Si vuelve del OAuth con #reportes-tiktok-conectado, mover al tab y refrescar.
