@@ -27,10 +27,18 @@ export default async function handler(req) {
   const url = new URL(req.url);
   const advertiserId = url.searchParams.get('advertiser_id');
   const datePreset = url.searchParams.get('date_preset') || 'today';
+  const sinceParam = url.searchParams.get('since');
+  const untilParam = url.searchParams.get('until');
   if (!advertiserId) return json(400, { error: 'Falta advertiser_id' });
 
-  const range = computeDateRange(datePreset);
-  if (!range) return json(400, { error: 'date_preset inválido' });
+  // since/until override el date_preset si vienen ambos
+  let range;
+  if (sinceParam && untilParam && /^\d{4}-\d{2}-\d{2}$/.test(sinceParam) && /^\d{4}-\d{2}-\d{2}$/.test(untilParam)) {
+    range = { start: sinceParam, end: untilParam };
+  } else {
+    range = computeDateRange(datePreset);
+  }
+  if (!range) return json(400, { error: 'date_preset o since/until inválidos' });
 
   // Token: leer de Netlify Blobs
   let token;
