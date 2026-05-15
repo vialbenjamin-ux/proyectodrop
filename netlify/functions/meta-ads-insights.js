@@ -155,12 +155,15 @@ function corsHeaders() {
 }
 
 async function getUsdToClpRate() {
+  // open.er-api.com es gratis, sin API key, soporta todas las monedas
+  // (frankfurter.app solo cubre majors del ECB, sin CLP).
   try {
-    const r = await fetch('https://api.frankfurter.app/latest?from=USD&to=CLP');
+    const r = await fetch('https://open.er-api.com/v6/latest/USD');
     if (!r.ok) return null;
     const j = await r.json();
+    if (j && j.result !== 'success') return null;
     const rate = j && j.rates && j.rates.CLP ? Number(j.rates.CLP) : null;
-    return (rate && isFinite(rate)) ? rate : null;
+    return (rate && isFinite(rate) && rate > 0) ? rate : null;
   } catch { return null; }
 }
 

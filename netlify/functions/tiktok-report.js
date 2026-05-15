@@ -193,10 +193,12 @@ function extractAdvertiserInfo(advData) {
 }
 
 async function getFxToClpRate(fromCurrency) {
+  // open.er-api.com es gratis, sin API key, y soporta COP/CLP (frankfurter solo majors).
   try {
-    const r = await fetch('https://api.frankfurter.app/latest?from=' + encodeURIComponent(fromCurrency) + '&to=CLP');
+    const r = await fetch('https://open.er-api.com/v6/latest/' + encodeURIComponent(fromCurrency));
     if (!r.ok) return null;
     const j = await r.json();
+    if (j && j.result !== 'success') return null;
     const rate = j && j.rates && j.rates.CLP ? Number(j.rates.CLP) : null;
     return (rate && isFinite(rate) && rate > 0) ? rate : null;
   } catch { return null; }
