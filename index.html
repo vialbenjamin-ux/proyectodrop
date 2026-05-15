@@ -2353,6 +2353,7 @@
                 <option value="last_month">Mes pasado</option>
               </select>
               <button onclick="fetchTikTokAds()" style="background:#FE2C55;color:#fff;border:none;border-radius:20px;padding:7px 16px;font-size:11px;letter-spacing:.5px;cursor:pointer;font-family:'DM Mono',monospace">↻ Actualizar</button>
+              <button onclick="ttShowAllOrders()" title="Ver todas las órdenes TikTok del rango (atribuidas y huérfanas)" style="background:var(--surface);border:1.5px solid var(--border);color:var(--text);border-radius:20px;padding:6px 12px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer">📋 Todas las órdenes</button>
               <button onclick="disconnectTikTok()" title="Desconectar TikTok" style="background:transparent;border:1px solid var(--border);color:var(--muted2);border-radius:20px;padding:6px 12px;font-size:10px;font-family:'DM Mono',monospace;cursor:pointer">✕ Desconectar</button>
             </div>
           </div>
@@ -15423,6 +15424,89 @@ function ttShowOrders(campaignId, campaignName){
       </table>
       <div style="padding:12px 20px;background:var(--surface2);font-size:10px;color:var(--muted);line-height:1.6">
         💡 Las órdenes con badge 💜 (ej. <code>ChateaPro</code>) vienen por API externa. Verificá que tengan <code>utm_campaign</code> correcto para que se atribuyan bien.
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+}
+
+// ── Todas las órdenes TikTok del rango (atribuidas + huérfanas) ─────────────
+function ttShowAllOrders(){
+  if (!_ttData) return;
+  const all = [];
+  for (const row of (_ttData.rows || [])) {
+    for (const od of (row.orderDetails || [])) {
+      all.push({ ...od, matchedTo: row.name, campaignStatus: row.status });
+    }
+  }
+  for (const od of ((_ttData.orphan && _ttData.orphan.details) || [])) {
+    all.push({ ...od, matchedTo: null, campaignStatus: null });
+  }
+  if (!all.length) { alert('No hay órdenes TikTok en este rango.'); return; }
+
+  // Ordenar por fecha desc (más reciente primero)
+  all.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+
+  const domain = _ttData.shopifyDomain || '';
+  const fmt = (v) => v == null ? '—' : new Intl.NumberFormat('es-CL', { style:'currency', currency: _ttData.currency || 'CLP' }).format(v);
+  const total = all.reduce((s, o) => s + (o.total || 0), 0);
+  const matchedCount = all.filter(o => o.matchedTo).length;
+  const orphanCount = all.length - matchedCount;
+
+  const rowsHtml = all.map(o => {
+    const shopifyUrl = domain ? `https://${domain}/admin/orders/${o.id}` : '#';
+    const items = (o.items || []).map(it => `${it.qty}× ${escapeHtmlSafe(it.title)}`).join(', ') || '—';
+    const sourceBadge = o.sourceName
+      ? `<span style="background:rgba(99,102,241,.15);color:#6366f1;padding:1px 6px;border-radius:8px;font-size:9px;margin-left:4px">${escapeHtmlSafe(o.sourceName)}</span>`
+      : '';
+    const finStatus = o.financialStatus
+      ? `<span style="color:var(--muted2);font-size:10px;margin-left:6px">[${escapeHtmlSafe(o.financialStatus)}]</span>`
+      : '';
+    const date = o.createdAt ? new Date(o.createdAt).toLocaleString('es-CL', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }) : '';
+    const attr = o.matchedTo
+      ? `<span style="color:#22c55e;font-size:11px">✅ ${escapeHtmlSafe(o.matchedTo)}</span>`
+      : `<span style="color:#eab308;font-size:11px">🟡 Sin matchear</span>`;
+    return `
+      <tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:8px 10px;font-size:11px;color:var(--muted2);font-family:'DM Mono',monospace;white-space:nowrap">${date}</td>
+        <td style="padding:8px 10px;font-family:'DM Mono',monospace;font-size:11px">
+          <a href="${shopifyUrl}" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none;font-weight:700">${escapeHtmlSafe(o.name)}</a>
+          ${sourceBadge}${finStatus}
+        </td>
+        <td style="padding:8px 10px;font-size:11px;color:var(--text)">${items}</td>
+        <td style="padding:8px 10px;font-size:11px;color:var(--muted2);font-family:'DM Mono',monospace">${escapeHtmlSafe(o.utmCampaign || '—')}</td>
+        <td style="padding:8px 10px;font-size:11px">${attr}</td>
+        <td style="padding:8px 10px;text-align:right;font-family:'DM Mono',monospace;font-weight:700;color:var(--text)">${fmt(o.total)}</td>
+      </tr>`;
+  }).join('');
+
+  const modal = document.createElement('div');
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10000;display:flex;align-items:center;justify-content:center;padding:20px';
+  modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+  modal.innerHTML = `
+    <div style="background:var(--surface);border-radius:14px;max-width:1100px;width:100%;max-height:85vh;overflow:auto;border:1.5px solid var(--border)" onclick="event.stopPropagation()">
+      <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;background:var(--surface);z-index:1">
+        <div>
+          <div style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:16px;color:var(--text)">📋 Todas las órdenes TikTok</div>
+          <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;margin-top:2px">
+            ${all.length} órdenes · ${matchedCount} ✅ matcheadas · ${orphanCount} 🟡 sin matchear · Total: ${fmt(total)}
+          </div>
+        </div>
+        <button onclick="this.closest('[style*=\\'position:fixed\\']').remove()" style="background:transparent;border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer">✕ Cerrar</button>
+      </div>
+      <table style="width:100%;border-collapse:collapse">
+        <thead><tr style="border-bottom:1px solid var(--border);background:var(--surface2)">
+          <th style="text-align:left;padding:8px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">FECHA</th>
+          <th style="text-align:left;padding:8px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">ORDEN</th>
+          <th style="text-align:left;padding:8px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">ITEMS</th>
+          <th style="text-align:left;padding:8px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">UTM_CAMPAIGN</th>
+          <th style="text-align:left;padding:8px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">ATRIBUCIÓN</th>
+          <th style="text-align:right;padding:8px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">TOTAL</th>
+        </tr></thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+      <div style="padding:12px 20px;background:var(--surface2);font-size:10px;color:var(--muted);line-height:1.6">
+        💡 Click sobre el número de orden para abrir en Shopify Admin. Las "sin matchear" son de campañas TikTok eliminadas — sus UTMs los podés re-atribuir en el modal de mapping.
       </div>
     </div>
   `;
