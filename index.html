@@ -2347,13 +2347,13 @@
             </div>
           </div>
 
-          <!-- KPIs TikTok -->
+          <!-- KPIs TikTok (basados en cruce real con Shopify) -->
           <div class="meta-kpis">
             <div class="meta-kpi"><div class="meta-kpi-label">GASTADO</div><div id="tt-kpi-spend" class="meta-kpi-val">—</div></div>
-            <div class="meta-kpi"><div class="meta-kpi-label">COMPRAS</div><div id="tt-kpi-purchases" class="meta-kpi-val">—</div></div>
-            <div class="meta-kpi"><div class="meta-kpi-label">REVENUE</div><div id="tt-kpi-pvalue" class="meta-kpi-val">—</div></div>
-            <div class="meta-kpi"><div class="meta-kpi-label">CPA</div><div id="tt-kpi-cpa" class="meta-kpi-val">—</div></div>
-            <div class="meta-kpi"><div class="meta-kpi-label">ROAS</div><div id="tt-kpi-roas" class="meta-kpi-val">—</div></div>
+            <div class="meta-kpi"><div class="meta-kpi-label">ÓRDENES REALES</div><div id="tt-kpi-purchases" class="meta-kpi-val">—</div></div>
+            <div class="meta-kpi"><div class="meta-kpi-label">REVENUE REAL</div><div id="tt-kpi-pvalue" class="meta-kpi-val">—</div></div>
+            <div class="meta-kpi"><div class="meta-kpi-label">CPA REAL</div><div id="tt-kpi-cpa" class="meta-kpi-val">—</div></div>
+            <div class="meta-kpi"><div class="meta-kpi-label">ROAS REAL</div><div id="tt-kpi-roas" class="meta-kpi-val">—</div></div>
           </div>
 
           <!-- Tabla campañas -->
@@ -2375,17 +2375,18 @@
             </div>
             <div id="tt-loading" style="padding:24px;text-align:center;color:var(--muted2);font-size:12px;display:none">Cargando...</div>
             <div id="tt-error" style="display:none;padding:24px 20px;color:var(--peach);font-size:12px;line-height:1.6"></div>
-            <div class="reporte-scroll"><table id="tt-table" style="display:none;width:100%;border-collapse:collapse;font-size:11px;min-width:880px">
+            <div class="reporte-scroll"><table id="tt-table" style="display:none;width:100%;border-collapse:collapse;font-size:11px;min-width:980px">
               <thead>
                 <tr style="border-bottom:1px solid var(--border);background:var(--surface2)">
                   <th style="text-align:left;padding:10px 14px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">CAMPAÑA</th>
                   <th style="text-align:center;padding:10px 8px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">ESTADO</th>
                   <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">PPTO/DÍA</th>
                   <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">GASTO</th>
-                  <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">COMPRAS</th>
-                  <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">REVENUE</th>
-                  <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">CPA</th>
-                  <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">ROAS</th>
+                  <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500" title="Compras según pixel/CAPI de TikTok">TIKTOK</th>
+                  <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--accent);font-weight:600" title="Órdenes únicas en Shopify atribuidas a esta campaña vía utm_source=tiktok">ÓRDENES</th>
+                  <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--text);font-weight:500" title="Unidades totales (combos suman más)">UNID.</th>
+                  <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--accent);font-weight:600" title="CPA real basado en órdenes Shopify">CPA REAL</th>
+                  <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--accent);font-weight:600" title="ROAS real basado en revenue Shopify">ROAS REAL</th>
                   <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">CTR</th>
                   <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">CPC</th>
                 </tr>
@@ -15232,7 +15233,10 @@ async function fetchTikTokAds(){
   tableEl.style.display   = 'none';
 
   try {
-    const url = '/.netlify/functions/tiktok-report?advertiser_id=' + encodeURIComponent(advertiserId) + '&date_preset=' + encodeURIComponent(datePreset);
+    const tenant = (typeof getCurrentTenant === 'function') ? getCurrentTenant() : 'chile';
+    const url = '/.netlify/functions/tiktok-report?advertiser_id=' + encodeURIComponent(advertiserId)
+              + '&date_preset=' + encodeURIComponent(datePreset)
+              + '&tenant=' + encodeURIComponent(tenant);
     const r = await fetch(url);
     const d = await r.json();
     if (r.status === 401 || d.error === 'NOT_CONNECTED') {
@@ -15269,19 +15273,19 @@ function renderTikTokKpisAndTable(){
     return true;
   });
 
-  const totalSpend     = rows.reduce((s,r) => s + (r.spend||0), 0);
-  const totalPurchases = rows.reduce((s,r) => s + (r.purchases||0), 0);
-  const totalPValue    = rows.reduce((s,r) => s + (r.purchaseValue||0), 0);
-  const cpa = totalPurchases > 0 ? totalSpend / totalPurchases : null;
-  const roas = totalSpend > 0 ? totalPValue / totalSpend : null;
+  const totalSpend         = rows.reduce((s,r) => s + (r.spend||0), 0);
+  const totalRealPurchases = rows.reduce((s,r) => s + (r.realPurchases||0), 0);
+  const totalRealRevenue   = rows.reduce((s,r) => s + (r.realRevenue||0), 0);
+  const cpaReal  = totalRealPurchases > 0 ? totalSpend / totalRealPurchases : null;
+  const roasReal = totalSpend > 0 && totalRealRevenue > 0 ? totalRealRevenue / totalSpend : null;
   const currency = _ttData.currency || 'USD';
 
   const fmtMoney = (v) => v == null ? '—' : new Intl.NumberFormat('es-CL', { style:'currency', currency }).format(v);
   document.getElementById('tt-kpi-spend').textContent     = fmtMoney(totalSpend);
-  document.getElementById('tt-kpi-purchases').textContent = totalPurchases || '—';
-  document.getElementById('tt-kpi-pvalue').textContent    = fmtMoney(totalPValue);
-  document.getElementById('tt-kpi-cpa').textContent       = fmtMoney(cpa);
-  document.getElementById('tt-kpi-roas').textContent      = roas == null ? '—' : roas.toFixed(2) + 'x';
+  document.getElementById('tt-kpi-purchases').textContent = totalRealPurchases || '—';
+  document.getElementById('tt-kpi-pvalue').textContent    = totalRealRevenue ? fmtMoney(totalRealRevenue) : '—';
+  document.getElementById('tt-kpi-cpa').textContent       = cpaReal == null ? '—' : fmtMoney(cpaReal);
+  document.getElementById('tt-kpi-roas').textContent      = roasReal == null ? '—' : roasReal.toFixed(2) + 'x';
 
   const tbody = document.getElementById('tt-tbody');
   tbody.innerHTML = rows.map(r => {
@@ -15294,17 +15298,22 @@ function renderTikTokKpisAndTable(){
         <td style="text-align:center;padding:10px 8px">${statusBadge}</td>
         <td style="text-align:right;padding:10px 10px;color:var(--muted2);font-family:'DM Mono',monospace">${r.dailyBudget ? fmtMoney(r.dailyBudget) : '—'}</td>
         <td style="text-align:right;padding:10px 10px;color:var(--text);font-family:'DM Mono',monospace;font-weight:600">${fmtMoney(r.spend)}</td>
-        <td style="text-align:right;padding:10px 10px;color:var(--text);font-family:'DM Mono',monospace">${r.purchases || '—'}</td>
-        <td style="text-align:right;padding:10px 10px;color:var(--text);font-family:'DM Mono',monospace">${r.purchaseValue ? fmtMoney(r.purchaseValue) : '—'}</td>
-        <td style="text-align:right;padding:10px 10px;color:var(--muted2);font-family:'DM Mono',monospace">${r.cpa ? fmtMoney(r.cpa) : '—'}</td>
-        <td style="text-align:right;padding:10px 10px;color:${r.roas>=1?'#22c55e':'var(--muted2)'};font-family:'DM Mono',monospace;font-weight:600">${r.roas ? r.roas.toFixed(2)+'x' : '—'}</td>
+        <td style="text-align:right;padding:10px 10px;color:var(--muted2);font-family:'DM Mono',monospace">${r.purchases || '—'}</td>
+        <td style="text-align:right;padding:10px 10px;color:var(--accent);font-family:'DM Mono',monospace;font-weight:700">${r.realPurchases || '—'}</td>
+        <td style="text-align:right;padding:10px 10px;color:var(--text);font-family:'DM Mono',monospace">${r.realUnits || '—'}</td>
+        <td style="text-align:right;padding:10px 10px;color:var(--accent);font-family:'DM Mono',monospace;font-weight:600">${r.cpaReal ? fmtMoney(r.cpaReal) : '—'}</td>
+        <td style="text-align:right;padding:10px 10px;color:${r.roasReal>=1?'#22c55e':'var(--muted2)'};font-family:'DM Mono',monospace;font-weight:600">${r.roasReal ? r.roasReal.toFixed(2)+'x' : '—'}</td>
         <td style="text-align:right;padding:10px 10px;color:var(--muted2);font-family:'DM Mono',monospace">${r.ctr ? r.ctr.toFixed(2)+'%' : '—'}</td>
         <td style="text-align:right;padding:10px 10px;color:var(--muted2);font-family:'DM Mono',monospace">${r.cpc ? fmtMoney(r.cpc) : '—'}</td>
       </tr>`;
   }).join('');
 
   document.getElementById('tt-count').textContent = rows.length + ' de ' + (_ttData.rows||[]).length + ' campañas';
-  document.getElementById('tt-account-name').textContent = (_ttData.accountName||'') + ' · ' + (currency);
+  const accountInfo = (_ttData.accountName||'') + ' · ' + currency;
+  const crossInfo = _ttData.crossEnabled
+    ? (_ttData.unmatchedTikTokOrders > 0 ? ' · ⚠️ ' + _ttData.unmatchedTikTokOrders + ' órdenes TikTok sin matchear' : '')
+    : ' · ⚠️ cruce Shopify deshabilitado';
+  document.getElementById('tt-account-name').textContent = accountInfo + crossInfo;
   document.getElementById('tt-table').style.display = '';
 }
 

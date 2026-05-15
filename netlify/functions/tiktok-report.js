@@ -1,8 +1,12 @@
-// TikTok Ads insights por campaña, formato unificado con meta-ads-insights.
+// TikTok Ads insights por campaña, con cruce real Shopify×TikTok (CPA/ROAS reales).
 //
-// GET /.netlify/functions/tiktok-report?advertiser_id=XXX&date_preset=last_7d
+// GET /.netlify/functions/tiktok-report?advertiser_id=XXX&date_preset=last_7d[&tenant=chile|gt]
 // access_token leído de Netlify Blobs ('bk-tokens'/'tiktok_auth').
 // Si la cuenta no es CLP, convierte automáticamente a CLP via open.er-api.com.
+//
+// El cruce con Shopify se hace por utm_campaign matcheando el name de la campaña
+// TikTok (lowercase trim). Cada row incluye:
+//   realPurchases, realRevenue, cpaReal, roasReal (basado en órdenes Shopify).
 
 import { getStore } from '@netlify/blobs';
 
@@ -29,6 +33,8 @@ export default async function handler(req) {
   const datePreset = url.searchParams.get('date_preset') || 'today';
   const sinceParam = url.searchParams.get('since');
   const untilParam = url.searchParams.get('until');
+  const tenant = (url.searchParams.get('tenant') || 'chile').toLowerCase();
+  const isGT = tenant === 'gt';
   if (!advertiserId) return json(400, { error: 'Falta advertiser_id' });
 
   // since/until override el date_preset si vienen ambos
@@ -78,11 +84,17 @@ export default async function handler(req) {
     }).toString();
   const advUrl = 'https://business-api.tiktok.com/open_api/v1.3/advertiser/info/?advertiser_ids=' + encodeURIComponent(JSON.stringify([advertiserId]));
 
+  // Shopify credentials para el cruce
+  const shopifyDomain = isGT ? process.env.SHOPIFY_DOMAIN_GT : process.env.SHOPIFY_DOMAIN;
+  const shopifyToken  = isGT ? process.env.SHOPIFY_TOKEN_GT  : process.env.SHOPIFY_TOKEN;
+  const canCross = !!(shopifyDomain && shopifyToken);
+
   try {
-    const [reportR, campsR, advR] = await Promise.all([
+    const [reportR, campsR, advR, shopifyOrders] = await Promise.all([
       fetch(reportUrl, { headers: { 'Access-Token': token } }),
       fetch(campaignsUrl, { headers: { 'Access-Token': token } }),
       fetch(advUrl, { headers: { 'Access-Token': token } }),
+      canCross ? fetchShopifyOrders(shopifyDomain, shopifyToken, range.start, range.end).catch(() => []) : Promise.resolve([]),
     ]);
     const reportData = await reportR.json();
     const campsData  = await campsR.json();
@@ -97,15 +109,48 @@ export default async function handler(req) {
     }
 
     const campsById = {};
+    const campsByName = {};
     if (campsData.code === 0 && campsData.data && Array.isArray(campsData.data.list)) {
       for (const c of campsData.data.list) {
-        campsById[c.campaign_id] = {
+        const camp = {
+          id: c.campaign_id,
           status: c.operation_status || '?',
           dailyBudget: c.budget_mode === 'BUDGET_MODE_DAY' ? Number(c.budget) : null,
           lifetimeBudget: c.budget_mode === 'BUDGET_MODE_TOTAL' ? Number(c.budget) : null,
           objective: c.objective_type || '',
           name: c.campaign_name || '',
         };
+        campsById[c.campaign_id] = camp;
+        const nameKey = (c.campaign_name || '').toLowerCase().trim();
+        if (nameKey) campsByName[nameKey] = camp;
+      }
+    }
+
+    // Cruzar órdenes Shopify (utm_source=tiktok) con campañas TikTok por nombre.
+    // ordersByCampaignId: { [campaignId]: { orders, qty, revenue } }
+    const ordersByCampaignId = {};
+    let unmatchedTikTokOrders = 0;
+    for (const order of shopifyOrders) {
+      if (extractUtmSource(order) !== 'tiktok') continue;
+      const utmCamp = extractUtmCampaign(order);
+      let campId = null;
+      if (utmCamp) {
+        // Match por ID exacto primero
+        if (campsById[utmCamp]) campId = utmCamp;
+        else {
+          // Match por nombre (lowercase trim)
+          const camp = campsByName[utmCamp.toLowerCase().trim()];
+          if (camp) campId = camp.id;
+        }
+      }
+      if (!campId) { unmatchedTikTokOrders++; continue; }
+      if (!ordersByCampaignId[campId]) ordersByCampaignId[campId] = { orders: 0, qty: 0, revenue: 0 };
+      ordersByCampaignId[campId].orders += 1;
+      const orderRevenue = computeOrderRevenue(order);
+      ordersByCampaignId[campId].revenue += orderRevenue;
+      for (const li of (order.line_items || [])) {
+        const refunded = getRefundedQty(order, li.id);
+        ordersByCampaignId[campId].qty += Math.max(0, (li.quantity || 0) - refunded);
       }
     }
 
@@ -123,6 +168,15 @@ export default async function handler(req) {
       const purchaseValue = purchases > 0 ? (purchases * parseFloat(m.value_per_complete_payment || 0)) : 0;
       const roas          = parseFloat(m.complete_payment_roas || 0);
       const cpa           = parseFloat(m.cost_per_conversion || 0) || null;
+      const spend         = parseFloat(m.spend || 0);
+
+      // Cruce real con Shopify (utm_source=tiktok matcheado por campaign name)
+      const shop = ordersByCampaignId[campId] || { orders: 0, qty: 0, revenue: 0 };
+      const realPurchases = shop.orders;
+      const realRevenue   = shop.revenue;
+      const cpaReal  = realPurchases > 0 ? spend / realPurchases : null;
+      const roasReal = spend > 0 && realRevenue > 0 ? realRevenue / spend : null;
+
       return {
         id: campId,
         name: camp.name || dim.campaign_name || '(sin nombre)',
@@ -130,7 +184,7 @@ export default async function handler(req) {
         objective: camp.objective || '',
         dailyBudget: camp.dailyBudget,
         lifetimeBudget: camp.lifetimeBudget,
-        spend: parseFloat(m.spend || 0),
+        spend,
         impressions: parseInt(m.impressions || 0, 10),
         clicks: parseInt(m.clicks || 0, 10),
         cpc: parseFloat(m.cpc || 0),
@@ -142,13 +196,24 @@ export default async function handler(req) {
         purchaseValue,
         cpa,
         roas: roas > 0 ? roas : null,
+        // Cruce real (los nombres siguen el patrón de cross-report Meta)
+        realPurchases,
+        realUnits: shop.qty,
+        realRevenue,
+        cpaReal,
+        roasReal,
       };
     });
 
     if (willConvert) {
+      // Campos en moneda TikTok: se convierten. realRevenue viene de Shopify
+      // (CLP siempre), no se convierte. cpaReal/roasReal se recalculan con spend
+      // ya convertido a CLP.
       const moneyFields = ['dailyBudget','lifetimeBudget','spend','cpc','cpm','purchaseValue','cpa'];
       for (const row of rows) {
         for (const k of moneyFields) if (row[k] != null) row[k] = row[k] * fxRate;
+        if (row.realPurchases > 0) row.cpaReal = row.spend / row.realPurchases;
+        if (row.spend > 0 && row.realRevenue > 0) row.roasReal = row.realRevenue / row.spend;
       }
     }
 
@@ -164,6 +229,9 @@ export default async function handler(req) {
       datePreset,
       startDate: range.start,
       endDate: range.end,
+      tenant,
+      crossEnabled: canCross,
+      unmatchedTikTokOrders,
     });
   } catch (err) {
     return json(502, { error: 'Red TikTok: ' + (err.message || 'error') });
@@ -213,6 +281,88 @@ function computeDateRange(preset) {
     case 'maximum':     return { start: '2020-01-01', end: fmt(today) };
     default: return null;
   }
+}
+
+// ── Helpers Shopify (copiados de cross-report.js para autocontener) ─────────
+
+async function fetchShopifyOrders(domain, token, startDateISO, endDateISO) {
+  const FIELDS = 'id,line_items,landing_site,referring_site,source_name,cancelled_at,financial_status,refunds,created_at,current_subtotal_price,note_attributes';
+  // startDateISO/endDateISO son YYYY-MM-DD. Convertimos a rango UTC del día completo.
+  const start = new Date(startDateISO + 'T00:00:00Z').toISOString();
+  const end   = new Date(endDateISO   + 'T23:59:59Z').toISOString();
+  let url = `https://${domain}/admin/api/2024-10/orders.json?status=any&created_at_min=${start}&created_at_max=${end}&limit=250&fields=${FIELDS}`;
+  let all = [];
+  while (url) {
+    const resp = await fetch(url, { headers: { 'X-Shopify-Access-Token': token, 'Content-Type': 'application/json' } });
+    if (!resp.ok) throw new Error('Shopify API error ' + resp.status);
+    const data = await resp.json();
+    const filtered = (data.orders || []).filter(o => !o.cancelled_at && o.financial_status !== 'voided');
+    all = all.concat(filtered);
+    const linkHeader = resp.headers.get('Link') || '';
+    const nextMatch = linkHeader.match(/<([^>]+)>;\s*rel="next"/);
+    url = nextMatch ? nextMatch[1] : null;
+  }
+  return all;
+}
+
+function extractUtmSource(order) {
+  const attrs = order.note_attributes || [];
+  const utmAttr = attrs.find(a => a.name && a.name.toLowerCase().replace(/_/g, ' ') === 'utm source');
+  if (utmAttr && utmAttr.value) {
+    const s = utmAttr.value.toLowerCase().trim();
+    if (['facebook','instagram','fb','meta'].includes(s)) return 'meta';
+    if (s === 'tiktok') return 'tiktok';
+    return s;
+  }
+  for (const field of [order.landing_site, order.referring_site]) {
+    if (!field) continue;
+    try {
+      const u = new URL(field.startsWith('http') ? field : 'https://x.com' + field);
+      const src = u.searchParams.get('utm_source');
+      if (src) {
+        const s = src.toLowerCase();
+        if (['facebook','instagram','fb','meta'].includes(s)) return 'meta';
+        if (s === 'tiktok') return 'tiktok';
+        return s;
+      }
+      if (u.searchParams.get('ttclid')) return 'tiktok';
+      if (u.searchParams.get('fbclid')) return 'meta';
+    } catch (_) {}
+  }
+  const sn = (order.source_name || '').toLowerCase().trim();
+  if (sn === 'tiktok') return 'tiktok';
+  return 'directo';
+}
+
+function extractUtmCampaign(order) {
+  const attrs = order.note_attributes || [];
+  const utmAttr = attrs.find(a => a.name && a.name.toLowerCase().replace(/_/g, ' ') === 'utm campaign');
+  if (utmAttr && utmAttr.value) return utmAttr.value.trim();
+  for (const field of [order.landing_site, order.referring_site]) {
+    if (!field) continue;
+    try {
+      const u = new URL(field.startsWith('http') ? field : 'https://x.com' + field);
+      const camp = u.searchParams.get('utm_campaign');
+      if (camp) return camp;
+    } catch (_) {}
+  }
+  return null;
+}
+
+function getRefundedQty(order, lineItemId) {
+  if (!order.refunds) return 0;
+  let qty = 0;
+  for (const refund of order.refunds)
+    for (const ri of (refund.refund_line_items || []))
+      if (ri.line_item_id === lineItemId) qty += ri.quantity || 0;
+  return qty;
+}
+
+function computeOrderRevenue(order) {
+  // Subtotal Shopify menos refunds parciales
+  let revenue = parseFloat(order.current_subtotal_price || 0);
+  if (!isFinite(revenue) || revenue < 0) revenue = 0;
+  return revenue;
 }
 
 export const config = { path: '/.netlify/functions/tiktok-report' };
