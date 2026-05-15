@@ -121,7 +121,7 @@ export default async function handler(req) {
           name: c.campaign_name || '',
         };
         campsById[c.campaign_id] = camp;
-        const nameKey = (c.campaign_name || '').toLowerCase().trim();
+        const nameKey = normalizeCampaignName(c.campaign_name);
         if (nameKey) campsByName[nameKey] = camp;
       }
     }
@@ -137,7 +137,7 @@ export default async function handler(req) {
       if (utmCamp) {
         if (campsById[utmCamp]) campId = utmCamp;
         else {
-          const camp = campsByName[utmCamp.toLowerCase().trim()];
+          const camp = campsByName[normalizeCampaignName(utmCamp)];
           if (camp) campId = camp.id;
         }
       }
@@ -372,6 +372,20 @@ function computeOrderRevenue(order) {
   let revenue = parseFloat(order.current_subtotal_price || 0);
   if (!isFinite(revenue) || revenue < 0) revenue = 0;
   return revenue;
+}
+
+// Normaliza nombres de campaña / utm_campaign para comparar:
+// - '+' → espacio (URL-encoded form)
+// - '%20' → espacio (URL-encoded estándar)
+// - varios espacios → uno
+// - lowercase + trim
+function normalizeCampaignName(s) {
+  return String(s || '')
+    .replace(/\+/g, ' ')
+    .replace(/%20/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .toLowerCase()
+    .trim();
 }
 
 export const config = { path: '/.netlify/functions/tiktok-report' };
