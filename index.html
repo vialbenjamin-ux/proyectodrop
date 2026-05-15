@@ -2110,6 +2110,7 @@
       <div class="report-subtabs">
         <button class="report-subtab active" data-tab="shopify" onclick="switchReportTab('shopify')">📊 Shopify</button>
         <button class="report-subtab" data-tab="meta" onclick="switchReportTab('meta')">📈 Meta Ads</button>
+        <button class="report-subtab" data-tab="tiktok" onclick="switchReportTab('tiktok')">🎵 TikTok Ads</button>
         <button class="report-subtab" data-tab="cross" onclick="switchReportTab('cross')">📐 Cruce real</button>
         <button class="report-subtab" data-tab="topflop" onclick="switchReportTab('topflop')">🏆 Top/Flop</button>
       </div>
@@ -2137,7 +2138,7 @@
       </div>
 
       <!-- KPIs -->
-      <div class="reporte-kpis" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:24px">
+      <div class="reporte-kpis" style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:14px;margin-bottom:24px">
         <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:18px 20px">
           <div style="font-size:10px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">Órdenes hoy</div>
           <div id="reporte-total-orders" style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:32px;color:var(--accent)">—</div>
@@ -2151,6 +2152,11 @@
           <div style="font-size:10px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">Ventas netas</div>
           <div id="reporte-total-revenue" style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:26px;color:var(--accent)">—</div>
           <div id="reporte-total-revenue-delta" style="font-size:11px;font-family:'DM Mono',monospace;margin-top:4px;letter-spacing:.3px;min-height:14px"></div>
+        </div>
+        <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:18px 20px" title="Ventas netas − Gasto Meta hoy − Gasto TikTok hoy. No incluye costos de producto ni fees.">
+          <div style="font-size:10px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">Ganancia hoy <span style="color:var(--muted2);font-size:9px;text-transform:none;letter-spacing:0">(– ads)</span></div>
+          <div id="reporte-ganancia-hoy" style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:26px;color:var(--muted2)">—</div>
+          <div id="reporte-ganancia-hoy-detail" style="font-size:10px;font-family:'DM Mono',monospace;margin-top:4px;letter-spacing:.3px;min-height:14px;color:var(--muted2)"></div>
         </div>
       </div>
 
@@ -2314,6 +2320,82 @@
         </div>
 
       </div><!-- /#report-tab-meta -->
+
+      <!-- Tab TikTok Ads -->
+      <div id="report-tab-tiktok" style="display:none">
+        <!-- Estado: no conectado -->
+        <div id="tt-connect-block" style="display:none;background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:32px 24px;text-align:center">
+          <div style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:20px;color:var(--text);margin-bottom:8px">🎵 Conectar TikTok Ads</div>
+          <div style="font-size:12px;color:var(--muted);line-height:1.6;margin:8px auto 18px;max-width:480px">Autorizá BKDROP a leer las métricas de tus campañas TikTok. Vamos a abrir la pantalla oficial de TikTok donde elegís el advertiser que querés conectar.</div>
+          <button onclick="connectTikTok()" style="background:#FE2C55;color:#fff;border:none;border-radius:20px;padding:11px 24px;font-size:13px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">🎵 Conectar con TikTok</button>
+        </div>
+
+        <!-- Estado: conectado, mostrar tabla -->
+        <div id="tt-connected-block" style="display:none">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px">
+            <div>
+              <div style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:22px;color:var(--text)">🎵 TikTok Ads</div>
+              <div id="tt-account-name" style="font-size:11px;color:var(--muted);margin-top:2px;letter-spacing:.5px"></div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <select id="tt-advertiser-select" onchange="onTikTokAdvertiserChange()" style="background:var(--surface);border:1.5px solid var(--border);color:var(--text);padding:6px 12px;border-radius:20px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer;outline:none"></select>
+              <select id="tt-date-preset" onchange="fetchTikTokAds()" style="background:var(--surface);border:1.5px solid var(--border);color:var(--text);padding:6px 12px;border-radius:20px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer;outline:none">
+                <option value="today">Hoy</option>
+                <option value="yesterday">Ayer</option>
+                <option value="last_7d" selected>Últimos 7 días</option>
+                <option value="last_30d">Últimos 30 días</option>
+                <option value="this_month">Este mes</option>
+                <option value="last_month">Mes pasado</option>
+              </select>
+              <button onclick="fetchTikTokAds()" style="background:#FE2C55;color:#fff;border:none;border-radius:20px;padding:7px 16px;font-size:11px;letter-spacing:.5px;cursor:pointer;font-family:'DM Mono',monospace">↻ Actualizar</button>
+              <button onclick="disconnectTikTok()" title="Desconectar TikTok" style="background:transparent;border:1px solid var(--border);color:var(--muted2);border-radius:20px;padding:6px 12px;font-size:10px;font-family:'DM Mono',monospace;cursor:pointer">✕ Desconectar</button>
+            </div>
+          </div>
+
+          <!-- KPIs TikTok -->
+          <div class="meta-kpis">
+            <div class="meta-kpi"><div class="meta-kpi-label">GASTADO</div><div id="tt-kpi-spend" class="meta-kpi-val">—</div></div>
+            <div class="meta-kpi"><div class="meta-kpi-label">COMPRAS</div><div id="tt-kpi-purchases" class="meta-kpi-val">—</div></div>
+            <div class="meta-kpi"><div class="meta-kpi-label">REVENUE</div><div id="tt-kpi-pvalue" class="meta-kpi-val">—</div></div>
+            <div class="meta-kpi"><div class="meta-kpi-label">CPA</div><div id="tt-kpi-cpa" class="meta-kpi-val">—</div></div>
+            <div class="meta-kpi"><div class="meta-kpi-label">ROAS</div><div id="tt-kpi-roas" class="meta-kpi-val">—</div></div>
+          </div>
+
+          <!-- Tabla campañas -->
+          <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:14px;overflow:hidden">
+            <div style="padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+              <div style="font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted)">Campañas</div>
+              <div style="position:relative;flex:1;max-width:280px">
+                <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--muted2);font-size:11px">🔍</span>
+                <input type="text" id="tt-filter" placeholder="Filtrar por nombre…" oninput="onTikTokFilterChange()"
+                  style="width:100%;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:6px 10px 6px 28px;border-radius:18px;font-size:11px;font-family:'DM Mono',monospace;outline:none">
+              </div>
+              <span id="tt-count" style="font-size:11px;color:var(--muted2);font-family:'DM Mono',monospace;margin-left:auto"></span>
+            </div>
+            <div id="tt-loading" style="padding:24px;text-align:center;color:var(--muted2);font-size:12px;display:none">Cargando...</div>
+            <div id="tt-error" style="display:none;padding:24px 20px;color:var(--peach);font-size:12px;line-height:1.6"></div>
+            <div class="reporte-scroll"><table id="tt-table" style="display:none;width:100%;border-collapse:collapse;font-size:11px;min-width:880px">
+              <thead>
+                <tr style="border-bottom:1px solid var(--border);background:var(--surface2)">
+                  <th style="text-align:left;padding:10px 14px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">CAMPAÑA</th>
+                  <th style="text-align:center;padding:10px 8px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">ESTADO</th>
+                  <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">PPTO/DÍA</th>
+                  <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">GASTO</th>
+                  <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">COMPRAS</th>
+                  <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">REVENUE</th>
+                  <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">CPA</th>
+                  <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">ROAS</th>
+                  <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">CTR</th>
+                  <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">CPC</th>
+                </tr>
+              </thead>
+              <tbody id="tt-tbody"></tbody>
+              <tfoot id="tt-tfoot"></tfoot>
+            </table></div>
+          </div>
+        </div>
+
+      </div><!-- /#report-tab-tiktok -->
 
       <!-- Tab Cruce real (Shopify × Meta) -->
       <div id="report-tab-cross" style="display:none">
@@ -13164,6 +13246,7 @@ async function fetchShopifyReport() {
       document.getElementById('reporte-fecha').textContent = '📅 ' + data.date;
       setReporteDelta('reporte-total-orders-delta', data.totalOrders, data.previousDay && data.previousDay.totalOrders);
       setReporteDelta('reporte-total-revenue-delta', data.totalRevenue, data.previousDay && data.previousDay.totalRevenue);
+      try { actualizarGananciaHoy(data.totalRevenue); } catch(e) {}
 
       var srcHtml = '';
       var srcDefs = [
@@ -15034,13 +15117,261 @@ function switchReportTab(tab){
   document.getElementById('report-tab-shopify').style.display = tab === 'shopify' ? '' : 'none';
   document.getElementById('report-tab-meta').style.display    = tab === 'meta'    ? '' : 'none';
   document.getElementById('report-tab-cross').style.display   = tab === 'cross'   ? '' : 'none';
+  const ttTab = document.getElementById('report-tab-tiktok');
+  if (ttTab) ttTab.style.display = tab === 'tiktok' ? '' : 'none';
   const tfTab = document.getElementById('report-tab-topflop');
   if (tfTab) tfTab.style.display = tab === 'topflop' ? '' : 'none';
   localStorage.setItem('bkdrop_report_tab', tab);
-  if (tab === 'meta')  initMetaTab();
-  if (tab === 'cross') initCrossTab();
+  if (tab === 'meta')   initMetaTab();
+  if (tab === 'cross')  initCrossTab();
+  if (tab === 'tiktok') initTikTokTab();
   if (tab === 'topflop') initTopFlopTab();
 }
+
+// ── TIKTOK ADS ───────────────────────────────────────────────────────────────
+const TIKTOK_APP_ID = '7639989704688467984';
+const TIKTOK_REDIRECT_URI = 'https://bkdrop.netlify.app/.netlify/functions/tiktok-oauth-callback';
+
+let _ttData = null;
+let _ttAdvertisersLoaded = false;
+
+function getTikTokAuth(){
+  try { return JSON.parse(localStorage.getItem('bkdrop_tiktok_auth') || 'null'); }
+  catch { return null; }
+}
+function clearTikTokAuth(){
+  localStorage.removeItem('bkdrop_tiktok_auth');
+}
+
+function connectTikTok(){
+  const state = 'bk_' + Math.random().toString(36).slice(2, 10);
+  const url = 'https://business-api.tiktok.com/portal/auth?app_id=' + encodeURIComponent(TIKTOK_APP_ID) +
+              '&state=' + encodeURIComponent(state) +
+              '&redirect_uri=' + encodeURIComponent(TIKTOK_REDIRECT_URI);
+  window.location.href = url;
+}
+
+function disconnectTikTok(){
+  if (!confirm('¿Desconectar TikTok? Tendrás que volver a autorizar.')) return;
+  clearTikTokAuth();
+  _ttAdvertisersLoaded = false;
+  initTikTokTab();
+}
+
+async function initTikTokTab(){
+  const auth = getTikTokAuth();
+  const connectBlock = document.getElementById('tt-connect-block');
+  const dataBlock    = document.getElementById('tt-connected-block');
+  if (!auth || !auth.access_token) {
+    connectBlock.style.display = '';
+    dataBlock.style.display    = 'none';
+    return;
+  }
+  connectBlock.style.display = 'none';
+  dataBlock.style.display    = '';
+  if (!_ttAdvertisersLoaded) {
+    await loadTikTokAdvertisers();
+    _ttAdvertisersLoaded = true;
+  }
+  if (document.getElementById('tt-advertiser-select').value) {
+    fetchTikTokAds();
+  }
+}
+
+async function loadTikTokAdvertisers(){
+  const auth = getTikTokAuth();
+  if (!auth) return;
+  const sel = document.getElementById('tt-advertiser-select');
+  sel.innerHTML = '<option>Cargando…</option>';
+  try {
+    const r = await fetch('/.netlify/functions/tiktok-advertisers', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ access_token: auth.access_token }),
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || ('HTTP ' + r.status));
+    const list = d.advertisers || [];
+    if (!list.length) {
+      sel.innerHTML = '<option>Sin advertisers</option>';
+      return;
+    }
+    sel.innerHTML = list.map(a => `<option value="${a.advertiser_id}" data-currency="${a.currency||''}">${escapeHtmlSafe(a.advertiser_name)}${a.currency?(' ('+a.currency+')'):''}</option>`).join('');
+    const saved = localStorage.getItem('bkdrop_tiktok_advertiser');
+    if (saved && list.some(a => a.advertiser_id === saved)) sel.value = saved;
+  } catch (e) {
+    sel.innerHTML = '<option>Error</option>';
+    document.getElementById('tt-error').style.display = '';
+    document.getElementById('tt-error').textContent = 'No se pudieron cargar los advertisers: ' + (e.message || e);
+  }
+}
+
+function onTikTokAdvertiserChange(){
+  const sel = document.getElementById('tt-advertiser-select');
+  localStorage.setItem('bkdrop_tiktok_advertiser', sel.value);
+  fetchTikTokAds();
+}
+
+async function fetchTikTokAds(){
+  const auth = getTikTokAuth();
+  if (!auth) return;
+  const advertiserId = document.getElementById('tt-advertiser-select').value;
+  if (!advertiserId) return;
+  const datePreset = document.getElementById('tt-date-preset').value;
+
+  const loadingEl = document.getElementById('tt-loading');
+  const errorEl   = document.getElementById('tt-error');
+  const tableEl   = document.getElementById('tt-table');
+  loadingEl.style.display = '';
+  errorEl.style.display   = 'none';
+  tableEl.style.display   = 'none';
+
+  try {
+    const r = await fetch('/.netlify/functions/tiktok-report', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ access_token: auth.access_token, advertiser_id: advertiserId, date_preset: datePreset }),
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || ('HTTP ' + r.status));
+    _ttData = d;
+    renderTikTokKpisAndTable();
+  } catch (e) {
+    errorEl.style.display = '';
+    errorEl.textContent = '⚠️ ' + (e.message || 'Error consultando TikTok');
+  } finally {
+    loadingEl.style.display = 'none';
+  }
+}
+
+function onTikTokFilterChange(){
+  if (_ttData) renderTikTokKpisAndTable();
+}
+
+function renderTikTokKpisAndTable(){
+  if (!_ttData) return;
+  const filter = (document.getElementById('tt-filter').value || '').trim().toLowerCase();
+  const rows = (_ttData.rows || []).filter(r => !filter || (r.name||'').toLowerCase().includes(filter));
+
+  const totalSpend     = rows.reduce((s,r) => s + (r.spend||0), 0);
+  const totalPurchases = rows.reduce((s,r) => s + (r.purchases||0), 0);
+  const totalPValue    = rows.reduce((s,r) => s + (r.purchaseValue||0), 0);
+  const cpa = totalPurchases > 0 ? totalSpend / totalPurchases : null;
+  const roas = totalSpend > 0 ? totalPValue / totalSpend : null;
+  const currency = _ttData.currency || 'USD';
+
+  const fmtMoney = (v) => v == null ? '—' : new Intl.NumberFormat('es-CL', { style:'currency', currency }).format(v);
+  document.getElementById('tt-kpi-spend').textContent     = fmtMoney(totalSpend);
+  document.getElementById('tt-kpi-purchases').textContent = totalPurchases || '—';
+  document.getElementById('tt-kpi-pvalue').textContent    = fmtMoney(totalPValue);
+  document.getElementById('tt-kpi-cpa').textContent       = fmtMoney(cpa);
+  document.getElementById('tt-kpi-roas').textContent      = roas == null ? '—' : roas.toFixed(2) + 'x';
+
+  const tbody = document.getElementById('tt-tbody');
+  tbody.innerHTML = rows.map(r => {
+    const statusBadge = r.status === 'STATUS_ENABLE'
+      ? '<span style="display:inline-block;background:rgba(34,197,94,.15);color:#22c55e;padding:2px 8px;border-radius:10px;font-size:9px;font-family:\'DM Mono\',monospace">ACTIVA</span>'
+      : '<span style="display:inline-block;background:rgba(156,163,175,.15);color:#9ca3af;padding:2px 8px;border-radius:10px;font-size:9px;font-family:\'DM Mono\',monospace">' + escapeHtmlSafe(String(r.status||'?').replace('STATUS_','')) + '</span>';
+    return `
+      <tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:10px 14px;color:var(--text)">${escapeHtmlSafe(r.name||'')}</td>
+        <td style="text-align:center;padding:10px 8px">${statusBadge}</td>
+        <td style="text-align:right;padding:10px 10px;color:var(--muted2);font-family:'DM Mono',monospace">${r.dailyBudget ? fmtMoney(r.dailyBudget) : '—'}</td>
+        <td style="text-align:right;padding:10px 10px;color:var(--text);font-family:'DM Mono',monospace;font-weight:600">${fmtMoney(r.spend)}</td>
+        <td style="text-align:right;padding:10px 10px;color:var(--text);font-family:'DM Mono',monospace">${r.purchases || '—'}</td>
+        <td style="text-align:right;padding:10px 10px;color:var(--text);font-family:'DM Mono',monospace">${r.purchaseValue ? fmtMoney(r.purchaseValue) : '—'}</td>
+        <td style="text-align:right;padding:10px 10px;color:var(--muted2);font-family:'DM Mono',monospace">${r.cpa ? fmtMoney(r.cpa) : '—'}</td>
+        <td style="text-align:right;padding:10px 10px;color:${r.roas>=1?'#22c55e':'var(--muted2)'};font-family:'DM Mono',monospace;font-weight:600">${r.roas ? r.roas.toFixed(2)+'x' : '—'}</td>
+        <td style="text-align:right;padding:10px 10px;color:var(--muted2);font-family:'DM Mono',monospace">${r.ctr ? r.ctr.toFixed(2)+'%' : '—'}</td>
+        <td style="text-align:right;padding:10px 10px;color:var(--muted2);font-family:'DM Mono',monospace">${r.cpc ? fmtMoney(r.cpc) : '—'}</td>
+      </tr>`;
+  }).join('');
+
+  document.getElementById('tt-count').textContent = rows.length + ' de ' + (_ttData.rows||[]).length + ' campañas';
+  document.getElementById('tt-account-name').textContent = (_ttData.accountName||'') + ' · ' + (currency);
+  document.getElementById('tt-table').style.display = '';
+}
+
+function escapeHtmlSafe(s){
+  return String(s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// ── GANANCIA HOY (Ventas netas − Gasto Meta − Gasto TikTok) ─────────────────
+async function actualizarGananciaHoy(ventasNetas){
+  const el       = document.getElementById('reporte-ganancia-hoy');
+  const detailEl = document.getElementById('reporte-ganancia-hoy-detail');
+  if (!el) return;
+  el.textContent = 'Calculando…';
+  el.style.color = 'var(--muted2)';
+  detailEl.textContent = '';
+
+  const ventas = Number(ventasNetas) || 0;
+  const tenant = (typeof getCurrentTenant === 'function') ? getCurrentTenant() : 'chile';
+  const tParam = tenant === 'gt' ? '&tenant=gt' : '';
+
+  // Meta: sumar spend de TODAS las cuentas del tenant para hoy
+  const metaPromise = (async () => {
+    try {
+      const accRes = await fetch('/.netlify/functions/meta-ad-accounts?tenant=' + encodeURIComponent(tenant));
+      const accData = await accRes.json();
+      const accounts = accData.accounts || [];
+      if (!accounts.length) return { spend: 0, accounts: 0 };
+      const spendArr = await Promise.all(accounts.map(async (a) => {
+        try {
+          const r = await fetch('/.netlify/functions/meta-ads-insights?account_id=' + encodeURIComponent(a.id) + '&date_preset=today' + tParam);
+          const d = await r.json();
+          return (d.rows || []).reduce((s, row) => s + (row.spend || 0), 0);
+        } catch { return 0; }
+      }));
+      return { spend: spendArr.reduce((s, v) => s + v, 0), accounts: accounts.length };
+    } catch { return { spend: 0, accounts: 0 }; }
+  })();
+
+  // TikTok: si hay token, traer gasto del advertiser actual
+  const tiktokPromise = (async () => {
+    const auth = (typeof getTikTokAuth === 'function') ? getTikTokAuth() : null;
+    if (!auth || !auth.access_token) return { spend: 0, connected: false };
+    const advId = localStorage.getItem('bkdrop_tiktok_advertiser') || (auth.advertiser_ids && auth.advertiser_ids[0]);
+    if (!advId) return { spend: 0, connected: false };
+    try {
+      const r = await fetch('/.netlify/functions/tiktok-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ access_token: auth.access_token, advertiser_id: advId, date_preset: 'today' }),
+      });
+      const d = await r.json();
+      const spend = (d.rows || []).reduce((s, row) => s + (row.spend || 0), 0);
+      return { spend, connected: true };
+    } catch { return { spend: 0, connected: true }; }
+  })();
+
+  const [meta, tt] = await Promise.all([metaPromise, tiktokPromise]);
+  const gastoAds = meta.spend + tt.spend;
+  const ganancia = ventas - gastoAds;
+
+  const fmt = (v) => '$' + Math.round(v).toLocaleString('es-CL');
+  el.textContent = fmt(ganancia);
+  el.style.color = ganancia >= 0 ? '#22C55E' : '#E74C3C';
+  const parts = [];
+  parts.push('Meta: ' + fmt(meta.spend));
+  if (tt.connected) parts.push('TikTok: ' + fmt(tt.spend));
+  else parts.push('TikTok: sin conectar');
+  detailEl.textContent = parts.join(' · ');
+}
+
+// Si vuelve del OAuth con #reportes-tiktok-conectado, mover al tab y refrescar.
+(function handleTikTokReturn(){
+  if (typeof window === 'undefined') return;
+  if ((window.location.hash || '').includes('reportes-tiktok-conectado')) {
+    setTimeout(() => {
+      try {
+        if (typeof switchSection === 'function') switchSection('reportes');
+        if (typeof switchReportTab === 'function') switchReportTab('tiktok');
+        history.replaceState(null, '', window.location.pathname);
+      } catch (e) {}
+    }, 300);
+  }
+})();
 
 // ── TOP / FLOP por producto ───────────────────────────────────────────────────
 let _tfData = null; // último resultado del cross-report cacheado
