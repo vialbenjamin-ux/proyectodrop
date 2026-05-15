@@ -15247,6 +15247,8 @@ async function fetchTikTokAds(){
     }
     if (!r.ok) throw new Error(d.error || ('HTTP ' + r.status));
     _ttData = d;
+    _ttDataOriginal = null; // reset cache, va a guardar la nueva
+    ttApplyMappings();
     renderTikTokKpisAndTable();
   } catch (e) {
     errorEl.style.display = '';
@@ -15417,21 +15419,139 @@ function ttShowOrders(campaignId, campaignName){
   document.body.appendChild(modal);
 }
 
-// Muestra un alert con el detalle de UTMs sin matchear vs los nombres de campañas TikTok.
+// ── UTM mappings (UTMs históricos → campañas actuales) ─────────────────────
+// Storage: localStorage, key 'bkdrop_tiktok_utm_mappings' = { utm: campaign_id }.
+function ttLoadMappings(){
+  try { return JSON.parse(localStorage.getItem('bkdrop_tiktok_utm_mappings') || '{}'); }
+  catch { return {}; }
+}
+function ttSaveMappings(m){
+  localStorage.setItem('bkdrop_tiktok_utm_mappings', JSON.stringify(m));
+}
+
+// Aplica los mappings a _ttData: mueve órdenes huérfanas a las campañas mapeadas
+// y recalcula realPurchases/realUnits/realRevenue/cpaReal/roasReal de cada row.
+function ttApplyMappings(){
+  if (!_ttData) return;
+  const mappings = ttLoadMappings();
+  const orphanDetails = (_ttData.orphan && _ttData.orphan.details) || [];
+
+  // Reset: restaurar los valores originales (los del backend)
+  if (!_ttDataOriginal) _ttDataOriginal = JSON.parse(JSON.stringify(_ttData));
+  _ttData = JSON.parse(JSON.stringify(_ttDataOriginal));
+
+  const rowsById = {};
+  for (const row of (_ttData.rows || [])) rowsById[row.id] = row;
+
+  const stillOrphan = [];
+  let stillOrphanQty = 0, stillOrphanRevenue = 0;
+
+  for (const od of (_ttData.orphan && _ttData.orphan.details) || []) {
+    const utmKey = (od.utmCampaign || '').trim();
+    const targetId = mappings[utmKey];
+    const targetRow = targetId ? rowsById[targetId] : null;
+    if (targetRow) {
+      // Mover orden a la campaña destino
+      targetRow.realPurchases = (targetRow.realPurchases || 0) + 1;
+      targetRow.realUnits     = (targetRow.realUnits || 0) + (od.qty || 0);
+      targetRow.realRevenue   = (targetRow.realRevenue || 0) + (od.total || 0);
+      if (!targetRow.orderDetails) targetRow.orderDetails = [];
+      targetRow.orderDetails.push({ ...od, _mapped: true });
+      // Recalcular cpaReal y roasReal con el spend ya existente
+      if (targetRow.spend > 0) {
+        targetRow.cpaReal = targetRow.realPurchases > 0 ? targetRow.spend / targetRow.realPurchases : null;
+        targetRow.roasReal = targetRow.realRevenue > 0 ? targetRow.realRevenue / targetRow.spend : null;
+      }
+    } else {
+      stillOrphan.push(od);
+      stillOrphanQty += od.qty || 0;
+      stillOrphanRevenue += od.total || 0;
+    }
+  }
+  _ttData.orphan = {
+    orders: stillOrphan.length,
+    qty: stillOrphanQty,
+    revenue: stillOrphanRevenue,
+    details: stillOrphan,
+  };
+  _ttData.unmatchedTikTokOrders = stillOrphan.length;
+  _ttData.unmatchedDetail = (_ttData.unmatchedDetail || []).filter(u => !mappings[u.utm.trim()]);
+}
+
+// Variable local para conservar el original (post-fetch)
+let _ttDataOriginal = null;
+
+// Modal con el detalle de UTMs sin matchear + UI para mapearlos a campañas actuales.
 function ttShowUnmatched(){
   if (!_ttData || !_ttData.unmatchedDetail) return;
-  const lines = ['ÓRDENES TIKTOK SIN MATCHEAR\n'];
-  lines.push('utm_campaign que no matchea con ningún campaign_name de TikTok:\n');
-  for (const u of _ttData.unmatchedDetail) {
-    lines.push('  • "' + u.utm + '"  ←  ' + u.count + ' órden' + (u.count === 1 ? '' : 'es'));
-  }
-  lines.push('\n\nNOMBRES DE CAMPAÑAS TIKTOK (para comparar):\n');
-  for (const n of (_ttData.campaignNames || []).slice(0, 30)) {
-    lines.push('  • ' + n);
-  }
-  if ((_ttData.campaignNames || []).length > 30) lines.push('  … y ' + ((_ttData.campaignNames || []).length - 30) + ' más');
-  lines.push('\n\nTIP: el matching es por nombre (lowercase, trim). Si el utm_campaign que llega de Shopify no coincide exactamente con un campaign_name, no matchea. Revisá cómo armás los UTMs en tus links de TikTok.');
-  alert(lines.join('\n'));
+  const mappings = ttLoadMappings();
+  const campaigns = ((_ttData.rows || []).map(r => ({ id: r.id, name: r.name }))).filter(c => c.id);
+
+  // Construir options del select
+  const campaignOptions = campaigns.map(c => `<option value="${c.id}">${escapeHtmlSafe(c.name)}</option>`).join('');
+
+  const rowsHtml = (_ttData.unmatchedDetail || []).map(u => {
+    const utm = u.utm;
+    const selected = mappings[utm.trim()] || '';
+    return `
+      <tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:8px 10px;font-family:'DM Mono',monospace;font-size:11px;color:var(--text)">${escapeHtmlSafe(utm)}</td>
+        <td style="padding:8px 10px;font-size:11px;color:var(--muted);text-align:right">${u.count}</td>
+        <td style="padding:8px 10px">
+          <select data-utm="${escapeHtmlSafe(utm).replace(/"/g, '&quot;')}" onchange="ttSetMapping(this)" style="background:var(--surface);border:1px solid var(--border);color:var(--text);padding:4px 8px;border-radius:6px;font-size:11px;font-family:'DM Mono',monospace;width:100%">
+            <option value="">— Ignorar (queda como histórico) —</option>
+            ${campaignOptions.replace(`value="${selected}"`, `value="${selected}" selected`)}
+          </select>
+        </td>
+      </tr>`;
+  }).join('');
+
+  const modal = document.createElement('div');
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10000;display:flex;align-items:center;justify-content:center;padding:20px';
+  modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+  modal.innerHTML = `
+    <div style="background:var(--surface);border-radius:14px;max-width:780px;width:100%;max-height:80vh;overflow:auto;border:1.5px solid var(--border)" onclick="event.stopPropagation()">
+      <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;background:var(--surface);z-index:1">
+        <div>
+          <div style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:16px;color:var(--text)">🔗 Mapear UTMs históricos a campañas actuales</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px">Las órdenes con UTMs viejos se atribuirán a la campaña que elijas. Mapping se guarda en localStorage.</div>
+        </div>
+        <button onclick="this.closest('[style*=\\'position:fixed\\']').remove()" style="background:transparent;border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer">✕ Cerrar</button>
+      </div>
+      <table style="width:100%;border-collapse:collapse">
+        <thead><tr style="border-bottom:1px solid var(--border);background:var(--surface2)">
+          <th style="text-align:left;padding:8px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">UTM_CAMPAIGN</th>
+          <th style="text-align:right;padding:8px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">ÓRDENES</th>
+          <th style="text-align:left;padding:8px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500;width:300px">CAMPAÑA DESTINO</th>
+        </tr></thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+      <div style="padding:12px 20px;background:var(--surface2);display:flex;gap:8px;align-items:center;justify-content:space-between">
+        <span style="font-size:10px;color:var(--muted)">💡 Cambios se aplican al instante. Los mappings persisten entre sesiones.</span>
+        <button onclick="ttClearAllMappings(); this.closest('[style*=\\'position:fixed\\']').remove();" style="background:var(--surface);border:1px solid var(--border);color:var(--muted2);border-radius:8px;padding:6px 12px;font-size:11px;cursor:pointer;font-family:'DM Mono',monospace">🗑 Borrar todos los mappings</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+}
+
+function ttSetMapping(selectEl){
+  const utm = selectEl.dataset.utm;
+  const campaignId = selectEl.value;
+  const mappings = ttLoadMappings();
+  if (campaignId) mappings[utm.trim()] = campaignId;
+  else delete mappings[utm.trim()];
+  ttSaveMappings(mappings);
+  // Re-render la tabla aplicando el nuevo mapping
+  ttApplyMappings();
+  renderTikTokKpisAndTable();
+}
+
+function ttClearAllMappings(){
+  if (!confirm('¿Borrar todos los mappings de UTMs?')) return;
+  ttSaveMappings({});
+  ttApplyMappings();
+  renderTikTokKpisAndTable();
 }
 
 function escapeHtmlSafe(s){
