@@ -129,6 +129,8 @@ export default async function handler(req) {
     // Cruzar órdenes Shopify (utm_source=tiktok) con campañas TikTok por nombre.
     const ordersByCampaignId = {};
     let unmatchedTikTokOrders = 0;
+    let unmatchedQty = 0;
+    let unmatchedRevenue = 0;
     const unmatchedUtmCounts = {}; // utm_campaign no matcheado → cantidad de órdenes
     for (const order of shopifyOrders) {
       if (extractUtmSource(order) !== 'tiktok') continue;
@@ -141,19 +143,24 @@ export default async function handler(req) {
           if (camp) campId = camp.id;
         }
       }
+      const orderRev = computeOrderRevenue(order);
+      let orderQty = 0;
+      for (const li of (order.line_items || [])) {
+        const refunded = getRefundedQty(order, li.id);
+        orderQty += Math.max(0, (li.quantity || 0) - refunded);
+      }
       if (!campId) {
         unmatchedTikTokOrders++;
+        unmatchedQty += orderQty;
+        unmatchedRevenue += orderRev;
         const key = utmCamp || '(sin utm_campaign)';
         unmatchedUtmCounts[key] = (unmatchedUtmCounts[key] || 0) + 1;
         continue;
       }
       if (!ordersByCampaignId[campId]) ordersByCampaignId[campId] = { orders: 0, qty: 0, revenue: 0 };
       ordersByCampaignId[campId].orders += 1;
-      ordersByCampaignId[campId].revenue += computeOrderRevenue(order);
-      for (const li of (order.line_items || [])) {
-        const refunded = getRefundedQty(order, li.id);
-        ordersByCampaignId[campId].qty += Math.max(0, (li.quantity || 0) - refunded);
-      }
+      ordersByCampaignId[campId].revenue += orderRev;
+      ordersByCampaignId[campId].qty += orderQty;
     }
     // Lista de los UTM no matcheados ordenada por frecuencia
     const unmatchedDetail = Object.entries(unmatchedUtmCounts)
@@ -239,6 +246,11 @@ export default async function handler(req) {
       crossEnabled: canCross,
       unmatchedTikTokOrders,
       unmatchedDetail,
+      orphan: {
+        orders: unmatchedTikTokOrders,
+        qty: unmatchedQty,
+        revenue: unmatchedRevenue,
+      },
       // Lista de nombres de campañas TikTok (para que el frontend muestre side-by-side al usuario)
       campaignNames: Object.values(campsByName).map(c => c.name).slice(0, 100),
     });
