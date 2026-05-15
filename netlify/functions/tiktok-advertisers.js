@@ -1,16 +1,19 @@
 // Devuelve la lista de advertisers (ad accounts) conectados al access_token de
-// TikTok que el usuario obtuvo via OAuth. El token vive en localStorage del
-// frontend, lo manda en el body para no exponerlo en URL/logs.
+// TikTok que el usuario obtuvo via OAuth. El token vive en Netlify Blobs (store
+// 'bk-tokens', key 'tiktok_auth') así es compartido entre browsers (AdsPower
+// y Chrome normal ven los mismos datos).
 //
-// POST /.netlify/functions/tiktok-advertisers
-// Body: { "access_token": "..." }
+// GET /.netlify/functions/tiktok-advertisers
 // Responde: { advertisers: [{ advertiser_id, advertiser_name, currency, status }] }
+// Si no hay token guardado: { error: 'NOT_CONNECTED' } con 401.
+
+const { getStore } = require('@netlify/blobs');
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 204, headers: corsHeaders(), body: '' };
   }
-  if (event.httpMethod !== 'POST') {
+  if (event.httpMethod !== 'GET' && event.httpMethod !== 'POST') {
     return respond(405, { error: 'Method not allowed' });
   }
 
@@ -20,11 +23,17 @@ exports.handler = async (event) => {
     return respond(500, { error: 'Faltan TIKTOK_APP_ID o TIKTOK_APP_SECRET en el servidor' });
   }
 
-  let body;
-  try { body = JSON.parse(event.body || '{}'); }
-  catch { return respond(400, { error: 'JSON inválido' }); }
-  const token = body.access_token;
-  if (!token) return respond(400, { error: 'Falta access_token' });
+  let auth;
+  try {
+    const store = getStore({ name: 'bk-tokens', consistency: 'strong' });
+    auth = await store.get('tiktok_auth', { type: 'json' });
+  } catch (e) {
+    return respond(500, { error: 'Storage error: ' + (e.message || 'unknown') });
+  }
+  if (!auth || !auth.access_token) {
+    return respond(401, { error: 'NOT_CONNECTED' });
+  }
+  const token = auth.access_token;
 
   // Listar advertisers vinculados al token
   const listUrl = `https://business-api.tiktok.com/open_api/v1.3/oauth2/advertiser/get/?app_id=${encodeURIComponent(appId)}&secret=${encodeURIComponent(secret)}`;
@@ -75,7 +84,7 @@ exports.handler = async (event) => {
 function corsHeaders() {
   return {
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
   };
 }

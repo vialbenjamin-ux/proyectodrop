@@ -1,29 +1,43 @@
 // TikTok Ads insights por campaña, formato unificado con meta-ads-insights.
 //
-// POST /.netlify/functions/tiktok-report
-// Body: { access_token, advertiser_id, date_preset }
-// Responde: { rows: [{id,name,status,dailyBudget,spend,impressions,clicks,cpc,ctr,
-//   purchases,purchaseValue,cpa,roas,frequency,reach}], currency, datePreset, accountName }
+// GET  /.netlify/functions/tiktok-report?advertiser_id=XXX&date_preset=last_7d
+// POST también acepta { advertiser_id, date_preset } por body (legacy).
+// El access_token se lee de Netlify Blobs ('bk-tokens'/'tiktok_auth'), compartido
+// entre browsers.
+
+const { getStore } = require('@netlify/blobs');
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 204, headers: corsHeaders(), body: '' };
   }
-  if (event.httpMethod !== 'POST') {
+  if (event.httpMethod !== 'GET' && event.httpMethod !== 'POST') {
     return respond(405, { error: 'Method not allowed' });
   }
 
-  let body;
-  try { body = JSON.parse(event.body || '{}'); }
-  catch { return respond(400, { error: 'JSON inválido' }); }
-
-  const token = body.access_token;
-  const advertiserId = body.advertiser_id;
-  if (!token || !advertiserId) {
-    return respond(400, { error: 'Faltan access_token y/o advertiser_id' });
+  // Parámetros: pueden venir por query o por body.
+  const qs = event.queryStringParameters || {};
+  let bodyJson = {};
+  if (event.httpMethod === 'POST') {
+    try { bodyJson = JSON.parse(event.body || '{}'); } catch {}
+  }
+  const advertiserId = qs.advertiser_id || bodyJson.advertiser_id;
+  if (!advertiserId) {
+    return respond(400, { error: 'Falta advertiser_id' });
   }
 
-  const datePreset = body.date_preset || 'today';
+  // Token: leer de Netlify Blobs
+  let token;
+  try {
+    const store = getStore({ name: 'bk-tokens', consistency: 'strong' });
+    const auth = await store.get('tiktok_auth', { type: 'json' });
+    if (!auth || !auth.access_token) return respond(401, { error: 'NOT_CONNECTED' });
+    token = auth.access_token;
+  } catch (e) {
+    return respond(500, { error: 'Storage error: ' + (e.message || 'unknown') });
+  }
+
+  const datePreset = qs.date_preset || bodyJson.date_preset || 'today';
   const range = computeDateRange(datePreset);
   if (!range) return respond(400, { error: 'date_preset inválido' });
 
@@ -207,7 +221,7 @@ async function getFxToClpRate(fromCurrency) {
 function corsHeaders() {
   return {
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
   };
 }

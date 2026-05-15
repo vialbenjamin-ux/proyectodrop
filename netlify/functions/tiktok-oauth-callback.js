@@ -2,8 +2,10 @@
 // Flow: usuario hace click en "Conectar TikTok" en BKDROP → es redirigido a TikTok
 // auth URL → autoriza → TikTok redirige acá con ?code=XXX&state=YYY.
 // Acá intercambiamos el code por un access_token usando el secret del backend
-// (que NUNCA viaja al cliente) y devolvemos un HTML que guarda el token en
-// localStorage del frontend y redirige a la pestaña de TikTok Ads.
+// (que NUNCA viaja al cliente) y lo guardamos en Netlify Blobs ('bk-tokens')
+// para que sea compartido entre browsers (AdsPower / Chrome normal).
+
+const { getStore } = require('@netlify/blobs');
 
 exports.handler = async (event) => {
   const params = event.queryStringParameters || {};
@@ -44,9 +46,21 @@ exports.handler = async (event) => {
       connected_at: new Date().toISOString(),
     };
 
-    // Embebemos el JSON en el HTML para que el frontend lo persista.
-    // Usamos JSON.stringify dos veces para escapar bien dentro del <script>.
-    const embedded = JSON.stringify(payload);
+    // Guardar en Netlify Blobs (server-side, compartido entre browsers).
+    try {
+      const store = getStore({ name: 'bk-tokens', consistency: 'strong' });
+      await store.setJSON('tiktok_auth', payload);
+    } catch (e) {
+      return renderHtml('No se pudo guardar el token', `<p>Falló el storage del servidor: <code>${escapeHtml(e.message || 'error')}</code></p>`);
+    }
+
+    // El frontend también guarda una marca en localStorage para no llamar al
+    // server cada vez que abre la pestaña. Embebemos los IDs (no el token) para
+    // la marca local.
+    const embedded = JSON.stringify({
+      advertiser_ids: payload.advertiser_ids,
+      connected_at: payload.connected_at,
+    });
     const safeEmbedded = embedded.replace(/</g, '\\u003c').replace(/>/g, '\\u003e');
 
     const html = `<!doctype html><html><head><meta charset="utf-8"><title>Conectando TikTok…</title>
@@ -66,14 +80,12 @@ exports.handler = async (event) => {
 <script>
 (function(){
   try {
-    var payload = ${safeEmbedded};
-    localStorage.setItem('bkdrop_tiktok_auth', JSON.stringify(payload));
-    // Volver a BKDROP con un flag para que el frontend sepa que se conectó
-    setTimeout(function(){
-      location.replace('/#reportes-tiktok-conectado');
-    }, 1500);
+    var meta = ${safeEmbedded};
+    // Marca local sin el token (el token vive en el server).
+    localStorage.setItem('bkdrop_tiktok_connected', JSON.stringify(meta));
+    setTimeout(function(){ location.replace('/#reportes-tiktok-conectado'); }, 1500);
   } catch (e) {
-    document.getElementById('msg').textContent = 'Error guardando token: ' + (e.message || e);
+    document.getElementById('msg').textContent = 'Error: ' + (e.message || e);
   }
 })();
 </script>
