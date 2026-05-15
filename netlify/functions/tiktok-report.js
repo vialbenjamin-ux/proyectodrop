@@ -131,7 +131,8 @@ export default async function handler(req) {
     let unmatchedTikTokOrders = 0;
     let unmatchedQty = 0;
     let unmatchedRevenue = 0;
-    const unmatchedUtmCounts = {}; // utm_campaign no matcheado → cantidad de órdenes
+    const unmatchedUtmCounts = {};
+    const orphanOrders = []; // detalle de las huérfanas
     for (const order of shopifyOrders) {
       if (extractUtmSource(order) !== 'tiktok') continue;
       const utmCamp = extractUtmCampaign(order);
@@ -149,18 +150,34 @@ export default async function handler(req) {
         const refunded = getRefundedQty(order, li.id);
         orderQty += Math.max(0, (li.quantity || 0) - refunded);
       }
+      const orderDetail = {
+        id: order.id,
+        name: order.order_number ? '#' + order.order_number : '#' + order.id,
+        createdAt: order.created_at,
+        total: orderRev,
+        qty: orderQty,
+        sourceName: order.source_name || null,
+        utmCampaign: utmCamp || null,
+        financialStatus: order.financial_status || null,
+        items: (order.line_items || []).map(li => ({
+          title: li.title,
+          qty: Math.max(0, (li.quantity || 0) - getRefundedQty(order, li.id)),
+        })),
+      };
       if (!campId) {
         unmatchedTikTokOrders++;
         unmatchedQty += orderQty;
         unmatchedRevenue += orderRev;
         const key = utmCamp || '(sin utm_campaign)';
         unmatchedUtmCounts[key] = (unmatchedUtmCounts[key] || 0) + 1;
+        orphanOrders.push(orderDetail);
         continue;
       }
-      if (!ordersByCampaignId[campId]) ordersByCampaignId[campId] = { orders: 0, qty: 0, revenue: 0 };
+      if (!ordersByCampaignId[campId]) ordersByCampaignId[campId] = { orders: 0, qty: 0, revenue: 0, details: [] };
       ordersByCampaignId[campId].orders += 1;
       ordersByCampaignId[campId].revenue += orderRev;
       ordersByCampaignId[campId].qty += orderQty;
+      ordersByCampaignId[campId].details.push(orderDetail);
     }
     // Lista de los UTM no matcheados ordenada por frecuencia
     const unmatchedDetail = Object.entries(unmatchedUtmCounts)
@@ -184,11 +201,12 @@ export default async function handler(req) {
       const spend         = parseFloat(m.spend || 0);
 
       // Cruce real con Shopify (utm_source=tiktok matcheado por campaign name)
-      const shop = ordersByCampaignId[campId] || { orders: 0, qty: 0, revenue: 0 };
+      const shop = ordersByCampaignId[campId] || { orders: 0, qty: 0, revenue: 0, details: [] };
       const realPurchases = shop.orders;
       const realRevenue   = shop.revenue;
       const cpaReal  = realPurchases > 0 ? spend / realPurchases : null;
       const roasReal = spend > 0 && realRevenue > 0 ? realRevenue / spend : null;
+      const orderDetails = shop.details || [];
 
       return {
         id: campId,
@@ -215,6 +233,7 @@ export default async function handler(req) {
         realRevenue,
         cpaReal,
         roasReal,
+        orderDetails,
       };
     });
 
@@ -250,7 +269,9 @@ export default async function handler(req) {
         orders: unmatchedTikTokOrders,
         qty: unmatchedQty,
         revenue: unmatchedRevenue,
+        details: orphanOrders,
       },
+      shopifyDomain,
       // Lista de nombres de campañas TikTok (para que el frontend muestre side-by-side al usuario)
       campaignNames: Object.values(campsByName).map(c => c.name).slice(0, 100),
     });
