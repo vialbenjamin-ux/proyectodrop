@@ -65,6 +65,11 @@ exports.handler = async (event) => {
     const campsData  = await campsR.json();
     const advData    = await advR.json();
 
+    // FX: si la cuenta no es CLP, convertimos a CLP usando frankfurter.app.
+    const advertiserPreview = (advData.code === 0 && Array.isArray(advData.data) && advData.data[0]) || {};
+    const sourceCurrency = (advertiserPreview.currency || 'USD').toUpperCase();
+    const fxRate = sourceCurrency === 'CLP' ? 1 : await getFxToClpRate(sourceCurrency);
+
     if (reportData.code !== 0) {
       return respond(400, { error: 'TikTok report: ' + (reportData.message || 'error') });
     }
@@ -82,9 +87,10 @@ exports.handler = async (event) => {
       }
     }
 
-    const advertiser = (advData.code === 0 && Array.isArray(advData.data) && advData.data[0]) || {};
-    const currency = advertiser.currency || 'USD';
+    const advertiser = advertiserPreview;
     const accountName = advertiser.name || '';
+    const willConvert = fxRate && fxRate !== 1;
+    const currency = willConvert ? 'CLP' : sourceCurrency;
 
     const list = (reportData.data && reportData.data.list) || [];
     const rows = list.map(r => {
@@ -119,11 +125,21 @@ exports.handler = async (event) => {
       };
     });
 
+    // Aplicar conversión a CLP si la cuenta original no es CLP.
+    if (willConvert) {
+      const moneyFields = ['dailyBudget','lifetimeBudget','spend','cpc','cpm','purchaseValue','cpa'];
+      for (const row of rows) {
+        for (const k of moneyFields) if (row[k] != null) row[k] = row[k] * fxRate;
+      }
+    }
+
     rows.sort((a, b) => b.spend - a.spend);
 
     return respond(200, {
       rows,
       currency,
+      originalCurrency: sourceCurrency,
+      fxRate: willConvert ? fxRate : null,
       accountName,
       advertiserId,
       datePreset,
@@ -162,6 +178,16 @@ function computeDateRange(preset) {
     case 'maximum':     return { start: '2020-01-01',      end: fmt(today) };
     default: return null;
   }
+}
+
+async function getFxToClpRate(fromCurrency) {
+  try {
+    const r = await fetch('https://api.frankfurter.app/latest?from=' + encodeURIComponent(fromCurrency) + '&to=CLP');
+    if (!r.ok) return null;
+    const j = await r.json();
+    const rate = j && j.rates && j.rates.CLP ? Number(j.rates.CLP) : null;
+    return (rate && isFinite(rate) && rate > 0) ? rate : null;
+  } catch { return null; }
 }
 
 function corsHeaders() {

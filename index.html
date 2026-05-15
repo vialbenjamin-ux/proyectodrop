@@ -2370,6 +2370,12 @@
                 <input type="text" id="tt-filter" placeholder="Filtrar por nombre…" oninput="onTikTokFilterChange()"
                   style="width:100%;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:6px 10px 6px 28px;border-radius:18px;font-size:11px;font-family:'DM Mono',monospace;outline:none">
               </div>
+              <select id="tt-status-filter" onchange="onTikTokFilterChange()" style="background:var(--surface);border:1.5px solid var(--border);color:var(--text);padding:5px 10px;border-radius:18px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer;outline:none">
+                <option value="all">Todas</option>
+                <option value="active" selected>Solo activas</option>
+                <option value="paused">Solo pausadas</option>
+                <option value="with_spend">Con gasto</option>
+              </select>
               <span id="tt-count" style="font-size:11px;color:var(--muted2);font-family:'DM Mono',monospace;margin-left:auto"></span>
             </div>
             <div id="tt-loading" style="padding:24px;text-align:center;color:var(--muted2);font-size:12px;display:none">Cargando...</div>
@@ -13246,7 +13252,7 @@ async function fetchShopifyReport() {
       document.getElementById('reporte-fecha').textContent = '📅 ' + data.date;
       setReporteDelta('reporte-total-orders-delta', data.totalOrders, data.previousDay && data.previousDay.totalOrders);
       setReporteDelta('reporte-total-revenue-delta', data.totalRevenue, data.previousDay && data.previousDay.totalRevenue);
-      try { actualizarGananciaHoy(data.totalRevenue); } catch(e) {}
+      try { actualizarGananciaHoy({ totalRevenue: data.totalRevenue, totalOrders: data.totalOrders, totalProducts: data.totalProducts }); } catch(e) {}
 
       var srcHtml = '';
       var srcDefs = [
@@ -15251,7 +15257,15 @@ function onTikTokFilterChange(){
 function renderTikTokKpisAndTable(){
   if (!_ttData) return;
   const filter = (document.getElementById('tt-filter').value || '').trim().toLowerCase();
-  const rows = (_ttData.rows || []).filter(r => !filter || (r.name||'').toLowerCase().includes(filter));
+  const statusFilter = document.getElementById('tt-status-filter').value;
+  const rows = (_ttData.rows || []).filter(r => {
+    if (filter && !(r.name||'').toLowerCase().includes(filter)) return false;
+    const isActive = r.status === 'STATUS_ENABLE' || r.status === 'ENABLE';
+    if (statusFilter === 'active'     && !isActive) return false;
+    if (statusFilter === 'paused'     &&  isActive) return false;
+    if (statusFilter === 'with_spend' && !(r.spend > 0)) return false;
+    return true;
+  });
 
   const totalSpend     = rows.reduce((s,r) => s + (r.spend||0), 0);
   const totalPurchases = rows.reduce((s,r) => s + (r.purchases||0), 0);
@@ -15296,8 +15310,10 @@ function escapeHtmlSafe(s){
   return String(s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
-// ── GANANCIA HOY (Ventas netas − Gasto Meta − Gasto TikTok) ─────────────────
-async function actualizarGananciaHoy(ventasNetas){
+// ── GANANCIA HOY (modelo COD: confirmación + entrega + envío + ads) ─────────
+// Mismo modelo que el panel "Cruce real" (applyCodMetrics). No incluye COGS por
+// producto porque la card es agregada — para ganancia con COGS usar Cruce real.
+async function actualizarGananciaHoy(data){
   const el       = document.getElementById('reporte-ganancia-hoy');
   const detailEl = document.getElementById('reporte-ganancia-hoy-detail');
   if (!el) return;
@@ -15305,7 +15321,8 @@ async function actualizarGananciaHoy(ventasNetas){
   el.style.color = 'var(--muted2)';
   detailEl.textContent = '';
 
-  const ventas = Number(ventasNetas) || 0;
+  const ventas = Number(data && data.totalRevenue) || 0;
+  const ordenes = Number(data && data.totalOrders) || 0;
   const tenant = (typeof getCurrentTenant === 'function') ? getCurrentTenant() : 'chile';
   const tParam = tenant === 'gt' ? '&tenant=gt' : '';
 
@@ -15346,17 +15363,29 @@ async function actualizarGananciaHoy(ventasNetas){
   })();
 
   const [meta, tt] = await Promise.all([metaPromise, tiktokPromise]);
-  const gastoAds = meta.spend + tt.spend;
-  const ganancia = ventas - gastoAds;
+  const spendAds = meta.spend + tt.spend;
+
+  // Modelo COD: aplicar tasas de confirmación + entrega + envío.
+  const cfg = (typeof getCodConfig === 'function') ? getCodConfig() : { confirmacion: 70, entrega: 70, envio: 8000 };
+  const tasaConfirm = cfg.confirmacion / 100;
+  const tasaEntrega = tasaConfirm * (cfg.entrega / 100);
+  const revenueReal = ventas * tasaEntrega;
+  const ordenesConfirmadas = ordenes * tasaConfirm;
+  const envioTotal = ordenesConfirmadas * cfg.envio;
+  const ganancia   = revenueReal - envioTotal - spendAds;
 
   const fmt = (v) => '$' + Math.round(v).toLocaleString('es-CL');
   el.textContent = fmt(ganancia);
   el.style.color = ganancia >= 0 ? '#22C55E' : '#E74C3C';
+
   const parts = [];
-  parts.push('Meta: ' + fmt(meta.spend));
-  if (tt.connected) parts.push('TikTok: ' + fmt(tt.spend));
-  else parts.push('TikTok: sin conectar');
+  parts.push('Revenue real: ' + fmt(revenueReal));
+  parts.push('Envío: -' + fmt(envioTotal));
+  parts.push('Meta: -' + fmt(meta.spend));
+  parts.push((tt.connected ? 'TikTok: -' + fmt(tt.spend) : 'TikTok: sin conectar'));
+  parts.push('(' + cfg.confirmacion + '% conf · ' + cfg.entrega + '% entr · sin COGS)');
   detailEl.textContent = parts.join(' · ');
+  detailEl.title = 'Modelo COD del panel Cruce real. Ajusta confirmación/entrega/envío en Cruce real → Configuración COD.';
 }
 
 // Si vuelve del OAuth con #reportes-tiktok-conectado, mover al tab y refrescar.
