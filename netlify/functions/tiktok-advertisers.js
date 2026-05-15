@@ -44,14 +44,17 @@ exports.handler = async (event) => {
     return respond(200, { advertisers: [] });
   }
 
-  // Traer info detallada (currency, status, name actualizado)
+  // Traer info detallada (currency, status, name actualizado).
+  // TikTok puede devolver data:[...] o data:{list:[...]} según versión.
   const infoUrl = `https://business-api.tiktok.com/open_api/v1.3/advertiser/info/?advertiser_ids=${encodeURIComponent(JSON.stringify(ids))}`;
   let info = {};
   try {
     const r = await fetch(infoUrl, { headers: { 'Access-Token': token } });
     const d = await r.json();
-    if (d.code === 0 && d.data) {
-      for (const a of d.data) info[a.advertiser_id] = a;
+    if (d.code === 0) {
+      const list = Array.isArray(d.data) ? d.data
+                 : (d.data && Array.isArray(d.data.list) ? d.data.list : []);
+      for (const a of list) info[a.advertiser_id] = a;
     }
   } catch { /* fallback: usamos solo lo que vino del list */ }
 

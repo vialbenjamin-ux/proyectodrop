@@ -66,7 +66,8 @@ exports.handler = async (event) => {
     const advData    = await advR.json();
 
     // FX: si la cuenta no es CLP, convertimos a CLP usando frankfurter.app.
-    const advertiserPreview = (advData.code === 0 && Array.isArray(advData.data) && advData.data[0]) || {};
+    // TikTok puede devolver advertiser/info como data:[...] o data:{list:[...]}
+    const advertiserPreview = extractAdvertiserInfo(advData);
     const sourceCurrency = (advertiserPreview.currency || 'USD').toUpperCase();
     const fxRate = sourceCurrency === 'CLP' ? 1 : await getFxToClpRate(sourceCurrency);
 
@@ -178,6 +179,17 @@ function computeDateRange(preset) {
     case 'maximum':     return { start: '2020-01-01',      end: fmt(today) };
     default: return null;
   }
+}
+
+// TikTok devuelve advertiser/info en formatos distintos según versión:
+// - { code:0, data:[{...}] }
+// - { code:0, data:{ list:[{...}] } }
+// Probamos ambos para extraer el primer advertiser.
+function extractAdvertiserInfo(advData) {
+  if (!advData || advData.code !== 0) return {};
+  if (Array.isArray(advData.data)) return advData.data[0] || {};
+  if (advData.data && Array.isArray(advData.data.list)) return advData.data.list[0] || {};
+  return {};
 }
 
 async function getFxToClpRate(fromCurrency) {
