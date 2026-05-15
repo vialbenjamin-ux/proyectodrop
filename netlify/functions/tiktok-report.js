@@ -127,32 +127,38 @@ export default async function handler(req) {
     }
 
     // Cruzar órdenes Shopify (utm_source=tiktok) con campañas TikTok por nombre.
-    // ordersByCampaignId: { [campaignId]: { orders, qty, revenue } }
     const ordersByCampaignId = {};
     let unmatchedTikTokOrders = 0;
+    const unmatchedUtmCounts = {}; // utm_campaign no matcheado → cantidad de órdenes
     for (const order of shopifyOrders) {
       if (extractUtmSource(order) !== 'tiktok') continue;
       const utmCamp = extractUtmCampaign(order);
       let campId = null;
       if (utmCamp) {
-        // Match por ID exacto primero
         if (campsById[utmCamp]) campId = utmCamp;
         else {
-          // Match por nombre (lowercase trim)
           const camp = campsByName[utmCamp.toLowerCase().trim()];
           if (camp) campId = camp.id;
         }
       }
-      if (!campId) { unmatchedTikTokOrders++; continue; }
+      if (!campId) {
+        unmatchedTikTokOrders++;
+        const key = utmCamp || '(sin utm_campaign)';
+        unmatchedUtmCounts[key] = (unmatchedUtmCounts[key] || 0) + 1;
+        continue;
+      }
       if (!ordersByCampaignId[campId]) ordersByCampaignId[campId] = { orders: 0, qty: 0, revenue: 0 };
       ordersByCampaignId[campId].orders += 1;
-      const orderRevenue = computeOrderRevenue(order);
-      ordersByCampaignId[campId].revenue += orderRevenue;
+      ordersByCampaignId[campId].revenue += computeOrderRevenue(order);
       for (const li of (order.line_items || [])) {
         const refunded = getRefundedQty(order, li.id);
         ordersByCampaignId[campId].qty += Math.max(0, (li.quantity || 0) - refunded);
       }
     }
+    // Lista de los UTM no matcheados ordenada por frecuencia
+    const unmatchedDetail = Object.entries(unmatchedUtmCounts)
+      .map(([utm, count]) => ({ utm, count }))
+      .sort((a, b) => b.count - a.count);
 
     const accountName = advertiserPreview.name || '';
     const willConvert = fxRate && fxRate !== 1;
@@ -232,6 +238,9 @@ export default async function handler(req) {
       tenant,
       crossEnabled: canCross,
       unmatchedTikTokOrders,
+      unmatchedDetail,
+      // Lista de nombres de campañas TikTok (para que el frontend muestre side-by-side al usuario)
+      campaignNames: Object.values(campsByName).map(c => c.name).slice(0, 100),
     });
   } catch (err) {
     return json(502, { error: 'Red TikTok: ' + (err.message || 'error') });

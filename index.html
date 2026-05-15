@@ -15310,11 +15310,31 @@ function renderTikTokKpisAndTable(){
 
   document.getElementById('tt-count').textContent = rows.length + ' de ' + (_ttData.rows||[]).length + ' campañas';
   const accountInfo = (_ttData.accountName||'') + ' · ' + currency;
-  const crossInfo = _ttData.crossEnabled
-    ? (_ttData.unmatchedTikTokOrders > 0 ? ' · ⚠️ ' + _ttData.unmatchedTikTokOrders + ' órdenes TikTok sin matchear' : '')
-    : ' · ⚠️ cruce Shopify deshabilitado';
-  document.getElementById('tt-account-name').textContent = accountInfo + crossInfo;
+  const accNameEl = document.getElementById('tt-account-name');
+  if (_ttData.crossEnabled && _ttData.unmatchedTikTokOrders > 0) {
+    accNameEl.innerHTML = escapeHtmlSafe(accountInfo) +
+      ' · <a href="#" onclick="event.preventDefault(); ttShowUnmatched();" style="color:var(--peach);cursor:pointer;text-decoration:underline">⚠️ ' + _ttData.unmatchedTikTokOrders + ' órdenes TikTok sin matchear (click para ver)</a>';
+  } else {
+    accNameEl.textContent = accountInfo + (_ttData.crossEnabled ? '' : ' · ⚠️ cruce Shopify deshabilitado');
+  }
   document.getElementById('tt-table').style.display = '';
+}
+
+// Muestra un alert con el detalle de UTMs sin matchear vs los nombres de campañas TikTok.
+function ttShowUnmatched(){
+  if (!_ttData || !_ttData.unmatchedDetail) return;
+  const lines = ['ÓRDENES TIKTOK SIN MATCHEAR\n'];
+  lines.push('utm_campaign que no matchea con ningún campaign_name de TikTok:\n');
+  for (const u of _ttData.unmatchedDetail) {
+    lines.push('  • "' + u.utm + '"  ←  ' + u.count + ' órden' + (u.count === 1 ? '' : 'es'));
+  }
+  lines.push('\n\nNOMBRES DE CAMPAÑAS TIKTOK (para comparar):\n');
+  for (const n of (_ttData.campaignNames || []).slice(0, 30)) {
+    lines.push('  • ' + n);
+  }
+  if ((_ttData.campaignNames || []).length > 30) lines.push('  … y ' + ((_ttData.campaignNames || []).length - 30) + ' más');
+  lines.push('\n\nTIP: el matching es por nombre (lowercase, trim). Si el utm_campaign que llega de Shopify no coincide exactamente con un campaign_name, no matchea. Revisá cómo armás los UTMs en tus links de TikTok.');
+  alert(lines.join('\n'));
 }
 
 function escapeHtmlSafe(s){
