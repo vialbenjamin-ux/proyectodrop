@@ -59,10 +59,11 @@ exports.handler = async (event) => {
   const accountUrl = `https://graph.facebook.com/v19.0/${accountId}?fields=currency,name&access_token=${encodeURIComponent(token)}`;
 
   try {
-    const [insightsResp, campaignsResp, accountResp] = await Promise.all([
+    const [insightsResp, campaignsResp, accountResp, usdClpRate] = await Promise.all([
       fetch(insightsUrl),
       fetch(campaignsUrl),
       fetch(accountUrl),
+      tenant === 'gt' ? getUsdToClpRate() : Promise.resolve(null),
     ]);
 
     const insightsData = await insightsResp.json();
@@ -121,9 +122,21 @@ exports.handler = async (event) => {
       };
     });
 
+    // Conversión USD→CLP para tenant=gt. ROAS y % no se tocan.
+    let displayCurrency = accountData?.currency || 'USD';
+    if (tenant === 'gt' && usdClpRate && displayCurrency === 'USD') {
+      const mul = ['dailyBudget','lifetimeBudget','spend','cpc','cpm','purchaseValue','cpa'];
+      for (const row of rows) {
+        for (const k of mul) if (row[k] != null) row[k] = row[k] * usdClpRate;
+      }
+      displayCurrency = 'CLP';
+    }
+
     return respond(200, {
       rows,
-      currency: accountData?.currency || 'USD',
+      currency: displayCurrency,
+      originalCurrency: accountData?.currency || 'USD',
+      fxRate: (tenant === 'gt' && usdClpRate) ? usdClpRate : null,
       accountName: accountData?.name || '',
       datePreset,
       accountId,
@@ -139,6 +152,16 @@ function corsHeaders() {
     'Access-Control-Allow-Methods': 'GET, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
   };
+}
+
+async function getUsdToClpRate() {
+  try {
+    const r = await fetch('https://api.frankfurter.app/latest?from=USD&to=CLP');
+    if (!r.ok) return null;
+    const j = await r.json();
+    const rate = j && j.rates && j.rates.CLP ? Number(j.rates.CLP) : null;
+    return (rate && isFinite(rate)) ? rate : null;
+  } catch { return null; }
 }
 
 function respond(statusCode, payload) {

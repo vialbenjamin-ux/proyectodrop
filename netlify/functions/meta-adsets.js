@@ -36,7 +36,12 @@ exports.handler = async (event) => {
   const adsUrl       = `https://graph.facebook.com/v19.0/${campaignId}/ads?fields=id,adset_id,created_time,status&limit=500&access_token=${encodeURIComponent(token)}`;
 
   try {
-    const [insightsR, adsetsR, adsR] = await Promise.all([fetch(insightsUrl), fetch(adsetsUrl), fetch(adsUrl)]);
+    const [insightsR, adsetsR, adsR, usdClpRate] = await Promise.all([
+      fetch(insightsUrl),
+      fetch(adsetsUrl),
+      fetch(adsUrl),
+      tenant === 'gt' ? getUsdToClpRate() : Promise.resolve(null),
+    ]);
     const insightsData = await insightsR.json();
     const adsetsData   = await adsetsR.json();
     const adsData      = await adsR.json();
@@ -93,8 +98,23 @@ exports.handler = async (event) => {
       };
     });
 
+    // Conversión USD→CLP para tenant=gt. Las cuentas GT vienen en USD; convertimos
+    // todos los campos monetarios con el rate del día (frankfurter.app).
+    if (tenant === 'gt' && usdClpRate) {
+      const mul = ['dailyBudget','spend','cpc','cpm','purchaseValue','cpa'];
+      for (const row of rows) {
+        for (const k of mul) if (row[k] != null) row[k] = row[k] * usdClpRate;
+      }
+    }
+
     rows.sort((a, b) => b.spend - a.spend);
-    return respond(200, { rows, campaignId, datePreset });
+    return respond(200, {
+      rows,
+      campaignId,
+      datePreset,
+      currency: (tenant === 'gt' && usdClpRate) ? 'CLP' : 'USD',
+      fxRate: (tenant === 'gt' && usdClpRate) ? usdClpRate : null,
+    });
   } catch (err) {
     return respond(500, { error: err.message || 'Error consultando adsets' });
   }
@@ -106,6 +126,16 @@ function corsHeaders() {
     'Access-Control-Allow-Methods': 'GET, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
   };
+}
+
+async function getUsdToClpRate() {
+  try {
+    const r = await fetch('https://api.frankfurter.app/latest?from=USD&to=CLP');
+    if (!r.ok) return null;
+    const j = await r.json();
+    const rate = j && j.rates && j.rates.CLP ? Number(j.rates.CLP) : null;
+    return (rate && isFinite(rate)) ? rate : null;
+  } catch { return null; }
 }
 
 function respond(statusCode, payload) {
