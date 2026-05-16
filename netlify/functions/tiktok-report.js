@@ -298,29 +298,62 @@ async function getFxToClpRate(fromCurrency) {
   } catch { return null; }
 }
 
+// ── Timezone helpers (Chile / America/Santiago) ─────────────────────────────
+// El reporte se alinea a hora Chile. Eso afecta:
+// 1) "Hoy" / "Ayer" / etc. → calculados con el calendario Chile, no UTC.
+// 2) Filtro de órdenes Shopify → rango UTC equivalente a 00:00–23:59 Chile.
+// TikTok report sigue usando timezone del advertiser (limitación de su API).
+const TZ_CL = 'America/Santiago';
+
+function fmtChileDate(d) {
+  return new Intl.DateTimeFormat('sv-SE', { timeZone: TZ_CL }).format(d);
+}
+function chileToday() { return fmtChileDate(new Date()); }
+function chileDateMinus(yyyy_mm_dd, days) {
+  // Tomamos mediodía UTC del día Chile y restamos N días — no se ve afectado
+  // por cambios de DST cuando la diferencia es ±N días enteros.
+  const base = new Date(yyyy_mm_dd + 'T12:00:00Z');
+  base.setUTCDate(base.getUTCDate() - days);
+  return fmtChileDate(base);
+}
+function getChileOffsetHours() {
+  // Offset actual de Chile en horas (negativo). -3 (verano) o -4 (invierno).
+  const now = new Date();
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: TZ_CL,
+    year:'numeric', month:'2-digit', day:'2-digit',
+    hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false,
+  }).formatToParts(now);
+  const get = (t) => parseInt(parts.find(p => p.type === t).value, 10);
+  const chileAsUTCms = Date.UTC(get('year'), get('month') - 1, get('day'), get('hour'), get('minute'), get('second'));
+  return Math.round((chileAsUTCms - now.getTime()) / 3600000);
+}
+
 function computeDateRange(preset) {
-  const today = new Date();
-  const fmt = (d) => d.toISOString().slice(0,10);
-  const minus = (n) => { const d = new Date(today); d.setUTCDate(d.getUTCDate() - n); return d; };
+  const today = chileToday();
   switch (preset) {
-    case 'today':       return { start: fmt(today),     end: fmt(today) };
-    case 'yesterday':   return { start: fmt(minus(1)),  end: fmt(minus(1)) };
-    case 'last_3d':     return { start: fmt(minus(3)),  end: fmt(minus(1)) };
-    case 'last_7d':     return { start: fmt(minus(7)),  end: fmt(minus(1)) };
-    case 'last_14d':    return { start: fmt(minus(14)), end: fmt(minus(1)) };
-    case 'last_28d':    return { start: fmt(minus(28)), end: fmt(minus(1)) };
-    case 'last_30d':    return { start: fmt(minus(30)), end: fmt(minus(1)) };
-    case 'last_90d':    return { start: fmt(minus(90)), end: fmt(minus(1)) };
+    case 'today':     return { start: today, end: today };
+    case 'yesterday': { const y = chileDateMinus(today, 1); return { start: y, end: y }; }
+    case 'last_3d':   return { start: chileDateMinus(today, 3),  end: chileDateMinus(today, 1) };
+    case 'last_7d':   return { start: chileDateMinus(today, 7),  end: chileDateMinus(today, 1) };
+    case 'last_14d':  return { start: chileDateMinus(today, 14), end: chileDateMinus(today, 1) };
+    case 'last_28d':  return { start: chileDateMinus(today, 28), end: chileDateMinus(today, 1) };
+    case 'last_30d':  return { start: chileDateMinus(today, 30), end: chileDateMinus(today, 1) };
+    case 'last_90d':  return { start: chileDateMinus(today, 90), end: chileDateMinus(today, 1) };
     case 'this_month': {
-      const start = new Date(today.getUTCFullYear(), today.getUTCMonth(), 1);
-      return { start: fmt(start), end: fmt(today) };
+      const [y, m] = today.split('-');
+      return { start: `${y}-${m}-01`, end: today };
     }
     case 'last_month': {
-      const start = new Date(today.getUTCFullYear(), today.getUTCMonth() - 1, 1);
-      const end   = new Date(today.getUTCFullYear(), today.getUTCMonth(), 0);
-      return { start: fmt(start), end: fmt(end) };
+      const [y, m] = today.split('-').map(Number);
+      const prevMonth = m === 1 ? 12 : m - 1;
+      const prevYear  = m === 1 ? y - 1 : y;
+      const lastDay = new Date(Date.UTC(prevYear, prevMonth, 0)).getUTCDate();
+      const pm = String(prevMonth).padStart(2, '0');
+      const pd = String(lastDay).padStart(2, '0');
+      return { start: `${prevYear}-${pm}-01`, end: `${prevYear}-${pm}-${pd}` };
     }
-    case 'maximum':     return { start: '2020-01-01', end: fmt(today) };
+    case 'maximum':   return { start: '2020-01-01', end: today };
     default: return null;
   }
 }
@@ -329,9 +362,14 @@ function computeDateRange(preset) {
 
 async function fetchShopifyOrders(domain, token, startDateISO, endDateISO) {
   const FIELDS = 'id,line_items,landing_site,referring_site,source_name,cancelled_at,financial_status,refunds,created_at,current_subtotal_price,note_attributes';
-  // startDateISO/endDateISO son YYYY-MM-DD. Convertimos a rango UTC del día completo.
-  const start = new Date(startDateISO + 'T00:00:00Z').toISOString();
-  const end   = new Date(endDateISO   + 'T23:59:59Z').toISOString();
+  // Convertir 00:00–23:59 día Chile a rango UTC equivalente.
+  const offset = getChileOffsetHours();
+  const startUTC = new Date(startDateISO + 'T00:00:00Z');
+  startUTC.setUTCHours(startUTC.getUTCHours() - offset); // offset negativo → suma horas
+  const endUTC = new Date(endDateISO + 'T23:59:59Z');
+  endUTC.setUTCHours(endUTC.getUTCHours() - offset);
+  const start = startUTC.toISOString();
+  const end   = endUTC.toISOString();
   let url = `https://${domain}/admin/api/2024-10/orders.json?status=any&created_at_min=${start}&created_at_max=${end}&limit=250&fields=${FIELDS}`;
   let all = [];
   while (url) {
