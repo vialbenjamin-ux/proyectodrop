@@ -183,10 +183,6 @@ function collectAlerts(out, sent, ctx) {
   }
 }
 
-// Corre cada 15 minutos. Netlify usa UTC, no filtramos por horario porque el
-// anti-spam (1 alerta por día por campaña por tipo) ya hace que solo dispare
-// cuando algo cambia.
-export const config = {
-  schedule: '*/15 * * * *',
-  path: '/.netlify/functions/bkdrop-alerts',
-};
+// Esta función es invocada por HTTP (modo preview desde el banner del frontend)
+// y por el cron de Netlify Scheduled Functions configurado en bkdrop-alerts-cron.js
+// (que la llama internamente cada 15 min).
