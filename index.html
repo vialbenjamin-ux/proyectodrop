@@ -2423,7 +2423,8 @@
             <select id="cross-date-preset" onchange="onCrossPresetChange()" style="background:var(--surface);border:1.5px solid var(--border);color:var(--text);padding:6px 12px;border-radius:20px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer;outline:none">
               <option value="today">Hoy</option>
               <option value="yesterday">Ayer</option>
-              <option value="last_7d" selected>Últimos 7 días</option>
+              <option value="last_4d_today" selected>📊 4 días (hoy + 3 atrás)</option>
+              <option value="last_7d">Últimos 7 días</option>
               <option value="last_30d">Últimos 30 días</option>
               <option value="this_month">Este mes</option>
               <option value="last_month">Mes pasado</option>
@@ -17524,13 +17525,14 @@ function getPreviousRangeForPreset(preset){
   const yyyy = todayDate.getUTCFullYear(), mm = todayDate.getUTCMonth();
 
   switch(preset){
-    case 'today':       return { since: addDays(todayStr, -1), until: addDays(todayStr, -1), label: 'ayer' };
-    case 'yesterday':   return { since: addDays(todayStr, -2), until: addDays(todayStr, -2), label: 'antes de ayer' };
-    case 'last_7d':     return { since: addDays(todayStr, -14), until: addDays(todayStr, -8), label: '7 días anteriores' };
-    case 'last_30d':    return { since: addDays(todayStr, -60), until: addDays(todayStr, -31), label: '30 días anteriores' };
-    case 'this_month':  return { since: monthStart(yyyy, mm-1), until: lastDayOfMonth(yyyy, mm-1), label: 'mes pasado' };
-    case 'last_month':  return { since: monthStart(yyyy, mm-2), until: lastDayOfMonth(yyyy, mm-2), label: 'mes anterior al pasado' };
-    default:            return null;
+    case 'today':         return { since: addDays(todayStr, -1), until: addDays(todayStr, -1), label: 'ayer' };
+    case 'yesterday':     return { since: addDays(todayStr, -2), until: addDays(todayStr, -2), label: 'antes de ayer' };
+    case 'last_4d_today': return { since: addDays(todayStr, -7), until: addDays(todayStr, -4), label: '4 días anteriores' };
+    case 'last_7d':       return { since: addDays(todayStr, -14), until: addDays(todayStr, -8), label: '7 días anteriores' };
+    case 'last_30d':      return { since: addDays(todayStr, -60), until: addDays(todayStr, -31), label: '30 días anteriores' };
+    case 'this_month':    return { since: monthStart(yyyy, mm-1), until: lastDayOfMonth(yyyy, mm-1), label: 'mes pasado' };
+    case 'last_month':    return { since: monthStart(yyyy, mm-2), until: lastDayOfMonth(yyyy, mm-2), label: 'mes anterior al pasado' };
+    default:              return null;
   }
 }
 
@@ -17565,6 +17567,14 @@ async function fetchCrossReport(){
       until: _crossAddDays(since, -1),
       label: `${days} día${days === 1 ? '' : 's'} anteriores`
     };
+  } else if (preset === 'last_4d_today') {
+    // Hoy + 3 días hacia atrás. cross-report no soporta este preset, lo pasamos
+    // como rango custom (since/until) calculado en hora Chile.
+    const today = new Date().toLocaleString('en-CA', { timeZone: 'America/Santiago' }).split(',')[0].trim();
+    const since = _crossAddDays(today, -3);
+    const until = today;
+    currentUrl = `/.netlify/functions/cross-report?account_id=${encodeURIComponent(accountId)}&since=${since}&until=${until}${metaTokenParam(accountId)}`;
+    prevRange = getPreviousRangeForPreset(preset);
   } else {
     currentUrl = `/.netlify/functions/cross-report?account_id=${encodeURIComponent(accountId)}&date_preset=${encodeURIComponent(preset)}${metaTokenParam(accountId)}`;
     prevRange = getPreviousRangeForPreset(preset);
@@ -18186,9 +18196,12 @@ async function toggleCrossCamp(idx){
   if (adsetsWrap && !adsetsWrap.dataset.loaded){
     const cid = adsetsWrap.dataset.cid;
     const preset = document.getElementById('cross-date-preset')?.value || 'last_7d';
+    // meta-adsets no soporta last_4d_today. Usamos last_3d como aproximación
+    // (3 días sin incluir hoy) para el detalle de adsets.
+    const adsetPreset = preset === 'last_4d_today' ? 'last_3d' : preset;
     try {
       const accId = document.getElementById('cross-account-select')?.value || '';
-      const resp = await fetch(`/.netlify/functions/meta-adsets?campaign_id=${encodeURIComponent(cid)}&date_preset=${encodeURIComponent(preset)}${metaTokenParam(accId)}`);
+      const resp = await fetch(`/.netlify/functions/meta-adsets?campaign_id=${encodeURIComponent(cid)}&date_preset=${encodeURIComponent(adsetPreset)}${metaTokenParam(accId)}`);
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.error || 'HTTP '+resp.status);
       adsetsWrap.dataset.loaded = '1';
