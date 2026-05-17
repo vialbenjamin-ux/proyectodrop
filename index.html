@@ -15647,17 +15647,28 @@ async function fetchTotalReport(){
       return { accounts, items: items.filter(Boolean) };
     })();
 
-    // TikTok: 1 sola llamada al advertiser actual
+    // TikTok: consultar /tiktok-advertisers para detectar conexión (sin depender
+    // de localStorage que puede estar vacío si conectaste en otro browser).
     const tiktokPromise = (async () => {
-      const auth = (typeof getTikTokAuth === 'function') ? getTikTokAuth() : null;
-      if (!auth) return null;
-      let advId = localStorage.getItem('bkdrop_tiktok_advertiser') || (auth.advertiser_ids && auth.advertiser_ids[0]);
-      if (!advId) return null;
+      let advId = localStorage.getItem('bkdrop_tiktok_advertiser');
+      if (!advId) {
+        try {
+          const advRes = await fetch('/.netlify/functions/tiktok-advertisers');
+          if (advRes.status === 401) return null; // realmente no conectado
+          const advData = await advRes.json();
+          const list = advData.advertisers || [];
+          if (!list.length) return null;
+          advId = list[0].advertiser_id;
+          // Guardar para próximas cargas
+          try { localStorage.setItem('bkdrop_tiktok_advertiser', advId); } catch {}
+        } catch { return null; }
+      }
       try {
         const url = '/.netlify/functions/tiktok-cross-report?advertiser_id=' + encodeURIComponent(advId)
                   + '&date_preset=' + encodeURIComponent(preset)
                   + '&tenant=' + encodeURIComponent(tenant);
         const r = await fetch(url);
+        if (r.status === 401) return null;
         if (!r.ok) return null;
         return await r.json();
       } catch { return null; }
