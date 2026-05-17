@@ -13779,11 +13779,19 @@ function renderVideosProdCard(p){
     if (bits.length) datesUI = `<div style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;display:flex;gap:12px;flex-wrap:wrap">${bits.join('')}</div>`;
   }
 
+  // Badge prominente con el responsable (si está asignado)
+  const responsibleBadge = responsible
+    ? `<span title="Responsable" style="display:inline-flex;align-items:center;gap:6px;background:linear-gradient(135deg,#fef3c7,#fed7aa);color:#78350f;padding:6px 14px;border-radius:20px;font-size:14px;font-family:'Montserrat',sans-serif;font-weight:800;border:1.5px solid #f59e0b;flex-shrink:0;white-space:nowrap"><span style="font-size:16px">👤</span> ${esc(responsible)}</span>`
+    : `<span title="Sin asignar" style="display:inline-flex;align-items:center;gap:6px;background:var(--surface2);color:var(--muted2);padding:6px 12px;border-radius:20px;font-size:12px;font-family:'DM Mono',monospace;border:1.5px dashed var(--border);flex-shrink:0;white-space:nowrap">👤 sin asignar</span>`;
+
   return `
     <div class="vp-product-card" data-handle="${esc(handle)}" data-title="${esc(title)}" data-task-status="${esc(status)}" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;${leftBar}">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;padding:12px 14px;cursor:pointer;gap:8px" onclick="toggleVideosProdCard('${esc(handle)}')">
         <div style="flex:1;min-width:0">
-          <div style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:14px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(title)}</div>
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:2px">
+            <div style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:14px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1">${esc(title)}</div>
+            ${responsibleBadge}
+          </div>
           <div style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;margin-bottom:6px">handle: ${esc(handle)}</div>
           <div style="display:flex;flex-direction:column;gap:6px">
             ${statusControls}
