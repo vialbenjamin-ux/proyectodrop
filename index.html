@@ -2121,7 +2121,8 @@
         <button class="report-subtab active" data-tab="shopify" onclick="switchReportTab('shopify')">📊 Shopify</button>
         <button class="report-subtab" data-tab="meta" onclick="switchReportTab('meta')">📈 Meta Ads</button>
         <button class="report-subtab" data-tab="tiktok" onclick="switchReportTab('tiktok')">🎵 TikTok Ads</button>
-        <button class="report-subtab" data-tab="cross" onclick="switchReportTab('cross')">📐 Cruce real</button>
+        <button class="report-subtab" data-tab="cross" onclick="switchReportTab('cross')">📐 Cruce Meta</button>
+        <button class="report-subtab" data-tab="tt-cross" onclick="switchReportTab('tt-cross')">🎵 Cruce TikTok</button>
         <button class="report-subtab" data-tab="topflop" onclick="switchReportTab('topflop')">🏆 Top/Flop</button>
       </div>
 
@@ -2561,6 +2562,90 @@
         </div>
 
       </div><!-- /#report-tab-cross -->
+
+      <!-- Tab Cruce TikTok (Shopify × TikTok con modelo COD) -->
+      <div id="report-tab-tt-cross" style="display:none">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:12px">
+          <div>
+            <div style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:22px;color:var(--text)">🎵 Cruce real (Shopify × TikTok)</div>
+            <div id="ttx-account-name" style="font-size:11px;color:var(--muted);margin-top:2px;letter-spacing:.5px"></div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <select id="ttx-advertiser-select" onchange="onTtxAdvertiserChange()" style="background:var(--surface);border:1.5px solid var(--border);color:var(--text);padding:6px 12px;border-radius:20px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer;outline:none"></select>
+            <select id="ttx-date-preset" onchange="fetchTtxCrossReport()" style="background:var(--surface);border:1.5px solid var(--border);color:var(--text);padding:6px 12px;border-radius:20px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer;outline:none">
+              <option value="today">Hoy</option>
+              <option value="yesterday">Ayer</option>
+              <option value="last_4d_today" selected>📊 4 días (hoy + 3 atrás)</option>
+              <option value="last_7d">Últimos 7 días</option>
+              <option value="last_30d">Últimos 30 días</option>
+              <option value="this_month">Este mes</option>
+              <option value="last_month">Mes pasado</option>
+            </select>
+            <button onclick="fetchTtxCrossReport()" style="background:#FE2C55;color:#fff;border:none;border-radius:20px;padding:7px 16px;font-size:11px;cursor:pointer;font-family:'DM Mono',monospace">↻ Actualizar</button>
+          </div>
+        </div>
+
+        <!-- Modelo COD (compartido con Cruce real Meta) -->
+        <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:12px;padding:12px 16px;margin-bottom:14px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+          <span style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;font-weight:700">🔒 MODELO COD</span>
+          <label style="font-size:11px;color:var(--text);font-family:'DM Mono',monospace;display:flex;align-items:center;gap:6px">Confirmación <input type="number" id="ttx-cod-conf" min="0" max="100" step="1" value="78" onchange="ttxOnCodChange()" style="width:60px;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:3px 8px;border-radius:5px;font-size:11px;font-family:'DM Mono',monospace"> %</label>
+          <label style="font-size:11px;color:var(--text);font-family:'DM Mono',monospace;display:flex;align-items:center;gap:6px">Entrega <input type="number" id="ttx-cod-entr" min="0" max="100" step="1" value="65" onchange="ttxOnCodChange()" style="width:60px;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:3px 8px;border-radius:5px;font-size:11px;font-family:'DM Mono',monospace"> %</label>
+          <label style="font-size:11px;color:var(--text);font-family:'DM Mono',monospace;display:flex;align-items:center;gap:6px">Envío $ <input type="number" id="ttx-cod-envio" min="0" step="100" value="8000" onchange="ttxOnCodChange()" style="width:80px;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:3px 8px;border-radius:5px;font-size:11px;font-family:'DM Mono',monospace"></label>
+          <span id="ttx-cod-eff" style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;margin-left:auto">Efectividad: 51%</span>
+        </div>
+
+        <!-- KPIs -->
+        <div class="meta-kpis">
+          <div class="meta-kpi"><div class="meta-kpi-label">GASTO TIKTOK</div><div id="ttx-kpi-spend" class="meta-kpi-val">—</div></div>
+          <div class="meta-kpi"><div class="meta-kpi-label">ÓRDENES SHOPIFY</div><div id="ttx-kpi-orders" class="meta-kpi-val">—</div><div id="ttx-kpi-revenue" class="meta-kpi-sub">—</div></div>
+          <div class="meta-kpi"><div class="meta-kpi-label">ENTREGADAS (POST COD)</div><div id="ttx-kpi-delivered" class="meta-kpi-val">—</div><div id="ttx-kpi-delivered-rev" class="meta-kpi-sub">—</div></div>
+          <div class="meta-kpi"><div class="meta-kpi-label">ROAS REAL</div><div id="ttx-kpi-roas" class="meta-kpi-val">—</div><div id="ttx-kpi-cpa" class="meta-kpi-sub">—</div></div>
+          <div class="meta-kpi" style="border-color:var(--peach);background:var(--peach-soft)"><div class="meta-kpi-label" style="color:#C4674F">GANANCIA NETA REAL</div><div id="ttx-kpi-net" class="meta-kpi-val" style="color:#C4674F">—</div><div id="ttx-kpi-net-margin" class="meta-kpi-sub">—</div></div>
+        </div>
+
+        <!-- Tabla por campaña -->
+        <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:14px;overflow:hidden;margin-top:14px">
+          <div style="padding:14px 20px;border-bottom:1px solid var(--border);font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted)">Campañas — Gasto TikTok vs Ventas Shopify</div>
+          <div id="ttx-loading" style="padding:24px;text-align:center;color:var(--muted2);font-size:12px;display:none">Cargando…</div>
+          <div id="ttx-error" style="display:none;padding:24px 20px;color:var(--peach);font-size:12px;line-height:1.6"></div>
+          <div class="reporte-scroll"><table id="ttx-camp-table" style="display:none;width:100%;border-collapse:collapse;font-size:11px;min-width:900px">
+            <thead>
+              <tr style="border-bottom:1px solid var(--border);background:var(--surface2)">
+                <th style="text-align:left;padding:10px 14px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">CAMPAÑA</th>
+                <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">GASTO</th>
+                <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--accent);font-weight:600">ÓRDENES</th>
+                <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">UNID.</th>
+                <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--accent);font-weight:600">REVENUE</th>
+                <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--accent);font-weight:600">CPA REAL</th>
+                <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--accent);font-weight:600">ROAS REAL</th>
+                <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:#C4674F;font-weight:700">GAN. NETA</th>
+              </tr>
+            </thead>
+            <tbody id="ttx-camp-tbody"></tbody>
+            <tfoot id="ttx-camp-tfoot"></tfoot>
+          </table></div>
+        </div>
+
+        <!-- Tabla por producto -->
+        <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:14px;overflow:hidden;margin-top:14px">
+          <div style="padding:14px 20px;border-bottom:1px solid var(--border);font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted)">Productos vendidos vía TikTok</div>
+          <div class="reporte-scroll"><table id="ttx-prod-table" style="display:none;width:100%;border-collapse:collapse;font-size:11px;min-width:900px">
+            <thead>
+              <tr style="border-bottom:1px solid var(--border);background:var(--surface2)">
+                <th style="text-align:left;padding:10px 14px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">PRODUCTO</th>
+                <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">UNID.</th>
+                <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">REVENUE</th>
+                <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">COSTO U.</th>
+                <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">COGS</th>
+                <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">GASTO ATR.</th>
+                <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:#C4674F;font-weight:700">GAN. NETA</th>
+                <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">MARGEN %</th>
+              </tr>
+            </thead>
+            <tbody id="ttx-prod-tbody"></tbody>
+          </table></div>
+        </div>
+      </div><!-- /#report-tab-tt-cross -->
 
       <!-- Tab Top / Flop -->
       <div id="report-tab-topflop" style="display:none">
@@ -15400,13 +15485,187 @@ function switchReportTab(tab){
   document.getElementById('report-tab-cross').style.display   = tab === 'cross'   ? '' : 'none';
   const ttTab = document.getElementById('report-tab-tiktok');
   if (ttTab) ttTab.style.display = tab === 'tiktok' ? '' : 'none';
+  const ttxTab = document.getElementById('report-tab-tt-cross');
+  if (ttxTab) ttxTab.style.display = tab === 'tt-cross' ? '' : 'none';
   const tfTab = document.getElementById('report-tab-topflop');
   if (tfTab) tfTab.style.display = tab === 'topflop' ? '' : 'none';
   localStorage.setItem('bkdrop_report_tab', tab);
-  if (tab === 'meta')   initMetaTab();
-  if (tab === 'cross')  initCrossTab();
-  if (tab === 'tiktok') initTikTokTab();
-  if (tab === 'topflop') initTopFlopTab();
+  if (tab === 'meta')     initMetaTab();
+  if (tab === 'cross')    initCrossTab();
+  if (tab === 'tiktok')   initTikTokTab();
+  if (tab === 'tt-cross') initTtxCrossTab();
+  if (tab === 'topflop')  initTopFlopTab();
+}
+
+// ── CRUCE TIKTOK × SHOPIFY ───────────────────────────────────────────────────
+let _ttxData = null;
+let _ttxAdvLoaded = false;
+
+async function initTtxCrossTab(){
+  // Cargar advertisers si aún no
+  if (!_ttxAdvLoaded) {
+    const sel = document.getElementById('ttx-advertiser-select');
+    sel.innerHTML = '<option>Cargando…</option>';
+    try {
+      const r = await fetch('/.netlify/functions/tiktok-advertisers');
+      const d = await r.json();
+      if (r.status === 401 || d.error === 'NOT_CONNECTED') {
+        sel.innerHTML = '<option>TikTok no conectado</option>';
+        document.getElementById('ttx-error').style.display = '';
+        document.getElementById('ttx-error').textContent = 'Conectá TikTok primero en el tab 🎵 TikTok Ads';
+        return;
+      }
+      const list = d.advertisers || [];
+      sel.innerHTML = list.map(a => `<option value="${a.advertiser_id}">${escapeHtmlSafe(a.advertiser_name)}${a.currency?(' ('+a.currency+')'):''}</option>`).join('');
+      const saved = localStorage.getItem('bkdrop_tiktok_advertiser');
+      if (saved && list.some(a => a.advertiser_id === saved)) sel.value = saved;
+    } catch (e) { sel.innerHTML = '<option>Error</option>'; return; }
+    _ttxAdvLoaded = true;
+  }
+  // Heredar config COD del Cruce real Meta
+  try {
+    const cfg = (typeof getCodConfig === 'function') ? getCodConfig() : null;
+    if (cfg) {
+      document.getElementById('ttx-cod-conf').value  = cfg.confirmacion;
+      document.getElementById('ttx-cod-entr').value  = cfg.entrega;
+      document.getElementById('ttx-cod-envio').value = cfg.envio;
+    }
+  } catch {}
+  ttxUpdateCodEff();
+  if (document.getElementById('ttx-advertiser-select').value) fetchTtxCrossReport();
+}
+
+function onTtxAdvertiserChange(){
+  localStorage.setItem('bkdrop_tiktok_advertiser', document.getElementById('ttx-advertiser-select').value);
+  fetchTtxCrossReport();
+}
+
+function ttxOnCodChange(){
+  // Persistir config compartida con Cruce real Meta (mismo localStorage)
+  const cfg = {
+    confirmacion: Math.max(0, Math.min(100, Number(document.getElementById('ttx-cod-conf').value) || 0)),
+    entrega:      Math.max(0, Math.min(100, Number(document.getElementById('ttx-cod-entr').value) || 0)),
+    envio:        Math.max(0, Number(document.getElementById('ttx-cod-envio').value) || 0),
+  };
+  try { localStorage.setItem('bkdrop_cod_config', JSON.stringify(cfg)); } catch {}
+  ttxUpdateCodEff();
+  if (_ttxData) renderTtxCrossView();
+}
+
+function ttxUpdateCodEff(){
+  const conf = Number(document.getElementById('ttx-cod-conf').value) || 0;
+  const entr = Number(document.getElementById('ttx-cod-entr').value) || 0;
+  const eff = Math.round((conf/100) * (entr/100) * 100);
+  document.getElementById('ttx-cod-eff').textContent = 'Efectividad: ' + eff + '%';
+}
+
+async function fetchTtxCrossReport(){
+  const advId = document.getElementById('ttx-advertiser-select').value;
+  if (!advId) return;
+  const preset = document.getElementById('ttx-date-preset').value;
+  const tenant = (typeof getCurrentTenant === 'function') ? getCurrentTenant() : 'chile';
+  const loading = document.getElementById('ttx-loading');
+  const err = document.getElementById('ttx-error');
+  const t1 = document.getElementById('ttx-camp-table');
+  const t2 = document.getElementById('ttx-prod-table');
+  loading.style.display = ''; err.style.display = 'none'; t1.style.display = 'none'; t2.style.display = 'none';
+  try {
+    const url = '/.netlify/functions/tiktok-cross-report?advertiser_id=' + encodeURIComponent(advId)
+              + '&date_preset=' + encodeURIComponent(preset)
+              + '&tenant=' + encodeURIComponent(tenant);
+    const r = await fetch(url);
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || ('HTTP ' + r.status));
+    _ttxData = d;
+    renderTtxCrossView();
+  } catch (e) {
+    err.style.display = '';
+    err.textContent = '⚠️ ' + (e.message || 'Error consultando cruce TikTok');
+  } finally {
+    loading.style.display = 'none';
+  }
+}
+
+function renderTtxCrossView(){
+  if (!_ttxData) return;
+  const conf = (Number(document.getElementById('ttx-cod-conf').value) || 0) / 100;
+  const entr = (Number(document.getElementById('ttx-cod-entr').value) || 0) / 100;
+  const envio = Number(document.getElementById('ttx-cod-envio').value) || 0;
+  const tasaEntrega = conf * entr;
+  const currency = _ttxData.currency || 'CLP';
+  const fmt = (v) => v == null ? '—' : new Intl.NumberFormat('es-CL', { style:'currency', currency }).format(v);
+  const k = _ttxData.kpis || {};
+
+  // Aplicar COD
+  const ordersConf      = (k.realPurchases || 0) * conf;
+  const ordersDelivered = (k.realPurchases || 0) * tasaEntrega;
+  const revenueReal     = (k.realRevenue || 0) * tasaEntrega;
+  const cogsReal        = (k.cogs || 0) * tasaEntrega;
+  const envioTotal      = ordersConf * envio;
+  const netReal         = revenueReal - cogsReal - envioTotal - (k.spend || 0);
+  const marginPct       = revenueReal > 0 ? (netReal / revenueReal) * 100 : null;
+  const roasReal        = k.spend > 0 && revenueReal > 0 ? revenueReal / k.spend : null;
+  const cpaReal         = ordersDelivered > 0 ? k.spend / ordersDelivered : null;
+
+  document.getElementById('ttx-kpi-spend').textContent          = fmt(k.spend || 0);
+  document.getElementById('ttx-kpi-orders').textContent         = (k.realPurchases || 0) + ' órd.';
+  document.getElementById('ttx-kpi-revenue').textContent        = fmt(k.realRevenue || 0);
+  document.getElementById('ttx-kpi-delivered').textContent      = ordersDelivered.toFixed(1) + ' órd.';
+  document.getElementById('ttx-kpi-delivered-rev').textContent  = fmt(revenueReal);
+  document.getElementById('ttx-kpi-roas').textContent           = roasReal == null ? '—' : roasReal.toFixed(2) + 'x';
+  document.getElementById('ttx-kpi-cpa').textContent            = cpaReal == null ? '—' : 'CPA ' + fmt(cpaReal);
+  document.getElementById('ttx-kpi-net').textContent            = fmt(netReal);
+  document.getElementById('ttx-kpi-net-margin').textContent     = (marginPct == null ? '' : 'margen ' + marginPct.toFixed(0) + '%') + (envioTotal ? ' · envío ' + fmt(envioTotal) : '');
+
+  const acc = (_ttxData.accountName || '') + ' · ' + currency + ' · ' + _ttxData.dateFrom + ' a ' + _ttxData.dateTo;
+  document.getElementById('ttx-account-name').textContent = acc;
+
+  // Tabla campañas
+  const rows = (_ttxData.byCampaign || []).filter(r => r.spend > 0 || r.realPurchases > 0);
+  const tbody = document.getElementById('ttx-camp-tbody');
+  tbody.innerHTML = rows.map(r => {
+    const rOrdsConf      = r.realPurchases * conf;
+    const rOrdsDelivered = r.realPurchases * tasaEntrega;
+    const rRevReal       = r.realRevenue * tasaEntrega;
+    const rEnvio         = rOrdsConf * envio;
+    // COGS estimado de la campaña: prorratear cogs total según fraccion de revenue
+    const totalRev = (_ttxData.kpis?.realRevenue || 0);
+    const rCogsReal = totalRev > 0 ? (_ttxData.kpis?.cogs || 0) * (r.realRevenue / totalRev) * tasaEntrega : 0;
+    const rNetReal = rRevReal - rCogsReal - rEnvio - r.spend;
+    const rCpaReal = rOrdsDelivered > 0 ? r.spend / rOrdsDelivered : null;
+    const rRoasReal = r.spend > 0 && rRevReal > 0 ? rRevReal / r.spend : null;
+    return `<tr style="border-bottom:1px solid var(--border)">
+      <td style="padding:10px 14px;color:var(--text)">${escapeHtmlSafe(r.name || '')}</td>
+      <td style="text-align:right;padding:10px 10px;font-family:'DM Mono',monospace">${fmt(r.spend)}</td>
+      <td style="text-align:right;padding:10px 10px;font-family:'DM Mono',monospace;color:var(--accent);font-weight:700">${r.realPurchases || '—'}</td>
+      <td style="text-align:right;padding:10px 10px;font-family:'DM Mono',monospace">${r.realUnits || '—'}</td>
+      <td style="text-align:right;padding:10px 10px;font-family:'DM Mono',monospace;color:var(--accent)">${r.realRevenue ? fmt(r.realRevenue) : '—'}</td>
+      <td style="text-align:right;padding:10px 10px;font-family:'DM Mono',monospace;color:var(--accent);font-weight:600">${rCpaReal ? fmt(rCpaReal) : '—'}</td>
+      <td style="text-align:right;padding:10px 10px;font-family:'DM Mono',monospace;color:${rRoasReal>=1?'#22c55e':'var(--muted2)'};font-weight:700">${rRoasReal ? rRoasReal.toFixed(2)+'x' : '—'}</td>
+      <td style="text-align:right;padding:10px 10px;font-family:'DM Mono',monospace;font-weight:700;color:${rNetReal>=0?'#22c55e':'#dc2626'}">${fmt(rNetReal)}</td>
+    </tr>`;
+  }).join('');
+  document.getElementById('ttx-camp-table').style.display = rows.length ? '' : 'none';
+
+  // Tabla productos
+  const prods = _ttxData.byProduct || [];
+  const ptbody = document.getElementById('ttx-prod-tbody');
+  ptbody.innerHTML = prods.map(p => {
+    const pCogsReal = (p.totalCost || 0) * tasaEntrega;
+    const pRevReal = p.revenue * tasaEntrega;
+    const pNetReal = pRevReal - pCogsReal - (p.attributedSpend || 0);
+    return `<tr style="border-bottom:1px solid var(--border)">
+      <td style="padding:10px 14px;color:var(--text)">${escapeHtmlSafe(p.name)}</td>
+      <td style="text-align:right;padding:10px 10px;font-family:'DM Mono',monospace">${p.qty}</td>
+      <td style="text-align:right;padding:10px 10px;font-family:'DM Mono',monospace">${fmt(p.revenue)}</td>
+      <td style="text-align:right;padding:10px 10px;font-family:'DM Mono',monospace;color:var(--muted)">${p.unitCost != null ? fmt(p.unitCost) : '—'}</td>
+      <td style="text-align:right;padding:10px 10px;font-family:'DM Mono',monospace;color:var(--muted)">${p.totalCost != null ? fmt(p.totalCost) : '—'}</td>
+      <td style="text-align:right;padding:10px 10px;font-family:'DM Mono',monospace;color:var(--muted)">${fmt(p.attributedSpend)}</td>
+      <td style="text-align:right;padding:10px 10px;font-family:'DM Mono',monospace;font-weight:700;color:${pNetReal>=0?'#22c55e':'#dc2626'}">${fmt(pNetReal)}</td>
+      <td style="text-align:right;padding:10px 10px;font-family:'DM Mono',monospace;color:var(--muted)">${p.marginPct != null ? p.marginPct.toFixed(0)+'%' : '—'}</td>
+    </tr>`;
+  }).join('');
+  document.getElementById('ttx-prod-table').style.display = prods.length ? '' : 'none';
 }
 
 // ── TIKTOK ADS ───────────────────────────────────────────────────────────────
