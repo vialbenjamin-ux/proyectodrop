@@ -15857,9 +15857,8 @@ function renderTotalView(){
     </tr>`;
   }).join('');
 
-  // Shopify total comparativa
+  // Shopify total comparativa (reusa el 'shop' declarado arriba)
   const shopifyInfo = document.getElementById('total-shopify-info');
-  const shop = _totalData.shopify;
   if (shop && (shop.totalOrders != null || shop.totals)) {
     const shopOrders = shop.totalOrders || (shop.totals && shop.totals.totalOrders) || 0;
     const shopRevenue = shop.totalRevenue || (shop.totals && shop.totals.totalRevenue) || 0;
