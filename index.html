@@ -15596,15 +15596,31 @@ function renderTtxCrossView(){
   const fmt = (v) => v == null ? '—' : new Intl.NumberFormat('es-CL', { style:'currency', currency }).format(v);
   const k = _ttxData.kpis || {};
 
-  // Aplicar COD
+  // Cost overrides (compartidos con Cruce Meta) — clave: nombre del producto
+  const overrides = (typeof getCostOverrides === 'function') ? getCostOverrides() : {};
+  // Aplicar overrides a byProduct y recalcular COGS total
+  const prods = (_ttxData.byProduct || []).map(p => {
+    const override = overrides[p.name];
+    const unitCost = (override != null && isFinite(override)) ? override : p.unitCost;
+    const totalCost = unitCost != null ? unitCost * p.qty : null;
+    const grossProfit = unitCost != null ? p.revenue - totalCost : null;
+    const netProfit   = grossProfit != null ? grossProfit - (p.attributedSpend || 0) : null;
+    const marginPct   = unitCost != null && p.revenue > 0 ? (grossProfit / p.revenue) * 100 : null;
+    return { ...p, unitCost, totalCost, grossProfit, netProfit, marginPct, _override: override != null };
+  });
+  // Recalcular cogs total con overrides
+  const totalCogs = prods.reduce((s, p) => s + (p.totalCost || 0), 0);
+
+  // Aplicar COD a totales
   const ordersConf      = (k.realPurchases || 0) * conf;
   const ordersDelivered = (k.realPurchases || 0) * tasaEntrega;
   const revenueReal     = (k.realRevenue || 0) * tasaEntrega;
-  const cogsReal        = (k.cogs || 0) * tasaEntrega;
+  const cogsReal        = totalCogs * tasaEntrega;
   const envioTotal      = ordersConf * envio;
   const netReal         = revenueReal - cogsReal - envioTotal - (k.spend || 0);
   const marginPct       = revenueReal > 0 ? (netReal / revenueReal) * 100 : null;
-  const roasReal        = k.spend > 0 && revenueReal > 0 ? revenueReal / k.spend : null;
+  // ROAS BRUTO (revenue Shopify / gasto TikTok). El COD ya está reflejado en la ganancia neta.
+  const roasReal        = k.spend > 0 && k.realRevenue > 0 ? k.realRevenue / k.spend : null;
   const cpaReal         = ordersDelivered > 0 ? k.spend / ordersDelivered : null;
 
   document.getElementById('ttx-kpi-spend').textContent          = fmt(k.spend || 0);
@@ -15613,27 +15629,28 @@ function renderTtxCrossView(){
   document.getElementById('ttx-kpi-delivered').textContent      = ordersDelivered.toFixed(1) + ' órd.';
   document.getElementById('ttx-kpi-delivered-rev').textContent  = fmt(revenueReal);
   document.getElementById('ttx-kpi-roas').textContent           = roasReal == null ? '—' : roasReal.toFixed(2) + 'x';
-  document.getElementById('ttx-kpi-cpa').textContent            = cpaReal == null ? '—' : 'CPA ' + fmt(cpaReal);
+  document.getElementById('ttx-kpi-cpa').textContent            = cpaReal == null ? '—' : 'CPA real ' + fmt(cpaReal);
   document.getElementById('ttx-kpi-net').textContent            = fmt(netReal);
   document.getElementById('ttx-kpi-net-margin').textContent     = (marginPct == null ? '' : 'margen ' + marginPct.toFixed(0) + '%') + (envioTotal ? ' · envío ' + fmt(envioTotal) : '');
 
   const acc = (_ttxData.accountName || '') + ' · ' + currency + ' · ' + _ttxData.dateFrom + ' a ' + _ttxData.dateTo;
   document.getElementById('ttx-account-name').textContent = acc;
 
-  // Tabla campañas
+  // Tabla campañas — ROAS BRUTO + ganancia neta incluyendo envío atribuido
   const rows = (_ttxData.byCampaign || []).filter(r => r.spend > 0 || r.realPurchases > 0);
+  const totalRev = (_ttxData.kpis?.realRevenue || 0);
   const tbody = document.getElementById('ttx-camp-tbody');
   tbody.innerHTML = rows.map(r => {
     const rOrdsConf      = r.realPurchases * conf;
-    const rOrdsDelivered = r.realPurchases * tasaEntrega;
     const rRevReal       = r.realRevenue * tasaEntrega;
     const rEnvio         = rOrdsConf * envio;
-    // COGS estimado de la campaña: prorratear cogs total según fraccion de revenue
-    const totalRev = (_ttxData.kpis?.realRevenue || 0);
-    const rCogsReal = totalRev > 0 ? (_ttxData.kpis?.cogs || 0) * (r.realRevenue / totalRev) * tasaEntrega : 0;
+    // COGS de la campaña: prorratear el total por revenue
+    const rCogsReal = totalRev > 0 ? totalCogs * (r.realRevenue / totalRev) * tasaEntrega : 0;
     const rNetReal = rRevReal - rCogsReal - rEnvio - r.spend;
+    // CPA real (sobre órdenes entregadas) y ROAS BRUTO (sin COD)
+    const rOrdsDelivered = r.realPurchases * tasaEntrega;
     const rCpaReal = rOrdsDelivered > 0 ? r.spend / rOrdsDelivered : null;
-    const rRoasReal = r.spend > 0 && rRevReal > 0 ? rRevReal / r.spend : null;
+    const rRoasReal = r.spend > 0 && r.realRevenue > 0 ? r.realRevenue / r.spend : null;
     return `<tr style="border-bottom:1px solid var(--border)">
       <td style="padding:10px 14px;color:var(--text)">${escapeHtmlSafe(r.name || '')}</td>
       <td style="text-align:right;padding:10px 10px;font-family:'DM Mono',monospace">${fmt(r.spend)}</td>
@@ -15641,24 +15658,33 @@ function renderTtxCrossView(){
       <td style="text-align:right;padding:10px 10px;font-family:'DM Mono',monospace">${r.realUnits || '—'}</td>
       <td style="text-align:right;padding:10px 10px;font-family:'DM Mono',monospace;color:var(--accent)">${r.realRevenue ? fmt(r.realRevenue) : '—'}</td>
       <td style="text-align:right;padding:10px 10px;font-family:'DM Mono',monospace;color:var(--accent);font-weight:600">${rCpaReal ? fmt(rCpaReal) : '—'}</td>
-      <td style="text-align:right;padding:10px 10px;font-family:'DM Mono',monospace;color:${rRoasReal>=1?'#22c55e':'var(--muted2)'};font-weight:700">${rRoasReal ? rRoasReal.toFixed(2)+'x' : '—'}</td>
+      <td style="text-align:right;padding:10px 10px;font-family:'DM Mono',monospace;color:${rRoasReal>=2?'#22c55e':rRoasReal>=1?'#eab308':'var(--muted2)'};font-weight:700">${rRoasReal ? rRoasReal.toFixed(2)+'x' : '—'}</td>
       <td style="text-align:right;padding:10px 10px;font-family:'DM Mono',monospace;font-weight:700;color:${rNetReal>=0?'#22c55e':'#dc2626'}">${fmt(rNetReal)}</td>
     </tr>`;
   }).join('');
   document.getElementById('ttx-camp-table').style.display = rows.length ? '' : 'none';
 
-  // Tabla productos
-  const prods = _ttxData.byProduct || [];
+  // Tabla productos — costo unitario editable + envío atribuido proporcionalmente
+  const totalRevenueRealForProd = revenueReal; // total post-COD
   const ptbody = document.getElementById('ttx-prod-tbody');
   ptbody.innerHTML = prods.map(p => {
-    const pCogsReal = (p.totalCost || 0) * tasaEntrega;
-    const pRevReal = p.revenue * tasaEntrega;
-    const pNetReal = pRevReal - pCogsReal - (p.attributedSpend || 0);
+    const pRevReal   = p.revenue * tasaEntrega;
+    const pCogsReal  = (p.totalCost || 0) * tasaEntrega;
+    // Envío atribuido al producto, proporcional a su revenue real / revenue real total
+    const pEnvio = (totalRevenueRealForProd > 0)
+      ? envioTotal * (pRevReal / totalRevenueRealForProd)
+      : 0;
+    const pNetReal = pRevReal - pCogsReal - (p.attributedSpend || 0) - pEnvio;
+    const keyAttr = escapeHtmlSafe(p.name).replace(/"/g, '&quot;');
+    const overrideMark = p._override ? '<span style="color:#eab308;font-size:9px;margin-left:4px" title="Costo editado manualmente">✎</span>' : '';
     return `<tr style="border-bottom:1px solid var(--border)">
       <td style="padding:10px 14px;color:var(--text)">${escapeHtmlSafe(p.name)}</td>
       <td style="text-align:right;padding:10px 10px;font-family:'DM Mono',monospace">${p.qty}</td>
       <td style="text-align:right;padding:10px 10px;font-family:'DM Mono',monospace">${fmt(p.revenue)}</td>
-      <td style="text-align:right;padding:10px 10px;font-family:'DM Mono',monospace;color:var(--muted)">${p.unitCost != null ? fmt(p.unitCost) : '—'}</td>
+      <td style="text-align:right;padding:10px 10px;font-family:'DM Mono',monospace">
+        <input type="number" step="any" min="0" value="${p.unitCost != null ? p.unitCost : ''}" data-prod-key="${keyAttr}" onblur="onTtxCostChange(this)" placeholder="—" style="width:75px;text-align:right;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:3px 6px;border-radius:4px;font-size:11px;font-family:'DM Mono',monospace;outline:none" title="Editá el costo unitario. Se guarda y se comparte con Cruce Meta.">
+        ${overrideMark}
+      </td>
       <td style="text-align:right;padding:10px 10px;font-family:'DM Mono',monospace;color:var(--muted)">${p.totalCost != null ? fmt(p.totalCost) : '—'}</td>
       <td style="text-align:right;padding:10px 10px;font-family:'DM Mono',monospace;color:var(--muted)">${fmt(p.attributedSpend)}</td>
       <td style="text-align:right;padding:10px 10px;font-family:'DM Mono',monospace;font-weight:700;color:${pNetReal>=0?'#22c55e':'#dc2626'}">${fmt(pNetReal)}</td>
@@ -15666,6 +15692,17 @@ function renderTtxCrossView(){
     </tr>`;
   }).join('');
   document.getElementById('ttx-prod-table').style.display = prods.length ? '' : 'none';
+}
+
+// Cambio de costo unitario en la tabla de productos del Cruce TikTok.
+// Persiste en localStorage (compartido con Cruce Meta) y re-renderiza.
+function onTtxCostChange(input){
+  const key = input.dataset.prodKey;
+  const val = input.value.trim();
+  if (typeof setCostOverride === 'function') {
+    setCostOverride(key, val === '' ? null : Number(val));
+  }
+  renderTtxCrossView();
 }
 
 // ── TIKTOK ADS ───────────────────────────────────────────────────────────────
