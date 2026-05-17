@@ -2123,6 +2123,7 @@
         <button class="report-subtab" data-tab="tiktok" onclick="switchReportTab('tiktok')">🎵 TikTok Ads</button>
         <button class="report-subtab" data-tab="cross" onclick="switchReportTab('cross')">📐 Cruce Meta</button>
         <button class="report-subtab" data-tab="tt-cross" onclick="switchReportTab('tt-cross')">🎵 Cruce TikTok</button>
+        <button class="report-subtab" data-tab="total" onclick="switchReportTab('total')">💰 Total</button>
         <button class="report-subtab" data-tab="topflop" onclick="switchReportTab('topflop')">🏆 Top/Flop</button>
       </div>
 
@@ -2646,6 +2647,89 @@
           </table></div>
         </div>
       </div><!-- /#report-tab-tt-cross -->
+
+      <!-- Tab Total — ganancia/pérdida combinada Meta + TikTok del día/rango -->
+      <div id="report-tab-total" style="display:none">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:12px">
+          <div>
+            <div style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:22px;color:var(--text)">💰 Ganancia Total (Meta + TikTok)</div>
+            <div id="total-meta-info" style="font-size:11px;color:var(--muted);margin-top:2px;letter-spacing:.5px"></div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <select id="total-date-preset" onchange="fetchTotalReport()" style="background:var(--surface);border:1.5px solid var(--border);color:var(--text);padding:6px 12px;border-radius:20px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer;outline:none">
+              <option value="today" selected>Hoy</option>
+              <option value="yesterday">Ayer</option>
+              <option value="last_4d_today">📊 4 días (hoy + 3 atrás)</option>
+              <option value="last_7d">Últimos 7 días</option>
+              <option value="last_30d">Últimos 30 días</option>
+              <option value="this_month">Este mes</option>
+              <option value="last_month">Mes pasado</option>
+            </select>
+            <button onclick="fetchTotalReport()" style="background:var(--accent);color:#fff;border:none;border-radius:20px;padding:7px 16px;font-size:11px;cursor:pointer;font-family:'DM Mono',monospace">↻ Actualizar</button>
+          </div>
+        </div>
+
+        <!-- Modelo COD (compartido) -->
+        <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:12px;padding:12px 16px;margin-bottom:14px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+          <span style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;font-weight:700">🔒 MODELO COD</span>
+          <label style="font-size:11px;color:var(--text);font-family:'DM Mono',monospace;display:flex;align-items:center;gap:6px">Confirmación <input type="number" id="total-cod-conf" min="0" max="100" step="1" value="78" onchange="totalOnCodChange()" style="width:60px;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:3px 8px;border-radius:5px;font-size:11px;font-family:'DM Mono',monospace"> %</label>
+          <label style="font-size:11px;color:var(--text);font-family:'DM Mono',monospace;display:flex;align-items:center;gap:6px">Entrega <input type="number" id="total-cod-entr" min="0" max="100" step="1" value="65" onchange="totalOnCodChange()" style="width:60px;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:3px 8px;border-radius:5px;font-size:11px;font-family:'DM Mono',monospace"> %</label>
+          <label style="font-size:11px;color:var(--text);font-family:'DM Mono',monospace;display:flex;align-items:center;gap:6px">Envío $ <input type="number" id="total-cod-envio" min="0" step="100" value="8000" onchange="totalOnCodChange()" style="width:80px;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:3px 8px;border-radius:5px;font-size:11px;font-family:'DM Mono',monospace"></label>
+          <span id="total-cod-eff" style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;margin-left:auto">Efectividad: 51%</span>
+        </div>
+
+        <div id="total-loading" style="padding:24px;text-align:center;color:var(--muted2);font-size:12px;display:none">Cargando datos de todas las cuentas… (~10-20s)</div>
+        <div id="total-error" style="display:none;padding:24px 20px;color:var(--peach);font-size:12px;line-height:1.6;background:var(--surface);border:1.5px solid var(--peach);border-radius:12px;margin-bottom:14px"></div>
+
+        <div id="total-content" style="display:none">
+          <!-- KPIs GIGANTES -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
+            <div style="background:linear-gradient(135deg,#dcfce7,#bbf7d0);border:2px solid #22C55E;border-radius:14px;padding:18px 22px">
+              <div style="font-size:11px;color:#15803d;font-family:'DM Mono',monospace;letter-spacing:1px;font-weight:700">GANANCIA NETA REAL</div>
+              <div id="total-kpi-net" style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:40px;color:#15803d;line-height:1.1;margin-top:4px">—</div>
+              <div id="total-kpi-net-detail" style="font-size:11px;color:#166534;font-family:'DM Mono',monospace;margin-top:4px"></div>
+            </div>
+            <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:18px 22px">
+              <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;letter-spacing:1px;font-weight:700">DESGLOSE</div>
+              <div id="total-kpi-desglose" style="font-family:'DM Mono',monospace;font-size:13px;color:var(--text);line-height:1.8;margin-top:6px">—</div>
+            </div>
+          </div>
+
+          <!-- KPIs detallados -->
+          <div class="meta-kpis">
+            <div class="meta-kpi"><div class="meta-kpi-label">GASTO ADS TOTAL</div><div id="total-kpi-spend" class="meta-kpi-val">—</div><div id="total-kpi-spend-sub" class="meta-kpi-sub">—</div></div>
+            <div class="meta-kpi"><div class="meta-kpi-label">ÓRDENES ATRIBUIDAS</div><div id="total-kpi-orders" class="meta-kpi-val">—</div><div id="total-kpi-orders-sub" class="meta-kpi-sub">—</div></div>
+            <div class="meta-kpi"><div class="meta-kpi-label">REVENUE ATRIBUIDO</div><div id="total-kpi-revenue" class="meta-kpi-val">—</div><div id="total-kpi-revenue-sub" class="meta-kpi-sub">—</div></div>
+            <div class="meta-kpi"><div class="meta-kpi-label">ROAS REAL</div><div id="total-kpi-roas" class="meta-kpi-val">—</div><div id="total-kpi-roas-sub" class="meta-kpi-sub">—</div></div>
+            <div class="meta-kpi"><div class="meta-kpi-label">COGS</div><div id="total-kpi-cogs" class="meta-kpi-val">—</div><div id="total-kpi-cogs-sub" class="meta-kpi-sub">—</div></div>
+          </div>
+
+          <!-- Tabla comparativa por plataforma -->
+          <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:14px;overflow:hidden;margin-top:14px">
+            <div style="padding:14px 20px;border-bottom:1px solid var(--border);font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted)">Desglose por plataforma</div>
+            <div class="reporte-scroll"><table style="width:100%;border-collapse:collapse;font-size:12px;min-width:700px">
+              <thead>
+                <tr style="border-bottom:1px solid var(--border);background:var(--surface2)">
+                  <th style="text-align:left;padding:10px 14px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">PLATAFORMA</th>
+                  <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">GASTO</th>
+                  <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">ÓRD.</th>
+                  <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">REVENUE</th>
+                  <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">CPA REAL</th>
+                  <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">ROAS</th>
+                  <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:#C4674F;font-weight:700">GAN. NETA</th>
+                </tr>
+              </thead>
+              <tbody id="total-platform-tbody"></tbody>
+            </table></div>
+          </div>
+
+          <!-- Comparación con Shopify total -->
+          <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:14px 18px;margin-top:14px;display:flex;align-items:center;gap:18px;flex-wrap:wrap">
+            <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;font-weight:700">📊 SHOPIFY TOTAL DEL PERÍODO</div>
+            <div id="total-shopify-info" style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text);line-height:1.7;flex:1">Cargando…</div>
+          </div>
+        </div>
+      </div><!-- /#report-tab-total -->
 
       <!-- Tab Top / Flop -->
       <div id="report-tab-topflop" style="display:none">
@@ -15494,7 +15578,291 @@ function switchReportTab(tab){
   if (tab === 'cross')    initCrossTab();
   if (tab === 'tiktok')   initTikTokTab();
   if (tab === 'tt-cross') initTtxCrossTab();
+  if (tab === 'total')    initTotalTab();
   if (tab === 'topflop')  initTopFlopTab();
+  const totalTab = document.getElementById('report-tab-total');
+  if (totalTab) totalTab.style.display = tab === 'total' ? '' : 'none';
+}
+
+// ── TOTAL (Ganancia combinada Meta + TikTok) ─────────────────────────────────
+let _totalData = null;
+
+function initTotalTab(){
+  // Heredar config COD compartida
+  try {
+    const cfg = (typeof getCodConfig === 'function') ? getCodConfig() : null;
+    if (cfg) {
+      document.getElementById('total-cod-conf').value  = cfg.confirmacion;
+      document.getElementById('total-cod-entr').value  = cfg.entrega;
+      document.getElementById('total-cod-envio').value = cfg.envio;
+    }
+  } catch {}
+  totalUpdateCodEff();
+  fetchTotalReport();
+}
+
+function totalUpdateCodEff(){
+  const conf = Number(document.getElementById('total-cod-conf').value) || 0;
+  const entr = Number(document.getElementById('total-cod-entr').value) || 0;
+  document.getElementById('total-cod-eff').textContent = 'Efectividad: ' + Math.round((conf/100)*(entr/100)*100) + '%';
+}
+
+function totalOnCodChange(){
+  const cfg = {
+    confirmacion: Math.max(0, Math.min(100, Number(document.getElementById('total-cod-conf').value) || 0)),
+    entrega:      Math.max(0, Math.min(100, Number(document.getElementById('total-cod-entr').value) || 0)),
+    envio:        Math.max(0, Number(document.getElementById('total-cod-envio').value) || 0),
+  };
+  try { localStorage.setItem('bkdrop_cod_config', JSON.stringify(cfg)); } catch {}
+  totalUpdateCodEff();
+  if (_totalData) renderTotalView();
+}
+
+async function fetchTotalReport(){
+  const preset = document.getElementById('total-date-preset').value;
+  const tenant = (typeof getCurrentTenant === 'function') ? getCurrentTenant() : 'chile';
+  const loading = document.getElementById('total-loading');
+  const err     = document.getElementById('total-error');
+  const content = document.getElementById('total-content');
+  loading.style.display = ''; err.style.display = 'none'; content.style.display = 'none';
+
+  try {
+    // Meta: una llamada por cada cuenta del tenant
+    const metaPromise = (async () => {
+      const accRes = await fetch('/.netlify/functions/meta-ad-accounts?tenant=' + encodeURIComponent(tenant));
+      if (!accRes.ok) return { accounts: [], items: [] };
+      const accData = await accRes.json();
+      const accounts = accData.accounts || [];
+      const items = await Promise.all(accounts.map(async (a) => {
+        try {
+          const url = '/.netlify/functions/cross-report?account_id=' + encodeURIComponent(a.id)
+                    + '&date_preset=' + encodeURIComponent(preset)
+                    + (tenant === 'gt' ? '&tenant=gt' : '');
+          const r = await fetch(url);
+          if (!r.ok) return null;
+          const d = await r.json();
+          return { account: a, data: d };
+        } catch { return null; }
+      }));
+      return { accounts, items: items.filter(Boolean) };
+    })();
+
+    // TikTok: 1 sola llamada al advertiser actual
+    const tiktokPromise = (async () => {
+      const auth = (typeof getTikTokAuth === 'function') ? getTikTokAuth() : null;
+      if (!auth) return null;
+      let advId = localStorage.getItem('bkdrop_tiktok_advertiser') || (auth.advertiser_ids && auth.advertiser_ids[0]);
+      if (!advId) return null;
+      try {
+        const url = '/.netlify/functions/tiktok-cross-report?advertiser_id=' + encodeURIComponent(advId)
+                  + '&date_preset=' + encodeURIComponent(preset)
+                  + '&tenant=' + encodeURIComponent(tenant);
+        const r = await fetch(url);
+        if (!r.ok) return null;
+        return await r.json();
+      } catch { return null; }
+    })();
+
+    // Shopify total (para comparar con orgánicas + atribuidas)
+    const shopifyPromise = (async () => {
+      // Rango del preset traducido a fechas (lo más simple: usar date= en shopify-report cuando es hoy)
+      const today = new Date().toLocaleString('en-CA', { timeZone: 'America/Santiago' }).split(',')[0].trim();
+      const addDays = (d, n) => {
+        const dt = new Date(d + 'T12:00:00Z');
+        dt.setUTCDate(dt.getUTCDate() + n);
+        return dt.toISOString().split('T')[0];
+      };
+      let from, to;
+      switch (preset) {
+        case 'today':         from = to = today; break;
+        case 'yesterday':     from = to = addDays(today, -1); break;
+        case 'last_4d_today': from = addDays(today, -3); to = today; break;
+        case 'last_7d':       from = addDays(today, -7); to = addDays(today, -1); break;
+        case 'last_30d':      from = addDays(today, -30); to = addDays(today, -1); break;
+        case 'this_month':    from = today.slice(0,7) + '-01'; to = today; break;
+        case 'last_month': {
+          const [y, m] = today.split('-').map(Number);
+          const pm = m === 1 ? 12 : m - 1, py = m === 1 ? y - 1 : y;
+          const lastDay = new Date(Date.UTC(py, pm, 0)).getUTCDate();
+          from = `${py}-${String(pm).padStart(2,'0')}-01`;
+          to = `${py}-${String(pm).padStart(2,'0')}-${String(lastDay).padStart(2,'0')}`;
+          break;
+        }
+        default: from = to = today;
+      }
+      try {
+        const url = from === to
+          ? '/.netlify/functions/shopify-report?date=' + from + (tenant === 'gt' ? '&tenant=gt' : '')
+          : '/.netlify/functions/shopify-report?date_from=' + from + '&date_to=' + to + (tenant === 'gt' ? '&tenant=gt' : '');
+        const r = await fetch(url);
+        if (!r.ok) return null;
+        return await r.json();
+      } catch { return null; }
+    })();
+
+    const [metaR, tiktokR, shopifyR] = await Promise.all([metaPromise, tiktokPromise, shopifyPromise]);
+
+    _totalData = { meta: metaR, tiktok: tiktokR, shopify: shopifyR, preset, tenant };
+    renderTotalView();
+    content.style.display = '';
+    document.getElementById('total-meta-info').textContent =
+      (metaR.accounts.length || 0) + ' cuenta(s) Meta · ' +
+      (tiktokR ? 'TikTok conectado' : 'TikTok NO conectado') +
+      ' · período: ' + preset;
+  } catch (e) {
+    err.style.display = '';
+    err.textContent = '⚠️ ' + (e.message || 'Error consultando totales');
+  } finally {
+    loading.style.display = 'none';
+  }
+}
+
+function renderTotalView(){
+  if (!_totalData) return;
+  const conf = (Number(document.getElementById('total-cod-conf').value) || 0) / 100;
+  const entr = (Number(document.getElementById('total-cod-entr').value) || 0) / 100;
+  const envio = Number(document.getElementById('total-cod-envio').value) || 0;
+  const tasaEntrega = conf * entr;
+  const fmt = (v) => v == null ? '—' : '$' + Math.round(v).toLocaleString('es-CL');
+
+  // Aplicar cost overrides compartidos
+  const overrides = (typeof getCostOverrides === 'function') ? getCostOverrides() : {};
+  const applyOverrides = (byProduct) => {
+    let cogs = 0;
+    for (const p of (byProduct || [])) {
+      const override = overrides[p.name];
+      const unitCost = (override != null && isFinite(override)) ? override : p.unitCost;
+      if (unitCost != null && p.qty) cogs += unitCost * p.qty;
+    }
+    return cogs;
+  };
+
+  // META: sumar todas las cuentas
+  const platforms = [];
+  let metaSpend = 0, metaOrders = 0, metaRevenue = 0, metaCogs = 0;
+  for (const item of (_totalData.meta?.items || [])) {
+    const d = item.data;
+    if (!d || !d.kpis) continue;
+    metaSpend   += d.kpis.spend || 0;
+    metaOrders  += d.kpis.realPurchases || 0;
+    metaRevenue += d.kpis.realRevenue || 0;
+    metaCogs    += applyOverrides(d.byProduct);
+  }
+  if (metaSpend > 0 || metaOrders > 0) {
+    platforms.push({
+      name: '📈 Meta Ads', color: '#1877F2',
+      spend: metaSpend, orders: metaOrders, revenue: metaRevenue, cogs: metaCogs,
+    });
+  }
+
+  // TIKTOK
+  let ttSpend = 0, ttOrders = 0, ttRevenue = 0, ttCogs = 0;
+  if (_totalData.tiktok && _totalData.tiktok.kpis) {
+    const k = _totalData.tiktok.kpis;
+    ttSpend   = k.spend || 0;
+    ttOrders  = k.realPurchases || 0;
+    ttRevenue = k.realRevenue || 0;
+    ttCogs    = applyOverrides(_totalData.tiktok.byProduct);
+  }
+  if (ttSpend > 0 || ttOrders > 0) {
+    platforms.push({
+      name: '🎵 TikTok Ads', color: '#FE2C55',
+      spend: ttSpend, orders: ttOrders, revenue: ttRevenue, cogs: ttCogs,
+    });
+  }
+
+  // Totales combinados
+  const totalSpend   = metaSpend + ttSpend;
+  const totalOrders  = metaOrders + ttOrders;
+  const totalRevenue = metaRevenue + ttRevenue;
+  const totalCogs    = metaCogs + ttCogs;
+
+  // Aplicar COD
+  const ordersConf      = totalOrders * conf;
+  const ordersDelivered = totalOrders * tasaEntrega;
+  const revenueReal     = totalRevenue * tasaEntrega;
+  const cogsReal        = totalCogs * tasaEntrega;
+  const envioTotal      = ordersConf * envio;
+  const netReal         = revenueReal - cogsReal - envioTotal - totalSpend;
+  const marginPct       = revenueReal > 0 ? (netReal / revenueReal) * 100 : null;
+  const roasReal        = totalSpend > 0 && totalRevenue > 0 ? totalRevenue / totalSpend : null;
+  const cpaReal         = ordersDelivered > 0 ? totalSpend / ordersDelivered : null;
+
+  // KPI gigante: ganancia neta
+  const netEl = document.getElementById('total-kpi-net');
+  netEl.textContent = fmt(netReal);
+  netEl.style.color = netReal >= 0 ? '#15803d' : '#dc2626';
+  const card = netEl.parentElement;
+  if (netReal >= 0) {
+    card.style.background = 'linear-gradient(135deg,#dcfce7,#bbf7d0)';
+    card.style.borderColor = '#22C55E';
+  } else {
+    card.style.background = 'linear-gradient(135deg,#fee2e2,#fecaca)';
+    card.style.borderColor = '#dc2626';
+  }
+  document.getElementById('total-kpi-net-detail').textContent =
+    (marginPct == null ? '' : 'margen ' + marginPct.toFixed(0) + '% · ') +
+    ordersDelivered.toFixed(1) + ' órd. entregadas · envío ' + fmt(envioTotal);
+
+  // Desglose visual
+  const desglose = `
+    <div>Revenue real (post-COD): <b>${fmt(revenueReal)}</b></div>
+    <div style="color:#dc2626">− COGS (estimado): ${fmt(cogsReal)}</div>
+    <div style="color:#dc2626">− Envío: ${fmt(envioTotal)}</div>
+    <div style="color:#dc2626">− Gasto ads: ${fmt(totalSpend)}</div>
+    <div style="border-top:1px solid var(--border);padding-top:4px;margin-top:4px;font-weight:700;color:${netReal>=0?'#22C55E':'#dc2626'}">= ${fmt(netReal)}</div>
+  `;
+  document.getElementById('total-kpi-desglose').innerHTML = desglose;
+
+  // KPIs detallados
+  document.getElementById('total-kpi-spend').textContent     = fmt(totalSpend);
+  document.getElementById('total-kpi-spend-sub').textContent = 'Meta ' + fmt(metaSpend) + ' · TikTok ' + fmt(ttSpend);
+  document.getElementById('total-kpi-orders').textContent    = totalOrders;
+  document.getElementById('total-kpi-orders-sub').textContent = 'Meta ' + metaOrders + ' · TikTok ' + ttOrders;
+  document.getElementById('total-kpi-revenue').textContent   = fmt(totalRevenue);
+  document.getElementById('total-kpi-revenue-sub').textContent = 'Real (post-COD): ' + fmt(revenueReal);
+  document.getElementById('total-kpi-roas').textContent      = roasReal == null ? '—' : roasReal.toFixed(2) + 'x';
+  document.getElementById('total-kpi-roas-sub').textContent  = cpaReal == null ? '' : 'CPA real ' + fmt(cpaReal);
+  document.getElementById('total-kpi-cogs').textContent      = fmt(totalCogs);
+  document.getElementById('total-kpi-cogs-sub').textContent  = 'Real (post-COD): ' + fmt(cogsReal);
+
+  // Tabla por plataforma
+  const totalRevForCogs = totalRevenue;
+  const tbody = document.getElementById('total-platform-tbody');
+  tbody.innerHTML = platforms.map(p => {
+    const pOrdsConf      = p.orders * conf;
+    const pRevReal       = p.revenue * tasaEntrega;
+    const pCogsReal      = p.cogs * tasaEntrega;
+    const pEnvio         = pOrdsConf * envio;
+    const pNet           = pRevReal - pCogsReal - pEnvio - p.spend;
+    const pOrdsDelivered = p.orders * tasaEntrega;
+    const pCpaReal       = pOrdsDelivered > 0 ? p.spend / pOrdsDelivered : null;
+    const pRoas          = p.spend > 0 && p.revenue > 0 ? p.revenue / p.spend : null;
+    return `<tr style="border-bottom:1px solid var(--border)">
+      <td style="padding:10px 14px;color:${p.color};font-weight:700">${p.name}</td>
+      <td style="text-align:right;padding:10px 10px;font-family:'DM Mono',monospace">${fmt(p.spend)}</td>
+      <td style="text-align:right;padding:10px 10px;font-family:'DM Mono',monospace;color:var(--accent);font-weight:700">${p.orders}</td>
+      <td style="text-align:right;padding:10px 10px;font-family:'DM Mono',monospace">${fmt(p.revenue)}</td>
+      <td style="text-align:right;padding:10px 10px;font-family:'DM Mono',monospace;color:var(--accent);font-weight:600">${pCpaReal ? fmt(pCpaReal) : '—'}</td>
+      <td style="text-align:right;padding:10px 10px;font-family:'DM Mono',monospace;color:${pRoas>=2?'#22c55e':pRoas>=1?'#eab308':'var(--muted2)'};font-weight:700">${pRoas ? pRoas.toFixed(2)+'x' : '—'}</td>
+      <td style="text-align:right;padding:10px 10px;font-family:'DM Mono',monospace;font-weight:700;color:${pNet>=0?'#22c55e':'#dc2626'}">${fmt(pNet)}</td>
+    </tr>`;
+  }).join('');
+
+  // Shopify total comparativa
+  const shopifyInfo = document.getElementById('total-shopify-info');
+  const shop = _totalData.shopify;
+  if (shop && (shop.totalOrders != null || shop.totals)) {
+    const shopOrders = shop.totalOrders || (shop.totals && shop.totals.totalOrders) || 0;
+    const shopRevenue = shop.totalRevenue || (shop.totals && shop.totals.totalRevenue) || 0;
+    const atribuidoPct = shopOrders > 0 ? Math.round((totalOrders / shopOrders) * 100) : 0;
+    shopifyInfo.innerHTML =
+      `<b>${shopOrders}</b> órdenes · <b>${fmt(shopRevenue)}</b> revenue total` +
+      ` · <span style="color:${atribuidoPct >= 50 ? '#22c55e' : '#eab308'}"><b>${atribuidoPct}%</b> atribuido a campañas</span>` +
+      `<div style="font-size:10px;color:var(--muted);margin-top:2px">Orgánicas / sin UTM / otras fuentes: ${shopOrders - totalOrders} órd · ${fmt(shopRevenue - totalRevenue)}</div>`;
+  } else {
+    shopifyInfo.textContent = 'No se pudieron cargar los totales de Shopify para comparar.';
+  }
 }
 
 // ── CRUCE TIKTOK × SHOPIFY ───────────────────────────────────────────────────
