@@ -7232,6 +7232,13 @@ async function crearCarpetasDriveDelProducto(handle, title){
 }
 
 async function uploadToShopifyFiles(file, alt){
+  // Netlify Functions tienen límite de ~6 MB en el body. Como subimos en
+  // base64 (infla ~33%), el archivo real no puede pasar 4 MB para tener margen.
+  const MAX_BYTES = 4 * 1024 * 1024;
+  if (file.size > MAX_BYTES) {
+    const mb = (file.size / 1024 / 1024).toFixed(1);
+    throw new Error(`Archivo "${file.name}" pesa ${mb} MB — máximo 4 MB. Comprimilo (https://ezgif.com/optimize para GIFs, https://tinypng.com para fotos) y reintentá.`);
+  }
   const base64 = await fileToBase64(file);
   const resp = await fetch('/.netlify/functions/shopify-themes?_=1' + tenantParam(), {
     method: 'POST',
@@ -7244,8 +7251,18 @@ async function uploadToShopifyFiles(file, alt){
       alt: alt || file.name,
     }),
   });
-  const data = await resp.json();
-  if (!resp.ok) throw new Error('Upload fail: ' + (data.error || resp.status));
+  // Si Netlify devuelve un error antes de la function (ej. body > 6 MB),
+  // viene como texto plano, no JSON. Capturamos ese caso para dar un mensaje útil.
+  const responseText = await resp.text();
+  let data;
+  try { data = JSON.parse(responseText); }
+  catch {
+    if (responseText.startsWith('Internal') || resp.status >= 500) {
+      throw new Error(`Upload "${file.name}": el archivo es demasiado pesado para subir directo. Comprimilo a menos de 4 MB y reintentá.`);
+    }
+    throw new Error('Upload fail: respuesta no válida del servidor (' + resp.status + ')');
+  }
+  if (!resp.ok) throw new Error('Upload "' + file.name + '": ' + (data.error || resp.status));
   return data; // { file, filename, cdnUrl, shopifyRef }
 }
 
