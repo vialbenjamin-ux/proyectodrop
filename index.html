@@ -15725,7 +15725,7 @@ function renderTotalView(){
   const tasaEntrega = conf * entr;
   const fmt = (v) => v == null ? '—' : '$' + Math.round(v).toLocaleString('es-CL');
 
-  // Aplicar cost overrides compartidos
+  // Cost overrides
   const overrides = (typeof getCostOverrides === 'function') ? getCostOverrides() : {};
   const applyOverrides = (byProduct) => {
     let cogs = 0;
@@ -15737,38 +15737,46 @@ function renderTotalView(){
     return cogs;
   };
 
-  // META: sumar todas las cuentas
-  const platforms = [];
-  let metaSpend = 0, metaOrders = 0, metaRevenue = 0, metaCogs = 0;
+  // META spend: SÍ se suma de todas las cuentas (cada cuenta tiene su propio gasto)
+  let metaSpend = 0;
   for (const item of (_totalData.meta?.items || [])) {
-    const d = item.data;
-    if (!d || !d.kpis) continue;
-    metaSpend   += d.kpis.spend || 0;
-    metaOrders  += d.kpis.realPurchases || 0;
-    metaRevenue += d.kpis.realRevenue || 0;
-    metaCogs    += applyOverrides(d.byProduct);
+    metaSpend += item.data?.kpis?.spend || 0;
   }
-  if (metaSpend > 0 || metaOrders > 0) {
-    platforms.push({
-      name: '📈 Meta Ads', color: '#1877F2',
-      spend: metaSpend, orders: metaOrders, revenue: metaRevenue, cogs: metaCogs,
-    });
+  // META órdenes/revenue: usar shopify-report.bySource.meta (sin duplicación entre cuentas)
+  const shop = _totalData.shopify || {};
+  const bySource = shop.bySource || (shop.totals && shop.totals.bySource) || {};
+  const metaOrders  = bySource.meta?.orders || 0;
+  const metaRevenue = bySource.meta?.revenue || 0;
+  // META COGS: deduplicar productos por nombre tomando el MÁX qty entre cuentas
+  // (las cuentas con campañas de mismo nombre pueden atribuir las mismas órdenes
+  // — el máximo representa las unidades reales únicas).
+  const metaProductMap = new Map();
+  for (const item of (_totalData.meta?.items || [])) {
+    for (const p of (item.data?.byProduct || [])) {
+      const existing = metaProductMap.get(p.name);
+      if (!existing || (p.qty || 0) > (existing.qty || 0)) {
+        metaProductMap.set(p.name, p);
+      }
+    }
   }
+  const metaCogs = applyOverrides([...metaProductMap.values()]);
 
   // TIKTOK
   let ttSpend = 0, ttOrders = 0, ttRevenue = 0, ttCogs = 0;
   if (_totalData.tiktok && _totalData.tiktok.kpis) {
     const k = _totalData.tiktok.kpis;
     ttSpend   = k.spend || 0;
-    ttOrders  = k.realPurchases || 0;
-    ttRevenue = k.realRevenue || 0;
+    ttOrders  = bySource.tiktok?.orders  || k.realPurchases || 0;
+    ttRevenue = bySource.tiktok?.revenue || k.realRevenue   || 0;
     ttCogs    = applyOverrides(_totalData.tiktok.byProduct);
   }
+
+  const platforms = [];
+  if (metaSpend > 0 || metaOrders > 0) {
+    platforms.push({ name: '📈 Meta Ads', color: '#1877F2', spend: metaSpend, orders: metaOrders, revenue: metaRevenue, cogs: metaCogs });
+  }
   if (ttSpend > 0 || ttOrders > 0) {
-    platforms.push({
-      name: '🎵 TikTok Ads', color: '#FE2C55',
-      spend: ttSpend, orders: ttOrders, revenue: ttRevenue, cogs: ttCogs,
-    });
+    platforms.push({ name: '🎵 TikTok Ads', color: '#FE2C55', spend: ttSpend, orders: ttOrders, revenue: ttRevenue, cogs: ttCogs });
   }
 
   // Totales combinados
