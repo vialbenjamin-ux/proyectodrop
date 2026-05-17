@@ -13880,6 +13880,15 @@ function renderVideosProdCard(p){
     ? `<span data-resp-badge="${esc(handle)}" title="${respTitle}" ${respClickHandler} style="display:inline-flex;align-items:center;gap:6px;background:linear-gradient(135deg,#fef3c7,#fed7aa);color:#78350f;padding:6px 14px;border-radius:20px;font-size:14px;font-family:'Montserrat',sans-serif;font-weight:800;border:1.5px solid #f59e0b;flex-shrink:0;white-space:nowrap;cursor:${respCursor}"><span style="font-size:16px">👤</span> ${esc(responsible)}</span>`
     : `<span data-resp-badge="${esc(handle)}" title="${respTitle}" ${respClickHandler} style="display:inline-flex;align-items:center;gap:6px;background:var(--surface2);color:var(--muted2);padding:6px 12px;border-radius:20px;font-size:12px;font-family:'DM Mono',monospace;border:1.5px dashed var(--border);flex-shrink:0;white-space:nowrap;cursor:${respCursor}">👤 ${admin ? 'asignar…' : 'sin asignar'}</span>`;
 
+  // Badge grande con el estado actual de la tarea — debajo del responsable
+  const STATUS_SHORT = {
+    not_started: '⚪ NO EMPEZADO',
+    testing:     '🟢 EN TESTEO',
+    scaling:     '🔵 EN ESCALADO',
+    task_done:   '✅ TERMINADO',
+  };
+  const statusBadge = `<span style="display:inline-flex;align-items:center;justify-content:center;background:${cfg.tagBg};color:${cfg.tagColor};padding:6px 14px;border-radius:20px;font-size:13px;font-family:'Montserrat',sans-serif;font-weight:800;border:1.5px solid ${cfg.tagColor};flex-shrink:0;white-space:nowrap">${STATUS_SHORT[status] || cfg.label}</span>`;
+
   // Cálculo de días + badge de vencida/progreso (solo si NO es task_done)
   let timeBadge = '';
   if (!isDone && status !== 'task_done' && (startDate || endDate)) {
@@ -13909,20 +13918,21 @@ function renderVideosProdCard(p){
     <div class="vp-product-card" data-handle="${esc(handle)}" data-title="${esc(title)}" data-task-status="${esc(status)}" data-responsible="${esc(responsible)}" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;${leftBar}">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;padding:12px 14px;cursor:pointer;gap:8px" onclick="toggleVideosProdCard('${esc(handle)}')">
         <div style="flex:1;min-width:0">
-          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:2px">
-            <div style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:14px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1">${esc(title)}</div>
-            ${responsibleBadge}
-            ${timeBadge}
-          </div>
+          <div style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:14px;color:var(--text);margin-bottom:2px">${esc(title)}</div>
           <div style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;margin-bottom:6px">handle: ${esc(handle)}</div>
           <div style="display:flex;flex-direction:column;gap:6px">
             ${statusControls}
             ${datesUI}
           </div>
         </div>
-        <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
-          ${driveUrl ? `<a href="${driveUrl}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="background:#4285F4;color:#fff;text-decoration:none;border-radius:6px;padding:5px 10px;font-size:10px;font-family:'DM Mono',monospace">↗ Drive</a>` : ''}
-          <span class="vp-chevron" style="font-size:18px;color:var(--muted);transition:transform 0.2s">▾</span>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0">
+          <div style="display:flex;gap:6px;align-items:center">
+            ${driveUrl ? `<a href="${driveUrl}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="background:#4285F4;color:#fff;text-decoration:none;border-radius:6px;padding:5px 10px;font-size:10px;font-family:'DM Mono',monospace">↗ Drive</a>` : ''}
+            <span class="vp-chevron" style="font-size:18px;color:var(--muted);transition:transform 0.2s">▾</span>
+          </div>
+          ${responsibleBadge}
+          ${statusBadge}
+          ${timeBadge}
         </div>
       </div>
       <div class="vp-folders" id="vp-folders-${esc(handle)}" style="display:none;border-top:1px solid var(--border);padding:12px;background:var(--surface2)">
