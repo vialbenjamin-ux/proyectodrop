@@ -2551,6 +2551,7 @@
                   <th style="text-align:left;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">COMBOS (1u·2u·3u)</th>
                   <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500" title="Editable">PRECIO U.</th>
                   <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500" title="Editable">COSTO U.</th>
+                  <th style="text-align:center;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500" title="Tasas COD por producto. Vacío = usa global. Click para editar.">TASAS C/E %</th>
                   <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--accent);font-weight:600">REVENUE</th>
                   <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:500">GASTO ATRIB.</th>
                   <th style="text-align:right;padding:10px 10px;font-size:10px;letter-spacing:1px;color:var(--accent);font-weight:600">ROAS</th>
@@ -18303,6 +18304,7 @@ function startStockPolling(){
 
 const CROSS_COST_OVERRIDES_KEY = 'bkdrop_cross_cost_overrides';
 const CROSS_PRICE_OVERRIDES_KEY = 'bkdrop_cross_price_overrides';
+const CROSS_RATES_OVERRIDES_KEY = 'bkdrop_cross_rates_overrides';
 const COD_CONFIG_KEY = 'bkdrop_cod_config';
 let _crossLastData = null;
 let _crossAccountsLoaded = false;
@@ -18327,6 +18329,24 @@ function setPriceOverride(productKey, value){
   if (value == null || value === '' || isNaN(value)) delete all[productKey];
   else all[productKey] = parseFloat(value);
   localStorage.setItem(CROSS_PRICE_OVERRIDES_KEY, JSON.stringify(all));
+}
+
+// Tasas COD por producto (confirmación, entrega). Vacío = usa global.
+function getRatesOverrides(){
+  try { return JSON.parse(localStorage.getItem(CROSS_RATES_OVERRIDES_KEY) || '{}'); }
+  catch { return {}; }
+}
+function setRateOverride(productKey, field, value){
+  const all = getRatesOverrides();
+  if (!all[productKey]) all[productKey] = {};
+  if (value == null || value === '' || isNaN(value)) {
+    delete all[productKey][field];
+    if (Object.keys(all[productKey]).length === 0) delete all[productKey];
+  } else {
+    const v = Math.max(0, Math.min(100, parseFloat(value)));
+    all[productKey][field] = v;
+  }
+  localStorage.setItem(CROSS_RATES_OVERRIDES_KEY, JSON.stringify(all));
 }
 
 // ── Modelo COD (% confirmación, % entrega, costo envío) ──────────────────────
@@ -18387,10 +18407,13 @@ function resetCodConfig(){
 
 // Aplica modelo COD a una row para obtener métricas reales (entregadas, ganancia, etc).
 // row debe tener: orders/realPurchases, revenue/realRevenue, totalCost (opcional), spend/attributedSpend.
-function applyCodMetrics(row, costOverride, priceOverride){
+function applyCodMetrics(row, costOverride, priceOverride, ratesOverride){
   const cfg = getCodConfig();
-  const tasaConfirm = cfg.confirmacion / 100;
-  const tasaEntrega = tasaConfirm * (cfg.entrega / 100);
+  // Tasas: por producto si están definidas, sino global del cfg.
+  const confPct = (ratesOverride && ratesOverride.confirmacion != null) ? ratesOverride.confirmacion : cfg.confirmacion;
+  const entrPct = (ratesOverride && ratesOverride.entrega      != null) ? ratesOverride.entrega      : cfg.entrega;
+  const tasaConfirm = confPct / 100;
+  const tasaEntrega = tasaConfirm * (entrPct / 100);
 
   const orders  = row.orders ?? row.realPurchases ?? 0;
   const qty     = row.qty ?? 0;
@@ -18725,25 +18748,31 @@ function renderCrossKpis(data){
   const cfg = getCodConfig();
   const tasaEntrega = (cfg.confirmacion / 100) * (cfg.entrega / 100);
 
-  // Calcular agregados POST COD aplicando overrides en byProduct
+  // Calcular agregados POST COD aplicando overrides POR PRODUCTO (cost, price, rates).
   const costOverrides  = getCostOverrides();
   const priceOverrides = getPriceOverrides();
+  const ratesOverrides = getRatesOverrides();
   let totalRevenuePostOverride = 0;
-  let totalCogsPostOverride = 0;
+  let totalRevenueEntregado    = 0;
+  let totalCogsEntregado       = 0;
   let hasAnyCost = false;
   for (const p of (data.byProduct || [])) {
     const overrideKey = (p.variantIds && p.variantIds.length) ? 'v:' + p.variantIds[0] : 'p:' + p.name;
-    const m = applyCodMetrics(p, costOverrides[overrideKey], priceOverrides[overrideKey]);
+    const ratesOv = ratesOverrides[overrideKey] || null;
+    const m = applyCodMetrics(p, costOverrides[overrideKey], priceOverrides[overrideKey], ratesOv);
     totalRevenuePostOverride += m.revenue || 0;
-    if (m.totalCost != null) {
-      totalCogsPostOverride += m.totalCost;
+    totalRevenueEntregado    += m.revenueReal || 0; // ya aplica tasas por producto
+    if (m.cogsReal != null) {
+      totalCogsEntregado += m.cogsReal;
       hasAnyCost = true;
     }
   }
 
+  // Órdenes/envío usan tasas globales por simplicidad (no podemos personalizar
+  // por producto sin saber qué órdenes son de qué producto exacto).
   const ordenesEntregadas = k.shopifyMetaOrders * tasaEntrega;
-  const revenueEntregado  = totalRevenuePostOverride * tasaEntrega;
-  const cogsEntregado     = hasAnyCost ? totalCogsPostOverride * tasaEntrega : null;
+  const revenueEntregado  = totalRevenueEntregado;
+  const cogsEntregado     = hasAnyCost ? totalCogsEntregado : null;
   const envioTotal        = k.shopifyMetaOrders * (cfg.confirmacion / 100) * cfg.envio;
   const gananciaNeta      = cogsEntregado != null ? revenueEntregado - cogsEntregado - k.spend - envioTotal : null;
   const margenNeto        = gananciaNeta != null && revenueEntregado > 0 ? (gananciaNeta / revenueEntregado) * 100 : null;
@@ -19227,21 +19256,24 @@ function renderCrossProductsTable(data){
   const rows = data.byProduct || [];
   if (count) count.textContent = `${rows.length} ${rows.length === 1 ? 'producto' : 'productos'}`;
   if (rows.length === 0){
-    tbody.innerHTML = '<tr><td colspan="9" style="padding:24px;text-align:center;color:var(--muted2)">Sin ventas atribuidas a Meta en este período</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10" style="padding:24px;text-align:center;color:var(--muted2)">Sin ventas atribuidas a Meta en este período</td></tr>';
     return;
   }
   const cur = data.currency;
   const costOverrides  = getCostOverrides();
   const priceOverrides = getPriceOverrides();
+  const ratesOverrides = getRatesOverrides();
+  const cfgGlobal = getCodConfig();
 
   tbody.innerHTML = rows.map((r, idx)=>{
     const dist = formatQtyDist(r.qtyDistribution);
     const overrideKey = (r.variantIds && r.variantIds.length) ? 'v:' + r.variantIds[0] : 'p:' + r.name;
     const costOv  = costOverrides[overrideKey];
     const priceOv = priceOverrides[overrideKey];
+    const ratesOv = ratesOverrides[overrideKey] || null;
 
     // Aplicar modelo COD con overrides
-    const m = applyCodMetrics(r, costOv, priceOv);
+    const m = applyCodMetrics(r, costOv, priceOv, ratesOv);
 
     // Precio unitario actual (override o calculado)
     const baseUnitPrice = r.qty > 0 ? r.revenue / r.qty : 0;
@@ -19265,6 +19297,17 @@ function renderCrossProductsTable(data){
     const ganancia = m.gananciaReal;
     const gClass = ganancia != null ? (ganancia > 0 ? 'color:#3F7F5C;font-weight:600' : 'color:#B14747;font-weight:600') : 'color:var(--muted)';
 
+    // Celda de tasas COD por producto (confirmación / entrega %)
+    const confVal = ratesOv && ratesOv.confirmacion != null ? ratesOv.confirmacion : '';
+    const entrVal = ratesOv && ratesOv.entrega      != null ? ratesOv.entrega      : '';
+    const hasRateOv = (confVal !== '' || entrVal !== '');
+    const ratesCell = `
+      <div style="display:flex;flex-direction:column;gap:2px;align-items:center" onclick="event.stopPropagation()">
+        <input type="number" class="cross-rate-input" data-key="${overrideKey}" data-field="confirmacion" value="${confVal}" placeholder="${cfgGlobal.confirmacion}" min="0" max="100" step="1" onchange="onCrossRateChange(this)" title="Tasa de confirmación de este producto. Vacío = ${cfgGlobal.confirmacion}% global" style="width:50px;text-align:center;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:2px 4px;border-radius:4px;font-size:11px;font-family:'DM Mono',monospace;outline:none">
+        <input type="number" class="cross-rate-input" data-key="${overrideKey}" data-field="entrega"      value="${entrVal}" placeholder="${cfgGlobal.entrega}"      min="0" max="100" step="1" onchange="onCrossRateChange(this)" title="Tasa de entrega de este producto. Vacío = ${cfgGlobal.entrega}% global"      style="width:50px;text-align:center;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:2px 4px;border-radius:4px;font-size:11px;font-family:'DM Mono',monospace;outline:none">
+        ${hasRateOv ? `<a href="#" onclick="event.preventDefault();onCrossRatesReset('${overrideKey}')" style="font-size:9px;color:var(--muted);text-decoration:underline">× reset</a>` : ''}
+      </div>`;
+
     return `
       <tr style="border-bottom:1px solid var(--border)">
         <td style="padding:9px 14px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.name)}">${esc(r.name)}</td>
@@ -19272,6 +19315,7 @@ function renderCrossProductsTable(data){
         <td style="padding:9px 10px;font-size:10px"><span class="cross-qty-dist">${dist}</span></td>
         <td style="text-align:right;padding:9px 10px">${priceCell}</td>
         <td style="text-align:right;padding:9px 10px">${costCell}</td>
+        <td style="padding:9px 10px">${ratesCell}</td>
         <td style="text-align:right;padding:9px 10px;color:var(--accent);font-weight:600">${fmtMoney(m.revenue, cur)}</td>
         <td style="text-align:right;padding:9px 10px;color:var(--muted)">${fmtMoney(r.attributedSpend, cur)}</td>
         <td style="text-align:right;padding:9px 10px;color:${roasReal && roasReal > 2 ? '#3F7F5C' : (roasReal && roasReal < 1.5 ? '#B14747' : 'var(--accent)')};font-weight:600">${roasReal ? roasReal.toFixed(2) + 'x' : '—'}</td>
@@ -19279,6 +19323,25 @@ function renderCrossProductsTable(data){
       </tr>
     `;
   }).join('');
+}
+
+function onCrossRateChange(input){
+  const key = input.dataset.key;
+  const field = input.dataset.field;
+  setRateOverride(key, field, input.value.trim());
+  if (_crossLastData) {
+    renderCrossProductsTable(_crossLastData);
+    renderCrossKpis(_crossLastData);
+  }
+}
+
+function onCrossRatesReset(key){
+  setRateOverride(key, 'confirmacion', null);
+  setRateOverride(key, 'entrega', null);
+  if (_crossLastData) {
+    renderCrossProductsTable(_crossLastData);
+    renderCrossKpis(_crossLastData);
+  }
 }
 
 function onCrossPriceChange(input){
