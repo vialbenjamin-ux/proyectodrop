@@ -15819,8 +15819,11 @@ function renderTotalView(){
   const envioTotal      = ordersConf * envio;
   const netReal         = revenueReal - cogsReal - envioTotal - totalSpend;
   const marginPct       = revenueReal > 0 ? (netReal / revenueReal) * 100 : null;
+  // ROAS REAL = revenue ATRIBUIDO bruto / gasto ads (sin COD, consistente con tabs Meta/TikTok).
   const roasReal        = totalSpend > 0 && attribRevenue > 0 ? attribRevenue / totalSpend : null;
-  const cpaReal         = ordersDelivered > 0 ? totalSpend / ordersDelivered : null;
+  // CPA REAL = gasto / órdenes ATRIBUIDAS Shopify brutas. Sin COD ni orgánicas
+  // — consistente con el CPA REAL que muestran los tabs Meta Ads y TikTok Ads.
+  const cpaReal         = attribOrders > 0 ? totalSpend / attribOrders : null;
 
   // KPI gigante: ganancia neta
   const netEl = document.getElementById('total-kpi-net');
