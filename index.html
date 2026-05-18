@@ -15748,16 +15748,18 @@ function renderTotalView(){
     return cogs;
   };
 
-  // META spend: SÍ se suma de todas las cuentas (cada cuenta tiene su propio gasto)
-  let metaSpend = 0;
+  // META: sumar de cada cross-report (consistente con tab Meta Ads).
+  // Cada cuenta usa cross-report que atribuye por utm_campaign+id (más generoso
+  // que utm_source). Si hay duplicación entre cuentas con campañas de mismo
+  // nombre, el COGS se deduplica abajo.
+  let metaSpend = 0, metaOrders = 0, metaRevenue = 0;
   for (const item of (_totalData.meta?.items || [])) {
-    metaSpend += item.data?.kpis?.spend || 0;
+    const k = item.data?.kpis;
+    if (!k) continue;
+    metaSpend   += k.spend         || 0;
+    metaOrders  += k.realPurchases || 0;
+    metaRevenue += k.realRevenue   || 0;
   }
-  // META órdenes/revenue: usar shopify-report.bySource.meta (sin duplicación entre cuentas)
-  const shop = _totalData.shopify || {};
-  const bySource = shop.bySource || (shop.totals && shop.totals.bySource) || {};
-  const metaOrders  = bySource.meta?.orders || 0;
-  const metaRevenue = bySource.meta?.revenue || 0;
   // META COGS: deduplicar productos por nombre tomando el MÁX qty entre cuentas
   // (las cuentas con campañas de mismo nombre pueden atribuir las mismas órdenes
   // — el máximo representa las unidades reales únicas).
@@ -15772,13 +15774,16 @@ function renderTotalView(){
   }
   const metaCogs = applyOverrides([...metaProductMap.values()]);
 
+  // Shopify total (para sección orgánicas)
+  const shop = _totalData.shopify || {};
+
   // TIKTOK
   let ttSpend = 0, ttOrders = 0, ttRevenue = 0, ttCogs = 0;
   if (_totalData.tiktok && _totalData.tiktok.kpis) {
     const k = _totalData.tiktok.kpis;
-    ttSpend   = k.spend || 0;
-    ttOrders  = bySource.tiktok?.orders  || k.realPurchases || 0;
-    ttRevenue = bySource.tiktok?.revenue || k.realRevenue   || 0;
+    ttSpend   = k.spend         || 0;
+    ttOrders  = k.realPurchases || 0;
+    ttRevenue = k.realRevenue   || 0;
     ttCogs    = applyOverrides(_totalData.tiktok.byProduct);
   }
 
