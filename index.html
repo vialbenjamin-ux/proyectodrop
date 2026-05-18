@@ -15882,8 +15882,9 @@ function renderTotalView(){
     const pCogsReal      = p.cogs * tasaEntrega;
     const pEnvio         = pOrdsConf * envio;
     const pNet           = pRevReal - pCogsReal - pEnvio - p.spend;
-    const pOrdsDelivered = p.orders * tasaEntrega;
-    const pCpaReal       = pOrdsDelivered > 0 ? p.spend / pOrdsDelivered : null;
+    // CPA REAL por plataforma: gasto / órdenes Shopify brutas atribuidas
+    // (sin COD, consistente con KPI agregado y con tabs Meta Ads / TikTok Ads).
+    const pCpaReal       = p.orders > 0 ? p.spend / p.orders : null;
     const pRoas          = p.spend > 0 && p.revenue > 0 ? p.revenue / p.spend : null;
     return `<tr style="border-bottom:1px solid var(--border)">
       <td style="padding:10px 14px;color:${p.color};font-weight:700">${p.name}</td>
