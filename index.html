@@ -15790,13 +15790,28 @@ function renderTotalView(){
     platforms.push({ name: '🎵 TikTok Ads', color: '#FE2C55', spend: ttSpend, orders: ttOrders, revenue: ttRevenue, cogs: ttCogs });
   }
 
-  // Totales combinados
-  const totalSpend   = metaSpend + ttSpend;
-  const totalOrders  = metaOrders + ttOrders;
-  const totalRevenue = metaRevenue + ttRevenue;
-  const totalCogs    = metaCogs + ttCogs;
+  // Atribuido a campañas (Meta + TikTok)
+  const attribSpend   = metaSpend + ttSpend;
+  const attribOrders  = metaOrders + ttOrders;
+  const attribRevenue = metaRevenue + ttRevenue;
+  const attribCogs    = metaCogs + ttCogs;
 
-  // Aplicar COD
+  // Shopify total (incluye orgánicas)
+  const shopOrders  = shop.totalOrders  || shop.totals?.totalOrders  || 0;
+  const shopRevenue = shop.totalRevenue || shop.totals?.totalRevenue || 0;
+  const orgOrders   = Math.max(0, shopOrders - attribOrders);
+  const orgRevenue  = Math.max(0, shopRevenue - attribRevenue);
+  // COGS de orgánicas: extrapolar usando el ratio COGS/revenue de las atribuidas
+  const cogsRatio   = attribRevenue > 0 ? (attribCogs / attribRevenue) : 0;
+  const orgCogs     = orgRevenue * cogsRatio;
+
+  // Totales INCLUYENDO orgánicas — para la ganancia del NEGOCIO completo
+  const totalSpend   = attribSpend; // solo lo gastado en ads, las orgánicas no cuestan publicidad
+  const totalOrders  = shopOrders;  // todas las órdenes del período
+  const totalRevenue = shopRevenue;
+  const totalCogs    = attribCogs + orgCogs;
+
+  // Aplicar COD sobre el total del negocio
   const ordersConf      = totalOrders * conf;
   const ordersDelivered = totalOrders * tasaEntrega;
   const revenueReal     = totalRevenue * tasaEntrega;
@@ -15804,7 +15819,7 @@ function renderTotalView(){
   const envioTotal      = ordersConf * envio;
   const netReal         = revenueReal - cogsReal - envioTotal - totalSpend;
   const marginPct       = revenueReal > 0 ? (netReal / revenueReal) * 100 : null;
-  const roasReal        = totalSpend > 0 && totalRevenue > 0 ? totalRevenue / totalSpend : null;
+  const roasReal        = totalSpend > 0 && attribRevenue > 0 ? attribRevenue / totalSpend : null;
   const cpaReal         = ordersDelivered > 0 ? totalSpend / ordersDelivered : null;
 
   // KPI gigante: ganancia neta
@@ -15821,7 +15836,8 @@ function renderTotalView(){
   }
   document.getElementById('total-kpi-net-detail').textContent =
     (marginPct == null ? '' : 'margen ' + marginPct.toFixed(0) + '% · ') +
-    ordersDelivered.toFixed(1) + ' órd. entregadas · envío ' + fmt(envioTotal);
+    ordersDelivered.toFixed(1) + ' órd. entregadas · envío ' + fmt(envioTotal) +
+    ' · incluye ' + orgOrders + ' órgánicas';
 
   // Desglose visual
   const desglose = `
@@ -15837,18 +15853,17 @@ function renderTotalView(){
   document.getElementById('total-kpi-spend').textContent     = fmt(totalSpend);
   document.getElementById('total-kpi-spend-sub').textContent = 'Meta ' + fmt(metaSpend) + ' · TikTok ' + fmt(ttSpend);
   document.getElementById('total-kpi-orders').textContent    = totalOrders;
-  document.getElementById('total-kpi-orders-sub').textContent = 'Meta ' + metaOrders + ' · TikTok ' + ttOrders;
+  document.getElementById('total-kpi-orders-sub').textContent = 'Meta ' + metaOrders + ' · TikTok ' + ttOrders + ' · Orgánicas ' + orgOrders;
   document.getElementById('total-kpi-revenue').textContent   = fmt(totalRevenue);
-  document.getElementById('total-kpi-revenue-sub').textContent = 'Real (post-COD): ' + fmt(revenueReal);
+  document.getElementById('total-kpi-revenue-sub').textContent = 'Atribuido ' + fmt(attribRevenue) + ' · Org. ' + fmt(orgRevenue);
   document.getElementById('total-kpi-roas').textContent      = roasReal == null ? '—' : roasReal.toFixed(2) + 'x';
-  document.getElementById('total-kpi-roas-sub').textContent  = cpaReal == null ? '' : 'CPA real ' + fmt(cpaReal);
+  document.getElementById('total-kpi-roas-sub').textContent  = (cpaReal == null ? '' : 'CPA real ' + fmt(cpaReal)) + ' · solo atribuido';
   document.getElementById('total-kpi-cogs').textContent      = fmt(totalCogs);
-  document.getElementById('total-kpi-cogs-sub').textContent  = 'Real (post-COD): ' + fmt(cogsReal);
+  document.getElementById('total-kpi-cogs-sub').textContent  = 'Real (post-COD): ' + fmt(cogsReal) + ' · ratio ' + Math.round(cogsRatio*100) + '%';
 
-  // Tabla por plataforma
-  const totalRevForCogs = totalRevenue;
+  // Tabla por plataforma + fila "Orgánicas" al final
   const tbody = document.getElementById('total-platform-tbody');
-  tbody.innerHTML = platforms.map(p => {
+  const platformRows = platforms.map(p => {
     const pOrdsConf      = p.orders * conf;
     const pRevReal       = p.revenue * tasaEntrega;
     const pCogsReal      = p.cogs * tasaEntrega;
@@ -15867,6 +15882,25 @@ function renderTotalView(){
       <td style="text-align:right;padding:10px 10px;font-family:'DM Mono',monospace;font-weight:700;color:${pNet>=0?'#22c55e':'#dc2626'}">${fmt(pNet)}</td>
     </tr>`;
   }).join('');
+  // Fila Orgánicas (sin gasto ads, COGS estimado por ratio)
+  let orgRow = '';
+  if (orgOrders > 0) {
+    const orgOrdsConf      = orgOrders * conf;
+    const orgRevReal       = orgRevenue * tasaEntrega;
+    const orgCogsReal      = orgCogs * tasaEntrega;
+    const orgEnvio         = orgOrdsConf * envio;
+    const orgNet           = orgRevReal - orgCogsReal - orgEnvio;
+    orgRow = `<tr style="border-bottom:1px solid var(--border);background:rgba(234,179,8,.05)" title="Órdenes sin utm_source de Meta/TikTok: directas, orgánicas, otras fuentes. COGS estimado por ratio.">
+      <td style="padding:10px 14px;color:#eab308;font-weight:700">🟡 Orgánicas / directas <span style="font-size:9px;color:var(--muted2);font-weight:400">(sin gasto ads)</span></td>
+      <td style="text-align:right;padding:10px 10px;font-family:'DM Mono',monospace;color:var(--muted2)">—</td>
+      <td style="text-align:right;padding:10px 10px;font-family:'DM Mono',monospace;color:#eab308;font-weight:700">${orgOrders}</td>
+      <td style="text-align:right;padding:10px 10px;font-family:'DM Mono',monospace">${fmt(orgRevenue)}</td>
+      <td style="text-align:right;padding:10px 10px;font-family:'DM Mono',monospace;color:var(--muted2)">—</td>
+      <td style="text-align:right;padding:10px 10px;font-family:'DM Mono',monospace;color:var(--muted2)">—</td>
+      <td style="text-align:right;padding:10px 10px;font-family:'DM Mono',monospace;font-weight:700;color:${orgNet>=0?'#22c55e':'#dc2626'}">${fmt(orgNet)}</td>
+    </tr>`;
+  }
+  tbody.innerHTML = platformRows + orgRow;
 
   // Shopify total comparativa (reusa el 'shop' declarado arriba)
   const shopifyInfo = document.getElementById('total-shopify-info');
