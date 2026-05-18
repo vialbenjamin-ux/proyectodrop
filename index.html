@@ -14465,19 +14465,30 @@ function renderVideoCard(file, type, handle, showRank){
   const notesBadge = notes
     ? `<span style="display:inline-block;background:#22C55E;color:#fff;border-radius:8px;padding:1px 6px;font-size:9px;font-family:'DM Mono',monospace;font-weight:700">✓</span>`
     : '';
+  // Calcular altura inicial según líneas de contenido (mínimo 60px, máximo 200px)
+  const lineCount = Math.max(2, (notes.match(/\n/g) || []).length + 1);
+  const initialHeight = Math.min(200, Math.max(60, lineCount * 18 + 20));
+  // Escapar comillas y newlines para attribute safe del modal
+  const safeNotesAttr = esc(notes).replace(/\n/g, '&#10;');
   const notesHtml = `
     <div style="padding:8px 10px;border-top:1px dashed var(--border);background:var(--surface)" onclick="event.stopPropagation()">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:4px">
         <span style="font-size:9px;color:var(--muted);font-family:'DM Mono',monospace;letter-spacing:.5px;display:flex;align-items:center;gap:4px">📝 COMENTARIOS ${notesBadge}</span>
-        ${notesMeta}
+        <div style="display:flex;align-items:center;gap:6px">
+          ${notesMeta}
+          <button onclick="event.stopPropagation();expandVideoNotes('${file.id}', '${esc(handle)}', '${esc(file.name).replace(/'/g, "\\'")}', this)"
+            title="Expandir comentarios en pantalla grande"
+            style="background:var(--surface2);border:1px solid var(--border);color:var(--muted);border-radius:4px;padding:1px 6px;font-size:11px;cursor:pointer;line-height:1">⛶</button>
+        </div>
       </div>
       <textarea
+        data-video-notes="${esc(file.id)}"
         placeholder="Qué editar, mejorar, hooks a probar, feedback, etc."
-        oninput="this.style.height='auto';this.style.height=Math.max(40,this.scrollHeight)+'px'"
+        oninput="this.style.height='auto';this.style.height=Math.max(60,Math.min(300,this.scrollHeight))+'px'"
         onblur="setVideoNotes('${file.id}', this.value, '${esc(handle)}', '${esc(file.name)}')"
         onclick="event.stopPropagation()"
         onmousedown="event.stopPropagation()"
-        style="width:100%;min-height:40px;background:var(--surface);border:1px solid var(--border);color:var(--text);font-size:11px;font-family:'DM Mono',monospace;padding:6px 8px;border-radius:5px;resize:vertical;line-height:1.4;outline:none;box-sizing:border-box"
+        style="width:100%;min-height:${initialHeight}px;background:var(--surface);border:1px solid var(--border);color:var(--text);font-size:12px;font-family:'DM Mono',monospace;padding:8px 10px;border-radius:5px;resize:vertical;line-height:1.5;outline:none;box-sizing:border-box"
       >${esc(notes)}</textarea>
     </div>`;
 
@@ -14602,6 +14613,59 @@ async function setFolderResponsible(handle, folderType, responsible){
 
 // Guarda métricas del video (ventas del día, CPA) en el mismo doc del ranking.
 // field: 'salesToday' o 'cpa'. value: número (puede ser string vacío = limpiar).
+// Abre modal con textarea grande para editar comentarios cómodamente.
+function expandVideoNotes(fileId, handle, fileName, btnEl){
+  const card = btnEl.closest('div[style*="aspect-ratio"]')?.parentElement?.parentElement || btnEl.closest('div');
+  const ranking = window._vpData.rankings[fileId] || {};
+  const currentNotes = ranking.notes || '';
+  const modal = document.createElement('div');
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10000;display:flex;align-items:center;justify-content:center;padding:20px';
+  modal.onclick = (e) => { if (e.target === modal) closeModal(); };
+  const closeModal = () => {
+    const ta = modal.querySelector('textarea');
+    if (ta && ta.value !== currentNotes) {
+      setVideoNotes(fileId, ta.value, handle, fileName).then(() => {
+        // Actualizar el textarea inline en la card (sin re-render completo)
+        const inline = document.querySelector(`textarea[data-video-notes="${fileId}"]`);
+        if (inline) inline.value = ta.value;
+      });
+    }
+    modal.remove();
+  };
+  modal.innerHTML = `
+    <div style="background:var(--surface);border-radius:14px;max-width:720px;width:100%;border:1.5px solid var(--border);overflow:hidden" onclick="event.stopPropagation()">
+      <div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:10px">
+        <div style="min-width:0">
+          <div style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:14px;color:var(--text)">📝 Comentarios del video</div>
+          <div style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(fileName)}">${esc(fileName)}</div>
+        </div>
+        <button class="vp-modal-close" style="background:transparent;border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer">✕ Cerrar</button>
+      </div>
+      <div style="padding:14px 18px">
+        <textarea
+          autofocus
+          placeholder="Qué editar, mejorar, hooks a probar, feedback, etc.${'\\n\\n'}Tip: usá Cmd/Ctrl+Enter para guardar y cerrar."
+          style="width:100%;min-height:300px;background:var(--surface2);border:1px solid var(--border);color:var(--text);font-size:14px;font-family:'DM Mono',monospace;padding:12px 14px;border-radius:8px;resize:vertical;line-height:1.6;outline:none;box-sizing:border-box"
+        >${esc(currentNotes)}</textarea>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px">
+          <span style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">Guarda automáticamente al cerrar</span>
+          <button class="vp-modal-save" style="background:var(--accent);color:#fff;border:none;border-radius:8px;padding:8px 18px;font-size:13px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">💾 Guardar y cerrar</button>
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  const ta = modal.querySelector('textarea');
+  ta.focus();
+  ta.setSelectionRange(ta.value.length, ta.value.length);
+  modal.querySelector('.vp-modal-close').onclick = closeModal;
+  modal.querySelector('.vp-modal-save').onclick = closeModal;
+  ta.onkeydown = (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); closeModal(); }
+    else if (e.key === 'Escape') { closeModal(); }
+  };
+}
+
 // Notas/comentarios por video. Cualquier usuario logueado puede editar.
 async function setVideoNotes(fileId, value, handle, fileName){
   try {
