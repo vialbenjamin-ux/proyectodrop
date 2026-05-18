@@ -15749,17 +15749,22 @@ function renderTotalView(){
   };
 
   // META: sumar de cada cross-report (consistente con tab Meta Ads).
-  // Cada cuenta usa cross-report que atribuye por utm_campaign+id (más generoso
-  // que utm_source). Si hay duplicación entre cuentas con campañas de mismo
-  // nombre, el COGS se deduplica abajo.
   let metaSpend = 0, metaOrders = 0, metaRevenue = 0;
+  const metaDebug = [];
   for (const item of (_totalData.meta?.items || [])) {
     const k = item.data?.kpis;
     if (!k) continue;
     metaSpend   += k.spend         || 0;
     metaOrders  += k.realPurchases || 0;
     metaRevenue += k.realRevenue   || 0;
+    metaDebug.push({
+      account: item.account?.name || item.account?.id,
+      spend: k.spend, orders: k.realPurchases, revenue: k.realRevenue,
+    });
   }
+  // Debug log: abrí la consola del browser (F12) para ver el breakdown
+  console.log('[Total] Meta breakdown por cuenta:', metaDebug);
+  console.log('[Total] Meta SUMA spend=', metaSpend, 'orders=', metaOrders, 'revenue=', metaRevenue);
   // META COGS: deduplicar productos por nombre tomando el MÁX qty entre cuentas
   // (las cuentas con campañas de mismo nombre pueden atribuir las mismas órdenes
   // — el máximo representa las unidades reales únicas).
