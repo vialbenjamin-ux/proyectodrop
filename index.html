@@ -16107,7 +16107,7 @@ function renderTtxCrossView(){
 
   // Aplicar COD a totales
   const ordersConf      = (k.realPurchases || 0) * conf;
-  const ordersDelivered = (k.realPurchases || 0) * tasaEntrega;
+  const ordersDeliveredTtx = (k.realPurchases || 0) * tasaEntrega;
   const revenueReal     = (k.realRevenue || 0) * tasaEntrega;
   const cogsReal        = totalCogs * tasaEntrega;
   const envioTotal      = ordersConf * envio;
@@ -16115,12 +16115,13 @@ function renderTtxCrossView(){
   const marginPct       = revenueReal > 0 ? (netReal / revenueReal) * 100 : null;
   // ROAS BRUTO (revenue Shopify / gasto TikTok). El COD ya está reflejado en la ganancia neta.
   const roasReal        = k.spend > 0 && k.realRevenue > 0 ? k.realRevenue / k.spend : null;
-  const cpaReal         = ordersDelivered > 0 ? k.spend / ordersDelivered : null;
+  // CPA REAL = gasto / órdenes Shopify BRUTAS (sin COD), consistente con tabs Meta Ads y TikTok Ads.
+  const cpaReal         = (k.realPurchases || 0) > 0 ? k.spend / k.realPurchases : null;
 
   document.getElementById('ttx-kpi-spend').textContent          = fmt(k.spend || 0);
   document.getElementById('ttx-kpi-orders').textContent         = (k.realPurchases || 0) + ' órd.';
   document.getElementById('ttx-kpi-revenue').textContent        = fmt(k.realRevenue || 0);
-  document.getElementById('ttx-kpi-delivered').textContent      = ordersDelivered.toFixed(1) + ' órd.';
+  document.getElementById('ttx-kpi-delivered').textContent      = ordersDeliveredTtx.toFixed(1) + ' órd.';
   document.getElementById('ttx-kpi-delivered-rev').textContent  = fmt(revenueReal);
   document.getElementById('ttx-kpi-roas').textContent           = roasReal == null ? '—' : roasReal.toFixed(2) + 'x';
   document.getElementById('ttx-kpi-cpa').textContent            = cpaReal == null ? '—' : 'CPA real ' + fmt(cpaReal);
@@ -16141,9 +16142,8 @@ function renderTtxCrossView(){
     // COGS de la campaña: prorratear el total por revenue
     const rCogsReal = totalRev > 0 ? totalCogs * (r.realRevenue / totalRev) * tasaEntrega : 0;
     const rNetReal = rRevReal - rCogsReal - rEnvio - r.spend;
-    // CPA real (sobre órdenes entregadas) y ROAS BRUTO (sin COD)
-    const rOrdsDelivered = r.realPurchases * tasaEntrega;
-    const rCpaReal = rOrdsDelivered > 0 ? r.spend / rOrdsDelivered : null;
+    // CPA real = gasto / órdenes Shopify BRUTAS (sin COD), consistente con tab TikTok Ads.
+    const rCpaReal = r.realPurchases > 0 ? r.spend / r.realPurchases : null;
     const rRoasReal = r.spend > 0 && r.realRevenue > 0 ? r.realRevenue / r.spend : null;
     return `<tr style="border-bottom:1px solid var(--border)">
       <td style="padding:10px 14px;color:var(--text)">${escapeHtmlSafe(r.name || '')}</td>

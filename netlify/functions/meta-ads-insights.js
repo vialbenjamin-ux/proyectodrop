@@ -1,6 +1,11 @@
 // Insights de campañas de Meta Ads.
 // Endpoint: GET /.netlify/functions/meta-ads-insights?account_id=act_xxx&date_preset=today
 // Responde: { rows: [{name, status, dailyBudget, spend, impressions, clicks, cpc, ctr, purchases, purchaseValue, cpa, roas, frequency, reach}], currency, datePreset }
+//
+// Anti-ban: 3 llamadas a Meta secuenciales con ≥3s entre cada una.
+// Parsea error.code (368, 190, rate limit) y devuelve códigos específicos.
+
+const meta = require('./_meta-api');
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') {
@@ -48,31 +53,26 @@ exports.handler = async (event) => {
     'cost_per_action_type',
   ].join(',');
 
-  const insightsUrl = `https://graph.facebook.com/v19.0/${accountId}/insights?` +
+  const insightsUrl = `https://graph.facebook.com/${meta.META_API_VERSION}/${accountId}/insights?` +
     `fields=${fields}&date_preset=${datePreset}&level=campaign&limit=200&access_token=${encodeURIComponent(token)}`;
 
   // Datos extra de cada campaña: status, presupuesto, objetivo
-  const campaignsUrl = `https://graph.facebook.com/v19.0/${accountId}/campaigns?` +
+  const campaignsUrl = `https://graph.facebook.com/${meta.META_API_VERSION}/${accountId}/campaigns?` +
     `fields=id,name,status,effective_status,daily_budget,lifetime_budget,objective&limit=200&access_token=${encodeURIComponent(token)}`;
 
   // Currency de la cuenta
-  const accountUrl = `https://graph.facebook.com/v19.0/${accountId}?fields=currency,name&access_token=${encodeURIComponent(token)}`;
+  const accountUrl = `https://graph.facebook.com/${meta.META_API_VERSION}/${accountId}?fields=currency,name&access_token=${encodeURIComponent(token)}`;
 
   try {
-    const [insightsResp, campaignsResp, accountResp, usdClpRate] = await Promise.all([
-      fetch(insightsUrl),
-      fetch(campaignsUrl),
-      fetch(accountUrl),
-      tenant === 'gt' ? getUsdToClpRate() : Promise.resolve(null),
-    ]);
-
-    const insightsData = await insightsResp.json();
-    if (!insightsResp.ok) {
-      return respond(insightsResp.status, { error: insightsData?.error?.message || 'Error en insights' });
-    }
-
-    const campaignsData = await campaignsResp.json();
-    const accountData = await accountResp.json();
+    // SECUENCIAL — las 3 llamadas a Meta van una atrás de otra con ≥3s entre cada una.
+    // El fxRate (a frankfurter.app, no Meta) lo lanzamos en paralelo en background.
+    const fxPromise = tenant === 'gt' ? getUsdToClpRate() : Promise.resolve(null);
+    const insightsData = await meta.fetchOne(insightsUrl);
+    await meta.delay();
+    const campaignsData = await meta.fetchOne(campaignsUrl);
+    await meta.delay();
+    const accountData = await meta.fetchOne(accountUrl);
+    const usdClpRate = await fxPromise;
 
     const campsById = {};
     if (campaignsResp.ok && campaignsData.data) {
@@ -142,6 +142,10 @@ exports.handler = async (event) => {
       accountId,
     });
   } catch (err) {
+    // Errores tipados de Meta (368, 190, rate limit) → response específico al frontend
+    if (err.isPolicyViolation || err.tokenInvalid || err.isRateLimit) {
+      return meta.metaErrorToResponse(err, respond);
+    }
     return respond(500, { error: err.message || 'Error consultando Meta' });
   }
 };

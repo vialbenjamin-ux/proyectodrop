@@ -3,6 +3,11 @@
 // poder mostrar cuentas de dos perfiles distintos en el mismo dropdown.
 // Endpoint: GET /.netlify/functions/meta-ad-accounts
 // Responde: { accounts: [{ id, name, currency, status, tokenIdx }] }
+//
+// Anti-ban: secuencia los tokens con ≥3s entre llamadas, parsea error.code
+// (368, 190, 17/32) y devuelve códigos específicos al frontend.
+
+const meta = require('./_meta-api');
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') {
@@ -29,15 +34,13 @@ exports.handler = async (event) => {
   const filterTenant = (params.tenant || '').toLowerCase();
   const tokensToUse = filterTenant ? tokens.filter(t => t.tenant === filterTenant) : tokens;
 
-  for (const { tenant, token } of tokensToUse) {
-    const url = `https://graph.facebook.com/v19.0/me/adaccounts?fields=id,name,account_status,currency&limit=200&access_token=${encodeURIComponent(token)}`;
+  // Si hay >1 token, secuenciamos con delay para no levantar alertas de Meta.
+  for (let i = 0; i < tokensToUse.length; i++) {
+    const { tenant, token } = tokensToUse[i];
+    if (i > 0) await meta.delay(); // ≥3s entre llamadas a Meta
+    const url = `https://graph.facebook.com/${meta.META_API_VERSION}/me/adaccounts?fields=id,name,account_status,currency&limit=200&access_token=${encodeURIComponent(token)}`;
     try {
-      const resp = await fetch(url);
-      const data = await resp.json();
-      if (!resp.ok) {
-        errors.push({ tenant, error: data?.error?.message || ('HTTP ' + resp.status) });
-        continue;
-      }
+      const data = await meta.fetchOne(url);
       (data.data || []).forEach(a => {
         allAccounts.push({
           id: a.id,
@@ -48,6 +51,10 @@ exports.handler = async (event) => {
         });
       });
     } catch (err) {
+      // Errores críticos (368, 190, rate limit) → devolver inmediato sin probar más tokens
+      if (err.isPolicyViolation || err.tokenInvalid || err.isRateLimit) {
+        return meta.metaErrorToResponse(err, respond);
+      }
       errors.push({ tenant, error: err.message || 'Error consultando Meta' });
     }
   }
