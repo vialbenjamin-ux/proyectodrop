@@ -1,13 +1,15 @@
 // Cruce Shopify × Meta — KPIs reales y recomendaciones.
 // Endpoint: GET /.netlify/functions/cross-report?account_id=act_xxx&date_preset=last_7d
-// Trae en paralelo:
-//   1) Órdenes de Shopify del período (con UTM source + UTM campaign + line_items)
-//   2) Insights de Meta a nivel campaña
-//   3) Metadata de campañas (estado, presupuesto)
-//   4) Currency de la cuenta
 // Cruza ventas Shopify con campañas de Meta por utm_campaign (match por ID
 // o por nombre como fallback) y devuelve KPIs reales, tabla por campaña,
 // tabla por producto y lista de recomendaciones.
+//
+// Anti-ban Meta:
+// - Shopify corre en paralelo (background) — no afecta a Meta.
+// - Las 5 llamadas a Meta van SECUENCIALES con ≥3s entre cada una.
+// - v21.0 pinned, parse error.code 368/190/rate limit con typed errors.
+
+const meta = require('./_meta-api');
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') {
@@ -45,20 +47,26 @@ exports.handler = async (event) => {
   const { startUTC, endUTC, dateFrom, dateTo } = range;
 
   try {
-    const [orders, insightsRaw, campaignsRaw, accountRaw, lastSpendByCampaign] = await Promise.all([
-      fetchShopifyOrders(shopifyDomain, shopifyToken, startUTC, endUTC),
-      useCustom
-        ? fetchMetaInsightsRange(accountId, metaToken, customSince, customUntil)
-        : fetchMetaInsights(accountId, metaToken, datePreset),
-      fetchMetaCampaigns(accountId, metaToken),
-      fetchMetaAccount(accountId, metaToken),
-      fetchMetaLastSpendByCampaign(
-        accountId, metaToken,
-        useCustom ? null : datePreset,
-        useCustom ? customSince : null,
-        useCustom ? customUntil : null,
-      ),
-    ]);
+    // Shopify corre en background — no es Meta, no aplica anti-ban.
+    const ordersPromise = fetchShopifyOrders(shopifyDomain, shopifyToken, startUTC, endUTC);
+
+    // SECUENCIAL — 4 llamadas a Meta con delay ≥3s entre cada una.
+    const insightsRaw = useCustom
+      ? await fetchMetaInsightsRange(accountId, metaToken, customSince, customUntil)
+      : await fetchMetaInsights(accountId, metaToken, datePreset);
+    await meta.delay();
+    const campaignsRaw = await fetchMetaCampaigns(accountId, metaToken);
+    await meta.delay();
+    const accountRaw = await fetchMetaAccount(accountId, metaToken);
+    await meta.delay();
+    const lastSpendByCampaign = await fetchMetaLastSpendByCampaign(
+      accountId, metaToken,
+      useCustom ? null : datePreset,
+      useCustom ? customSince : null,
+      useCustom ? customUntil : null,
+    );
+
+    const orders = await ordersPromise;
 
     // Traer costos de las variantes presentes en las órdenes (Shopify GraphQL)
     const variantIds = new Set();
@@ -344,6 +352,8 @@ exports.handler = async (event) => {
     const dayDiff = Math.round((new Date(dateTo + 'T12:00:00Z') - new Date(dateFrom + 'T12:00:00Z')) / (24 * 3600 * 1000));
     let byDay = null;
     if (dayDiff >= 1) {
+      // 5ª llamada a Meta — delay ≥3s desde la última (lastSpendByCampaign).
+      await meta.delay();
       const metaByDay = await fetchMetaInsightsByDay(
         accountId, metaToken,
         useCustom ? null : datePreset,
@@ -401,6 +411,9 @@ exports.handler = async (event) => {
       },
     });
   } catch (err) {
+    if (err.isPolicyViolation || err.tokenInvalid || err.isRateLimit) {
+      return meta.metaErrorToResponse(err, respond);
+    }
     return respond(500, { error: err.message || 'Error en cross-report' });
   }
 };
@@ -541,46 +554,45 @@ async function fetchShopifyOrders(domain, token, startUTC, endUTC) {
 
 async function fetchMetaInsights(accountId, token, datePreset) {
   const fields = 'campaign_id,campaign_name,spend,impressions,clicks,cpc,ctr,frequency,reach,actions,action_values,purchase_roas';
-  const url = `https://graph.facebook.com/v19.0/${accountId}/insights?fields=${fields}&date_preset=${datePreset}&level=campaign&limit=200&access_token=${encodeURIComponent(token)}`;
-  const resp = await fetch(url);
-  const data = await resp.json();
-  if (!resp.ok) throw new Error('Meta insights: ' + (data?.error?.message || resp.status));
-  return data;
+  const url = `https://graph.facebook.com/${meta.META_API_VERSION}/${accountId}/insights?fields=${fields}&date_preset=${datePreset}&level=campaign&limit=200&access_token=${encodeURIComponent(token)}`;
+  return await meta.fetchOne(url);
 }
 
 async function fetchMetaInsightsRange(accountId, token, since, until) {
   const fields = 'campaign_id,campaign_name,spend,impressions,clicks,cpc,ctr,frequency,reach,actions,action_values,purchase_roas';
   const timeRange = encodeURIComponent(JSON.stringify({ since, until }));
-  const url = `https://graph.facebook.com/v19.0/${accountId}/insights?fields=${fields}&time_range=${timeRange}&level=campaign&limit=200&access_token=${encodeURIComponent(token)}`;
-  const resp = await fetch(url);
-  const data = await resp.json();
-  if (!resp.ok) throw new Error('Meta insights: ' + (data?.error?.message || resp.status));
-  return data;
+  const url = `https://graph.facebook.com/${meta.META_API_VERSION}/${accountId}/insights?fields=${fields}&time_range=${timeRange}&level=campaign&limit=200&access_token=${encodeURIComponent(token)}`;
+  return await meta.fetchOne(url);
 }
 
-// Insights Meta agregados por día (time_increment=1) — para tabla acumulado
+// Insights Meta agregados por día (time_increment=1) — para tabla acumulado.
+// Errores no-críticos (no policy/token/rate-limit) se silencian con {}.
 async function fetchMetaInsightsByDay(accountId, token, datePreset, since, until) {
   const fields = 'spend,actions,action_values';
   const rangeParam = since && until
     ? `time_range=${encodeURIComponent(JSON.stringify({ since, until }))}`
     : `date_preset=${datePreset}`;
-  const url = `https://graph.facebook.com/v19.0/${accountId}/insights?fields=${fields}&${rangeParam}&time_increment=1&level=account&limit=400&access_token=${encodeURIComponent(token)}`;
-  const resp = await fetch(url);
-  const data = await resp.json();
-  if (!resp.ok) return {};
-  const result = {};
-  for (const r of (data.data || [])) {
-    const date = r.date_start;
-    const findAction = (arr, type) => (arr || []).find(a => a.action_type === type);
-    const purchaseAct = findAction(r.actions, 'purchase') || findAction(r.actions, 'omni_purchase');
-    const purchaseVal = findAction(r.action_values, 'purchase') || findAction(r.action_values, 'omni_purchase');
-    result[date] = {
-      spend: parseFloat(r.spend || 0),
-      metaPurchases: purchaseAct ? parseFloat(purchaseAct.value) : 0,
-      metaPurchaseValue: purchaseVal ? parseFloat(purchaseVal.value) : 0,
-    };
+  const url = `https://graph.facebook.com/${meta.META_API_VERSION}/${accountId}/insights?fields=${fields}&${rangeParam}&time_increment=1&level=account&limit=400&access_token=${encodeURIComponent(token)}`;
+  try {
+    const data = await meta.fetchOne(url);
+    const result = {};
+    for (const r of (data.data || [])) {
+      const date = r.date_start;
+      const findAction = (arr, type) => (arr || []).find(a => a.action_type === type);
+      const purchaseAct = findAction(r.actions, 'purchase') || findAction(r.actions, 'omni_purchase');
+      const purchaseVal = findAction(r.action_values, 'purchase') || findAction(r.action_values, 'omni_purchase');
+      result[date] = {
+        spend: parseFloat(r.spend || 0),
+        metaPurchases: purchaseAct ? parseFloat(purchaseAct.value) : 0,
+        metaPurchaseValue: purchaseVal ? parseFloat(purchaseVal.value) : 0,
+      };
+    }
+    return result;
+  } catch (err) {
+    // Errores críticos burbujean para que el caller los traduzca al frontend.
+    if (err.isPolicyViolation || err.tokenInvalid || err.isRateLimit) throw err;
+    return {};
   }
-  return result;
 }
 
 function getSantiagoDate(isoString) {
@@ -595,11 +607,9 @@ async function fetchMetaLastSpendByCampaign(accountId, token, datePreset, since,
   const rangeParam = since && until
     ? `time_range=${encodeURIComponent(JSON.stringify({ since, until }))}`
     : `date_preset=${datePreset}`;
-  const url = `https://graph.facebook.com/v19.0/${accountId}/insights?fields=${fields}&${rangeParam}&time_increment=1&level=campaign&limit=500&access_token=${encodeURIComponent(token)}`;
+  const url = `https://graph.facebook.com/${meta.META_API_VERSION}/${accountId}/insights?fields=${fields}&${rangeParam}&time_increment=1&level=campaign&limit=500&access_token=${encodeURIComponent(token)}`;
   try {
-    const resp = await fetch(url);
-    const data = await resp.json();
-    if (!resp.ok) return {};
+    const data = await meta.fetchOne(url);
     const result = {};
     for (const r of (data.data || [])) {
       if (!r.campaign_id || !r.date_start) continue;
@@ -610,24 +620,30 @@ async function fetchMetaLastSpendByCampaign(accountId, token, datePreset, since,
       }
     }
     return result;
-  } catch (_) {
+  } catch (err) {
+    if (err.isPolicyViolation || err.tokenInvalid || err.isRateLimit) throw err;
     return {};
   }
 }
 
 async function fetchMetaCampaigns(accountId, token) {
-  const url = `https://graph.facebook.com/v19.0/${accountId}/campaigns?fields=id,name,status,effective_status,daily_budget,objective&limit=200&access_token=${encodeURIComponent(token)}`;
-  const resp = await fetch(url);
-  const data = await resp.json();
-  if (!resp.ok) return { data: [] };
-  return data;
+  const url = `https://graph.facebook.com/${meta.META_API_VERSION}/${accountId}/campaigns?fields=id,name,status,effective_status,daily_budget,objective&limit=200&access_token=${encodeURIComponent(token)}`;
+  try {
+    return await meta.fetchOne(url);
+  } catch (err) {
+    if (err.isPolicyViolation || err.tokenInvalid || err.isRateLimit) throw err;
+    return { data: [] };
+  }
 }
 
 async function fetchMetaAccount(accountId, token) {
-  const url = `https://graph.facebook.com/v19.0/${accountId}?fields=currency,name&access_token=${encodeURIComponent(token)}`;
-  const resp = await fetch(url);
-  const data = await resp.json();
-  return resp.ok ? data : { currency: 'USD', name: '' };
+  const url = `https://graph.facebook.com/${meta.META_API_VERSION}/${accountId}?fields=currency,name&access_token=${encodeURIComponent(token)}`;
+  try {
+    return await meta.fetchOne(url);
+  } catch (err) {
+    if (err.isPolicyViolation || err.tokenInvalid || err.isRateLimit) throw err;
+    return { currency: 'USD', name: '' };
+  }
 }
 
 // ── Date preset → rango en UTC (Santiago) ──────────────────────────────────

@@ -2,6 +2,16 @@
 // Endpoint: GET /.netlify/functions/meta-backup?account_id=act_xxx
 // Responde JSON con toda la estructura para reconstruir las campañas en otra cuenta
 // si la actual es baneada.
+//
+// Anti-ban:
+// - Llamadas a Meta SECUENCIALES con ≥3s entre cada una (no Promise.all).
+// - Field expansion en /ads para traer creativos en la misma respuesta
+//   (en vez de batch '?ids=A,B,C' que Meta cuenta como tráfico sospechoso).
+// - Parse de error 368/190/17/32 con response específico.
+// - Versión API v21.0.
+// - Cap de páginas reducido (5 = ~500 ads max) para no abusar.
+
+const meta = require('./_meta-api');
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') {
@@ -37,64 +47,53 @@ exports.handler = async (event) => {
     'targeting','promoted_object','attribution_spec','destination_type',
     'created_time','updated_time',
   ].join(',');
-  // Fase 1: ads sin creative completo (liviano). Solo guardamos creative.id.
+  // Ads con creative EXPANDIDO en la misma llamada (evita batch ?ids=).
   const adFields = [
     'id','name','adset_id','campaign_id','status','effective_status',
-    'created_time','updated_time','creative{id}',
+    'created_time','updated_time',
+    'creative{id,name,title,body,link_url,instagram_permalink_url,thumbnail_url,image_url,video_id,call_to_action_type,effective_object_story_id,object_type}',
   ].join(',');
 
-  // Fase 2: creativos en batch (más liviano que pedirlos anidados en ads).
-  const creativeFields = [
-    'id','name','title','body','link_url','instagram_permalink_url',
-    'thumbnail_url','image_url','video_id','call_to_action_type',
-    'effective_object_story_id','object_type',
-  ].join(',');
-
-  // Cap de tiempo: la función Netlify por default mata a los 10s.
-  // Reservamos ~1.5s para serializar/responder.
+  // Timeout budget: Netlify Functions mata a los 10s. Reservamos margen.
   const startedAt = Date.now();
   const TIMEOUT_BUDGET_MS = 8500;
   const elapsed = () => Date.now() - startedAt;
   const remaining = () => TIMEOUT_BUDGET_MS - elapsed();
 
+  const V = meta.META_API_VERSION;
+
   try {
-    const [account, campaigns, adsets, ads] = await Promise.all([
-      fetchOne(`https://graph.facebook.com/v19.0/${accountId}?fields=${accountFields}&access_token=${encodeURIComponent(token)}`),
-      fetchAllPages(`https://graph.facebook.com/v19.0/${accountId}/campaigns?fields=${campaignFields}&limit=100&access_token=${encodeURIComponent(token)}`),
-      fetchAllPages(`https://graph.facebook.com/v19.0/${accountId}/adsets?fields=${adsetFields}&limit=100&access_token=${encodeURIComponent(token)}`),
-      fetchAllPages(`https://graph.facebook.com/v19.0/${accountId}/ads?fields=${adFields}&limit=100&access_token=${encodeURIComponent(token)}`),
-    ]);
+    // SECUENCIAL — una llamada Meta atrás de otra con delay ≥3s entre cada bloque.
+    // Las páginas del MISMO endpoint también van con delay entre páginas.
+    const account = await meta.fetchOne(
+      `https://graph.facebook.com/${V}/${accountId}?fields=${accountFields}&access_token=${encodeURIComponent(token)}`
+    );
 
-    // Recolectar creative.id únicos y traer creativos en lotes de 50.
-    // Si nos queda poco tiempo de función, saltamos esta fase y devolvemos
-    // los ads con creative={id} solamente, marcando partial=true.
-    const creativeIds = Array.from(new Set(
-      ads.map(a => a.creative?.id).filter(Boolean)
-    ));
-    const creativesById = {};
-    let creativesLoaded = 0;
-    let partialCreatives = false;
-    for (let i = 0; i < creativeIds.length; i += 50){
-      // ~2s por lote en peor caso. Si no alcanza, abortamos.
-      if (remaining() < 2500){ partialCreatives = true; break; }
-      const chunk = creativeIds.slice(i, i + 50);
-      const url = `https://graph.facebook.com/v19.0/?ids=${chunk.join(',')}&fields=${creativeFields}&access_token=${encodeURIComponent(token)}`;
-      try {
-        const data = await fetchWithRetry(url);
-        Object.assign(creativesById, data || {});
-        creativesLoaded += chunk.length;
-      } catch (e){
-        // Si un lote falla, marcamos parcial y continuamos
-        partialCreatives = true;
-      }
-    }
-    // Sustituir el creative liviano por el completo
-    for (const ad of ads){
-      const cid = ad.creative?.id;
-      if (cid && creativesById[cid]) ad.creative = creativesById[cid];
-    }
+    await meta.delay();
+    const campaigns = await fetchAllPagesSafe(
+      `https://graph.facebook.com/${V}/${accountId}/campaigns?fields=${campaignFields}&limit=100&access_token=${encodeURIComponent(token)}`,
+      remaining
+    );
 
-    // Construir jerarquía: campaign → adset → ad
+    if (remaining() < 4000) {
+      return respond(200, partialResponse(account, campaigns, [], [], 'campañas', elapsed()));
+    }
+    await meta.delay();
+    const adsets = await fetchAllPagesSafe(
+      `https://graph.facebook.com/${V}/${accountId}/adsets?fields=${adsetFields}&limit=100&access_token=${encodeURIComponent(token)}`,
+      remaining
+    );
+
+    if (remaining() < 4000) {
+      return respond(200, partialResponse(account, campaigns, adsets, [], 'adsets', elapsed()));
+    }
+    await meta.delay();
+    const ads = await fetchAllPagesSafe(
+      `https://graph.facebook.com/${V}/${accountId}/ads?fields=${adFields}&limit=100&access_token=${encodeURIComponent(token)}`,
+      remaining
+    );
+
+    // Construir jerarquía: campaign → adset → ad (con creative ya expandido)
     const adsByAdset = {};
     for (const ad of ads) {
       if (!adsByAdset[ad.adset_id]) adsByAdset[ad.adset_id] = [];
@@ -125,54 +124,52 @@ exports.handler = async (event) => {
         campaigns: campaigns.length,
         adsets: adsets.length,
         ads: ads.length,
-        creativesLoaded,
-        partialCreatives,
+        creativesLoaded: ads.filter(a => a.creative && a.creative.title).length,
+        partialCreatives: false,
         elapsedMs: elapsed(),
       },
       campaigns: campaignsTree,
     });
   } catch (err) {
+    if (err.isPolicyViolation || err.tokenInvalid || err.isRateLimit) {
+      return meta.metaErrorToResponse(err, respond);
+    }
     return respond(500, { error: err.message || 'Error generando backup' });
   }
 };
 
-// Detecta rate limit en la respuesta de Meta
-function isRateLimit(data, status){
-  const msg = (data?.error?.message || '').toLowerCase();
-  const code = data?.error?.code;
-  // Códigos conocidos: 4 (App rate), 17 (User request), 32 (Page rate), 613 (custom rate)
-  if ([4, 17, 32, 613].includes(code)) return true;
-  if (status === 429) return true;
-  if (/rate.?limit|too many|request limit|user request limit/.test(msg)) return true;
-  return false;
+function partialResponse(account, campaigns, adsets, ads, stoppedAt, elapsedMs) {
+  return {
+    exportedAt: new Date().toISOString(),
+    partial: true,
+    stoppedAt,
+    account: {
+      id: account.id, name: account.name, currency: account.currency,
+      timezone: account.timezone_name, country: account.business_country_code,
+      status: account.account_status,
+    },
+    summary: {
+      campaigns: campaigns.length, adsets: adsets.length, ads: ads.length,
+      creativesLoaded: ads.filter(a => a.creative && a.creative.title).length,
+      partialCreatives: ads.length === 0,
+      elapsedMs,
+    },
+    campaigns,
+  };
 }
 
-async function fetchWithRetry(url, attempt = 1, maxAttempts = 3){
-  const r = await fetch(url);
-  const data = await r.json();
-  if (!r.ok){
-    if (isRateLimit(data, r.status) && attempt < maxAttempts){
-      // Backoff exponencial: 2s, 5s
-      const waitMs = attempt === 1 ? 2000 : 5000;
-      await new Promise(res => setTimeout(res, waitMs));
-      return fetchWithRetry(url, attempt + 1, maxAttempts);
-    }
-    throw new Error(data?.error?.message || 'Error en Meta API');
-  }
-  return data;
-}
-
-async function fetchOne(url) {
-  return fetchWithRetry(url);
-}
-
-// Recorre cursores de paginación con cap de seguridad (max 20 páginas = ~2000 items con limit=100).
-async function fetchAllPages(initialUrl, maxPages = 20) {
+// Pagina respetando intervalos entre páginas. Cap reducido a 5 páginas
+// (~500 items con limit=100) para no abusar de Meta.
+async function fetchAllPagesSafe(initialUrl, remainingFn, maxPages = 5) {
   const all = [];
   let url = initialUrl;
   let pages = 0;
   while (url && pages < maxPages) {
-    const data = await fetchWithRetry(url);
+    if (pages > 0) {
+      if (remainingFn() < 4000) break;
+      await meta.delay(); // ≥3s entre páginas
+    }
+    const data = await meta.fetchOne(url);
     if (Array.isArray(data.data)) all.push(...data.data);
     url = data?.paging?.next || null;
     pages++;

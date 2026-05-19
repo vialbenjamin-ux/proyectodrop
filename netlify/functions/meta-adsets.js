@@ -1,6 +1,10 @@
 // Insights de adsets dentro de una campaña de Meta Ads.
 // Endpoint: GET /.netlify/functions/meta-adsets?campaign_id=XXX&date_preset=last_7d
 // Responde: { rows: [{ id, name, status, dailyBudget, spend, ..., purchases, cpa, roas }] }
+//
+// Anti-ban: 3 llamadas a Meta secuenciales con ≥3s entre cada una.
+
+const meta = require('./_meta-api');
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') {
@@ -29,23 +33,21 @@ exports.handler = async (event) => {
     'frequency','reach','actions','action_values','purchase_roas','cost_per_action_type',
   ].join(',');
 
-  const insightsUrl = `https://graph.facebook.com/v19.0/${campaignId}/insights?fields=${fields}&date_preset=${datePreset}&level=adset&limit=200&access_token=${encodeURIComponent(token)}`;
-  const adsetsUrl   = `https://graph.facebook.com/v19.0/${campaignId}/adsets?fields=id,name,status,effective_status,daily_budget,lifetime_budget,optimization_goal,bid_strategy&limit=200&access_token=${encodeURIComponent(token)}`;
-  // Ads de la campaña con created_time + adset_id para determinar el creativo
-  // más reciente por adset (alerta de "batch viejo" en frontend).
-  const adsUrl       = `https://graph.facebook.com/v19.0/${campaignId}/ads?fields=id,adset_id,created_time,status&limit=500&access_token=${encodeURIComponent(token)}`;
+  const V = meta.META_API_VERSION;
+  const insightsUrl = `https://graph.facebook.com/${V}/${campaignId}/insights?fields=${fields}&date_preset=${datePreset}&level=adset&limit=200&access_token=${encodeURIComponent(token)}`;
+  const adsetsUrl   = `https://graph.facebook.com/${V}/${campaignId}/adsets?fields=id,name,status,effective_status,daily_budget,lifetime_budget,optimization_goal,bid_strategy&limit=200&access_token=${encodeURIComponent(token)}`;
+  const adsUrl       = `https://graph.facebook.com/${V}/${campaignId}/ads?fields=id,adset_id,created_time,status&limit=500&access_token=${encodeURIComponent(token)}`;
 
   try {
-    const [insightsR, adsetsR, adsR, usdClpRate] = await Promise.all([
-      fetch(insightsUrl),
-      fetch(adsetsUrl),
-      fetch(adsUrl),
-      tenant === 'gt' ? getUsdToClpRate() : Promise.resolve(null),
-    ]);
-    const insightsData = await insightsR.json();
-    const adsetsData   = await adsetsR.json();
-    const adsData      = await adsR.json();
-    if (!insightsR.ok) return respond(insightsR.status, { error: insightsData?.error?.message || 'Error en insights' });
+    // SECUENCIAL — 3 llamadas a Meta con delay ≥3s entre cada una.
+    // El fxRate (frankfurter, no Meta) queda en background paralelo.
+    const fxPromise = tenant === 'gt' ? getUsdToClpRate() : Promise.resolve(null);
+    const insightsData = await meta.fetchOne(insightsUrl);
+    await meta.delay();
+    const adsetsData = await meta.fetchOne(adsetsUrl);
+    await meta.delay();
+    const adsData = await meta.fetchOne(adsUrl);
+    const usdClpRate = await fxPromise;
 
     const metaById = {};
     for (const a of (adsetsData?.data || [])) {
@@ -116,6 +118,9 @@ exports.handler = async (event) => {
       fxRate: (tenant === 'gt' && usdClpRate) ? usdClpRate : null,
     });
   } catch (err) {
+    if (err.isPolicyViolation || err.tokenInvalid || err.isRateLimit) {
+      return meta.metaErrorToResponse(err, respond);
+    }
     return respond(500, { error: err.message || 'Error consultando adsets' });
   }
 };

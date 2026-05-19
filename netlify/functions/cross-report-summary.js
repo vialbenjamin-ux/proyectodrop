@@ -4,6 +4,10 @@
 //
 // Endpoint: GET /.netlify/functions/cross-report-summary?account_id=act_xxx&since=YYYY-MM-DD&until=YYYY-MM-DD
 // Responde: { spend, orders, revenue, totalCost, hasAnyCost, currency }
+//
+// Anti-ban Meta: Shopify en background, 2 llamadas a Meta secuenciales con ≥3s.
+
+const meta = require('./_meta-api');
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: cors(), body: '' };
@@ -34,11 +38,15 @@ exports.handler = async (event) => {
   const endUTC = new Date(new Date(until + 'T' + off + ':00:00Z').getTime() + 24 * 3600000);
 
   try {
-    const [orders, metaInsights, accountInfo] = await Promise.all([
-      fetchShopifyOrders(shopifyDomain, shopifyToken, startUTC, endUTC),
-      fetchMetaSpend(accountId, metaToken, since, until),
-      fetchAccountInfo(accountId, metaToken),
-    ]);
+    // Shopify en background — no es Meta, no aplica anti-ban.
+    const ordersPromise = fetchShopifyOrders(shopifyDomain, shopifyToken, startUTC, endUTC);
+
+    // SECUENCIAL — 2 llamadas a Meta con ≥3s entre cada una.
+    const metaInsights = await fetchMetaSpend(accountId, metaToken, since, until);
+    await meta.delay();
+    const accountInfo = await fetchAccountInfo(accountId, metaToken);
+
+    const orders = await ordersPromise;
 
     // Recolectar variant IDs para costos
     const variantIds = new Set();
@@ -83,6 +91,9 @@ exports.handler = async (event) => {
       since, until,
     });
   } catch (err) {
+    if (err.isPolicyViolation || err.tokenInvalid || err.isRateLimit) {
+      return meta.metaErrorToResponse(err, respond);
+    }
     return respond(500, { error: err.message || 'Error en cross-report-summary' });
   }
 };
@@ -143,10 +154,8 @@ async function fetchShopifyOrders(domain, token, startUTC, endUTC) {
 async function fetchMetaSpend(accountId, token, since, until) {
   const fields = 'spend,actions,action_values';
   const tr = encodeURIComponent(JSON.stringify({ since, until }));
-  const url = `https://graph.facebook.com/v19.0/${accountId}/insights?fields=${fields}&time_range=${tr}&level=account&access_token=${encodeURIComponent(token)}`;
-  const resp = await fetch(url);
-  const data = await resp.json();
-  if (!resp.ok) throw new Error('Meta: ' + (data?.error?.message || resp.status));
+  const url = `https://graph.facebook.com/${meta.META_API_VERSION}/${accountId}/insights?fields=${fields}&time_range=${tr}&level=account&access_token=${encodeURIComponent(token)}`;
+  const data = await meta.fetchOne(url);
   const r = (data.data || [])[0] || {};
   const find = (arr, type) => (arr || []).find(a => a.action_type === type);
   const pAct = find(r.actions, 'purchase') || find(r.actions, 'omni_purchase');
@@ -159,10 +168,13 @@ async function fetchMetaSpend(accountId, token, since, until) {
 }
 
 async function fetchAccountInfo(accountId, token) {
-  const url = `https://graph.facebook.com/v19.0/${accountId}?fields=currency&access_token=${encodeURIComponent(token)}`;
-  const resp = await fetch(url);
-  const data = await resp.json();
-  return resp.ok ? data : { currency: 'USD' };
+  const url = `https://graph.facebook.com/${meta.META_API_VERSION}/${accountId}?fields=currency&access_token=${encodeURIComponent(token)}`;
+  try {
+    return await meta.fetchOne(url);
+  } catch (err) {
+    if (err.isPolicyViolation || err.tokenInvalid || err.isRateLimit) throw err;
+    return { currency: 'USD' };
+  }
 }
 
 async function fetchVariantCosts(domain, token, variantIds) {

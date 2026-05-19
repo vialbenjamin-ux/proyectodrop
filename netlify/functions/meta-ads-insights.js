@@ -75,7 +75,7 @@ exports.handler = async (event) => {
     const usdClpRate = await fxPromise;
 
     const campsById = {};
-    if (campaignsResp.ok && campaignsData.data) {
+    if (campaignsData?.data) {
       for (const c of campaignsData.data) {
         campsById[c.id] = {
           status: c.effective_status || c.status,
