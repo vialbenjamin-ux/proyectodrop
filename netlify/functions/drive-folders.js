@@ -63,6 +63,15 @@ exports.handler = async (event) => {
         return respond(200, result);
       }
 
+      if (body.op === 'rename-folder') {
+        const folderId = (body.folderId || '').trim();
+        const newName  = (body.newName  || '').trim();
+        if (!folderId) return respond(400, { error: 'Falta folderId' });
+        if (!newName)  return respond(400, { error: 'Falta newName' });
+        const result = await renameFolder(token, folderId, newName.slice(0, 100));
+        return respond(200, result);
+      }
+
       return respond(400, { error: 'op POST no válido' });
     }
 
@@ -131,6 +140,24 @@ async function drivePost(token, path, body) {
     throw new Error('Drive POST ' + path + ': ' + resp.status + ' ' + txt.slice(0, 200));
   }
   return resp.json();
+}
+
+async function drivePatch(token, path, body) {
+  const resp = await fetch('https://www.googleapis.com/drive/v3/' + path, {
+    method: 'PATCH',
+    headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!resp.ok) {
+    const txt = await resp.text();
+    throw new Error('Drive PATCH ' + path + ': ' + resp.status + ' ' + txt.slice(0, 200));
+  }
+  return resp.json();
+}
+
+async function renameFolder(token, folderId, newName) {
+  const data = await drivePatch(token, 'files/' + encodeURIComponent(folderId) + '?fields=id,name', { name: newName });
+  return { id: data.id, name: data.name };
 }
 
 async function listFolder(token, folderId) {

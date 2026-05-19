@@ -14088,7 +14088,7 @@ function renderVideosProdCard(p){
     <div class="vp-product-card" data-handle="${esc(handle)}" data-title="${esc(title)}" data-task-status="${esc(status)}" data-responsible="${esc(responsible)}" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;${leftBar}">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;padding:12px 14px;cursor:pointer;gap:8px" onclick="toggleVideosProdCard('${esc(handle)}')">
         <div style="flex:1;min-width:0">
-          <div style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:14px;color:var(--text);margin-bottom:2px">${esc(title)}</div>
+          <div data-title-badge="${esc(handle)}" ${admin ? `onclick="event.stopPropagation(); editProductTitleInline(this, '${esc(handle)}')" title="Click para editar título"` : ''} style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:14px;color:var(--text);margin-bottom:2px;${admin ? 'cursor:text;border-radius:4px;padding:2px 4px;margin-left:-4px;transition:background 0.15s' : ''}" ${admin ? `onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'"` : ''}>${esc(title)}</div>
           <div style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;margin-bottom:6px">handle: ${esc(handle)}</div>
           <div style="display:flex;flex-direction:column;gap:6px">
             ${statusControls}
@@ -14200,6 +14200,79 @@ function editResponsibleInline(badgeEl, handle){
   badgeEl.replaceWith(input);
   input.focus();
   input.select();
+}
+
+// Edición inline del título del producto (admin only). Al confirmar:
+// - actualiza Firestore (bkdrop_drive_product_folders.{handle}.title)
+// - renombra la carpeta del producto en Google Drive (si existe productFolderId)
+function editProductTitleInline(titleEl, handle){
+  if (typeof isAdmin === 'function' && !isAdmin()) return;
+  const product = window._vpData.products.find(x => (x.handle || x.id) === handle);
+  if (!product) return;
+  const currentValue = product.title || handle;
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.value = currentValue;
+  input.placeholder = 'Título del producto';
+  input.style.cssText = "background:#fff;border:1.5px solid var(--accent);border-radius:6px;padding:4px 8px;font-size:14px;font-family:'Montserrat',sans-serif;font-weight:800;color:var(--text);outline:none;width:100%;max-width:560px;box-sizing:border-box";
+  input.onclick = (e) => e.stopPropagation();
+  input.onmousedown = (e) => e.stopPropagation();
+  let finishing = false;
+  const finish = async (save) => {
+    if (finishing) return;
+    finishing = true;
+    const newVal = input.value.trim();
+    if (save && newVal && newVal !== currentValue) {
+      await setProductTitle(handle, newVal);
+    }
+    renderVideosProdList();
+  };
+  input.onblur = () => finish(true);
+  input.onkeydown = (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+    else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+  };
+  titleEl.replaceWith(input);
+  input.focus();
+  input.select();
+}
+
+async function setProductTitle(handle, newTitle){
+  if (typeof isAdmin === 'function' && !isAdmin()) return;
+  const product = window._vpData.products.find(x => (x.handle || x.id) === handle);
+  if (!product) return;
+  const prevTitle = product.title || handle;
+  try {
+    // 1. Update Firestore
+    const db = firebase.firestore();
+    await db.collection('bkdrop_drive_product_folders').doc(handle).set({
+      title: newTitle,
+      updatedAt: Date.now(),
+    }, { merge: true });
+    product.title = newTitle;
+    showToast('✓ Título actualizado', '✏️', 'success');
+
+    // 2. Renombrar carpeta de Drive (si tiene productFolderId)
+    if (product.productFolderId) {
+      try {
+        const resp = await fetch('/.netlify/functions/drive-folders', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ op: 'rename-folder', folderId: product.productFolderId, newName: newTitle }),
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok) throw new Error(data.error || ('HTTP ' + resp.status));
+        showToast('✓ Carpeta Drive renombrada', '📁', 'success');
+      } catch (err) {
+        console.warn('[rename-folder] error:', err);
+        showToast('Título guardado, pero falló rename Drive: ' + (err.message || '?'), '⚠️', 'warn');
+      }
+    }
+  } catch (err) {
+    product.title = prevTitle;
+    showToast('Error guardando título: ' + (err.message || '?'), '⚠️', 'error');
+    throw err;
+  }
 }
 
 // Notas: admin y worker pueden editar (es el canal de instrucciones/comentarios).
