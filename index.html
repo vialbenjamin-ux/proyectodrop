@@ -3307,7 +3307,7 @@
         <span style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;letter-spacing:1px;text-transform:uppercase">Estado:</span>
         <button class="vp-status-filter active" data-status-filter="all"          onclick="setVpStatusFilter('all', event)"          style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:14px;padding:4px 12px;font-size:10px;font-family:'DM Mono',monospace;cursor:pointer">📋 TODOS</button>
         <button class="vp-status-filter"        data-status-filter="not_started"  onclick="setVpStatusFilter('not_started', event)"  style="background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:14px;padding:4px 12px;font-size:10px;font-family:'DM Mono',monospace;cursor:pointer">⚪ NO EMPEZADO</button>
-        <button class="vp-status-filter"        data-status-filter="testing"      onclick="setVpStatusFilter('testing', event)"      style="background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:14px;padding:4px 12px;font-size:10px;font-family:'DM Mono',monospace;cursor:pointer">🟢 VIDEOS TESTEOS</button>
+        <button class="vp-status-filter"        data-status-filter="testing"      onclick="setVpStatusFilter('testing', event)"      style="background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:14px;padding:4px 12px;font-size:10px;font-family:'DM Mono',monospace;cursor:pointer">🟣 VIDEOS TESTEOS</button>
         <button class="vp-status-filter"        data-status-filter="scaling"      onclick="setVpStatusFilter('scaling', event)"      style="background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:14px;padding:4px 12px;font-size:10px;font-family:'DM Mono',monospace;cursor:pointer">🔵 VIDEOS ESCALADOS</button>
         <button class="vp-status-filter"        data-status-filter="task_done"    onclick="setVpStatusFilter('task_done', event)"    style="background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:14px;padding:4px 12px;font-size:10px;font-family:'DM Mono',monospace;cursor:pointer">✅ TAREA TERMINADA</button>
         <span id="vp-status-filter-count" style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;margin-left:auto"></span>
@@ -13806,7 +13806,7 @@ window._vpData = window._vpData || { products: [], rankings: {}, folderContents:
 // task_done = trabajo confirmado terminado (admin O colaborador pueden marcarlo).
 const VP_TASK_STATES = {
   not_started: { label: '⚪ NO EMPEZADO',      barColor: 'transparent', tagBg: '#94A3B81a', tagColor: '#94A3B8' },
-  testing:     { label: '🟢 VIDEOS TESTEOS',   barColor: '#22C55E',     tagBg: '#22C55E22', tagColor: '#22C55E' },
+  testing:     { label: '🟣 VIDEOS TESTEOS',   barColor: '#A855F7',     tagBg: '#A855F722', tagColor: '#A855F7' },
   scaling:     { label: '🔵 VIDEOS ESCALADOS', barColor: '#3B82F6',     tagBg: '#3B82F622', tagColor: '#3B82F6' },
   task_done:   { label: '✅ TAREA TERMINADA',  barColor: '#10B981',     tagBg: '#10B98122', tagColor: '#10B981' }
 };
@@ -13945,7 +13945,7 @@ function renderVpRespSummary(){
     return `<span style="display:inline-flex;align-items:center;gap:6px">
       <span style="font-weight:700;color:var(--text)">👤 ${name}:</span>
       <span style="color:var(--muted)">${active} activas</span>
-      ${c.testing  ? `<span style="color:#22C55E">· ${c.testing} 🟢</span>` : ''}
+      ${c.testing  ? `<span style="color:#A855F7">· ${c.testing} 🟣</span>` : ''}
       ${c.scaling  ? `<span style="color:#3B82F6">· ${c.scaling} 🔵</span>` : ''}
       ${c.done     ? `<span style="color:#10B981">· ${c.done} ✅</span>` : ''}
     </span>`;
@@ -14053,7 +14053,7 @@ function renderVideosProdCard(p){
   // Badge grande con el estado actual de la tarea — debajo del responsable
   const STATUS_SHORT = {
     not_started: '⚪ NO EMPEZADO',
-    testing:     '🟢 EN TESTEO',
+    testing:     '🟣 EN TESTEO',
     scaling:     '🔵 EN ESCALADO',
     task_done:   '✅ TERMINADO',
   };
