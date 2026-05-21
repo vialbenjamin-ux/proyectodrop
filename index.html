@@ -1139,6 +1139,23 @@
   .meta-adsets-table tbody td{padding:8px 10px;font-size:10px;border-top:1px solid var(--border);text-align:right}
   .meta-adsets-table tbody td:first-child{text-align:left;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .meta-adsets-empty{font-size:11px;color:var(--muted);padding:14px;text-align:center;font-style:italic}
+  .meta-adsets-table tbody tr.adset-clickable{cursor:pointer}
+  .meta-adsets-table tbody tr.adset-clickable:hover{background:var(--surface2)}
+  .meta-adsets-table tbody tr.adset-clickable.expanded{background:var(--surface2)}
+  .meta-adsets-table .adset-chevron{display:inline-block;width:10px;color:var(--muted);font-size:10px;margin-right:6px;transition:transform 0.15s}
+  .meta-adsets-table tr.adset-clickable.expanded .adset-chevron{transform:rotate(90deg);color:var(--accent)}
+  .meta-ads-row{background:var(--surface2)}
+  .meta-ads-row td{padding:0 !important}
+  .meta-ads-wrap{padding:10px 14px 14px 28px;background:linear-gradient(180deg,#EEE9E1 0%,var(--surface2) 100%);border-top:1px dashed var(--border)}
+  .meta-ads-title{font-size:9px;letter-spacing:1.3px;text-transform:uppercase;color:var(--muted);font-weight:600;margin-bottom:6px}
+  .meta-ads-loading{font-size:11px;color:var(--muted);padding:8px;text-align:center}
+  .meta-ads-table{width:100%;border-collapse:collapse;background:var(--surface);border-radius:8px;overflow:hidden;border:1px solid var(--border)}
+  .meta-ads-table thead th{padding:6px 8px;font-size:8.5px;letter-spacing:.7px;text-transform:uppercase;color:var(--muted);font-weight:600;background:var(--surface2);text-align:right}
+  .meta-ads-table thead th:first-child{text-align:left}
+  .meta-ads-table tbody td{padding:6px 8px;font-size:9.5px;border-top:1px solid var(--border);text-align:right}
+  .meta-ads-table tbody td:first-child{text-align:left;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .meta-ads-empty{font-size:10px;color:var(--muted);padding:10px;text-align:center;font-style:italic}
+  .meta-ads-note{font-size:9px;color:var(--muted2);font-style:italic;margin-top:4px}
 
   /* Backup anti-baneo */
   .meta-backup-card{background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:18px 20px;margin-top:24px;border-left:4px solid #C4674F}
@@ -17903,8 +17920,9 @@ async function fetchMetaAds(){
   const preset    = presetSel ? presetSel.value : 'last_7d';
   if (!accountId) return;
 
-  // Limpiar cache de adsets al cambiar de cuenta o período
+  // Limpiar cache de adsets y ads al cambiar de cuenta o período
   _metaAdsetsCache.clear();
+  if (typeof _metaAdsCache !== 'undefined') _metaAdsCache.clear();
 
   const loading = document.getElementById('meta-loading');
   const errBox  = document.getElementById('meta-error');
@@ -18092,7 +18110,7 @@ function renderAdsetsInline(campaignId, rows){
     return;
   }
   wrap.innerHTML = `
-    <div class="meta-adsets-title">📋 ${rows.length} ${rows.length === 1 ? 'conjunto de anuncios' : 'conjuntos de anuncios'}</div>
+    <div class="meta-adsets-title">📋 ${rows.length} ${rows.length === 1 ? 'conjunto de anuncios' : 'conjuntos de anuncios'} <span style="color:var(--muted2);text-transform:none;letter-spacing:0;font-weight:400">· click en una fila para ver los anuncios</span></div>
     <table class="meta-adsets-table">
       <thead>
         <tr>
@@ -18118,8 +18136,8 @@ function renderAdsetsInline(campaignId, rows){
           else if (st.includes('DELETED') || st.includes('DISABLED') || st === 'WITH_ISSUES'){ bcl = 'meta-badge-disabled'; }
           else if (st === 'ARCHIVED' || st === 'IN_PROCESS'){ bcl = 'meta-badge-archived'; }
           return `
-            <tr>
-              <td title="${esc(r.name)}">${esc(r.name)}</td>
+            <tr class="adset-clickable" data-aid="${r.id}" data-cid="${campaignId}" onclick="toggleAds('${r.id}', '${campaignId}')">
+              <td title="${esc(r.name)}"><span class="adset-chevron">▸</span>${esc(r.name)}</td>
               <td style="text-align:center"><span class="meta-badge ${bcl}">${blab}</span></td>
               <td>${adsetBatchCellHtml(r)}</td>
               <td>${r.dailyBudget ? fmtMoney(r.dailyBudget, currency) : '—'}</td>
@@ -18131,10 +18149,136 @@ function renderAdsetsInline(campaignId, rows){
               <td>${r.cpc ? fmtMoney(r.cpc, currency) : '—'}</td>
               <td style="color:${r.frequency > 4 ? '#A6862A' : 'var(--muted)'}">${r.frequency ? r.frequency.toFixed(2) : '—'}</td>
             </tr>
+            <tr class="meta-ads-row" id="meta-ads-row-${r.id}" style="display:none">
+              <td colspan="11"><div class="meta-ads-wrap" id="meta-ads-wrap-${r.id}"></div></td>
+            </tr>
           `;
         }).join('')}
       </tbody>
     </table>
+  `;
+}
+
+const _metaAdsCache = new Map(); // key = `${adsetId}:${preset}` -> rows
+
+async function toggleAds(adsetId, campaignId){
+  const row = document.querySelector(`tr.adset-clickable[data-aid="${adsetId}"]`);
+  const adsRow = document.getElementById('meta-ads-row-' + adsetId);
+  const wrap = document.getElementById('meta-ads-wrap-' + adsetId);
+  if (!row || !adsRow || !wrap) return;
+
+  const isOpen = row.classList.contains('expanded');
+  if (isOpen){
+    row.classList.remove('expanded');
+    adsRow.style.display = 'none';
+    return;
+  }
+  row.classList.add('expanded');
+  adsRow.style.display = '';
+
+  const preset = document.getElementById('meta-date-preset')?.value || 'last_7d';
+  const cacheKey = `${adsetId}:${preset}`;
+  if (_metaAdsCache.has(cacheKey)){
+    renderAdsInline(adsetId, campaignId, _metaAdsCache.get(cacheKey));
+    return;
+  }
+
+  wrap.innerHTML = '<div class="meta-ads-loading"><span class="bk-spinner"></span> Cargando anuncios…</div>';
+  try {
+    const accId = document.getElementById('meta-account-select')?.value || '';
+    const resp = await fetch(`/.netlify/functions/meta-ads?adset_id=${encodeURIComponent(adsetId)}&date_preset=${encodeURIComponent(preset)}${metaTokenParam(accId)}`);
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'HTTP '+resp.status);
+    const rows = data.rows || [];
+    _metaAdsCache.set(cacheKey, rows);
+    renderAdsInline(adsetId, campaignId, rows);
+  } catch(err){
+    wrap.innerHTML = `<div class="meta-ads-empty">⚠️ ${esc(err.message)}</div>`;
+  }
+}
+
+function renderAdsInline(adsetId, campaignId, rows){
+  const wrap = document.getElementById('meta-ads-wrap-' + adsetId);
+  if (!wrap) return;
+  const currency = _metaLastCurrency;
+  if (rows.length === 0){
+    wrap.innerHTML = '<div class="meta-ads-empty">Sin anuncios con actividad en este período</div>';
+    return;
+  }
+
+  // CPA real proyectado: usa los totales de la campaña padre y reparte
+  // realPurchases/realRevenue proporcional a las compras Meta del ad.
+  const campRow = (_metaLastRows || []).find(c => c.id === campaignId);
+  const campMetaTotal = campRow ? (campRow.purchases || campRow.metaPurchases || 0) : 0;
+  const campRealPurch = campRow ? (campRow.realPurchases || 0) : 0;
+  const campRealRev   = campRow ? (campRow.realRevenue   || 0) : 0;
+  const canProject = campRow && campMetaTotal > 0 && campRealPurch > 0;
+
+  const enrichedRows = rows.map(r => {
+    let realPurchases = null, realRevenue = null, cpaReal = null, roasReal = null;
+    if (canProject) {
+      const share = (r.metaPurchases || 0) / campMetaTotal;
+      realPurchases = campRealPurch * share;
+      realRevenue   = campRealRev   * share;
+      cpaReal  = realPurchases > 0 ? r.spend / realPurchases : null;
+      roasReal = r.spend > 0 && realRevenue > 0 ? realRevenue / r.spend : null;
+    }
+    return { ...r, realPurchases, realRevenue, cpaReal, roasReal };
+  });
+
+  const projectionNote = canProject
+    ? `<div class="meta-ads-note">💡 CPA real proyectado proporcionalmente desde la campaña (${fmtNum(campRealPurch)} órd. reales · ${fmtNum(Math.round(campMetaTotal))} compras Meta).</div>`
+    : (campRow
+        ? `<div class="meta-ads-note">⚠️ Sin datos de cruce real para esta campaña — solo se muestra CPA Meta.</div>`
+        : '');
+
+  wrap.innerHTML = `
+    <div class="meta-ads-title">🎯 ${rows.length} ${rows.length === 1 ? 'anuncio' : 'anuncios'}</div>
+    <table class="meta-ads-table">
+      <thead>
+        <tr>
+          <th>ANUNCIO</th>
+          <th style="text-align:center">ESTADO</th>
+          <th>GASTO</th>
+          <th>COMPRAS META</th>
+          <th>CPA META</th>
+          <th>ROAS META</th>
+          <th>CPA REAL</th>
+          <th>ROAS REAL</th>
+          <th>CTR</th>
+          <th>CPC</th>
+          <th>FREC.</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${enrichedRows.map(r=>{
+          const st = (r.status || '').toUpperCase();
+          let bcl = 'meta-badge-paused', blab = st.toLowerCase();
+          if (st === 'ACTIVE'){ bcl = 'meta-badge-active'; blab = 'activa'; }
+          else if (st === 'PAUSED'){ blab = 'pausada'; }
+          else if (st.includes('DELETED') || st.includes('DISABLED') || st === 'WITH_ISSUES'){ bcl = 'meta-badge-disabled'; }
+          else if (st === 'ARCHIVED' || st === 'IN_PROCESS'){ bcl = 'meta-badge-archived'; }
+          const roasMetaColor = r.roas && r.roas > 2 ? '#3F7F5C' : (r.roas && r.roas < 1.5 ? '#B14747' : 'var(--accent)');
+          const roasRealColor = r.roasReal && r.roasReal > 2 ? '#3F7F5C' : (r.roasReal && r.roasReal < 1.5 ? '#B14747' : 'var(--accent)');
+          return `
+            <tr>
+              <td title="${esc(r.name)}">${esc(r.name)}</td>
+              <td style="text-align:center"><span class="meta-badge ${bcl}">${blab}</span></td>
+              <td><b>${fmtMoney(r.spend, currency)}</b></td>
+              <td>${fmtNum(r.metaPurchases)}</td>
+              <td style="color:var(--muted);font-weight:600">${r.cpa ? fmtMoney(r.cpa, currency) : '—'}</td>
+              <td style="color:${roasMetaColor};font-weight:600">${r.roas ? r.roas.toFixed(2) + 'x' : '—'}</td>
+              <td style="color:var(--accent);font-weight:700">${r.cpaReal ? fmtMoney(r.cpaReal, currency) : '—'}</td>
+              <td style="color:${roasRealColor};font-weight:700">${r.roasReal ? r.roasReal.toFixed(2) + 'x' : '—'}</td>
+              <td>${r.ctr ? r.ctr.toFixed(2) + '%' : '—'}</td>
+              <td>${r.cpc ? fmtMoney(r.cpc, currency) : '—'}</td>
+              <td style="color:${r.frequency > 4 ? '#A6862A' : 'var(--muted)'}">${r.frequency ? r.frequency.toFixed(2) : '—'}</td>
+            </tr>
+          `;
+        }).join('')}
+      </tbody>
+    </table>
+    ${projectionNote}
   `;
 }
 
