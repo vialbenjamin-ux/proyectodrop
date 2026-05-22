@@ -17968,6 +17968,29 @@ let _metaLastRows = [];
 let _metaLastCurrency = 'USD';
 const _metaAdsetsCache = new Map(); // key = `${campaignId}:${preset}` -> rows
 
+// ── Cola serializada de llamadas a Meta (anti rate-limit) ─────────────────
+// Si el usuario clickea múltiples adsets/ads seguidos, las requests se encolan
+// y respetan un gap mínimo de 3.5s entre cada una (≥ el delay del backend).
+let _metaCallChain = Promise.resolve();
+let _metaCallLastFinish = 0;
+let _metaCallQueueLen = 0;
+const META_CALL_MIN_GAP_MS = 3500;
+
+function enqueueMetaCall(fn){
+  _metaCallQueueLen++;
+  const job = _metaCallChain.then(async () => {
+    const elapsed = Date.now() - _metaCallLastFinish;
+    if (elapsed < META_CALL_MIN_GAP_MS) {
+      await new Promise(r => setTimeout(r, META_CALL_MIN_GAP_MS - elapsed));
+    }
+    try { return await fn(); }
+    finally { _metaCallLastFinish = Date.now(); _metaCallQueueLen--; }
+  });
+  _metaCallChain = job.catch(() => {});
+  return job;
+}
+function metaQueueDepth(){ return _metaCallQueueLen; }
+
 async function fetchMetaAds(){
   const sel       = document.getElementById('meta-account-select');
   const presetSel = document.getElementById('meta-date-preset');
@@ -18142,13 +18165,19 @@ async function toggleAdsets(campaignId){
     return;
   }
 
-  wrap.innerHTML = '<div class="meta-adsets-loading"><span class="bk-spinner"></span> Cargando conjuntos de anuncios…</div>';
+  const depth = metaQueueDepth();
+  wrap.innerHTML = depth > 0
+    ? `<div class="meta-adsets-loading"><span class="bk-spinner"></span> En cola — ${depth} request${depth===1?'':'s'} por delante (anti rate-limit)…</div>`
+    : '<div class="meta-adsets-loading"><span class="bk-spinner"></span> Cargando conjuntos de anuncios…</div>';
   try {
     const accId = document.getElementById('meta-account-select')?.value || '';
-    const resp = await fetch(`/.netlify/functions/meta-adsets?campaign_id=${encodeURIComponent(campaignId)}&date_preset=${encodeURIComponent(preset)}${metaTokenParam(accId)}`);
-    const data = await resp.json();
-    if (!resp.ok) throw new Error(data.error || 'HTTP '+resp.status);
-    const rows = data.rows || [];
+    const rows = await enqueueMetaCall(async () => {
+      wrap.innerHTML = '<div class="meta-adsets-loading"><span class="bk-spinner"></span> Cargando conjuntos de anuncios…</div>';
+      const resp = await fetch(`/.netlify/functions/meta-adsets?campaign_id=${encodeURIComponent(campaignId)}&date_preset=${encodeURIComponent(preset)}${metaTokenParam(accId)}`);
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || 'HTTP '+resp.status);
+      return data.rows || [];
+    });
     _metaAdsetsCache.set(cacheKey, rows);
     renderAdsetsInline(campaignId, rows);
   } catch(err){
@@ -18238,13 +18267,19 @@ async function toggleAds(adsetId, campaignId){
     return;
   }
 
-  wrap.innerHTML = '<div class="meta-ads-loading"><span class="bk-spinner"></span> Cargando anuncios…</div>';
+  const depth = metaQueueDepth();
+  wrap.innerHTML = depth > 0
+    ? `<div class="meta-ads-loading"><span class="bk-spinner"></span> En cola — ${depth} request${depth===1?'':'s'} por delante (anti rate-limit)…</div>`
+    : '<div class="meta-ads-loading"><span class="bk-spinner"></span> Cargando anuncios…</div>';
   try {
     const accId = document.getElementById('meta-account-select')?.value || '';
-    const resp = await fetch(`/.netlify/functions/meta-ads?adset_id=${encodeURIComponent(adsetId)}&date_preset=${encodeURIComponent(preset)}${metaTokenParam(accId)}`);
-    const data = await resp.json();
-    if (!resp.ok) throw new Error(data.error || 'HTTP '+resp.status);
-    const rows = data.rows || [];
+    const rows = await enqueueMetaCall(async () => {
+      wrap.innerHTML = '<div class="meta-ads-loading"><span class="bk-spinner"></span> Cargando anuncios…</div>';
+      const resp = await fetch(`/.netlify/functions/meta-ads?adset_id=${encodeURIComponent(adsetId)}&date_preset=${encodeURIComponent(preset)}${metaTokenParam(accId)}`);
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || 'HTTP '+resp.status);
+      return data.rows || [];
+    });
     _metaAdsCache.set(cacheKey, rows);
     renderAdsInline(adsetId, campaignId, rows);
   } catch(err){
