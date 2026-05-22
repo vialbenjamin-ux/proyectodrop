@@ -3304,6 +3304,7 @@
         <input type="text" id="vp-search" placeholder="Filtrar productos…" style="flex:1;min-width:200px;padding:9px 12px;border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:8px;font-size:13px;font-family:'DM Mono',monospace" oninput="filterVideosProdList()">
         <button onclick="vpToggleAddPanel()" id="vp-add-btn" style="background:#22C55E;color:#fff;border:none;border-radius:8px;padding:9px 14px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer;font-weight:700">+ Agregar producto</button>
         <button onclick="initVideosProd(true)" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:9px 14px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer">🔄 Recargar</button>
+        <button id="vp-archive-toggle" onclick="toggleVpArchive()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:9px 14px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer;font-weight:700">📁 Archivo</button>
         <a href="https://drive.google.com/drive/folders/1JqerUrGaRgcQGY0uTDvcoyccdekCpj62" target="_blank" rel="noopener" style="background:#4285F4;color:#fff;border-radius:8px;padding:9px 14px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer;text-decoration:none">↗ Abrir Drive</a>
       </div>
 
@@ -13798,6 +13799,7 @@ function filterVideosProdList(){
   const q = (document.getElementById('vp-search')?.value || '').toLowerCase().trim();
   const statusFilter = window._vpStatusFilter || 'all';
   const respFilter = window._vpRespFilter || 'all';
+  const archiveMode = !!window._vpShowArchive;
   let visible = 0, total = 0;
   document.querySelectorAll('#vp-list .vp-product-card').forEach(card => {
     total++;
@@ -13805,6 +13807,7 @@ function filterVideosProdList(){
     const handle = (card.dataset.handle || '').toLowerCase();
     const cardStatus = card.dataset.taskStatus || 'not_started';
     const cardResp = (card.dataset.responsible || '').toLowerCase();
+    const isDone = card.dataset.done === 'true';
     const matchText = !q || title.includes(q) || handle.includes(q);
     const matchStatus = statusFilter === 'all' || cardStatus === statusFilter;
     let matchResp = true;
@@ -13812,12 +13815,15 @@ function filterVideosProdList(){
       if (respFilter === '__unassigned__') matchResp = !cardResp;
       else matchResp = cardResp === respFilter.toLowerCase();
     }
-    const show = matchText && matchStatus && matchResp;
+    // Modo archivo: solo terminadas. Modo activo: solo no-terminadas.
+    const matchArchive = archiveMode ? isDone : !isDone;
+    const show = matchText && matchStatus && matchResp && matchArchive;
     card.style.display = show ? '' : 'none';
     if (show) visible++;
   });
   const counter = document.getElementById('vp-status-filter-count');
   if (counter) counter.textContent = (statusFilter === 'all' && !q && respFilter === 'all') ? '' : `${visible}/${total}`;
+  updateArchiveBtnText();
 }
 
 // Recopila responsables únicos y arma los chips del filtro
@@ -13915,7 +13921,20 @@ function setVpStatusFilter(status, ev){
 function renderVideosProdList(){
   const list = document.getElementById('vp-list');
   if (!list) return;
-  const html = window._vpData.products.map(p => renderVideosProdCard(p)).join('');
+  // Orden: sortOrder DESC (mayor = más arriba), tie-breaker updatedAt DESC.
+  // Productos sin sortOrder se tratan como -Infinity (van al final del ordenado manual).
+  const tasks = window._vpData.productTasks || {};
+  const sorted = [...window._vpData.products].sort((a, b) => {
+    const ha = a.handle || a.id;
+    const hb = b.handle || b.id;
+    const ta = tasks[ha] || {};
+    const tb = tasks[hb] || {};
+    const soA = (typeof ta.sortOrder === 'number') ? ta.sortOrder : -Infinity;
+    const soB = (typeof tb.sortOrder === 'number') ? tb.sortOrder : -Infinity;
+    if (soB !== soA) return soB - soA;
+    return (b.updatedAt || 0) - (a.updatedAt || 0);
+  });
+  const html = sorted.map(p => renderVideosProdCard(p)).join('');
   list.innerHTML = html;
   // Re-renderizar filtros y banner por responsable
   renderVpRespFilters();
@@ -14020,9 +14039,22 @@ function renderVideosProdCard(p){
   // Las notas/comentarios ahora viven en cada video individual
   // (renderVideoCard), no en la card del producto.
 
+  // Controles de mover (solo admin, solo en modo activo — en archivo no tiene sentido reordenar)
+  const showMoveControls = admin && !window._vpShowArchive;
+  const moveControls = showMoveControls ? `
+    <div style="display:flex;flex-direction:column;gap:3px;align-items:center;justify-content:center;flex-shrink:0;padding-right:2px" onclick="event.stopPropagation()">
+      <button onclick="moveProductTaskOrder('${esc(handle)}','up')" title="Subir" aria-label="Subir" style="background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:5px;width:26px;height:22px;cursor:pointer;font-size:11px;line-height:1;padding:0">▲</button>
+      <button onclick="moveProductTaskOrder('${esc(handle)}','down')" title="Bajar" aria-label="Bajar" style="background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:5px;width:26px;height:22px;cursor:pointer;font-size:11px;line-height:1;padding:0">▼</button>
+    </div>` : '';
+
+  // Botón Reactivar prominente cuando estamos en modo archivo
+  const reactivateBtn = (admin && window._vpShowArchive && isDone) ? `
+    <button onclick="event.stopPropagation(); unmarkProductTaskDone('${esc(handle)}')" title="Reactivar tarea" style="background:#10B981;color:#fff;border:none;border-radius:14px;padding:5px 14px;font-size:10px;font-family:'DM Mono',monospace;cursor:pointer;font-weight:700;white-space:nowrap">↩ REACTIVAR</button>` : '';
+
   return `
-    <div class="vp-product-card" data-handle="${esc(handle)}" data-title="${esc(title)}" data-task-status="${esc(status)}" data-responsible="${esc(responsible)}" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;${leftBar}">
+    <div class="vp-product-card" data-handle="${esc(handle)}" data-title="${esc(title)}" data-task-status="${esc(status)}" data-responsible="${esc(responsible)}" data-done="${isDone ? 'true' : 'false'}" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;${leftBar}">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;padding:12px 14px;cursor:pointer;gap:8px" onclick="toggleVideosProdCard('${esc(handle)}')">
+        ${moveControls}
         <div style="flex:1;min-width:0">
           <div data-title-badge="${esc(handle)}" ${admin ? `onclick="event.stopPropagation(); editProductTitleInline(this, '${esc(handle)}')" title="Click para editar título"` : ''} style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:14px;color:var(--text);margin-bottom:2px;${admin ? 'cursor:text;border-radius:4px;padding:2px 4px;margin-left:-4px;transition:background 0.15s' : ''}" ${admin ? `onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'"` : ''}>${esc(title)}</div>
           <div style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;margin-bottom:6px">handle: ${esc(handle)}</div>
@@ -14038,6 +14070,7 @@ function renderVideosProdCard(p){
           </div>
           ${responsibleBadge}
           ${statusBadge}
+          ${reactivateBtn}
           ${timeBadge}
         </div>
       </div>
@@ -14261,13 +14294,116 @@ async function unmarkProductTaskDone(handle){
   try {
     const db = firebase.firestore();
     const prev = window._vpData.productTasks[handle] || {};
+    // Al reactivar: además de done=false, volvemos a status not_started si estaba en task_done.
     const update = { handle, done: false, updatedAt: Date.now() };
+    if (prev.status === 'task_done') update.status = 'not_started';
     await db.collection('bkdrop_video_product_tasks').doc(handle).set(update, { merge: true });
     window._vpData.productTasks[handle] = { ...prev, ...update };
     renderVideosProdList();
-    showToast('Tarea reabierta', '↩', 'success');
+    showToast('Tarea reactivada', '↩', 'success');
   } catch (err) {
     showToast('Error: ' + (err.message || '?'), '⚠️', 'error');
+  }
+}
+
+// ── Reordenamiento de tarjetas (↑↓) ──────────────────────────────────────────
+// Swap del sortOrder con el vecino visible. Si los productos involucrados (o sus
+// vecinos del orden actual) no tienen sortOrder, primero asignamos uno coherente
+// a TODOS los visibles según su posición actual, así los swaps siguientes son
+// triviales y estables.
+async function moveProductTaskOrder(handle, dir){
+  if (typeof isAdmin === 'function' && !isAdmin()) return;
+  const list = document.getElementById('vp-list');
+  if (!list) return;
+  const visibleCards = Array.from(list.querySelectorAll('.vp-product-card'))
+    .filter(c => c.style.display !== 'none');
+  const idx = visibleCards.findIndex(c => c.dataset.handle === handle);
+  if (idx === -1) return;
+  const targetIdx = dir === 'up' ? idx - 1 : idx + 1;
+  if (targetIdx < 0 || targetIdx >= visibleCards.length) {
+    showToast(dir === 'up' ? 'Ya está arriba del todo' : 'Ya está abajo del todo', 'ℹ️', 'info');
+    return;
+  }
+  const otherHandle = visibleCards[targetIdx].dataset.handle;
+
+  try {
+    if (typeof firebase === 'undefined' || !firebase.firestore) throw new Error('Firestore no disponible');
+    const db = firebase.firestore();
+    const tasks = window._vpData.productTasks;
+    const N = visibleCards.length;
+
+    // 1) Asegurar sortOrder en todos los visibles. Mayor valor = más arriba.
+    // Solo escribimos los que no tienen sortOrder definido.
+    const batch = db.batch();
+    let writes = 0;
+    for (let i = 0; i < visibleCards.length; i++) {
+      const h = visibleCards[i].dataset.handle;
+      const t = tasks[h] || {};
+      if (typeof t.sortOrder !== 'number') {
+        const so = N - i; // primero (i=0) tiene N, último tiene 1
+        batch.set(
+          db.collection('bkdrop_video_product_tasks').doc(h),
+          { handle: h, sortOrder: so, updatedAt: Date.now() },
+          { merge: true }
+        );
+        tasks[h] = { ...t, handle: h, sortOrder: so };
+        writes++;
+      }
+    }
+
+    // 2) Swap sortOrder entre target y vecino.
+    const soA = tasks[handle].sortOrder;
+    const soB = tasks[otherHandle].sortOrder;
+    batch.set(
+      db.collection('bkdrop_video_product_tasks').doc(handle),
+      { handle, sortOrder: soB, updatedAt: Date.now() },
+      { merge: true }
+    );
+    batch.set(
+      db.collection('bkdrop_video_product_tasks').doc(otherHandle),
+      { handle: otherHandle, sortOrder: soA, updatedAt: Date.now() },
+      { merge: true }
+    );
+    tasks[handle].sortOrder = soB;
+    tasks[otherHandle].sortOrder = soA;
+    writes += 2;
+
+    await batch.commit();
+    renderVideosProdList();
+  } catch (err) {
+    showToast('Error reordenando: ' + (err.message || '?'), '⚠️', 'error');
+  }
+}
+
+// ── Toggle entre vista "activas" y "archivo de terminadas" ───────────────────
+window._vpShowArchive = false;
+function toggleVpArchive(){
+  window._vpShowArchive = !window._vpShowArchive;
+  renderVideosProdList(); // re-render para que aparezcan/desaparezcan los botones ↑↓ y ↩ Reactivar
+}
+
+function updateArchiveBtnText(){
+  const btn = document.getElementById('vp-archive-toggle');
+  if (!btn) return;
+  const tasks = (window._vpData && window._vpData.productTasks) || {};
+  const products = (window._vpData && window._vpData.products) || [];
+  let doneCount = 0, activeCount = 0;
+  for (const p of products) {
+    const h = p.handle || p.id;
+    const t = tasks[h] || {};
+    if (t.done) doneCount++;
+    else activeCount++;
+  }
+  if (window._vpShowArchive) {
+    btn.innerHTML = '← Volver a activas (' + activeCount + ')';
+    btn.style.background = '#fef3c7';
+    btn.style.borderColor = '#f59e0b';
+    btn.style.color = '#78350f';
+  } else {
+    btn.innerHTML = '📁 Archivo (' + doneCount + ')';
+    btn.style.background = 'var(--surface2)';
+    btn.style.borderColor = 'var(--border)';
+    btn.style.color = 'var(--text)';
   }
 }
 
