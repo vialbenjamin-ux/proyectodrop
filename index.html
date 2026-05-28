@@ -13833,6 +13833,14 @@ function filterVideosProdList(){
     card.style.display = show ? '' : 'none';
     if (show) visible++;
   });
+  // Ocultar grupos de fecha sin tarjetas visibles + actualizar su contador.
+  document.querySelectorAll('#vp-list .vp-group').forEach(g => {
+    let vis = 0;
+    g.querySelectorAll('.vp-product-card').forEach(c => { if (c.style.display !== 'none') vis++; });
+    g.style.display = vis ? '' : 'none';
+    const cnt = g.querySelector('.vp-group-count');
+    if (cnt) cnt.textContent = vis ? ('(' + vis + ')') : '';
+  });
   const counter = document.getElementById('vp-status-filter-count');
   if (counter) counter.textContent = (statusFilter === 'all' && !q && respFilter === 'all') ? '' : `${visible}/${total}`;
   updateArchiveBtnText();
@@ -13933,25 +13941,75 @@ function setVpStatusFilter(status, ev){
 function renderVideosProdList(){
   const list = document.getElementById('vp-list');
   if (!list) return;
-  // Orden: sortOrder DESC (mayor = más arriba), tie-breaker updatedAt DESC.
-  // Productos sin sortOrder se tratan como -Infinity (van al final del ordenado manual).
   const tasks = window._vpData.productTasks || {};
-  const sorted = [...window._vpData.products].sort((a, b) => {
-    const ha = a.handle || a.id;
-    const hb = b.handle || b.id;
-    const ta = tasks[ha] || {};
-    const tb = tasks[hb] || {};
+  const products = window._vpData.products || [];
+
+  // Orden manual dentro de un grupo: sortOrder DESC (mayor = más arriba), tie-breaker updatedAt DESC.
+  const byOrder = (a, b) => {
+    const ta = tasks[a.handle || a.id] || {};
+    const tb = tasks[b.handle || b.id] || {};
     const soA = (typeof ta.sortOrder === 'number') ? ta.sortOrder : -Infinity;
     const soB = (typeof tb.sortOrder === 'number') ? tb.sortOrder : -Infinity;
     if (soB !== soA) return soB - soA;
     return (b.updatedAt || 0) - (a.updatedAt || 0);
+  };
+
+  // Modo Archivo: lista plana, sin agrupar por fecha.
+  if (window._vpShowArchive) {
+    list.innerHTML = [...products].sort(byOrder).map(p => renderVideosProdCard(p)).join('');
+    renderVpRespFilters();
+    renderVpRespSummary();
+    filterVideosProdList();
+    return;
+  }
+
+  // Modo activo: agrupar por fecha "Desde" (startDate) en secciones (HOY, MAÑANA, etc.).
+  const today = vpTodayISO();
+  const tomorrow = vpAddDaysISO(today, 1);
+  const buckets = {}; // key -> { date, label, order, color, products: [] }
+  const ensure = (key, def) => (buckets[key] || (buckets[key] = { ...def, products: [] }));
+  for (const p of products) {
+    const t = tasks[p.handle || p.id] || {};
+    const d = (t.startDate || '').trim();
+    let b;
+    if (!d) {
+      b = ensure('_sinfecha_', { date: '', label: '⚪ SIN FECHA', order: 4, color: 'var(--muted)' });
+    } else {
+      const diff = vpDayDiff(today, d);
+      if (diff < 0)            b = ensure('_atrasadas_', { date: '_keep_', label: '🔴 ATRASADAS', order: 0, color: '#dc2626' });
+      else if (diff === 0)     b = ensure('_hoy_', { date: today, label: '📌 TAREA DE HOY · ' + vpFmtDM(today), order: 1, color: '#16a34a' });
+      else if (d === tomorrow) b = ensure(d, { date: d, label: '🟠 MAÑANA · ' + vpFmtWD(d), order: 2, color: '#f59e0b' });
+      else                     b = ensure(d, { date: d, label: '📅 ' + vpFmtWD(d), order: 3, color: 'var(--accent)' });
+    }
+    b.products.push(p);
+  }
+
+  // Orden de grupos: atrasadas, hoy, mañana, futuros (fecha asc), sin fecha.
+  const groupKeys = Object.keys(buckets).sort((ka, kb) => {
+    const a = buckets[ka], b = buckets[kb];
+    if (a.order !== b.order) return a.order - b.order;
+    return String(a.date).localeCompare(String(b.date));
   });
-  const html = sorted.map(p => renderVideosProdCard(p)).join('');
+
+  let html = '';
+  for (const key of groupKeys) {
+    const g = buckets[key];
+    g.products.sort(byOrder);
+    const dataDate = (g.date === '_keep_') ? '_keep_' : (g.date || '');
+    html += `<div class="vp-group" data-group-date="${esc(dataDate)}" ondragover="vpGroupDragOver(event)" ondrop="vpGroupDrop(event)">
+      <div class="vp-group-header" style="display:flex;align-items:center;gap:8px;margin:20px 0 8px;font-family:'Montserrat',sans-serif;font-weight:800;font-size:13px;color:${g.color};letter-spacing:.5px;text-transform:uppercase">
+        <span>${g.label}</span>
+        <span class="vp-group-count" style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;font-weight:400"></span>
+        <span style="flex:1;height:1px;background:var(--border)"></span>
+      </div>
+      <div class="vp-group-cards" style="display:flex;flex-direction:column;gap:12px;min-height:14px">
+        ${g.products.map(p => renderVideosProdCard(p)).join('')}
+      </div>
+    </div>`;
+  }
   list.innerHTML = html;
-  // Re-renderizar filtros y banner por responsable
   renderVpRespFilters();
   renderVpRespSummary();
-  // Re-aplicar filtros (texto + estado + responsable) después de re-renderizar
   filterVideosProdList();
 }
 
@@ -13993,14 +14051,14 @@ function renderVideosProdCard(p){
   if (admin) {
     datesUI = `
       <div style="display:flex;gap:8px;align-items:center;font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;flex-wrap:wrap" onclick="event.stopPropagation()">
-        <label style="display:flex;align-items:center;gap:4px">📅 Desde:<input type="date" value="${esc(startDate)}" onchange="setProductTaskDate('${esc(handle)}','startDate',this.value)" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);font-size:10px;font-family:'DM Mono',monospace;padding:2px 6px;border-radius:5px"></label>
-        <label style="display:flex;align-items:center;gap:4px">→ Hasta:<input type="date" value="${esc(endDate)}" onchange="setProductTaskDate('${esc(handle)}','endDate',this.value)" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);font-size:10px;font-family:'DM Mono',monospace;padding:2px 6px;border-radius:5px"></label>
+        <label style="display:flex;align-items:center;gap:4px">📅 Día:<input type="date" value="${esc(startDate || endDate)}" onchange="setProductTaskDay('${esc(handle)}',this.value)" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);font-size:10px;font-family:'DM Mono',monospace;padding:2px 6px;border-radius:5px"></label>
         ${isDone ? `<button onclick="event.stopPropagation();unmarkProductTaskDone('${esc(handle)}')" title="Reabrir tarea" style="background:transparent;color:var(--muted);border:1px solid var(--border);border-radius:14px;padding:2px 8px;font-size:9px;font-family:'DM Mono',monospace;cursor:pointer">↩ Reabrir</button>` : ''}
         ${isDone ? `<span style="color:#22C55E;font-weight:700">✅ TERMINADO</span>` : ''}
       </div>`;
   } else {
-    if (startDate || endDate) {
-      datesUI = `<div style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">📅 ${startDate?'Desde '+startDate:''}${startDate&&endDate?' → ':''}${endDate?'Hasta '+endDate:''}</div>`;
+    const theDay = startDate || endDate;
+    if (theDay) {
+      datesUI = `<div style="font-size:11px;color:var(--text);font-family:'DM Mono',monospace;font-weight:700">📅 Para el ${vpFmtWD(theDay)}</div>`;
     }
   }
 
@@ -14038,12 +14096,13 @@ function renderVideosProdCard(p){
     if (endDate && todayStr > endDate) {
       const overdue = dayDiff(endDate, todayStr);
       timeBadge = `<span style="display:inline-flex;align-items:center;gap:4px;background:rgba(231,76,60,.15);color:#dc2626;padding:3px 10px;border-radius:12px;font-size:10px;font-family:'DM Mono',monospace;font-weight:700;border:1px solid #fca5a5">⚠️ VENCIDA hace ${overdue} día${overdue===1?'':'s'}</span>`;
-    } else if (startDate && endDate) {
+    } else if (startDate && endDate && endDate !== startDate) {
       const total = dayDiff(startDate, endDate) + 1;
       const cur = Math.max(1, Math.min(total, dayDiff(startDate, todayStr) + 1));
       timeBadge = `<span style="display:inline-flex;align-items:center;gap:4px;background:var(--surface2);color:var(--muted);padding:3px 10px;border-radius:12px;font-size:10px;font-family:'DM Mono',monospace">📊 día ${cur} de ${total}</span>`;
-    } else if (endDate) {
-      const remain = dayDiff(todayStr, endDate);
+    } else if (startDate || endDate) {
+      const day = endDate || startDate;
+      const remain = dayDiff(todayStr, day);
       if (remain >= 0) timeBadge = `<span style="display:inline-flex;align-items:center;gap:4px;background:var(--surface2);color:var(--muted);padding:3px 10px;border-radius:12px;font-size:10px;font-family:'DM Mono',monospace">⏰ ${remain === 0 ? 'vence hoy' : remain + ' día' + (remain===1?'':'s') + ' restante' + (remain===1?'':'s')}</span>`;
     }
   }
@@ -14051,13 +14110,11 @@ function renderVideosProdCard(p){
   // Las notas/comentarios ahora viven en cada video individual
   // (renderVideoCard), no en la card del producto.
 
-  // Controles de mover (solo admin, solo en modo activo — en archivo no tiene sentido reordenar)
+  // Handle de arrastre (solo admin, solo en modo activo). Arrastrar reordena dentro
+  // del día y, si se suelta en otra sección de fecha, reprograma la tarjeta a ese día.
   const showMoveControls = admin && !window._vpShowArchive;
   const moveControls = showMoveControls ? `
-    <div style="display:flex;flex-direction:column;gap:3px;align-items:center;justify-content:center;flex-shrink:0;padding-right:2px" onclick="event.stopPropagation()">
-      <button onclick="moveProductTaskOrder('${esc(handle)}','up')" title="Subir" aria-label="Subir" style="background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:5px;width:26px;height:22px;cursor:pointer;font-size:11px;line-height:1;padding:0">▲</button>
-      <button onclick="moveProductTaskOrder('${esc(handle)}','down')" title="Bajar" aria-label="Bajar" style="background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:5px;width:26px;height:22px;cursor:pointer;font-size:11px;line-height:1;padding:0">▼</button>
-    </div>` : '';
+    <div class="vp-drag-handle" draggable="true" ondragstart="vpDragStart(event,'${esc(handle)}')" ondragend="vpDragEnd(event)" onclick="event.stopPropagation()" title="Arrastrar para reordenar o cambiar de día" style="display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:grab;color:var(--muted);font-size:20px;line-height:1;padding:0 4px;align-self:stretch;user-select:none">⠿</div>` : '';
 
   // Botón Reactivar prominente cuando estamos en modo archivo
   const reactivateBtn = (admin && window._vpShowArchive && isDone) ? `
@@ -14283,6 +14340,26 @@ async function setProductTaskNotes(handle, value){
 // Alias para retro-compat
 const setProductTaskDate = setProductTaskField;
 
+// Fija el día de la tarea: una sola fecha que se guarda en startDate y endDate
+// (cada tarjeta se hace en un único día). Re-agrupa la lista al instante. Solo admin.
+async function setProductTaskDay(handle, value){
+  if (typeof isAdmin === 'function' && !isAdmin()) {
+    showToast('Solo el administrador puede modificar esto', '🔒', 'error');
+    return;
+  }
+  try {
+    const db = firebase.firestore();
+    const prev = window._vpData.productTasks[handle] || {};
+    const update = { handle, startDate: value, endDate: value, updatedAt: Date.now() };
+    await db.collection('bkdrop_video_product_tasks').doc(handle).set(update, { merge: true });
+    window._vpData.productTasks[handle] = { ...prev, ...update };
+    renderVideosProdList();
+    showToast(value ? ('📅 Para el ' + vpFmtDM(value)) : '📅 Fecha quitada', '✓', 'success');
+  } catch (err) {
+    showToast('Error: ' + (err.message || '?'), '⚠️', 'error');
+  }
+}
+
 // Trabajador marca tarea como terminada (puede hacerlo cualquier usuario logueado).
 async function markProductTaskDone(handle){
   try {
@@ -14386,6 +14463,104 @@ async function moveProductTaskOrder(handle, dir){
     renderVideosProdList();
   } catch (err) {
     showToast('Error reordenando: ' + (err.message || '?'), '⚠️', 'error');
+  }
+}
+
+// ── Helpers de fecha para agrupar tarjetas por día ──────────────────────────
+function vpTodayISO(){ try { return new Date().toLocaleString('en-CA', { timeZone: 'America/Santiago' }).split(',')[0].trim(); } catch(e){ return new Date().toISOString().slice(0,10); } }
+function vpParseISO(d){ return new Date(d + 'T12:00:00Z'); }
+function vpAddDaysISO(iso, n){ const dt = vpParseISO(iso); dt.setUTCDate(dt.getUTCDate() + n); return dt.toISOString().slice(0,10); }
+function vpDayDiff(a, b){ return Math.round((vpParseISO(b) - vpParseISO(a)) / 86400000); }
+function vpFmtDM(iso){ const dt = vpParseISO(iso); return String(dt.getUTCDate()).padStart(2,'0') + '/' + String(dt.getUTCMonth()+1).padStart(2,'0'); }
+function vpFmtWD(iso){ const WD = ['DOM','LUN','MAR','MIÉ','JUE','VIE','SÁB']; const dt = vpParseISO(iso); return WD[dt.getUTCDay()] + ' ' + vpFmtDM(iso); }
+
+// ── Drag & drop de tarjetas: reordenar dentro del día + reprogramar al soltar
+// en otra sección de fecha. Solo admin. Reusa sortOrder (manual) por grupo.
+function vpSetGroupHighlight(g, on){
+  if (on){ g.style.background = 'var(--accent-soft, rgba(99,102,241,.07))'; g.style.borderRadius = '10px'; g.style.outline = '2px dashed var(--accent)'; g.style.outlineOffset = '3px'; }
+  else { g.style.background = ''; g.style.outline = ''; g.style.outlineOffset = ''; }
+}
+function vpClearAllHighlights(){ document.querySelectorAll('#vp-list .vp-group').forEach(g => vpSetGroupHighlight(g, false)); window._vpHlGroup = null; }
+
+function vpDragStart(event, handle){
+  if (typeof isAdmin === 'function' && !isAdmin()) { event.preventDefault(); return; }
+  window._vpDragHandle = handle;
+  try { event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', handle); } catch(e){}
+  const card = document.querySelector('#vp-list .vp-product-card[data-handle="' + handle + '"]');
+  if (card) {
+    try { event.dataTransfer.setDragImage(card, 24, 24); } catch(e){}
+    setTimeout(() => { card.style.opacity = '0.4'; }, 0);
+  }
+}
+function vpDragEnd(){
+  const h = window._vpDragHandle;
+  if (h) { const card = document.querySelector('#vp-list .vp-product-card[data-handle="' + h + '"]'); if (card) card.style.opacity = ''; }
+  vpClearAllHighlights();
+  window._vpDragHandle = null;
+}
+function vpGroupDragOver(event){
+  if (!window._vpDragHandle) return;
+  event.preventDefault();
+  try { event.dataTransfer.dropEffect = 'move'; } catch(e){}
+  const g = event.currentTarget;
+  if (window._vpHlGroup !== g) { vpClearAllHighlights(); vpSetGroupHighlight(g, true); window._vpHlGroup = g; }
+}
+async function vpGroupDrop(event){
+  event.preventDefault();
+  const draggedHandle = window._vpDragHandle;
+  const g = event.currentTarget;
+  const clientY = event.clientY;
+  vpClearAllHighlights();
+  if (!draggedHandle) return;
+  await vpApplyDrop(draggedHandle, g, clientY);
+}
+
+async function vpApplyDrop(draggedHandle, groupEl, clientY){
+  if (typeof isAdmin === 'function' && !isAdmin()) return;
+  const cardsWrap = groupEl.querySelector('.vp-group-cards') || groupEl;
+  const targetDateAttr = groupEl.dataset.groupDate; // '' (sin fecha), '_keep_' (atrasadas), o fecha ISO
+  const tasks = window._vpData.productTasks;
+
+  // 1) Nuevo orden visual dentro del grupo destino, según la posición Y del drop.
+  const cards = Array.from(cardsWrap.querySelectorAll('.vp-product-card')).filter(c => c.dataset.handle !== draggedHandle);
+  let insertIdx = cards.length;
+  for (let i = 0; i < cards.length; i++){
+    const r = cards[i].getBoundingClientRect();
+    if (clientY < r.top + r.height / 2) { insertIdx = i; break; }
+  }
+  const orderHandles = cards.map(c => c.dataset.handle);
+  orderHandles.splice(insertIdx, 0, draggedHandle);
+
+  try {
+    if (typeof firebase === 'undefined' || !firebase.firestore) throw new Error('Firestore no disponible');
+    const db = firebase.firestore();
+    const batch = db.batch();
+    const N = orderHandles.length;
+    // 2) Reasignar sortOrder descendente al grupo destino (mayor = arriba).
+    orderHandles.forEach((h, i) => {
+      const so = N - i;
+      batch.set(db.collection('bkdrop_video_product_tasks').doc(h), { handle: h, sortOrder: so, updatedAt: Date.now() }, { merge: true });
+      tasks[h] = { ...(tasks[h] || {}), handle: h, sortOrder: so };
+    });
+    // 3) Reprogramar fecha del arrastrado según el grupo destino (salvo ATRASADAS = _keep_).
+    let msg = '✓ Reordenado';
+    if (targetDateAttr !== '_keep_') {
+      const prev = tasks[draggedHandle] || {};
+      const oldStart = (prev.startDate || '').trim();
+      const newStart = targetDateAttr; // '' = limpiar fecha
+      if (oldStart !== newStart) {
+        // Cada tarjeta es de un solo día: startDate y endDate van siempre iguales.
+        const upd = { handle: draggedHandle, startDate: newStart, endDate: newStart, updatedAt: Date.now() };
+        batch.set(db.collection('bkdrop_video_product_tasks').doc(draggedHandle), upd, { merge: true });
+        tasks[draggedHandle] = { ...(tasks[draggedHandle] || {}), ...upd };
+        msg = newStart ? ('📅 Reprogramada a ' + vpFmtDM(newStart)) : '📅 Fecha quitada';
+      }
+    }
+    await batch.commit();
+    showToast(msg, '✋', 'success');
+    renderVideosProdList();
+  } catch (err) {
+    showToast('Error al mover: ' + (err.message || '?'), '⚠️', 'error');
   }
 }
 
