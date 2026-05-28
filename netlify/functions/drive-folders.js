@@ -72,6 +72,23 @@ exports.handler = async (event) => {
         return respond(200, result);
       }
 
+      // Carpeta suelta: crea SIEMPRE una carpeta nueva bajo la raíz (sin reusar
+      // por nombre, a diferencia de ensure-product-folders) + las 3 subcarpetas.
+      if (body.op === 'create-loose-folder') {
+        const name = (body.name || '').trim();
+        if (!name) return respond(400, { error: 'Falta name' });
+        const result = await createLooseFolder(token, rootFolderId, name.slice(0, 100));
+        return respond(200, result);
+      }
+
+      // Manda una carpeta a la papelera de Drive (reversible).
+      if (body.op === 'trash-folder') {
+        const folderId = (body.folderId || '').trim();
+        if (!folderId) return respond(400, { error: 'Falta folderId' });
+        const result = await trashFolder(token, folderId);
+        return respond(200, result);
+      }
+
       return respond(400, { error: 'op POST no válido' });
     }
 
@@ -158,6 +175,28 @@ async function drivePatch(token, path, body) {
 async function renameFolder(token, folderId, newName) {
   const data = await drivePatch(token, 'files/' + encodeURIComponent(folderId) + '?fields=id,name', { name: newName });
   return { id: data.id, name: data.name };
+}
+
+async function trashFolder(token, folderId) {
+  const data = await drivePatch(token, 'files/' + encodeURIComponent(folderId) + '?fields=id,name,trashed', { trashed: true });
+  return { id: data.id, name: data.name, trashed: data.trashed };
+}
+
+// Crea una carpeta nueva (siempre, sin reusar por nombre) con sus 3 subcarpetas.
+async function createLooseFolder(token, rootId, name) {
+  const productFolder = await createFolder(token, rootId, name);
+  const subnames = ['1 - Brutos', '2 - Testeo', '3 - Escalado'];
+  const subs = {};
+  for (const subname of subnames) {
+    subs[subname] = await createFolder(token, productFolder.id, subname);
+  }
+  return {
+    productFolder: { id: productFolder.id, name: productFolder.name },
+    brutosId:   subs['1 - Brutos'].id,
+    testeoId:   subs['2 - Testeo'].id,
+    escaladoId: subs['3 - Escalado'].id,
+    title: name,
+  };
 }
 
 async function listFolder(token, folderId) {

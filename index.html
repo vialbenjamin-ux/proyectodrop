@@ -3303,6 +3303,7 @@
       <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
         <input type="text" id="vp-search" placeholder="Filtrar productos…" style="flex:1;min-width:200px;padding:9px 12px;border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:8px;font-size:13px;font-family:'DM Mono',monospace" oninput="filterVideosProdList()">
         <button onclick="vpToggleAddPanel()" id="vp-add-btn" style="background:#22C55E;color:#fff;border:none;border-radius:8px;padding:9px 14px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer;font-weight:700">+ Agregar producto</button>
+        <button onclick="vpToggleLoosePanel()" id="vp-loose-btn" style="background:#8B5CF6;color:#fff;border:none;border-radius:8px;padding:9px 14px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer;font-weight:700">📂 Carpeta suelta</button>
         <button onclick="initVideosProd(true)" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:9px 14px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer">🔄 Recargar</button>
         <button id="vp-archive-toggle" onclick="toggleVpArchive()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:9px 14px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer;font-weight:700">📁 Archivo</button>
         <a href="https://drive.google.com/drive/folders/1JqerUrGaRgcQGY0uTDvcoyccdekCpj62" target="_blank" rel="noopener" style="background:#4285F4;color:#fff;border-radius:8px;padding:9px 14px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer;text-decoration:none">↗ Abrir Drive</a>
@@ -3342,6 +3343,17 @@
         </div>
         <div id="vp-add-results" style="display:flex;flex-direction:column;gap:6px;max-height:300px;overflow-y:auto"></div>
         <div id="vp-add-status" style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;margin-top:8px"></div>
+      </div>
+
+      <!-- Panel para crear carpeta suelta (oculto por default) -->
+      <div id="vp-loose-panel" style="display:none;background:var(--surface);border:2px solid #8B5CF6;border-radius:12px;padding:14px;margin-bottom:14px">
+        <div style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:14px;color:#8B5CF6;margin-bottom:6px">📂 Crear carpeta suelta</div>
+        <div style="font-size:11px;color:var(--muted);line-height:1.5;margin-bottom:10px">Crea una carpeta nueva en Drive con sus 3 subcarpetas (<strong>1 - Brutos</strong>, <strong>2 - Testeo</strong>, <strong>3 - Escalado</strong>) sin ligarla a un producto de Shopify. Aparece en la lista como una tarjeta más.</div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <input type="text" id="vp-loose-name" placeholder="Nombre de la carpeta…" style="flex:1;min-width:220px;padding:8px 10px;border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:6px;font-size:12px;font-family:'DM Mono',monospace" onkeydown="if(event.key==='Enter') vpCreateLooseFolder()">
+          <button onclick="vpCreateLooseFolder()" id="vp-loose-create-btn" style="background:#8B5CF6;color:#fff;border:none;border-radius:6px;padding:8px 14px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer;font-weight:700">+ Crear</button>
+        </div>
+        <div id="vp-loose-status" style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;margin-top:8px"></div>
       </div>
 
       <div id="vp-status" style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;margin-bottom:10px"></div>
@@ -14057,7 +14069,9 @@ function renderVideosProdCard(p){
         ${moveControls}
         <div style="flex:1;min-width:0">
           <div data-title-badge="${esc(handle)}" ${admin ? `onclick="event.stopPropagation(); editProductTitleInline(this, '${esc(handle)}')" title="Click para editar título"` : ''} style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:14px;color:var(--text);margin-bottom:2px;${admin ? 'cursor:text;border-radius:4px;padding:2px 4px;margin-left:-4px;transition:background 0.15s' : ''}" ${admin ? `onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'"` : ''}>${esc(title)}</div>
-          <div style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;margin-bottom:6px">handle: ${esc(handle)}</div>
+          ${p.loose
+            ? `<div style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;margin-bottom:6px;display:flex;align-items:center;gap:8px"><span style="background:#8B5CF622;color:#8B5CF6;border:1px solid #8B5CF6;border-radius:10px;padding:1px 8px;font-weight:700">📂 Carpeta suelta</span>${admin ? `<button onclick="event.stopPropagation(); vpDeleteLooseFolder('${esc(handle)}')" title="Borrar carpeta suelta" style="background:transparent;color:var(--muted);border:1px solid var(--border);border-radius:10px;padding:1px 8px;font-size:9px;font-family:'DM Mono',monospace;cursor:pointer">🗑 Borrar</button>` : ''}</div>`
+            : `<div style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;margin-bottom:6px">handle: ${esc(handle)}</div>`}
           <div style="display:flex;flex-direction:column;gap:6px">
             ${statusControls}
             ${datesUI}
@@ -14721,6 +14735,103 @@ async function vpLinkProduct(id, title, handle){
     }, 1500);
   } catch (err) {
     if (status) { status.textContent = '⚠ ' + (err.message || 'error'); status.style.color = 'var(--danger,#E74C3C)'; }
+  }
+}
+
+// ── Carpetas sueltas (no ligadas a producto) ──────────────────────────────
+function vpToggleLoosePanel(){
+  const panel = document.getElementById('vp-loose-panel');
+  if (!panel) return;
+  const open = panel.style.display !== 'none';
+  panel.style.display = open ? 'none' : 'block';
+  if (!open) {
+    const input = document.getElementById('vp-loose-name');
+    if (input) setTimeout(()=>{ try { input.focus(); } catch(e){} }, 80);
+  }
+}
+
+// Crea una carpeta suelta en Drive (con 3 subcarpetas) y la guarda como doc
+// en bkdrop_drive_product_folders con flag loose:true, para que herede toda
+// la UI de la lista (link, renombrar, rankings, responsables, etc.).
+async function vpCreateLooseFolder(){
+  const input = document.getElementById('vp-loose-name');
+  const statusEl = document.getElementById('vp-loose-status');
+  const btn = document.getElementById('vp-loose-create-btn');
+  const name = (input?.value || '').trim();
+  const setStatus = (txt, color) => { if (statusEl) { statusEl.innerHTML = txt; statusEl.style.color = color || 'var(--muted)'; } };
+  if (!name) { setStatus('⚠ Escribí un nombre.', 'var(--danger,#E74C3C)'); return; }
+  if (typeof firebase === 'undefined' || !firebase.firestore) { setStatus('⚠ Firestore no disponible.', 'var(--danger,#E74C3C)'); return; }
+  if (btn) btn.disabled = true;
+  setStatus('⏳ Creando carpeta "' + esc(name) + '" en Drive…');
+  try {
+    const resp = await fetch('/.netlify/functions/drive-folders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ op: 'create-loose-folder', name: name.slice(0, 100) }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || ('HTTP ' + resp.status));
+
+    const handle = 'suelta-' + Date.now();
+    const db = firebase.firestore();
+    await db.collection('bkdrop_drive_product_folders').doc(handle).set({
+      handle,
+      title: data.title || name,
+      loose: true,
+      productFolderId: data.productFolder?.id,
+      brutosId:   data.brutosId,
+      testeoId:   data.testeoId,
+      escaladoId: data.escaladoId,
+      updatedAt: Date.now(),
+    }, { merge: true });
+
+    setStatus('✅ Carpeta creada: <strong>' + esc(name) + '</strong>. Refrescando…', 'var(--accent)');
+    showToast('📂 Carpeta suelta creada: ' + name, '☁️', 'success');
+    if (input) input.value = '';
+    setTimeout(() => { initVideosProd(true); vpToggleLoosePanel(); }, 1200);
+  } catch (err) {
+    setStatus('⚠ ' + (err.message || 'error'), 'var(--danger,#E74C3C)');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+// Borra una carpeta suelta: la quita de la app (Firestore) y manda la carpeta
+// de Drive a la papelera (reversible). Solo aplica a carpetas con loose:true.
+async function vpDeleteLooseFolder(handle){
+  if (typeof isAdmin === 'function' && !isAdmin()) { showToast('Solo el administrador puede borrar', '🔒', 'error'); return; }
+  const product = window._vpData.products.find(x => (x.handle || x.id) === handle);
+  if (!product) return;
+  const name = product.title || handle;
+  if (!confirm('¿Borrar la carpeta suelta "' + name + '"?\n\nSe quita de la app y la carpeta de Drive (con su contenido) se manda a la papelera de Drive (recuperable ~30 días).')) return;
+  try {
+    const db = firebase.firestore();
+    // 1. Mandar carpeta de Drive a la papelera
+    if (product.productFolderId) {
+      try {
+        const resp = await fetch('/.netlify/functions/drive-folders', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ op: 'trash-folder', folderId: product.productFolderId }),
+        });
+        if (!resp.ok) { const d = await resp.json().catch(() => ({})); throw new Error(d.error || ('HTTP ' + resp.status)); }
+      } catch (err) {
+        showToast('No se pudo mandar a papelera Drive: ' + (err.message || '?') + ' — igual la quito de la app', '⚠️', 'warn');
+      }
+    }
+    // 2. Borrar docs de Firestore (producto + task + asignaciones de las 3 carpetas)
+    const batch = db.batch();
+    batch.delete(db.collection('bkdrop_drive_product_folders').doc(handle));
+    batch.delete(db.collection('bkdrop_video_product_tasks').doc(handle));
+    ['brutos', 'testeo', 'escalado'].forEach(ft => batch.delete(db.collection('bkdrop_drive_folder_assignments').doc(handle + '__' + ft)));
+    await batch.commit();
+    // 3. Limpiar estado local y re-render
+    window._vpData.products = window._vpData.products.filter(x => (x.handle || x.id) !== handle);
+    delete window._vpData.productTasks[handle];
+    showToast('🗑 Carpeta suelta borrada', '🗑', 'success');
+    renderVideosProdList();
+  } catch (err) {
+    showToast('Error al borrar: ' + (err.message || '?'), '⚠️', 'error');
   }
 }
 
