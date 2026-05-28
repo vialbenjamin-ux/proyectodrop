@@ -773,7 +773,9 @@
   .bk-prompt-output-copy.copied{background:var(--green);color:#fff}
   .bk-prompt-output-close{background:none;border:none;color:#A6862A;cursor:pointer;font-size:13px;padding:2px 4px;line-height:1}
   .bk-prompt-output-body{padding:14px 16px;white-space:pre-wrap;max-height:640px;overflow-y:auto;font-size:13px;line-height:1.7}
-  .bk-prompt-output.expanded .bk-prompt-output-body{max-height:80vh;font-size:14px}
+  /* Modo expandido = panel de lectura a pantalla completa (máxima legibilidad) */
+  .bk-prompt-output.expanded{position:fixed;inset:0;z-index:9999;margin:0;max-width:none;border-radius:0;display:flex;flex-direction:column}
+  .bk-prompt-output.expanded .bk-prompt-output-body{max-height:none;flex:1;font-size:17px;line-height:1.9;padding:30px clamp(20px,8vw,160px)}
   /* Dark mode: el output usa #FFFEF7 (crema claro) hardcoded en el CSS,
      que en dark queda con texto claro encima → ilegible. Override para
      que use surface oscuro + texto claro del theme. */
@@ -5267,6 +5269,7 @@ Quiero un desarme estratégico del anuncio para poder:
 
 REGLA DE PRIORIDAD CRÍTICA
 La sección 9 (Reconstrucción de voz en off basada en la misma estructura) es obligatoria, crítica y no opcional.
+ORDEN DE SALIDA OBLIGATORIO (la regla más importante de todas): tu respuesta debe EMPEZAR con los 5 guiones / voces en off completos y listos para testear, antes que cualquier otra cosa. Recién después de esos 5 guiones entregas todo el análisis estratégico y el material de apoyo. Nunca pongas el análisis antes de los 5 guiones.
 El análisis NO se considera completo si no incluye esa sección.
 No puedes omitirla bajo ninguna circunstancia.
 Si el video no tiene voz clara, debes inferir igualmente la lógica verbal y reconstruirla según la estructura detectada.
@@ -5408,18 +5411,23 @@ VALIDACIÓN FINAL DE CUMPLIMIENTO (OBLIGATORIA)
 Al final de la sección 9 incluí un mini checklist confirmando: misma estructura lógica, duración equivalente, exactamente 5 voces completas, no se copiaron frases literales, lógica persuasiva conservada. Si alguno no se cumple, corregir antes de entregar.
 
 FORMATO DE ENTREGA FINAL (OBLIGATORIO)
-Entrega en este orden exacto:
-1. Resumen ejecutivo
-2. Framework detectado
-3. Desglose bloque por bloque
-4. Análisis del hook
-5. Análisis del copy / voz en off
-6. Análisis visual
-7. Mapa de conversión
-8. Plantilla estructural replicable
-9. Reconstrucción de voz en off (OBLIGATORIO)
-10. Qué copiar de este video y qué no
-La respuesta se considera incompleta si falta el punto 9.
+Entrega en este orden exacto. LO PRIMERO de toda la respuesta son los 5 guiones; recién después va el análisis completo:
+
+PARTE 1 — LOS 5 GUIONES (van PRIMERO, antes que cualquier análisis)
+1. Las 5 nuevas voces en off / guiones completos y listos para testear. Para cada uno: nombre del concepto, tipo de hook, mecanismo verbal del hook, framework base, cantidad de palabras, voz en off completa, qué conserva del original y qué cambia para que se sienta nueva.
+
+PARTE 2 — ANÁLISIS COMPLETO (va DESPUÉS de los 5 guiones)
+2. Resumen ejecutivo
+3. Framework detectado
+4. Desglose bloque por bloque
+5. Análisis del hook
+6. Análisis del copy / voz en off
+7. Análisis visual
+8. Mapa de conversión
+9. Plantilla estructural replicable
+10. Material de apoyo de la reconstrucción de voz: esqueleto de voz del original, diagnóstico de duración y equivalencia, plantilla verbal reusable, 5 hooks alternativos, 5 CTAs alternativos, versiones más agresivas, versiones más orgánicas, ADN del guion y validación final de cumplimiento.
+11. Qué copiar de este video y qué no
+La respuesta se considera incompleta si faltan los 5 guiones de la PARTE 1.
 
 REGLAS IMPORTANTES
 • No hagas un análisis genérico
@@ -7950,8 +7958,13 @@ function copyBkOutput(key){
 
 function closeBkOutput(key){
   const box = document.getElementById('bk-output-'+key);
-  if(box) box.classList.remove('open');
+  if(box) box.classList.remove('open', 'expanded');
 }
+
+// Escape sale del modo expandido (pantalla completa) de cualquier recuadro de salida.
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') document.querySelectorAll('.bk-prompt-output.expanded').forEach(b => b.classList.remove('expanded'));
+});
 
 // ── BK PROMPTS — análisis de video con upload directo a Gemini File API ──────
 
