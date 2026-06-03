@@ -77,6 +77,9 @@ export default async function handler(req) {
 (function(){
   try {
     var meta = ${safeMeta};
+    // Si reconectaste con otra cuenta, el advertiser_id viejo ya no sirve.
+    // Limpiar el cache obliga a que las vistas re-detecten desde el server.
+    localStorage.removeItem('bkdrop_tiktok_advertiser');
     localStorage.setItem('bkdrop_tiktok_connected', JSON.stringify(meta));
     setTimeout(function(){ location.replace('/#reportes-tiktok-conectado'); }, 1500);
   } catch (e) {

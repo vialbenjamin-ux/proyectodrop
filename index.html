@@ -16612,6 +16612,26 @@ function renderTtxCrossView(){
   // Tabla productos — costo unitario editable + envío atribuido proporcionalmente
   const totalRevenueRealForProd = revenueReal; // total post-COD
   const ptbody = document.getElementById('ttx-prod-tbody');
+  // Gasto que NO se puede atribuir a ningún producto (campañas con 0 ventas).
+  // Sin esa fila, el total de la tabla no cuadra con los KPIs de arriba.
+  const totalAttributedSpend = prods.reduce((s, p) => s + (p.attributedSpend || 0), 0);
+  const unattributedSpend = Math.max(0, (k.spend || 0) - totalAttributedSpend);
+  const noSaleCampaigns = (_ttxData.byCampaign || []).filter(r => (r.spend || 0) > 0 && !(r.realPurchases > 0));
+  let unattributedRow = '';
+  if (unattributedSpend > 0.5 && noSaleCampaigns.length > 0) {
+    const tipLines = noSaleCampaigns.map(c => (c.name || '?') + ': ' + fmt(c.spend || 0));
+    const tip = escapeHtmlSafe('Campañas que gastaron sin generar ventas:\n' + tipLines.join('\n'));
+    unattributedRow = `<tr style="border-top:2px dashed var(--border);background:var(--surface2)" title="${tip}">
+      <td style="padding:10px 14px;color:var(--muted2);font-style:italic">⚠ Campañas sin ventas (${noSaleCampaigns.length})</td>
+      <td style="text-align:right;padding:10px 10px;color:var(--muted2)">—</td>
+      <td style="text-align:right;padding:10px 10px;color:var(--muted2)">—</td>
+      <td style="text-align:right;padding:10px 10px;color:var(--muted2)">—</td>
+      <td style="text-align:right;padding:10px 10px;color:var(--muted2)">—</td>
+      <td style="text-align:right;padding:10px 10px;font-family:'DM Mono',monospace;color:var(--muted)">${fmt(unattributedSpend)}</td>
+      <td style="text-align:right;padding:10px 10px;font-family:'DM Mono',monospace;font-weight:700;color:#dc2626">${fmt(-unattributedSpend)}</td>
+      <td style="text-align:right;padding:10px 10px;color:var(--muted2)">—</td>
+    </tr>`;
+  }
   ptbody.innerHTML = prods.map(p => {
     const pRevReal   = p.revenue * tasaEntrega;
     const pCogsReal  = (p.totalCost || 0) * tasaEntrega;
@@ -16635,8 +16655,8 @@ function renderTtxCrossView(){
       <td style="text-align:right;padding:10px 10px;font-family:'DM Mono',monospace;font-weight:700;color:${pNetReal>=0?'#22c55e':'#dc2626'}">${fmt(pNetReal)}</td>
       <td style="text-align:right;padding:10px 10px;font-family:'DM Mono',monospace;color:var(--muted)">${p.marginPct != null ? p.marginPct.toFixed(0)+'%' : '—'}</td>
     </tr>`;
-  }).join('');
-  document.getElementById('ttx-prod-table').style.display = prods.length ? '' : 'none';
+  }).join('') + unattributedRow;
+  document.getElementById('ttx-prod-table').style.display = (prods.length || unattributedRow) ? '' : 'none';
 }
 
 // Cambio de costo unitario en la tabla de productos del Cruce TikTok.
@@ -16669,6 +16689,9 @@ function getTikTokAuth(){
 function clearTikTokAuth(){
   localStorage.removeItem('bkdrop_tiktok_connected');
   localStorage.removeItem('bkdrop_tiktok_auth');
+  // Limpiar advertiser cacheado: si se reconecta con otra cuenta, el ID viejo
+  // ya no es accesible y otras vistas (Total, Cruce) muestran $0/"NO conectado".
+  localStorage.removeItem('bkdrop_tiktok_advertiser');
 }
 
 function connectTikTok(){
