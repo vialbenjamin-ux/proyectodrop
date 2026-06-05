@@ -1,6 +1,8 @@
-// Scheduled function que dispara bkdrop-alerts (HTTP) cada 15 minutos.
+// Scheduled function que dispara bkdrop-alerts (HTTP) cada hora.
 // Separado del endpoint HTTP porque Netlify no permite tener `schedule` y
 // `path` en el config de la misma función.
+// Frecuencia bajada de 15min a 1h el 2026-06-04 para reducir consumo de
+// invocaciones Netlify (~94% menos). Las alertas siguen llegando dentro de la hora.
 
 export default async function handler() {
   const origin = process.env.URL || 'https://bkdrop.netlify.app';
@@ -19,4 +21,4 @@ export default async function handler() {
   }
 }
 
-export const config = { schedule: '*/15 * * * *' };
+export const config = { schedule: '0 * * * *' };
