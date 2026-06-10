@@ -294,6 +294,9 @@
   .stage-badge{display:inline-flex;align-items:center;gap:4px;font-size:10px;padding:3px 9px;border-radius:20px;font-weight:600;margin-bottom:6px}
   .cards-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:14px}
   .card{background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,.04);position:relative}
+  /* Tarjeta bloqueada por orden de trabajo (esperando que terminen los anteriores). */
+  .card.card-locked{opacity:.55;filter:grayscale(.2)}
+  .card.card-locked .card-summary{cursor:not-allowed}
   .card-title{font-family:'Montserrat',sans-serif;font-size:16px;font-weight:800;flex:1;color:var(--text)}
   .card-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px}
   .card-actions{display:flex;gap:4px;align-items:center}
@@ -1545,6 +1548,7 @@
     <div class="filter-row" style="margin-bottom:16px">
       <div class="filter-group" id="prod-filters"></div>
       <div style="display:flex;gap:8px;align-items:center">
+        <button id="bypass-btn" onclick="toggleWorkOrderBypass()" title="Desbloquea todas las tarjetas (modo admin, requiere clave). Para cambios urgentes." style="background:transparent;border:1.5px solid var(--border);color:var(--muted);padding:7px 12px;border-radius:8px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer">🔑 Bypass orden</button>
         <button id="bulk-mode-btn" onclick="toggleBulkMode()">☑ Selección múltiple</button>
         <button class="btn-primary" onclick="openModal('producto')">+ Producto</button>
       </div>
@@ -4182,6 +4186,12 @@ let currentUser = null;
 window._currentUser = null;
 
 function toggleCard(id){
+  const p = state.products.find(x => x.id === id);
+  if (p && !canOpenCard(p)) {
+    const o = p.workOrder;
+    showToast(`Termina Landing + Releasit en los productos con orden ${o-2} y ${o-1}`, '🔒', 'info');
+    return;
+  }
   const card = document.getElementById('card-'+id);
   if(card) card.classList.toggle('card-collapsed');
 }
@@ -4285,6 +4295,24 @@ function applyBulkOwner(){
 
 function renderProducts(){
   const activeProd = state.products.filter(p=>!(p.stages||{}).done);
+
+  // Refresca el estado visual del botón de bypass según _workOrderBypass.
+  const bypassBtn = document.getElementById('bypass-btn');
+  if (bypassBtn) {
+    if (_workOrderBypass) {
+      bypassBtn.textContent = '🔓 Bypass ACTIVO · click para desactivar';
+      bypassBtn.style.background = '#fef3c7';
+      bypassBtn.style.borderColor = '#f59e0b';
+      bypassBtn.style.color = '#78350f';
+      bypassBtn.style.fontWeight = '700';
+    } else {
+      bypassBtn.textContent = '🔑 Bypass orden';
+      bypassBtn.style.background = 'transparent';
+      bypassBtn.style.borderColor = 'var(--border)';
+      bypassBtn.style.color = 'var(--muted)';
+      bypassBtn.style.fontWeight = '';
+    }
+  }
 
   // ── VIÑETAS POR RESPONSABLE ──────────────────────────────────────────────────
   const ownerTabs = document.getElementById('owner-tabs');
@@ -4392,7 +4420,15 @@ function renderProducts(){
   if(prodFilter!=='all') visible = visible.filter(p=>p.importance===prodFilter);
 
   const impOrder={alta:0,media:1,baja:2,undefined:3};
-  visible = [...visible].sort((a,b)=>(impOrder[a.importance]||3)-(impOrder[b.importance]||3));
+  // Primero los que tienen workOrder asignado (ascendente). Después el resto
+  // por importancia. Así el trabajador empieza por el #1 y baja.
+  visible = [...visible].sort((a,b)=>{
+    const aw = a.workOrder, bw = b.workOrder;
+    if (aw != null && bw != null) return aw - bw;
+    if (aw != null) return -1;
+    if (bw != null) return 1;
+    return (impOrder[a.importance]||3) - (impOrder[b.importance]||3);
+  });
 
   if(visible.length===0){
     grid.innerHTML=`<div class="empty" style="grid-column:1/-1"><div class="empty-icon">📦</div>No hay productos en esta vista.</div>`;
@@ -4428,10 +4464,12 @@ function renderProducts(){
     else if(isLandingPub) stageClass = 'card-stage-landingpub';
     else if(isLandingWip) stageClass = 'card-stage-landing';
 
+    const locked = !canOpenCard(p);
     card.className='card card-collapsed'
       + (stageClass ? ' '+stageClass : '')
       + (bulkMode ? ' bulk-selectable' : '')
-      + (bulkSelected.has(p.id) ? ' bulk-selected' : '');
+      + (bulkSelected.has(p.id) ? ' bulk-selected' : '')
+      + (locked ? ' card-locked' : '');
     card.id='card-'+p.id;
 
     // Badge de etapa actual
@@ -4457,7 +4495,8 @@ function renderProducts(){
       ${imp?`<div style="position:absolute;top:10px;right:10px;font-size:9px;font-weight:700;padding:3px 9px;border-radius:20px;background:${impBg};color:${impColor};border:1px solid ${impColor};font-family:'DM Mono',monospace;letter-spacing:.5px;z-index:1">${impText}</div>`:''}
       <div class="card-summary" onclick="${cardClickHandler}">
         <div class="bulk-check">${bulkSelected.has(p.id)?'✓':''}</div>
-        <span class="card-chevron" style="${bulkMode?'display:none':''}">▼</span>
+        <div onclick="event.stopPropagation();setWorkOrder('${p.id}')" title="${p.workOrder!=null?'Orden #'+p.workOrder+' · click para cambiar':'Asignar orden de trabajo'}" style="display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:50%;background:${p.workOrder!=null?'#1f2937':'var(--surface2)'};color:${p.workOrder!=null?'#fff':'var(--muted2)'};border:${p.workOrder!=null?'2px solid #1f2937':'2px dashed var(--border)'};font-family:'Montserrat',sans-serif;font-weight:800;font-size:${p.workOrder!=null?'22px':'20px'};cursor:pointer;flex-shrink:0;user-select:none">${p.workOrder!=null?p.workOrder:'+'}</div>
+        <span class="card-chevron" style="${bulkMode?'display:none':''}">${locked?'🔒':'▼'}</span>
         <div class="card-summary-info">
           <div class="card-title" style="font-size:14px">${esc(p.name)}</div>
           <span class="stage-badge" style="background:${stageInfo.bg};color:${stageInfo.color};border:1px solid ${stageInfo.color}40">${stageInfo.label}</span>
@@ -10525,6 +10564,69 @@ function toggleStage(prodId, stageId){
 function setImportance(prodId, imp){
   state.products = state.products.map(p=>p.id===prodId?{...p,importance:imp}:p);
   save(); render();
+}
+
+// Orden de trabajo manual por producto. Visible en grande en cada tarjeta.
+// Regla: si un producto tiene orden >= 3, queda bloqueado hasta que los
+// productos con los dos órdenes inmediatamente anteriores estén Terminados.
+function setWorkOrder(prodId){
+  const p = state.products.find(x=>x.id===prodId); if(!p) return;
+  const cur = (p.workOrder != null) ? String(p.workOrder) : '';
+  const msg = 'Orden de trabajo (número entero ≥ 1, dejá vacío para quitar):\n\n' +
+              'Los productos con orden 3 en adelante quedan bloqueados hasta que ' +
+              'los dos anteriores tengan Landing creada Y Releasit configurado.';
+  const v = prompt(msg, cur);
+  if (v === null) return;
+  const trimmed = v.trim();
+  let newOrder = null;
+  if (trimmed !== '') {
+    const n = parseInt(trimmed, 10);
+    if (!isFinite(n) || n < 1) { alert('Tiene que ser un número entero ≥ 1.'); return; }
+    newOrder = n;
+  }
+  state.products = state.products.map(x => x.id===prodId ? {...x, workOrder: newOrder} : x);
+  save(); render();
+}
+
+// ── Bypass de orden (para definir y cambiar órdenes sin esperar el bloqueo) ─
+// Cuando _workOrderBypass es true, las tarjetas bloqueadas se pueden abrir
+// igual. Solo el admin sabe el PIN.
+let _workOrderBypass = false;
+const WORK_ORDER_BYPASS_PIN = '1787';
+
+function toggleWorkOrderBypass(){
+  if (_workOrderBypass) {
+    _workOrderBypass = false;
+    render();
+    showToast('Bypass desactivado · vuelven los bloqueos por orden', '🔒', 'info');
+    return;
+  }
+  const k = prompt('🔑 PIN de 4 dígitos para desbloquear y reordenar:');
+  if (k == null) return;
+  if (k !== WORK_ORDER_BYPASS_PIN) { alert('PIN incorrecto.'); return; }
+  _workOrderBypass = true;
+  render();
+  showToast('Bypass ACTIVO · ahora podés abrir y reordenar cualquier tarjeta', '🔓', 'success');
+}
+
+// Devuelve false si la tarjeta debe estar bloqueada. Sin orden, o con orden
+// 1-2, siempre se puede abrir. Con orden ≥ 3, se libera solo cuando los dos
+// productos con los órdenes inmediatamente anteriores tengan TICKEADO:
+// 1) Creando Landing (stages.landing) y 2) Config. Releasit (stages.releasit).
+// Si el admin activó el bypass con su clave, ignoramos el bloqueo.
+function canOpenCard(p){
+  if (_workOrderBypass) return true;
+  const order = p && p.workOrder;
+  if (!order || order < 3) return true;
+  const isReady = x => {
+    const s = x.stages || {};
+    return !!(s.landing && s.releasit);
+  };
+  const prev1 = state.products.find(x => x.workOrder === order - 1);
+  const prev2 = state.products.find(x => x.workOrder === order - 2);
+  if (prev1 && !isReady(prev1)) return false;
+  if (prev2 && !isReady(prev2)) return false;
+  return true;
 }
 
 function delProduct(id){ if(!confirm('¿Eliminar producto?')) return; state.products=state.products.filter(p=>p.id!==id); save(); render(); }
