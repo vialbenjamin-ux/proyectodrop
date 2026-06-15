@@ -7222,10 +7222,11 @@ function refreshAutoFilesPreview(){
       'ondragover="autoFilesDragOver(event)" '+
       'ondragleave="autoFilesDragLeave(event)" '+
       'ondrop="autoFilesDrop(event)" '+
+      'ondragend="autoFilesDragEnd(event)" '+
       'title="Arrastrá para reordenar (solo dentro del mismo tipo)" '+
-      'style="position:relative;cursor:grab;transition:transform .1s">'+
-      '<img src="' + url + '" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:6px;border:1.5px solid var(--border);pointer-events:none">'+
-      '<div style="position:absolute;top:2px;left:2px;background:' + color + ';color:#fff;font-size:9px;padding:2px 6px;border-radius:3px;font-family:\'DM Mono\',monospace;font-weight:700;pointer-events:none">' + tag + ' ' + (item.idx + 1) + '</div>'+
+      'style="position:relative;cursor:grab;transition:transform .1s;user-select:none;-webkit-user-drag:element">'+
+      '<img src="' + url + '" draggable="false" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:6px;border:1.5px solid var(--border);user-select:none;-webkit-user-drag:none;pointer-events:none">'+
+      '<div style="position:absolute;top:2px;left:2px;background:' + color + ';color:#fff;font-size:9px;padding:2px 6px;border-radius:3px;font-family:\'DM Mono\',monospace;font-weight:700;pointer-events:none;user-select:none">' + tag + ' ' + (item.idx + 1) + '</div>'+
     '</div>';
   }).join('');
   goBtn.disabled = !(_autoShrineProduct && _autoShrineGifs.length === 3 && _autoShrineFotos.length === 3);
@@ -7248,6 +7249,12 @@ function autoFilesDragOver(e){
 function autoFilesDragLeave(e){
   const t = e.currentTarget;
   t.style.outline = ''; t.style.outlineOffset = ''; delete t.dataset._hi;
+}
+function autoFilesDragEnd(e){
+  // Limpieza si el usuario suelta fuera de un destino válido.
+  document.querySelectorAll('#bk-auto-files-preview [draggable="true"]').forEach(el => {
+    el.style.opacity = ''; el.style.outline = ''; el.style.outlineOffset = ''; delete el.dataset._hi;
+  });
 }
 function autoFilesDrop(e){
   e.preventDefault();
