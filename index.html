@@ -15473,66 +15473,52 @@ async function setProductUrl(handle, url){
   }
 }
 
-// Llama a gemini-proxy con el prompt "copys" + URL del producto.
-// Acumula el stream completo, lo guarda en productTasks.copys.full y re-renderiza.
+// Prompt usado al apretar "Activar prompt en Claude" desde MANAGER. Es el
+// mismo que el usuario tiene seteado como User Preferences en Claude, pero
+// también lo mandamos en el mensaje para que funcione sin depender de eso.
+const CLAUDE_COPYS_PROMPT = `Eres un experto en Meta Ads y TikTok Ads con más de 10 años de experiencia en e-commerce y dropshipping. Cada vez que te comparta información de un producto, analízalo automáticamente y genera:
+3 TEXTOS PRINCIPALES (máx 125 caracteres cada uno, framework PAS: Problema → Agitación → Solución)
+3 TÍTULOS (máx 40 caracteres cada uno, acción + beneficio)
+3 DESCRIPCIONES (máx 30 caracteres cada uno, características clave )
+5 TEXTOS CORTOS PARA TIKTOK ADS (máx 6-7 palabras cada uno, hooks disruptivos)
+REGLAS OBLIGATORIAS:
+
+Emoji obligatorio al inicio de cada línea
+NUNCA mencionar el nombre del producto directamente
+Framework PAS en textos principales
+Siempre incluir disparador de urgencia o escasez
+Tono persuasivo y directo
+Evitar palabras genéricas como "calidad" o "increíble"
+Textos principales: hablar del PROBLEMA primero, luego la solución
+Títulos: acción concreta + beneficio tangible
+TikTok: hooks que paren el scroll sin vender directamente
+
+ADAPTACIONES GEOGRÁFICAS:
+
+Chile: español chileno natural, referencias locales (feria, gasfíter, STARKEN, etc.)
+Guatemala: voseo (usás, llevás, pagás), referencias locales (carro, chamaco, listo pues, recena, etc.)
+Neutro: español latino sin regionalismos`;
+
+// Arma el prompt + URL del producto, lo copia al portapapeles y abre Claude
+// en una pestaña nueva. El subidor pega (Ctrl+V) en Claude, copia la
+// respuesta y la pega en la textarea de MANAGER (autoguarda al perder foco).
 async function generateProductCopys(handle){
   const task = (window._vpData.productTasks && window._vpData.productTasks[handle]) || {};
   const url = (task.productUrl || '').trim();
   if (!url) { showToast('Pegá primero la URL del producto', '⚠️', 'info'); return; }
   const product = (window._vpData.products || []).find(p => (p.handle || p.id) === handle);
   const productTitle = (product && product.title) || handle;
-  const btn = document.getElementById('gen-copys-btn-' + handle);
-  if (btn) { btn.disabled = true; btn.textContent = '⏳ Generando con Gemini…'; }
+  const fullPrompt = CLAUDE_COPYS_PROMPT + '\n\n📦 PRODUCTO A ANALIZAR\n' +
+                     'Nombre: ' + productTitle + '\n' +
+                     'Link: ' + url;
   try {
-    // Prompt = template copys + producto + URL.
-    const tmpl = (typeof BK_PROMPTS !== 'undefined' && BK_PROMPTS && BK_PROMPTS.copys)
-                 ? BK_PROMPTS.copys
-                 : 'Eres un experto en Meta Ads y TikTok Ads. Generá copys publicitarios.';
-    const fullPrompt = tmpl + '\n\n📦 PRODUCTO A ANALIZAR\n' +
-                       'Nombre: ' + productTitle + '\n' +
-                       'Link: ' + url;
-    const resp = await fetch('/.netlify/functions/gemini-proxy', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt: fullPrompt }),
-    });
-    if (!resp.ok || !resp.body) throw new Error('HTTP ' + resp.status);
-    // Stream SSE: acumular texto de los chunks "data:" (ignorar comentarios).
-    const reader = resp.body.getReader();
-    const decoder = new TextDecoder();
-    let buf = '', accumulated = '';
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      buf += decoder.decode(value, { stream: true });
-      const lines = buf.split('\n');
-      buf = lines.pop() || '';
-      for (const line of lines) {
-        const t = line.trim();
-        if (!t || t.startsWith(':')) continue; // heartbeat / vacío
-        if (t.startsWith('data:')) {
-          try {
-            const data = JSON.parse(t.slice(5).trim());
-            if (data && data.text) accumulated += data.text;
-          } catch { /* puede venir texto plano */ accumulated += t.slice(5).trim(); }
-        }
-      }
-    }
-    if (!accumulated.trim()) throw new Error('Gemini devolvió vacío');
-    // Guardar
-    const db = firebase.firestore();
-    const prev = (window._vpData.productTasks && window._vpData.productTasks[handle]) || {};
-    const copys = { ...(prev.copys || {}), full: accumulated.trim(), generatedAt: Date.now() };
-    const update = { handle, copys, updatedAt: Date.now() };
-    await db.collection('bkdrop_video_product_tasks').doc(handle).set(update, { merge: true });
-    if (!window._vpData.productTasks) window._vpData.productTasks = {};
-    window._vpData.productTasks[handle] = { ...prev, ...update };
-    showToast('Copys generados con Gemini', '✨', 'success');
-    renderAdsQueue();
-  } catch (err) {
-    showToast('Error Gemini: ' + (err.message || '?'), '⚠️', 'error');
-    if (btn) { btn.disabled = false; btn.textContent = '🤖 Generar copys con Gemini'; }
+    await navigator.clipboard.writeText(fullPrompt);
+  } catch {
+    showToast('No se pudo copiar al portapapeles', '⚠️', 'error');
+    return;
   }
+  try { window.open('https://claude.ai/new', '_blank', 'noopener'); } catch {}
+  showToast('Prompt copiado · pegalo en Claude (Ctrl+V) y la respuesta pegala acá en la textarea', '🤖', 'success');
 }
 
 async function setProductCopysFull(handle, value){
@@ -15695,7 +15681,7 @@ function renderAdsQueue(){
     copysBlockHtml += '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">';
     copysBlockHtml += '<span style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);font-family:\'DM Mono\',monospace">🔗 Link del producto:</span>';
     copysBlockHtml += '<input type="url" value="' + esc(productUrl) + '" placeholder="https://benkotienda.com/products/..." onblur="setProductUrl(\'' + esc(h) + '\', this.value)" style="flex:1;min-width:220px;background:var(--surface);border:1px solid var(--border);color:var(--text);font-size:11px;font-family:\'DM Mono\',monospace;padding:5px 10px;border-radius:5px">';
-    copysBlockHtml += '<button id="gen-copys-btn-' + esc(h) + '" onclick="generateProductCopys(\'' + esc(h) + '\')" style="background:#F59E0B;color:#fff;border:none;border-radius:14px;padding:5px 14px;font-size:11px;font-family:\'DM Mono\',monospace;cursor:pointer;font-weight:700;white-space:nowrap">🤖 Generar copys con Gemini</button>';
+    copysBlockHtml += '<button id="gen-copys-btn-' + esc(h) + '" onclick="generateProductCopys(\'' + esc(h) + '\')" title="Copia el prompt + link al portapapeles y abre Claude en una pestaña nueva. Pegás (Ctrl+V) en Claude, copiás la respuesta y la pegás en la textarea de abajo." style="background:#D97757;color:#fff;border:none;border-radius:14px;padding:5px 14px;font-size:11px;font-family:\'DM Mono\',monospace;cursor:pointer;font-weight:700;white-space:nowrap">🤖 Activar prompt en Claude</button>';
     copysBlockHtml += '</div>';
     copysBlockHtml += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">';
     copysBlockHtml += '<span style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);font-family:\'DM Mono\',monospace">📋 Copys generados</span>';
@@ -15736,6 +15722,45 @@ function renderAdsQueue(){
     }
     html += '</div></div>';
   }
+
+  // ── Subidos a ads (historial reciente) ──────────────────────────────────
+  // Muestra los videos con uploadedToAds=true, ordenados por más recientes
+  // primero. Cada uno tiene un botón "↩ Deshacer" para revertir si se marcó
+  // por accidente. Plegable para no saturar cuando hay muchos.
+  const uploaded = [];
+  for (const fileId of Object.keys(rankings)) {
+    const r = rankings[fileId] || {};
+    if (r.uploadedToAds) uploaded.push({ fileId, ...r });
+  }
+  uploaded.sort((a, b) => (b.uploadedToAdsAt || 0) - (a.uploadedToAdsAt || 0));
+
+  if (uploaded.length) {
+    const MAX_SHOW = 50;
+    const shown = uploaded.slice(0, MAX_SHOW);
+    html += '<details style="background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:0;margin-top:24px" ' + (pending.length === 0 ? 'open' : '') + '>';
+    html += '<summary style="cursor:pointer;padding:14px;font-family:\'Montserrat\',sans-serif;font-weight:800;font-size:14px;color:var(--text);list-style:none;display:flex;align-items:center;gap:10px">' +
+      '<span>✓ Ya subidos a ads</span>' +
+      '<span style="font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace;background:var(--surface2);padding:3px 8px;border-radius:10px;font-weight:400">' + uploaded.length + (uploaded.length > MAX_SHOW ? ' (mostrando ' + MAX_SHOW + ' más recientes)' : '') + '</span>' +
+      '<span style="font-size:10px;color:var(--muted2);font-family:\'DM Mono\',monospace;font-weight:400">click para abrir · si marcaste alguno por error, podés revertir con ↩ Deshacer</span>' +
+      '</summary>';
+    html += '<div style="padding:0 14px 14px;display:flex;flex-direction:column;gap:6px">';
+    for (const it of shown) {
+      const safeName = esc(it.fileName || '').replace(/'/g, "\\'");
+      const driveUrl = 'https://drive.google.com/file/d/' + encodeURIComponent(it.fileId) + '/view';
+      const handle = it.productHandle || '';
+      const productTitle = (productByHandle[handle] && productByHandle[handle].title) || handle || '?';
+      html += '<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;flex-wrap:wrap">' +
+        '<div style="flex:1;min-width:200px">' +
+          '<div style="font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc(it.fileName || '') + '">' + esc(it.fileName || '') + '</div>' +
+          '<div style="font-size:9px;color:var(--muted);font-family:\'DM Mono\',monospace;margin-top:3px">📦 ' + esc(productTitle) + ' · ✓ subido: ' + fmtTime(it.uploadedToAdsAt) + '</div>' +
+        '</div>' +
+        '<a href="' + driveUrl + '" target="_blank" rel="noopener" style="background:#4285F4;color:#fff;text-decoration:none;border-radius:6px;padding:5px 10px;font-size:10px;font-family:\'DM Mono\',monospace">↗ Ver video</a>' +
+        '<button onclick="setVideoUploadedToAds(\'' + esc(it.fileId) + '\', false, \'' + esc(handle) + '\', \'' + safeName + '\')" title="Desmarcar como subido — vuelve a la cola de pendientes arriba" style="background:transparent;border:1.5px solid var(--border);color:var(--text);border-radius:6px;padding:5px 10px;font-size:10px;font-family:\'DM Mono\',monospace;cursor:pointer;font-weight:700">↩ Deshacer</button>' +
+      '</div>';
+    }
+    html += '</div></details>';
+  }
+
   container.innerHTML = html;
 }
 
