@@ -1493,6 +1493,10 @@
     🎞️ Videos
   </button>
 
+  <button class="tab-btn ng-standalone" data-section="manager" onclick="switchSection('manager')">
+    📤 Manager
+  </button>
+
   <button class="tab-btn ng-standalone" data-section="calculadora" onclick="switchSection('calculadora')">
     🧮 Calculadora
   </button>
@@ -3342,6 +3346,19 @@
     </div>
   </div>
 
+  <!-- ── MANAGER — cola de videos listos para subir a ads ──────────────────── -->
+  <div id="section-manager" class="section">
+    <div style="max-width:1100px;margin:0 auto">
+      <div style="display:flex;align-items:center;gap:14px;margin-bottom:18px;flex-wrap:wrap">
+        <div style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:22px;color:var(--text)">📤 MANAGER</div>
+        <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace">Videos que el editor marcó listos · pendientes de subir a ads</div>
+        <span style="flex:1"></span>
+        <button onclick="initVideosProd(true).then(()=>renderAdsQueue())" title="Vuelve a cargar desde Firestore" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--text);border-radius:8px;padding:7px 14px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer">🔄 Recargar</button>
+      </div>
+      <div id="ads-queue-list"></div>
+    </div>
+  </div>
+
   <div id="section-calculadora" class="section">
     <div style="max-width:620px;margin:0 auto">
 
@@ -3736,6 +3753,15 @@ function switchSection(s, silent){
   });
   if(s==='videos') renderVideos();
   if(s==='videos-prod') initVideosProd();
+  if(s==='manager'){
+    // MANAGER usa los mismos datos de _vpData (rankings + products). Si ya
+    // están cargados, sólo renderizamos; si no, los traemos primero.
+    if (window._vpData && window._vpData.products && window._vpData.products.length) {
+      renderAdsQueue();
+    } else {
+      initVideosProd().then(() => renderAdsQueue());
+    }
+  }
   if(s==='calendario') renderCalendar();
   if(s==='prompts'){ renderPrompts(); loadBkVars(); }
   if(s==='reportes') initReportes();
@@ -14299,6 +14325,7 @@ function renderVideosProdCard(p){
         </div>
       </div>
       <div class="vp-folders" id="vp-folders-${esc(handle)}" style="display:none;border-top:1px solid var(--border);padding:12px;background:var(--surface2)">
+        ${renderProductCopys(p)}
         ${renderVideosProdFolders(p)}
       </div>
     </div>
@@ -14940,6 +14967,26 @@ function renderVideoCard(file, type, handle, showRank){
     `;
   }
 
+  // Botón "Listo para ads" — solo en testeo (junto al ranking). Sirve para
+  // que el editor avise al subidor (sección MANAGER) que el video está listo.
+  let readyForAdsHtml = '';
+  if (showRank) {
+    const isReady = !!(r && r.readyForAds);
+    const isUploaded = !!(r && r.uploadedToAds);
+    const safeFileName = esc(file.name).replace(/'/g, "\\'");
+    if (isUploaded) {
+      readyForAdsHtml = `<div style="padding:6px 10px;border-top:1px dashed var(--border);background:var(--surface);font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;text-align:center" onclick="event.stopPropagation()">✓ YA SUBIDO A ADS</div>`;
+    } else if (isReady) {
+      readyForAdsHtml = `<div style="padding:6px 10px;border-top:1px dashed var(--border);background:var(--surface)" onclick="event.stopPropagation()">
+        <button onclick="event.stopPropagation();setVideoReadyForAds('${esc(file.id)}', false, '${esc(handle)}', '${safeFileName}')" title="Desmarcar — el subidor ya no lo verá en MANAGER" style="width:100%;background:#22C55E;color:#fff;border:none;border-radius:5px;padding:6px 8px;font-size:10px;font-family:'DM Mono',monospace;cursor:pointer;font-weight:700">📤 LISTO PARA ADS · click para desmarcar</button>
+      </div>`;
+    } else {
+      readyForAdsHtml = `<div style="padding:6px 10px;border-top:1px dashed var(--border);background:var(--surface)" onclick="event.stopPropagation()">
+        <button onclick="event.stopPropagation();setVideoReadyForAds('${esc(file.id)}', true, '${esc(handle)}', '${safeFileName}')" title="Aparecerá en MANAGER para que el subidor lo levante a ads" style="width:100%;background:transparent;border:1.5px solid var(--accent);color:var(--accent);border-radius:5px;padding:5px 8px;font-size:10px;font-family:'DM Mono',monospace;cursor:pointer;font-weight:600">📤 Marcar listo para ads</button>
+      </div>`;
+    }
+  }
+
   // Comentarios del video (instrucciones para edición / feedback editor↔admin)
   const notes = (r && r.notes) || '';
   const notesAt = (r && r.notesUpdatedAt)
@@ -14993,6 +15040,7 @@ function renderVideoCard(file, type, handle, showRank){
         </div>
       </a>
       ${rankHtml}
+      ${readyForAdsHtml}
       ${notesHtml}
     </div>
   `;
@@ -15330,6 +15378,201 @@ async function setVideoRank(fileId, rank, handle, fileName){
   } catch (err) {
     showToast('Error guardando rank: ' + (err.message || '?'), '⚠️', 'error');
   }
+}
+
+// ── Workflow editor → subidor ────────────────────────────────────────────────
+// Editor marca un video de carpeta TESTEO como "listo para ads".
+// Subidor lo ve en la sección "Subir a ads" y marca "ya subido" cuando termina.
+async function setVideoReadyForAds(fileId, ready, handle, fileName){
+  try {
+    if (typeof firebase === 'undefined' || !firebase.firestore) throw new Error('Firestore no disponible');
+    const db = firebase.firestore();
+    const prev = window._vpData.rankings[fileId] || {};
+    const update = {
+      productHandle: handle,
+      fileName: fileName,
+      readyForAds: !!ready,
+      readyForAdsAt: ready ? Date.now() : null,
+      updatedAt: Date.now(),
+    };
+    await db.collection('bkdrop_video_rankings').doc(fileId).set(update, { merge: true });
+    window._vpData.rankings[fileId] = { ...prev, ...update };
+    showToast(ready ? 'Marcado listo para ads' : 'Desmarcado', ready ? '📤' : '↩', 'success');
+    // Re-render del folder testeo de ese producto
+    const contents = window._vpData.folderContents[handle] || {};
+    if (contents.testeo) {
+      const container = document.getElementById('vp-folder-' + handle + '-testeo');
+      if (container) container.innerHTML = renderVideosList(contents.testeo, 'testeo', handle);
+    }
+  } catch (err) {
+    showToast('Error: ' + (err.message || '?'), '⚠️', 'error');
+  }
+}
+
+async function setVideoUploadedToAds(fileId, uploaded, handle, fileName){
+  try {
+    if (typeof firebase === 'undefined' || !firebase.firestore) throw new Error('Firestore no disponible');
+    const db = firebase.firestore();
+    const prev = window._vpData.rankings[fileId] || {};
+    const update = {
+      productHandle: handle,
+      fileName: fileName,
+      uploadedToAds: !!uploaded,
+      uploadedToAdsAt: uploaded ? Date.now() : null,
+      updatedAt: Date.now(),
+    };
+    await db.collection('bkdrop_video_rankings').doc(fileId).set(update, { merge: true });
+    window._vpData.rankings[fileId] = { ...prev, ...update };
+    showToast(uploaded ? 'Marcado como subido' : 'Reabierto', uploaded ? '✓' : '↩', 'success');
+    if (typeof renderAdsQueue === 'function') renderAdsQueue();
+  } catch (err) {
+    showToast('Error: ' + (err.message || '?'), '⚠️', 'error');
+  }
+}
+
+// ── Copys por plataforma del producto ───────────────────────────────────────
+// Admin pega los copys de Meta y TikTok; el subidor solo los copia al
+// portapapeles desde la card del producto. Persistido en
+// bkdrop_video_product_tasks.<handle>.copys = { meta, tiktok }.
+const PRODUCT_COPY_PLATFORMS = [
+  { key: 'meta',   label: 'Meta Ads',   color: '#1877F2' },
+  { key: 'tiktok', label: 'TikTok Ads', color: '#FE2C55' },
+];
+
+function renderProductCopys(p){
+  const handle = p.handle || p.id;
+  const task = (window._vpData && window._vpData.productTasks && window._vpData.productTasks[handle]) || {};
+  const copys = task.copys || {};
+  const admin = (typeof isAdmin === 'function') ? isAdmin() : false;
+  let html = '<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:12px">' +
+    '<div style="font-size:11px;font-weight:700;letter-spacing:.5px;color:var(--text);margin-bottom:10px;display:flex;align-items:center;gap:8px">📋 COPYS POR PLATAFORMA <span style="font-size:9px;color:var(--muted);font-weight:400;letter-spacing:0;font-family:\'DM Mono\',monospace">click 📋 Copiar para enviar al portapapeles</span></div>' +
+    '<div style="display:flex;flex-direction:column;gap:10px">';
+  for (const plat of PRODUCT_COPY_PLATFORMS) {
+    const text = copys[plat.key] || '';
+    html += '<div onclick="event.stopPropagation()">' +
+      '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">' +
+        '<span style="background:' + plat.color + ';color:#fff;font-size:10px;padding:2px 10px;border-radius:10px;font-family:\'DM Mono\',monospace;font-weight:700">' + plat.label + '</span>' +
+        '<span style="flex:1"></span>' +
+        '<button onclick="event.stopPropagation();copyProductCopy(\'' + esc(handle) + '\', \'' + plat.key + '\')" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:5px;padding:3px 10px;font-size:10px;font-family:\'DM Mono\',monospace;cursor:pointer">📋 Copiar</button>' +
+      '</div>';
+    if (admin) {
+      html += '<textarea ' +
+        'onblur="setProductCopy(\'' + esc(handle) + '\', \'' + plat.key + '\', this.value)" ' +
+        'onclick="event.stopPropagation()" onmousedown="event.stopPropagation()" ' +
+        'placeholder="Pega acá el copy de ' + plat.label + '..." ' +
+        'style="width:100%;min-height:64px;background:var(--surface2);border:1px solid var(--border);color:var(--text);font-size:12px;font-family:\'DM Mono\',monospace;padding:8px;border-radius:5px;resize:vertical;line-height:1.5;outline:none;box-sizing:border-box">' + esc(text) + '</textarea>';
+    } else {
+      html += '<div style="background:var(--surface2);border:1px solid var(--border);padding:8px;border-radius:5px;font-size:12px;font-family:\'DM Mono\',monospace;white-space:pre-wrap;min-height:40px;color:' + (text ? 'var(--text)' : 'var(--muted2)') + '">' +
+              (text ? esc(text) : '<em>Sin copy cargado</em>') + '</div>';
+    }
+    html += '</div>';
+  }
+  html += '</div></div>';
+  return html;
+}
+
+async function setProductCopy(handle, platform, value){
+  if (typeof isAdmin === 'function' && !isAdmin()) {
+    showToast('Solo el administrador puede editar copys', '🔒', 'error');
+    return;
+  }
+  try {
+    if (typeof firebase === 'undefined' || !firebase.firestore) throw new Error('Firestore no disponible');
+    const db = firebase.firestore();
+    const prev = (window._vpData.productTasks && window._vpData.productTasks[handle]) || {};
+    const prevCopys = prev.copys || {};
+    const copys = { ...prevCopys, [platform]: String(value || '') };
+    const update = { handle, copys, updatedAt: Date.now() };
+    await db.collection('bkdrop_video_product_tasks').doc(handle).set(update, { merge: true });
+    if (!window._vpData.productTasks) window._vpData.productTasks = {};
+    window._vpData.productTasks[handle] = { ...prev, ...update };
+  } catch (err) {
+    showToast('Error guardando copy: ' + (err.message || '?'), '⚠️', 'error');
+  }
+}
+
+function copyProductCopy(handle, platform){
+  const task = (window._vpData.productTasks && window._vpData.productTasks[handle]) || {};
+  const text = (task.copys && task.copys[platform]) || '';
+  if (!text.trim()) { showToast('Sin copy guardado para ' + platform, '⚠️', 'info'); return; }
+  try {
+    navigator.clipboard.writeText(text).then(() => showToast('Copy ' + platform.toUpperCase() + ' copiado', '📋', 'success'));
+  } catch {
+    showToast('No se pudo copiar (navegador sin permiso)', '⚠️', 'error');
+  }
+}
+
+// Render de la cola de pendientes en sección MANAGER. Agrupa por producto los
+// videos con readyForAds && !uploadedToAds. Cada item tiene link al Drive +
+// botón "✓ Subí este" que marca uploadedToAds=true y lo saca de la cola.
+function renderAdsQueue(){
+  const container = document.getElementById('ads-queue-list');
+  if (!container) return;
+  const rankings = (window._vpData && window._vpData.rankings) || {};
+  const products = (window._vpData && window._vpData.products) || [];
+  const productByHandle = {};
+  for (const p of products) productByHandle[p.handle || p.id] = p;
+
+  const pending = [];
+  for (const fileId of Object.keys(rankings)) {
+    const r = rankings[fileId] || {};
+    if (r.readyForAds && !r.uploadedToAds) pending.push({ fileId, ...r });
+  }
+
+  if (!pending.length) {
+    container.innerHTML = `<div style="background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:40px;text-align:center;color:var(--muted2);font-size:13px">
+      <div style="font-size:48px;margin-bottom:12px">✨</div>
+      <div style="margin-bottom:6px">No hay videos pendientes de subir.</div>
+      <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace">Cuando el editor marque un video como "📤 Listo para ads" en la carpeta de testeo, aparecerá acá.</div>
+    </div>`;
+    return;
+  }
+
+  // Agrupar por producto
+  const byProduct = {};
+  for (const it of pending) {
+    const h = it.productHandle || '_sin_producto';
+    if (!byProduct[h]) byProduct[h] = [];
+    byProduct[h].push(it);
+  }
+  // Orden: productos con más pendientes primero
+  const handles = Object.keys(byProduct).sort((a, b) => byProduct[b].length - byProduct[a].length);
+
+  const fmtTime = (ts) => {
+    if (!ts) return '—';
+    try { return new Date(ts).toLocaleString('es-CL', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }); }
+    catch { return '—'; }
+  };
+
+  let html = '<div style="font-size:11px;color:var(--muted);font-family:\'DM Mono\',monospace;margin-bottom:10px">' + pending.length + ' video(s) pendientes en ' + handles.length + ' producto(s)</div>';
+  for (const h of handles) {
+    const p = productByHandle[h];
+    const title = p ? (p.title || h) : h;
+    const items = byProduct[h].sort((a, b) => (b.readyForAdsAt || 0) - (a.readyForAdsAt || 0));
+    const driveFolderUrl = (p && p.productFolderId) ? 'https://drive.google.com/drive/folders/' + p.productFolderId : null;
+    html += '<div style="background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:14px;margin-bottom:14px">' +
+      '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">' +
+        '<div style="font-family:\'Montserrat\',sans-serif;font-weight:800;font-size:14px;color:var(--text);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc(title) + '">📦 ' + esc(title) + '</div>' +
+        '<span style="font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace;background:var(--surface2);padding:3px 8px;border-radius:10px">' + items.length + ' pendiente' + (items.length !== 1 ? 's' : '') + '</span>' +
+        (driveFolderUrl ? '<a href="' + driveFolderUrl + '" target="_blank" rel="noopener" style="background:#4285F4;color:#fff;text-decoration:none;border-radius:6px;padding:4px 10px;font-size:10px;font-family:\'DM Mono\',monospace">↗ Drive producto</a>' : '') +
+      '</div>' +
+      '<div style="display:flex;flex-direction:column;gap:8px">';
+    for (const it of items) {
+      const safeName = esc(it.fileName || '').replace(/'/g, "\\'");
+      const driveUrl = 'https://drive.google.com/file/d/' + encodeURIComponent(it.fileId) + '/view';
+      const rank = it.rank ? '★ ' + it.rank : '';
+      html += '<div style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;flex-wrap:wrap">' +
+        '<div style="flex:1;min-width:200px">' +
+          '<div style="font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc(it.fileName || '') + '">' + esc(it.fileName || '') + '</div>' +
+          '<div style="font-size:9px;color:var(--muted);font-family:\'DM Mono\',monospace;margin-top:3px">📤 Marcado listo: ' + fmtTime(it.readyForAdsAt) + (rank ? ' · ' + rank : '') + '</div>' +
+        '</div>' +
+        '<a href="' + driveUrl + '" target="_blank" rel="noopener" style="background:#4285F4;color:#fff;text-decoration:none;border-radius:6px;padding:6px 12px;font-size:11px;font-family:\'DM Mono\',monospace">↗ Ver video</a>' +
+        '<button onclick="setVideoUploadedToAds(\'' + esc(it.fileId) + '\', true, \'' + esc(it.productHandle || '') + '\', \'' + safeName + '\')" style="background:#22C55E;color:#fff;border:none;border-radius:6px;padding:6px 14px;font-size:11px;font-family:\'DM Mono\',monospace;cursor:pointer;font-weight:700">✓ Subí este</button>' +
+      '</div>';
+    }
+    html += '</div></div>';
+  }
+  container.innerHTML = html;
 }
 
 async function pipelineLoadAll(){
