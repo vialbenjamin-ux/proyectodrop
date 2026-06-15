@@ -7211,18 +7211,61 @@ function refreshAutoFilesPreview(){
   const preview = document.getElementById('bk-auto-files-preview');
   const goBtn = document.getElementById('bk-auto-shrine-go');
   if (!preview || !goBtn) return;
-  const all = [..._autoShrineGifs.map((f,i) => ({f,role:'gif',pos:i+1})),
-               ..._autoShrineFotos.map((f,i) => ({f,role:'foto',pos:i+1}))];
+  const all = [..._autoShrineGifs.map((f,i) => ({f,role:'gif',idx:i})),
+               ..._autoShrineFotos.map((f,i) => ({f,role:'foto',idx:i}))];
   preview.innerHTML = all.map(item => {
     const url = URL.createObjectURL(item.f);
     const tag = item.role === 'gif' ? 'GIF' : 'FOTO';
     const color = item.role === 'gif' ? '#4F65D8' : '#D85B95';
-    return '<div style="position:relative">'+
-      '<img src="' + url + '" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:6px;border:1.5px solid var(--border)">'+
-      '<div style="position:absolute;top:2px;left:2px;background:' + color + ';color:#fff;font-size:8px;padding:1px 4px;border-radius:3px;font-family:\'DM Mono\',monospace;font-weight:700">' + tag + ' ' + item.pos + '</div>'+
+    return '<div draggable="true" data-role="' + item.role + '" data-idx="' + item.idx + '" '+
+      'ondragstart="autoFilesDragStart(event)" '+
+      'ondragover="autoFilesDragOver(event)" '+
+      'ondragleave="autoFilesDragLeave(event)" '+
+      'ondrop="autoFilesDrop(event)" '+
+      'title="Arrastrá para reordenar (solo dentro del mismo tipo)" '+
+      'style="position:relative;cursor:grab;transition:transform .1s">'+
+      '<img src="' + url + '" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:6px;border:1.5px solid var(--border);pointer-events:none">'+
+      '<div style="position:absolute;top:2px;left:2px;background:' + color + ';color:#fff;font-size:9px;padding:2px 6px;border-radius:3px;font-family:\'DM Mono\',monospace;font-weight:700;pointer-events:none">' + tag + ' ' + (item.idx + 1) + '</div>'+
     '</div>';
   }).join('');
   goBtn.disabled = !(_autoShrineProduct && _autoShrineGifs.length === 3 && _autoShrineFotos.length === 3);
+}
+
+// Reorden por drag de los archivos cargados (GIFs y fotos) en Auto Shrine.
+// Solo permite reordenar dentro del mismo tipo (gif↔gif, foto↔foto).
+function autoFilesDragStart(e){
+  const t = e.currentTarget;
+  try { e.dataTransfer.effectAllowed = 'move'; } catch(_){}
+  e.dataTransfer.setData('text/plain', JSON.stringify({ role: t.dataset.role, idx: parseInt(t.dataset.idx, 10) }));
+  t.style.opacity = '0.4';
+}
+function autoFilesDragOver(e){
+  e.preventDefault();
+  try { e.dataTransfer.dropEffect = 'move'; } catch(_){}
+  const t = e.currentTarget;
+  if (!t.dataset._hi) { t.style.outline = '2px dashed var(--accent)'; t.style.outlineOffset = '2px'; t.dataset._hi = '1'; }
+}
+function autoFilesDragLeave(e){
+  const t = e.currentTarget;
+  t.style.outline = ''; t.style.outlineOffset = ''; delete t.dataset._hi;
+}
+function autoFilesDrop(e){
+  e.preventDefault();
+  const t = e.currentTarget;
+  t.style.outline = ''; t.style.outlineOffset = ''; delete t.dataset._hi;
+  let data;
+  try { data = JSON.parse(e.dataTransfer.getData('text/plain')); } catch { return; }
+  // Restaurar opacidad del que se arrastró (queda en el DOM hasta el re-render).
+  document.querySelectorAll('#bk-auto-files-preview [draggable="true"]').forEach(el => el.style.opacity = '');
+  const srcRole = data.role, srcIdx = data.idx;
+  const dstRole = t.dataset.role, dstIdx = parseInt(t.dataset.idx, 10);
+  if (srcRole !== dstRole) { showToast('Solo se reordena dentro del mismo tipo (GIFs ↔ GIFs, fotos ↔ fotos)', '⚠️', 'info'); return; }
+  if (srcIdx === dstIdx) return;
+  const arr = srcRole === 'gif' ? _autoShrineGifs : _autoShrineFotos;
+  // Insertar el arrastrado en la posición destino (NO swap — mueve y empuja).
+  const item = arr.splice(srcIdx, 1)[0];
+  arr.splice(dstIdx, 0, item);
+  refreshAutoFilesPreview();
 }
 
 async function ejecutarAutoShrine(){
@@ -7467,12 +7510,23 @@ async function uploadToShopifyFiles(file, alt){
     throw new Error(`Archivo "${file.name}" pesa ${mb} MB — máximo 4 MB. Comprimilo (https://ezgif.com/optimize para GIFs, https://tinypng.com para fotos) y reintentá.`);
   }
   const base64 = await fileToBase64(file);
+  // Filename UNICO por upload. Si dos archivos llegan con el mismo nombre,
+  // Shopify Files les agrega sufijo `_1`, `_2`, etc., pero nuestro shopifyRef
+  // se construye con el filename solicitado → quedaba apuntando al primero
+  // y dejaba columnas de testimonios sin imagen. Con timestamp + random el
+  // nombre nunca colisiona, así que el shopifyRef siempre apunta al archivo
+  // que acabamos de subir.
+  const extMatch = (file.name || '').match(/\.([a-z0-9]+)$/i);
+  const ext = extMatch ? extMatch[1].toLowerCase() : 'jpg';
+  const stableFilename = String(alt || 'image').replace(/[^a-z0-9_-]+/gi, '-')
+                       + '-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7)
+                       + '.' + ext;
   const resp = await fetch('/.netlify/functions/shopify-themes?_=1' + tenantParam(), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       op: 'upload-file',
-      filename: file.name,
+      filename: stableFilename,
       mimeType: file.type || 'image/jpeg',
       attachment: base64,
       alt: alt || file.name,
