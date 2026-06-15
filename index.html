@@ -14325,7 +14325,6 @@ function renderVideosProdCard(p){
         </div>
       </div>
       <div class="vp-folders" id="vp-folders-${esc(handle)}" style="display:none;border-top:1px solid var(--border);padding:12px;background:var(--surface2)">
-        ${renderProductCopys(p)}
         ${renderVideosProdFolders(p)}
       </div>
     </div>
@@ -15409,6 +15408,27 @@ async function setVideoReadyForAds(fileId, ready, handle, fileName){
   }
 }
 
+// Fecha planificada/real de subida (formato YYYY-MM-DD). Persiste en
+// bkdrop_video_rankings.<fileId>.uploadDate.
+async function setVideoUploadDate(fileId, date, handle, fileName){
+  try {
+    if (typeof firebase === 'undefined' || !firebase.firestore) throw new Error('Firestore no disponible');
+    const db = firebase.firestore();
+    const prev = window._vpData.rankings[fileId] || {};
+    const update = {
+      productHandle: handle,
+      fileName: fileName,
+      uploadDate: (date || '').trim() || null,
+      updatedAt: Date.now(),
+    };
+    await db.collection('bkdrop_video_rankings').doc(fileId).set(update, { merge: true });
+    window._vpData.rankings[fileId] = { ...prev, ...update };
+    // No re-render: el input ya tiene el valor visible.
+  } catch (err) {
+    showToast('Error guardando fecha: ' + (err.message || '?'), '⚠️', 'error');
+  }
+}
+
 async function setVideoUploadedToAds(fileId, uploaded, handle, fileName){
   try {
     if (typeof firebase === 'undefined' || !firebase.firestore) throw new Error('Firestore no disponible');
@@ -15423,10 +15443,121 @@ async function setVideoUploadedToAds(fileId, uploaded, handle, fileName){
     };
     await db.collection('bkdrop_video_rankings').doc(fileId).set(update, { merge: true });
     window._vpData.rankings[fileId] = { ...prev, ...update };
-    showToast(uploaded ? 'Marcado como subido' : 'Reabierto', uploaded ? '✓' : '↩', 'success');
+    if (uploaded) {
+      // Toast con botón Deshacer por si fue click por error.
+      const safeName = String(fileName || '').replace(/'/g, "\\'");
+      const undoHtml = '<button onclick="setVideoUploadedToAds(\'' + fileId + '\', false, \'' + handle + '\', \'' + safeName + '\')" style="background:transparent;color:#fff;border:1px solid rgba(255,255,255,.65);border-radius:6px;padding:3px 12px;font-size:11px;font-family:\'DM Mono\',monospace;cursor:pointer;margin-left:10px;font-weight:700">↩ DESHACER</button>';
+      showToast('Marcado como subido' + undoHtml, '✓', 'success');
+    } else {
+      showToast('Reabierto · vuelve a la cola', '↩', 'success');
+    }
     if (typeof renderAdsQueue === 'function') renderAdsQueue();
   } catch (err) {
     showToast('Error: ' + (err.message || '?'), '⚠️', 'error');
+  }
+}
+
+// Guarda URL pública del producto (usada por la integración Gemini) en
+// productTasks. El worker es quien la pone (es quien sube los productos).
+async function setProductUrl(handle, url){
+  try {
+    if (typeof firebase === 'undefined' || !firebase.firestore) throw new Error('Firestore no disponible');
+    const db = firebase.firestore();
+    const prev = (window._vpData.productTasks && window._vpData.productTasks[handle]) || {};
+    const update = { handle, productUrl: String(url || '').trim(), updatedAt: Date.now() };
+    await db.collection('bkdrop_video_product_tasks').doc(handle).set(update, { merge: true });
+    if (!window._vpData.productTasks) window._vpData.productTasks = {};
+    window._vpData.productTasks[handle] = { ...prev, ...update };
+  } catch (err) {
+    showToast('Error guardando URL: ' + (err.message || '?'), '⚠️', 'error');
+  }
+}
+
+// Llama a gemini-proxy con el prompt "copys" + URL del producto.
+// Acumula el stream completo, lo guarda en productTasks.copys.full y re-renderiza.
+async function generateProductCopys(handle){
+  const task = (window._vpData.productTasks && window._vpData.productTasks[handle]) || {};
+  const url = (task.productUrl || '').trim();
+  if (!url) { showToast('Pegá primero la URL del producto', '⚠️', 'info'); return; }
+  const product = (window._vpData.products || []).find(p => (p.handle || p.id) === handle);
+  const productTitle = (product && product.title) || handle;
+  const btn = document.getElementById('gen-copys-btn-' + handle);
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Generando con Gemini…'; }
+  try {
+    // Prompt = template copys + producto + URL.
+    const tmpl = (typeof BK_PROMPTS !== 'undefined' && BK_PROMPTS && BK_PROMPTS.copys)
+                 ? BK_PROMPTS.copys
+                 : 'Eres un experto en Meta Ads y TikTok Ads. Generá copys publicitarios.';
+    const fullPrompt = tmpl + '\n\n📦 PRODUCTO A ANALIZAR\n' +
+                       'Nombre: ' + productTitle + '\n' +
+                       'Link: ' + url;
+    const resp = await fetch('/.netlify/functions/gemini-proxy', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt: fullPrompt }),
+    });
+    if (!resp.ok || !resp.body) throw new Error('HTTP ' + resp.status);
+    // Stream SSE: acumular texto de los chunks "data:" (ignorar comentarios).
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '', accumulated = '';
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      const lines = buf.split('\n');
+      buf = lines.pop() || '';
+      for (const line of lines) {
+        const t = line.trim();
+        if (!t || t.startsWith(':')) continue; // heartbeat / vacío
+        if (t.startsWith('data:')) {
+          try {
+            const data = JSON.parse(t.slice(5).trim());
+            if (data && data.text) accumulated += data.text;
+          } catch { /* puede venir texto plano */ accumulated += t.slice(5).trim(); }
+        }
+      }
+    }
+    if (!accumulated.trim()) throw new Error('Gemini devolvió vacío');
+    // Guardar
+    const db = firebase.firestore();
+    const prev = (window._vpData.productTasks && window._vpData.productTasks[handle]) || {};
+    const copys = { ...(prev.copys || {}), full: accumulated.trim(), generatedAt: Date.now() };
+    const update = { handle, copys, updatedAt: Date.now() };
+    await db.collection('bkdrop_video_product_tasks').doc(handle).set(update, { merge: true });
+    if (!window._vpData.productTasks) window._vpData.productTasks = {};
+    window._vpData.productTasks[handle] = { ...prev, ...update };
+    showToast('Copys generados con Gemini', '✨', 'success');
+    renderAdsQueue();
+  } catch (err) {
+    showToast('Error Gemini: ' + (err.message || '?'), '⚠️', 'error');
+    if (btn) { btn.disabled = false; btn.textContent = '🤖 Generar copys con Gemini'; }
+  }
+}
+
+async function setProductCopysFull(handle, value){
+  try {
+    if (typeof firebase === 'undefined' || !firebase.firestore) return;
+    const db = firebase.firestore();
+    const prev = (window._vpData.productTasks && window._vpData.productTasks[handle]) || {};
+    const copys = { ...(prev.copys || {}), full: String(value || '') };
+    const update = { handle, copys, updatedAt: Date.now() };
+    await db.collection('bkdrop_video_product_tasks').doc(handle).set(update, { merge: true });
+    if (!window._vpData.productTasks) window._vpData.productTasks = {};
+    window._vpData.productTasks[handle] = { ...prev, ...update };
+  } catch (err) {
+    showToast('Error guardando copys: ' + (err.message || '?'), '⚠️', 'error');
+  }
+}
+
+function copyProductCopysFull(handle){
+  const task = (window._vpData.productTasks && window._vpData.productTasks[handle]) || {};
+  const text = (task.copys && task.copys.full) || '';
+  if (!text.trim()) { showToast('Sin copys generados aún', '⚠️', 'info'); return; }
+  try {
+    navigator.clipboard.writeText(text).then(() => showToast('Copys copiados al portapapeles', '📋', 'success'));
+  } catch {
+    showToast('No se pudo copiar', '⚠️', 'error');
   }
 }
 
@@ -15544,30 +15675,63 @@ function renderAdsQueue(){
     catch { return '—'; }
   };
 
+  const productTasks = (window._vpData && window._vpData.productTasks) || {};
+
   let html = '<div style="font-size:11px;color:var(--muted);font-family:\'DM Mono\',monospace;margin-bottom:10px">' + pending.length + ' video(s) pendientes en ' + handles.length + ' producto(s)</div>';
   for (const h of handles) {
     const p = productByHandle[h];
     const title = p ? (p.title || h) : h;
     const items = byProduct[h].sort((a, b) => (b.readyForAdsAt || 0) - (a.readyForAdsAt || 0));
     const driveFolderUrl = (p && p.productFolderId) ? 'https://drive.google.com/drive/folders/' + p.productFolderId : null;
+    const task = productTasks[h] || {};
+    const productUrl = task.productUrl || '';
+    const copysFull = (task.copys && task.copys.full) || '';
+    const copysAt = task.copys && task.copys.generatedAt;
+
+    // Bloque de copys: URL input + botón Gemini + textarea editable + Copiar todo.
+    // El subidor (worker) es quien sube el producto y pone el link, por eso
+    // todos los campos son editables para cualquier usuario.
+    let copysBlockHtml = '<div style="margin-bottom:12px;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px">';
+    copysBlockHtml += '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">';
+    copysBlockHtml += '<span style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);font-family:\'DM Mono\',monospace">🔗 Link del producto:</span>';
+    copysBlockHtml += '<input type="url" value="' + esc(productUrl) + '" placeholder="https://benkotienda.com/products/..." onblur="setProductUrl(\'' + esc(h) + '\', this.value)" style="flex:1;min-width:220px;background:var(--surface);border:1px solid var(--border);color:var(--text);font-size:11px;font-family:\'DM Mono\',monospace;padding:5px 10px;border-radius:5px">';
+    copysBlockHtml += '<button id="gen-copys-btn-' + esc(h) + '" onclick="generateProductCopys(\'' + esc(h) + '\')" style="background:#F59E0B;color:#fff;border:none;border-radius:14px;padding:5px 14px;font-size:11px;font-family:\'DM Mono\',monospace;cursor:pointer;font-weight:700;white-space:nowrap">🤖 Generar copys con Gemini</button>';
+    copysBlockHtml += '</div>';
+    copysBlockHtml += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">';
+    copysBlockHtml += '<span style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);font-family:\'DM Mono\',monospace">📋 Copys generados</span>';
+    if (copysAt) copysBlockHtml += '<span style="font-size:9px;color:var(--muted2);font-family:\'DM Mono\',monospace">· ' + fmtTime(copysAt) + '</span>';
+    copysBlockHtml += '<span style="flex:1"></span>';
+    if (copysFull.trim()) {
+      copysBlockHtml += '<button onclick="copyProductCopysFull(\'' + esc(h) + '\')" style="background:var(--accent);color:#fff;border:none;border-radius:14px;padding:4px 12px;font-size:10px;font-family:\'DM Mono\',monospace;cursor:pointer;font-weight:700">📋 Copiar todo</button>';
+    }
+    copysBlockHtml += '</div>';
+    copysBlockHtml += '<textarea onblur="setProductCopysFull(\'' + esc(h) + '\', this.value)" placeholder="Apretá 🤖 Generar copys con Gemini, o pegá copys acá manualmente..." style="width:100%;min-height:120px;background:var(--surface);border:1px solid var(--border);color:var(--text);font-size:12px;font-family:\'DM Mono\',monospace;padding:8px 10px;border-radius:5px;resize:vertical;line-height:1.5;outline:none;box-sizing:border-box">' + esc(copysFull) + '</textarea>';
+    copysBlockHtml += '</div>';
+
     html += '<div style="background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:14px;margin-bottom:14px">' +
-      '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">' +
+      '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">' +
         '<div style="font-family:\'Montserrat\',sans-serif;font-weight:800;font-size:14px;color:var(--text);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc(title) + '">📦 ' + esc(title) + '</div>' +
         '<span style="font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace;background:var(--surface2);padding:3px 8px;border-radius:10px">' + items.length + ' pendiente' + (items.length !== 1 ? 's' : '') + '</span>' +
         (driveFolderUrl ? '<a href="' + driveFolderUrl + '" target="_blank" rel="noopener" style="background:#4285F4;color:#fff;text-decoration:none;border-radius:6px;padding:4px 10px;font-size:10px;font-family:\'DM Mono\',monospace">↗ Drive producto</a>' : '') +
       '</div>' +
+      copysBlockHtml +
       '<div style="display:flex;flex-direction:column;gap:8px">';
     for (const it of items) {
       const safeName = esc(it.fileName || '').replace(/'/g, "\\'");
       const driveUrl = 'https://drive.google.com/file/d/' + encodeURIComponent(it.fileId) + '/view';
       const rank = it.rank ? '★ ' + it.rank : '';
+      const uploadDate = it.uploadDate || '';
       html += '<div style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;flex-wrap:wrap">' +
         '<div style="flex:1;min-width:200px">' +
           '<div style="font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc(it.fileName || '') + '">' + esc(it.fileName || '') + '</div>' +
-          '<div style="font-size:9px;color:var(--muted);font-family:\'DM Mono\',monospace;margin-top:3px">📤 Marcado listo: ' + fmtTime(it.readyForAdsAt) + (rank ? ' · ' + rank : '') + '</div>' +
+          '<div style="font-size:9px;color:var(--muted);font-family:\'DM Mono\',monospace;margin-top:3px">📤 Listo: ' + fmtTime(it.readyForAdsAt) + (rank ? ' · ' + rank : '') + '</div>' +
         '</div>' +
+        '<label style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace">' +
+          '📅 Subir el: ' +
+          '<input type="date" value="' + esc(uploadDate) + '" onchange="setVideoUploadDate(\'' + esc(it.fileId) + '\', this.value, \'' + esc(it.productHandle || '') + '\', \'' + safeName + '\')" style="background:var(--surface);border:1px solid var(--border);color:var(--text);font-size:11px;font-family:\'DM Mono\',monospace;padding:3px 6px;border-radius:5px">' +
+        '</label>' +
         '<a href="' + driveUrl + '" target="_blank" rel="noopener" style="background:#4285F4;color:#fff;text-decoration:none;border-radius:6px;padding:6px 12px;font-size:11px;font-family:\'DM Mono\',monospace">↗ Ver video</a>' +
-        '<button onclick="setVideoUploadedToAds(\'' + esc(it.fileId) + '\', true, \'' + esc(it.productHandle || '') + '\', \'' + safeName + '\')" style="background:#22C55E;color:#fff;border:none;border-radius:6px;padding:6px 14px;font-size:11px;font-family:\'DM Mono\',monospace;cursor:pointer;font-weight:700">✓ Subí este</button>' +
+        '<button onclick="setVideoUploadedToAds(\'' + esc(it.fileId) + '\', true, \'' + esc(it.productHandle || '') + '\', \'' + safeName + '\')" style="background:#22C55E;color:#fff;border:none;border-radius:6px;padding:6px 16px;font-size:12px;font-family:\'DM Mono\',monospace;cursor:pointer;font-weight:800;letter-spacing:.5px">✓ LISTO</button>' +
       '</div>';
     }
     html += '</div></div>';
