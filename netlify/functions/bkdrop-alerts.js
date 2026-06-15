@@ -9,6 +9,19 @@
 
 import { getStore } from '@netlify/blobs';
 
+// Lee el token de la cuenta TikTok ACTIVA (multi-account). Si no hay
+// tiktok_active, cae al legacy 'tiktok_auth' para compatibilidad.
+async function getActiveAuth(store) {
+  try {
+    const activeId = await store.get('tiktok_active', { type: 'json' });
+    if (activeId) {
+      const a = await store.get('tiktok_auth_' + activeId, { type: 'json' });
+      if (a && a.access_token) return a;
+    }
+  } catch { /* fall through */ }
+  return await store.get('tiktok_auth', { type: 'json' });
+}
+
 const THRESHOLD_NO_SALES = 10000;   // CLP
 const THRESHOLD_ONE_SALE = 15000;   // CLP
 
@@ -40,7 +53,7 @@ export default async function handler(req) {
   // ── TikTok ────────────────────────────────────────────────────────────────
   try {
     const tokenStore = getStore({ name: 'bk-tokens', consistency: 'strong' });
-    const ttAuth = await tokenStore.get('tiktok_auth', { type: 'json' });
+    const ttAuth = await getActiveAuth(tokenStore);
     if (ttAuth && ttAuth.access_token && Array.isArray(ttAuth.advertiser_ids)) {
       for (const advId of ttAuth.advertiser_ids) {
         const url = `${origin}/.netlify/functions/tiktok-report?advertiser_id=${encodeURIComponent(advId)}&date_preset=today&tenant=chile`;

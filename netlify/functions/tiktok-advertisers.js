@@ -7,6 +7,19 @@
 
 import { getStore } from '@netlify/blobs';
 
+// Lee el token de la cuenta TikTok ACTIVA (multi-account). Si no hay
+// tiktok_active, cae al legacy 'tiktok_auth' para compatibilidad.
+async function getActiveAuth(store) {
+  try {
+    const activeId = await store.get('tiktok_active', { type: 'json' });
+    if (activeId) {
+      const a = await store.get('tiktok_auth_' + activeId, { type: 'json' });
+      if (a && a.access_token) return a;
+    }
+  } catch { /* fall through */ }
+  return await store.get('tiktok_auth', { type: 'json' });
+}
+
 function cors() {
   return {
     'Access-Control-Allow-Origin': '*',
@@ -34,7 +47,7 @@ export default async function handler(req) {
   let auth;
   try {
     const store = getStore({ name: 'bk-tokens', consistency: 'strong' });
-    auth = await store.get('tiktok_auth', { type: 'json' });
+    auth = await getActiveAuth(store);
   } catch (e) {
     return json(500, { error: 'Storage error: ' + (e.message || 'unknown') });
   }

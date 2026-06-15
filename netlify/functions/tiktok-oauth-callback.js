@@ -4,6 +4,14 @@
 // Intercambiamos el code por un access_token usando el secret del backend
 // (que NUNCA viaja al cliente) y lo guardamos en Netlify Blobs ('bk-tokens')
 // para que sea compartido entre browsers (AdsPower / Chrome normal).
+//
+// Multi-cuenta: cada conexión genera un id 'acct_<ts>' y se guarda en
+//   tiktok_auth_<id>  → { access_token, advertiser_ids, scope, connected_at }
+// El índice 'tiktok_accounts' lista todas las cuentas {id, label, advertiser_ids,
+// connected_at} y 'tiktok_active' apunta a la activa. Si el usuario reconecta
+// con los mismos advertisers, se actualiza el token de esa entrada (no duplica).
+// Migración: si existe legacy 'tiktok_auth' y el índice está vacío, se agrega
+// como "Cuenta 1" en el primer connect post-deploy.
 
 import { getStore } from '@netlify/blobs';
 
@@ -45,9 +53,58 @@ export default async function handler(req) {
       connected_at: new Date().toISOString(),
     };
 
+    let activeId = null;
     try {
       const store = getStore({ name: 'bk-tokens', consistency: 'strong' });
-      await store.setJSON('tiktok_auth', payload);
+
+      // 1) Cargar índice de cuentas (o []), y migrar legacy si corresponde.
+      let accounts = (await store.get('tiktok_accounts', { type: 'json' })) || [];
+      if (accounts.length === 0) {
+        const legacy = await store.get('tiktok_auth', { type: 'json' });
+        if (legacy && legacy.access_token) {
+          const legacyId = 'acct_' + (legacy.connected_at ? new Date(legacy.connected_at).getTime() : Date.now()) + '_legacy';
+          await store.setJSON('tiktok_auth_' + legacyId, legacy);
+          accounts.push({
+            id: legacyId,
+            label: 'Cuenta 1',
+            advertiser_ids: legacy.advertiser_ids || [],
+            connected_at: legacy.connected_at || new Date().toISOString(),
+          });
+        }
+      }
+
+      // 2) ¿Esta conexión coincide con una cuenta existente (mismos advertisers)?
+      const sameSet = (a, b) => {
+        if (!Array.isArray(a) || !Array.isArray(b)) return false;
+        if (a.length !== b.length || a.length === 0) return false;
+        const sa = [...a].sort(), sb = [...b].sort();
+        return sa.every((x, i) => x === sb[i]);
+      };
+      const existing = accounts.find(c => sameSet(c.advertiser_ids, payload.advertiser_ids));
+
+      if (existing) {
+        // Refrescar token y connected_at de esa entrada.
+        await store.setJSON('tiktok_auth_' + existing.id, payload);
+        existing.connected_at = payload.connected_at;
+        activeId = existing.id;
+      } else {
+        // Nueva cuenta.
+        const newId = 'acct_' + Date.now();
+        await store.setJSON('tiktok_auth_' + newId, payload);
+        accounts.push({
+          id: newId,
+          label: 'Cuenta ' + (accounts.length + 1),
+          advertiser_ids: payload.advertiser_ids,
+          connected_at: payload.connected_at,
+        });
+        activeId = newId;
+      }
+
+      // 3) Persistir índice + activa. Mantenemos legacy 'tiktok_auth' como
+      // fallback de solo lectura (no rompemos llamadas en vuelo).
+      await store.setJSON('tiktok_accounts', accounts);
+      await store.setJSON('tiktok_active', activeId);
+      await store.setJSON('tiktok_auth', payload); // mantener legacy actualizado por seguridad
     } catch (e) {
       return htmlResponse('No se pudo guardar el token', `<p>Falló el storage del servidor: <code>${escapeHtml(e.message || 'error')}</code></p>`);
     }
@@ -56,6 +113,7 @@ export default async function handler(req) {
     const meta = JSON.stringify({
       advertiser_ids: payload.advertiser_ids,
       connected_at: payload.connected_at,
+      active_id: activeId,
     });
     const safeMeta = meta.replace(/</g, '\\u003c').replace(/>/g, '\\u003e');
 

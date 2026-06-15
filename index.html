@@ -2362,6 +2362,17 @@
 
         <!-- Estado: conectado, mostrar tabla -->
         <div id="tt-connected-block" style="display:none">
+
+          <!-- Multi-cuenta: selector + acciones -->
+          <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:12px;padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <span style="font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted);font-family:'DM Mono',monospace">🔁 Cuenta TikTok activa</span>
+            <select id="tt-account-select" onchange="onTikTokAccountChange()" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:6px 12px;border-radius:18px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer;outline:none;font-weight:700"></select>
+            <button onclick="renameTikTokAccount()" title="Renombrar la cuenta activa" style="background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:14px;padding:5px 10px;font-size:10px;font-family:'DM Mono',monospace;cursor:pointer">✏️ Renombrar</button>
+            <button onclick="deleteTikTokAccount()" title="Eliminar la cuenta activa (el token + su entrada)" style="background:transparent;border:1px solid var(--border);color:var(--muted2);border-radius:14px;padding:5px 10px;font-size:10px;font-family:'DM Mono',monospace;cursor:pointer">🗑️ Eliminar</button>
+            <span style="flex:1"></span>
+            <button onclick="connectAnotherTikTok()" title="Conectar otra cuenta TikTok. Cerrá sesión de esta cuenta en TikTok antes (o usá incógnito) e iniciá sesión con la otra." style="background:#FE2C55;color:#fff;border:none;border-radius:14px;padding:6px 14px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer;font-weight:700">+ Conectar otra cuenta</button>
+          </div>
+
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px">
             <div>
               <div style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:22px;color:var(--text)">🎵 TikTok Ads</div>
@@ -16770,6 +16781,109 @@ function disconnectTikTok(){
   initTikTokTab();
 }
 
+// ── Multi-cuenta TikTok ─────────────────────────────────────────────────────
+let _ttAccountsData = { accounts: [], active: null };
+
+async function loadTikTokAccounts(){
+  try {
+    const r = await fetch('/.netlify/functions/tiktok-accounts');
+    if (!r.ok) return;
+    const data = await r.json();
+    _ttAccountsData = { accounts: data.accounts || [], active: data.active || null };
+    renderTikTokAccountsSelect();
+  } catch (e) { /* silencioso */ }
+}
+
+function renderTikTokAccountsSelect(){
+  const sel = document.getElementById('tt-account-select');
+  if (!sel) return;
+  const { accounts, active } = _ttAccountsData;
+  if (!accounts.length) { sel.innerHTML = '<option>(sin cuentas)</option>'; return; }
+  sel.innerHTML = accounts.map(c =>
+    `<option value="${esc(c.id)}" ${c.id===active?'selected':''}>${esc(c.label)} · ${(c.advertiser_ids||[]).length} adv</option>`
+  ).join('');
+}
+
+async function onTikTokAccountChange(){
+  const sel = document.getElementById('tt-account-select');
+  const id = sel.value;
+  if (!id || id === _ttAccountsData.active) return;
+  try {
+    const r = await fetch('/.netlify/functions/tiktok-accounts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'activate', id }),
+    });
+    const data = await r.json();
+    if (!r.ok) { showToast('Error: '+(data.error||'?'), '⚠️', 'error'); return; }
+    _ttAccountsData.active = id;
+    // Limpiar caches para que el siguiente fetch lea la cuenta nueva.
+    try { localStorage.removeItem('bkdrop_tiktok_advertiser'); } catch {}
+    _ttAdvertisersLoaded = false;
+    showToast('Cuenta activa cambiada', '🔁', 'success');
+    initTikTokTab();
+  } catch (e) {
+    showToast('Error: ' + (e.message||'?'), '⚠️', 'error');
+  }
+}
+
+async function renameTikTokAccount(){
+  const id = _ttAccountsData.active;
+  const acct = _ttAccountsData.accounts.find(c => c.id === id);
+  if (!acct) { showToast('No hay cuenta activa', '⚠️', 'info'); return; }
+  const label = prompt('Nuevo nombre para la cuenta:', acct.label);
+  if (!label) return;
+  try {
+    const r = await fetch('/.netlify/functions/tiktok-accounts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'rename', id, label }),
+    });
+    const data = await r.json();
+    if (!r.ok) { showToast('Error: '+(data.error||'?'), '⚠️', 'error'); return; }
+    await loadTikTokAccounts();
+    showToast('Cuenta renombrada', '✏️', 'success');
+  } catch (e) {
+    showToast('Error: ' + (e.message||'?'), '⚠️', 'error');
+  }
+}
+
+async function deleteTikTokAccount(){
+  const id = _ttAccountsData.active;
+  const acct = _ttAccountsData.accounts.find(c => c.id === id);
+  if (!acct) { showToast('No hay cuenta activa', '⚠️', 'info'); return; }
+  if (!confirm(`¿Eliminar la cuenta "${acct.label}"?\n\nSe borra el token de esa cuenta. La otra cuenta queda como activa.`)) return;
+  try {
+    const r = await fetch('/.netlify/functions/tiktok-accounts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'delete', id }),
+    });
+    const data = await r.json();
+    if (!r.ok) { showToast('Error: '+(data.error||'?'), '⚠️', 'error'); return; }
+    try { localStorage.removeItem('bkdrop_tiktok_advertiser'); } catch {}
+    _ttAdvertisersLoaded = false;
+    await loadTikTokAccounts();
+    showToast('Cuenta eliminada', '🗑️', 'success');
+    initTikTokTab();
+  } catch (e) {
+    showToast('Error: ' + (e.message||'?'), '⚠️', 'error');
+  }
+}
+
+function connectAnotherTikTok(){
+  const ok = confirm(
+    '⚠ Importante antes de continuar:\n\n' +
+    '1) Cerrá sesión de la cuenta TikTok actual en este navegador (o abrí incógnito).\n' +
+    '2) Iniciá sesión en business.tiktok.com con la OTRA cuenta TikTok que querés agregar.\n' +
+    '3) Después aprobá la autorización.\n\n' +
+    'Si no cambiás de sesión TikTok primero, vas a re-autorizar la misma cuenta.\n\n' +
+    '¿Continuar al login de TikTok?'
+  );
+  if (!ok) return;
+  connectTikTok();
+}
+
 async function initTikTokTab(){
   const connectBlock = document.getElementById('tt-connect-block');
   const dataBlock    = document.getElementById('tt-connected-block');
@@ -16777,6 +16891,7 @@ async function initTikTokTab(){
   // 401 NOT_CONNECTED, mostramos el bloque de conectar.
   connectBlock.style.display = 'none';
   dataBlock.style.display    = '';
+  await loadTikTokAccounts();
   if (!_ttAdvertisersLoaded) {
     const connected = await loadTikTokAdvertisers();
     _ttAdvertisersLoaded = connected;
