@@ -14989,19 +14989,17 @@ async function vpSearchShopify(){
 }
 
 async function vpLinkProduct(id, title, handle){
+  // El auto-crear carpeta se desactivó (2026-06-15) por preferencia del usuario.
+  // Ahora este botón solo muestra el handle como sugerencia para que el usuario
+  // cree la carpeta a mano con "📂 Carpeta suelta".
   const status = document.getElementById('vp-add-status');
-  if (status) { status.textContent = '⏳ Creando carpetas en Drive para "' + title + '"…'; status.style.color = 'var(--muted)'; }
-  try {
-    const result = await crearCarpetasDriveDelProducto(handle, title);
-    if (!result) throw new Error('No se pudieron crear las carpetas (ver consola)');
-    if (status) { status.innerHTML = '✅ Carpetas creadas: <strong>' + esc(handle) + '</strong>. Refrescando lista…'; status.style.color = 'var(--accent)'; }
-    // Refrescar lista de productos
-    setTimeout(() => {
-      initVideosProd(true);
-      vpToggleAddPanel(); // cerrar el panel
-    }, 1500);
-  } catch (err) {
-    if (status) { status.textContent = '⚠ ' + (err.message || 'error'); status.style.color = 'var(--danger,#E74C3C)'; }
+  if (status) {
+    status.innerHTML =
+      'ℹ️ Producto seleccionado: <strong>' + esc(title) + '</strong>.<br>' +
+      'Ya no se crea carpeta automáticamente. Cerrá este panel y usá ' +
+      '<strong>📂 Carpeta suelta</strong> para crearla a mano. ' +
+      'Sugerencia de nombre: <code style="background:var(--surface2);padding:1px 6px;border-radius:4px">' + esc(handle) + '</code>';
+    status.style.color = 'var(--muted)';
   }
 }
 
