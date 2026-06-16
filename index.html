@@ -15457,168 +15457,6 @@ async function setVideoUploadedToAds(fileId, uploaded, handle, fileName){
   }
 }
 
-// Guarda URL pública del producto (usada por la integración Gemini) en
-// productTasks. El worker es quien la pone (es quien sube los productos).
-async function setProductUrl(handle, url){
-  try {
-    if (typeof firebase === 'undefined' || !firebase.firestore) throw new Error('Firestore no disponible');
-    const db = firebase.firestore();
-    const prev = (window._vpData.productTasks && window._vpData.productTasks[handle]) || {};
-    const update = { handle, productUrl: String(url || '').trim(), updatedAt: Date.now() };
-    await db.collection('bkdrop_video_product_tasks').doc(handle).set(update, { merge: true });
-    if (!window._vpData.productTasks) window._vpData.productTasks = {};
-    window._vpData.productTasks[handle] = { ...prev, ...update };
-  } catch (err) {
-    showToast('Error guardando URL: ' + (err.message || '?'), '⚠️', 'error');
-  }
-}
-
-// Prompt usado al apretar "Activar prompt en Claude" desde MANAGER. Es el
-// mismo que el usuario tiene seteado como User Preferences en Claude, pero
-// también lo mandamos en el mensaje para que funcione sin depender de eso.
-const CLAUDE_COPYS_PROMPT = `Eres un experto en Meta Ads y TikTok Ads con más de 10 años de experiencia en e-commerce y dropshipping. Cada vez que te comparta información de un producto, analízalo automáticamente y genera:
-3 TEXTOS PRINCIPALES (máx 125 caracteres cada uno, framework PAS: Problema → Agitación → Solución)
-3 TÍTULOS (máx 40 caracteres cada uno, acción + beneficio)
-3 DESCRIPCIONES (máx 30 caracteres cada uno, características clave )
-5 TEXTOS CORTOS PARA TIKTOK ADS (máx 6-7 palabras cada uno, hooks disruptivos)
-REGLAS OBLIGATORIAS:
-
-Emoji obligatorio al inicio de cada línea
-NUNCA mencionar el nombre del producto directamente
-Framework PAS en textos principales
-Siempre incluir disparador de urgencia o escasez
-Tono persuasivo y directo
-Evitar palabras genéricas como "calidad" o "increíble"
-Textos principales: hablar del PROBLEMA primero, luego la solución
-Títulos: acción concreta + beneficio tangible
-TikTok: hooks que paren el scroll sin vender directamente
-
-ADAPTACIONES GEOGRÁFICAS:
-
-Chile: español chileno natural, referencias locales (feria, gasfíter, STARKEN, etc.)
-Guatemala: voseo (usás, llevás, pagás), referencias locales (carro, chamaco, listo pues, recena, etc.)
-Neutro: español latino sin regionalismos`;
-
-// Arma el prompt + URL del producto, lo copia al portapapeles y abre Claude
-// en una pestaña nueva. El subidor pega (Ctrl+V) en Claude, copia la
-// respuesta y la pega en la textarea de MANAGER (autoguarda al perder foco).
-async function generateProductCopys(handle){
-  const task = (window._vpData.productTasks && window._vpData.productTasks[handle]) || {};
-  const url = (task.productUrl || '').trim();
-  if (!url) { showToast('Pegá primero la URL del producto', '⚠️', 'info'); return; }
-  const product = (window._vpData.products || []).find(p => (p.handle || p.id) === handle);
-  const productTitle = (product && product.title) || handle;
-  const fullPrompt = CLAUDE_COPYS_PROMPT + '\n\n📦 PRODUCTO A ANALIZAR\n' +
-                     'Nombre: ' + productTitle + '\n' +
-                     'Link: ' + url;
-  try {
-    await navigator.clipboard.writeText(fullPrompt);
-  } catch {
-    showToast('No se pudo copiar al portapapeles', '⚠️', 'error');
-    return;
-  }
-  try { window.open('https://claude.ai/new', '_blank', 'noopener'); } catch {}
-  showToast('Prompt copiado · pegalo en Claude (Ctrl+V) y la respuesta pegala acá en la textarea', '🤖', 'success');
-}
-
-async function setProductCopysFull(handle, value){
-  try {
-    if (typeof firebase === 'undefined' || !firebase.firestore) return;
-    const db = firebase.firestore();
-    const prev = (window._vpData.productTasks && window._vpData.productTasks[handle]) || {};
-    const copys = { ...(prev.copys || {}), full: String(value || '') };
-    const update = { handle, copys, updatedAt: Date.now() };
-    await db.collection('bkdrop_video_product_tasks').doc(handle).set(update, { merge: true });
-    if (!window._vpData.productTasks) window._vpData.productTasks = {};
-    window._vpData.productTasks[handle] = { ...prev, ...update };
-  } catch (err) {
-    showToast('Error guardando copys: ' + (err.message || '?'), '⚠️', 'error');
-  }
-}
-
-function copyProductCopysFull(handle){
-  const task = (window._vpData.productTasks && window._vpData.productTasks[handle]) || {};
-  const text = (task.copys && task.copys.full) || '';
-  if (!text.trim()) { showToast('Sin copys generados aún', '⚠️', 'info'); return; }
-  try {
-    navigator.clipboard.writeText(text).then(() => showToast('Copys copiados al portapapeles', '📋', 'success'));
-  } catch {
-    showToast('No se pudo copiar', '⚠️', 'error');
-  }
-}
-
-// ── Copys por plataforma del producto ───────────────────────────────────────
-// Admin pega los copys de Meta y TikTok; el subidor solo los copia al
-// portapapeles desde la card del producto. Persistido en
-// bkdrop_video_product_tasks.<handle>.copys = { meta, tiktok }.
-const PRODUCT_COPY_PLATFORMS = [
-  { key: 'meta',   label: 'Meta Ads',   color: '#1877F2' },
-  { key: 'tiktok', label: 'TikTok Ads', color: '#FE2C55' },
-];
-
-function renderProductCopys(p){
-  const handle = p.handle || p.id;
-  const task = (window._vpData && window._vpData.productTasks && window._vpData.productTasks[handle]) || {};
-  const copys = task.copys || {};
-  const admin = (typeof isAdmin === 'function') ? isAdmin() : false;
-  let html = '<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:12px">' +
-    '<div style="font-size:11px;font-weight:700;letter-spacing:.5px;color:var(--text);margin-bottom:10px;display:flex;align-items:center;gap:8px">📋 COPYS POR PLATAFORMA <span style="font-size:9px;color:var(--muted);font-weight:400;letter-spacing:0;font-family:\'DM Mono\',monospace">click 📋 Copiar para enviar al portapapeles</span></div>' +
-    '<div style="display:flex;flex-direction:column;gap:10px">';
-  for (const plat of PRODUCT_COPY_PLATFORMS) {
-    const text = copys[plat.key] || '';
-    html += '<div onclick="event.stopPropagation()">' +
-      '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">' +
-        '<span style="background:' + plat.color + ';color:#fff;font-size:10px;padding:2px 10px;border-radius:10px;font-family:\'DM Mono\',monospace;font-weight:700">' + plat.label + '</span>' +
-        '<span style="flex:1"></span>' +
-        '<button onclick="event.stopPropagation();copyProductCopy(\'' + esc(handle) + '\', \'' + plat.key + '\')" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:5px;padding:3px 10px;font-size:10px;font-family:\'DM Mono\',monospace;cursor:pointer">📋 Copiar</button>' +
-      '</div>';
-    if (admin) {
-      html += '<textarea ' +
-        'onblur="setProductCopy(\'' + esc(handle) + '\', \'' + plat.key + '\', this.value)" ' +
-        'onclick="event.stopPropagation()" onmousedown="event.stopPropagation()" ' +
-        'placeholder="Pega acá el copy de ' + plat.label + '..." ' +
-        'style="width:100%;min-height:64px;background:var(--surface2);border:1px solid var(--border);color:var(--text);font-size:12px;font-family:\'DM Mono\',monospace;padding:8px;border-radius:5px;resize:vertical;line-height:1.5;outline:none;box-sizing:border-box">' + esc(text) + '</textarea>';
-    } else {
-      html += '<div style="background:var(--surface2);border:1px solid var(--border);padding:8px;border-radius:5px;font-size:12px;font-family:\'DM Mono\',monospace;white-space:pre-wrap;min-height:40px;color:' + (text ? 'var(--text)' : 'var(--muted2)') + '">' +
-              (text ? esc(text) : '<em>Sin copy cargado</em>') + '</div>';
-    }
-    html += '</div>';
-  }
-  html += '</div></div>';
-  return html;
-}
-
-async function setProductCopy(handle, platform, value){
-  if (typeof isAdmin === 'function' && !isAdmin()) {
-    showToast('Solo el administrador puede editar copys', '🔒', 'error');
-    return;
-  }
-  try {
-    if (typeof firebase === 'undefined' || !firebase.firestore) throw new Error('Firestore no disponible');
-    const db = firebase.firestore();
-    const prev = (window._vpData.productTasks && window._vpData.productTasks[handle]) || {};
-    const prevCopys = prev.copys || {};
-    const copys = { ...prevCopys, [platform]: String(value || '') };
-    const update = { handle, copys, updatedAt: Date.now() };
-    await db.collection('bkdrop_video_product_tasks').doc(handle).set(update, { merge: true });
-    if (!window._vpData.productTasks) window._vpData.productTasks = {};
-    window._vpData.productTasks[handle] = { ...prev, ...update };
-  } catch (err) {
-    showToast('Error guardando copy: ' + (err.message || '?'), '⚠️', 'error');
-  }
-}
-
-function copyProductCopy(handle, platform){
-  const task = (window._vpData.productTasks && window._vpData.productTasks[handle]) || {};
-  const text = (task.copys && task.copys[platform]) || '';
-  if (!text.trim()) { showToast('Sin copy guardado para ' + platform, '⚠️', 'info'); return; }
-  try {
-    navigator.clipboard.writeText(text).then(() => showToast('Copy ' + platform.toUpperCase() + ' copiado', '📋', 'success'));
-  } catch {
-    showToast('No se pudo copiar (navegador sin permiso)', '⚠️', 'error');
-  }
-}
-
 // Render de la cola de pendientes en sección MANAGER. Agrupa por producto los
 // videos con readyForAds && !uploadedToAds. Cada item tiene link al Drive +
 // botón "✓ Subí este" que marca uploadedToAds=true y lo saca de la cola.
@@ -15661,46 +15499,18 @@ function renderAdsQueue(){
     catch { return '—'; }
   };
 
-  const productTasks = (window._vpData && window._vpData.productTasks) || {};
-
   let html = '<div style="font-size:11px;color:var(--muted);font-family:\'DM Mono\',monospace;margin-bottom:10px">' + pending.length + ' video(s) pendientes en ' + handles.length + ' producto(s)</div>';
   for (const h of handles) {
     const p = productByHandle[h];
     const title = p ? (p.title || h) : h;
     const items = byProduct[h].sort((a, b) => (b.readyForAdsAt || 0) - (a.readyForAdsAt || 0));
     const driveFolderUrl = (p && p.productFolderId) ? 'https://drive.google.com/drive/folders/' + p.productFolderId : null;
-    const task = productTasks[h] || {};
-    const productUrl = task.productUrl || '';
-    const copysFull = (task.copys && task.copys.full) || '';
-    const copysAt = task.copys && task.copys.generatedAt;
-
-    // Bloque de copys: URL input + botón Gemini + textarea editable + Copiar todo.
-    // El subidor (worker) es quien sube el producto y pone el link, por eso
-    // todos los campos son editables para cualquier usuario.
-    let copysBlockHtml = '<div style="margin-bottom:12px;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px">';
-    copysBlockHtml += '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">';
-    copysBlockHtml += '<span style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);font-family:\'DM Mono\',monospace">🔗 Link del producto:</span>';
-    copysBlockHtml += '<input type="url" value="' + esc(productUrl) + '" placeholder="https://benkotienda.com/products/..." onblur="setProductUrl(\'' + esc(h) + '\', this.value)" style="flex:1;min-width:220px;background:var(--surface);border:1px solid var(--border);color:var(--text);font-size:11px;font-family:\'DM Mono\',monospace;padding:5px 10px;border-radius:5px">';
-    copysBlockHtml += '<button id="gen-copys-btn-' + esc(h) + '" onclick="generateProductCopys(\'' + esc(h) + '\')" title="Copia el prompt + link al portapapeles y abre Claude en una pestaña nueva. Pegás (Ctrl+V) en Claude, copiás la respuesta y la pegás en la textarea de abajo." style="background:#D97757;color:#fff;border:none;border-radius:14px;padding:5px 14px;font-size:11px;font-family:\'DM Mono\',monospace;cursor:pointer;font-weight:700;white-space:nowrap">🤖 Activar prompt en Claude</button>';
-    copysBlockHtml += '</div>';
-    copysBlockHtml += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">';
-    copysBlockHtml += '<span style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);font-family:\'DM Mono\',monospace">📋 Copys generados</span>';
-    if (copysAt) copysBlockHtml += '<span style="font-size:9px;color:var(--muted2);font-family:\'DM Mono\',monospace">· ' + fmtTime(copysAt) + '</span>';
-    copysBlockHtml += '<span style="flex:1"></span>';
-    if (copysFull.trim()) {
-      copysBlockHtml += '<button onclick="copyProductCopysFull(\'' + esc(h) + '\')" style="background:var(--accent);color:#fff;border:none;border-radius:14px;padding:4px 12px;font-size:10px;font-family:\'DM Mono\',monospace;cursor:pointer;font-weight:700">📋 Copiar todo</button>';
-    }
-    copysBlockHtml += '</div>';
-    copysBlockHtml += '<textarea onblur="setProductCopysFull(\'' + esc(h) + '\', this.value)" placeholder="Apretá 🤖 Generar copys con Gemini, o pegá copys acá manualmente..." style="width:100%;min-height:120px;background:var(--surface);border:1px solid var(--border);color:var(--text);font-size:12px;font-family:\'DM Mono\',monospace;padding:8px 10px;border-radius:5px;resize:vertical;line-height:1.5;outline:none;box-sizing:border-box">' + esc(copysFull) + '</textarea>';
-    copysBlockHtml += '</div>';
-
     html += '<div style="background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:14px;margin-bottom:14px">' +
       '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">' +
         '<div style="font-family:\'Montserrat\',sans-serif;font-weight:800;font-size:14px;color:var(--text);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc(title) + '">📦 ' + esc(title) + '</div>' +
         '<span style="font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace;background:var(--surface2);padding:3px 8px;border-radius:10px">' + items.length + ' pendiente' + (items.length !== 1 ? 's' : '') + '</span>' +
         (driveFolderUrl ? '<a href="' + driveFolderUrl + '" target="_blank" rel="noopener" style="background:#4285F4;color:#fff;text-decoration:none;border-radius:6px;padding:4px 10px;font-size:10px;font-family:\'DM Mono\',monospace">↗ Drive producto</a>' : '') +
       '</div>' +
-      copysBlockHtml +
       '<div style="display:flex;flex-direction:column;gap:8px">';
     for (const it of items) {
       const safeName = esc(it.fileName || '').replace(/'/g, "\\'");
