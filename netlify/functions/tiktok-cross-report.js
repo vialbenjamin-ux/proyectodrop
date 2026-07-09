@@ -115,7 +115,10 @@ export default async function handler(req) {
     const willConvert = fxRate && fxRate !== 1;
     const currency = willConvert ? 'CLP' : sourceCurrency;
 
-    // Campañas (indexar por id y nombre normalizado)
+    // Campañas (indexar por id y nombre normalizado).
+    // campsByName ahora es array por nombre para manejar colisiones (misma
+    // razón que en tiktok-report.js: la API devuelve campañas eliminadas
+    // viejas con el mismo nombre que las activas).
     const campsById = {};
     const campsByName = {};
     if (campsData.code === 0 && campsData.data?.list) {
@@ -129,7 +132,10 @@ export default async function handler(req) {
         };
         campsById[c.campaign_id] = meta;
         const nk = normalizeCampaignName(c.campaign_name);
-        if (nk) campsByName[nk] = meta;
+        if (nk) {
+          if (!campsByName[nk]) campsByName[nk] = [];
+          campsByName[nk].push(meta);
+        }
       }
     }
 
@@ -164,8 +170,11 @@ export default async function handler(req) {
       if (utm) {
         if (campsById[utm]) cid = utm;
         else {
-          const found = campsByName[normalizeCampaignName(utm)];
-          if (found) cid = found.id;
+          const candidates = campsByName[normalizeCampaignName(utm)] || [];
+          // Preferimos matchear a la campaña que tuvo gasto/impressions en el
+          // rango (aparece en insightsByCamp). Fallback: primera del array.
+          const preferred = candidates.find(c => insightsByCamp[c.id]) || candidates[0];
+          if (preferred) cid = preferred.id;
         }
       }
       const orderRevenue = computeOrderRevenue(order);

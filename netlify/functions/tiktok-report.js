@@ -122,6 +122,11 @@ export default async function handler(req) {
     }
 
     const campsById = {};
+    // campsByName ahora guarda UN ARRAY de campañas por nombre normalizado. La
+    // API de TikTok devuelve todas las campañas (incluidas eliminadas viejas),
+    // que pueden tener el mismo nombre que una activa con otro campaign_id.
+    // Si guardábamos solo una, las órdenes se atribuían al campaign_id
+    // equivocado y la fila de la campaña activa quedaba con ORDENES=—.
     const campsByName = {};
     if (campsData.code === 0 && campsData.data && Array.isArray(campsData.data.list)) {
       for (const c of campsData.data.list) {
@@ -135,9 +140,22 @@ export default async function handler(req) {
         };
         campsById[c.campaign_id] = camp;
         const nameKey = normalizeCampaignName(c.campaign_name);
-        if (nameKey) campsByName[nameKey] = camp;
+        if (nameKey) {
+          if (!campsByName[nameKey]) campsByName[nameKey] = [];
+          campsByName[nameKey].push(camp);
+        }
       }
     }
+
+    // Set de campaign_ids que aparecen en el reporte de insights (o sea, que
+    // tuvieron gasto/impressions en el rango). Si hay colisión de nombre,
+    // preferimos matchear a una campaña que sí esté en esta lista, así las
+    // órdenes caen a la campaña activa que estás viendo en el panel.
+    const insightCampaignIds = new Set(
+      ((reportData.data && reportData.data.list) || [])
+        .map(r => (r.dimensions && r.dimensions.campaign_id))
+        .filter(Boolean)
+    );
 
     // Cruzar órdenes Shopify (utm_source=tiktok) con campañas TikTok por nombre.
     const ordersByCampaignId = {};
@@ -153,8 +171,11 @@ export default async function handler(req) {
       if (utmCamp) {
         if (campsById[utmCamp]) campId = utmCamp;
         else {
-          const camp = campsByName[normalizeCampaignName(utmCamp)];
-          if (camp) campId = camp.id;
+          const candidates = campsByName[normalizeCampaignName(utmCamp)] || [];
+          // Preferir la campaña que sí tenga insights en el rango (con gasto);
+          // si ninguna, usar la primera del array (comportamiento anterior).
+          const preferred = candidates.find(c => insightCampaignIds.has(c.id)) || candidates[0];
+          if (preferred) campId = preferred.id;
         }
       }
       const orderRev = computeOrderRevenue(order);
@@ -286,7 +307,7 @@ export default async function handler(req) {
       },
       shopifyDomain,
       // Lista de nombres de campañas TikTok (para que el frontend muestre side-by-side al usuario)
-      campaignNames: Object.values(campsByName).map(c => c.name).slice(0, 100),
+      campaignNames: Object.values(campsByName).flat().map(c => c.name).slice(0, 100),
     });
   } catch (err) {
     return json(502, { error: 'Red TikTok: ' + (err.message || 'error') });
