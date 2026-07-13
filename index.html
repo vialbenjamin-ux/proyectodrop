@@ -3975,6 +3975,34 @@ function renderRanking(){
     if(!(owner in counts)) counts[owner] = 0;
   });
 
+  // SUBIDO A TIKTOK / META (MANAGER): $1.000 por cada plataforma marcada,
+  // atribuido al subidor guardado en uploadedToTikTokBy / uploadedToMetaBy.
+  // Filtrado por período con tsCheck contra el timestamp del click.
+  const managerCounts = {};    // owner → cantidad de plataformas subidas
+  const managerEarnings = {};  // owner → $ acumulado
+  const productTasksData = (window._vpData && window._vpData.productTasks) || {};
+  for (const h of Object.keys(productTasksData)) {
+    const t = productTasksData[h] || {};
+    if (t.uploadedToTikTok && t.uploadedToTikTokBy && tsCheck(t.uploadedToTikTokAt)) {
+      const owner = String(t.uploadedToTikTokBy).trim();
+      if (owner) {
+        managerCounts[owner]   = (managerCounts[owner]   || 0) + 1;
+        managerEarnings[owner] = (managerEarnings[owner] || 0) + 1000;
+      }
+    }
+    if (t.uploadedToMeta && t.uploadedToMetaBy && tsCheck(t.uploadedToMetaAt)) {
+      const owner = String(t.uploadedToMetaBy).trim();
+      if (owner) {
+        managerCounts[owner]   = (managerCounts[owner]   || 0) + 1;
+        managerEarnings[owner] = (managerEarnings[owner] || 0) + 1000;
+      }
+    }
+  }
+  // Owners con solo ganancias MANAGER también aparecen en el ranking.
+  Object.keys(managerEarnings).forEach(owner => {
+    if (!(owner in counts)) counts[owner] = 0;
+  });
+
   // Calcular bonos por meta semanal (sobre TODOS los productos, no solo el período)
   const allBonusList = state.products.filter(p=>{
     if(!(p.stages||{})[BONO_STAGE]) return false;
@@ -4013,7 +4041,8 @@ function renderRanking(){
   const totalBonos = bonusList.length * BONO_POR_PRODUCTO
                    + releasitList.length * BONO_RELEASIT
                    + Object.values(metaBonus).reduce((s,v)=>s+v,0)
-                   + Object.values(monthlyBonusByOwner).reduce((s,v)=>s+v,0);
+                   + Object.values(monthlyBonusByOwner).reduce((s,v)=>s+v,0)
+                   + Object.values(managerEarnings).reduce((s,v)=>s+v,0);
 
   const canGoBack = rankingMode !== 'all';
   const canGoFwd  = rankingMode !== 'all' && rankingMonthOffset < 0;
@@ -4045,7 +4074,9 @@ function renderRanking(){
     const mensualDet = monthlyDetailByOwner[owner] || [];
     const releasitN = releasitCounts[owner] || 0;
     const gReleasit = releasitN * BONO_RELEASIT;
-    const gananciaTotal = gBase + gMeta + gMensual + gReleasit;
+    const gManagerN = managerCounts[owner]   || 0;
+    const gManager  = managerEarnings[owner] || 0;
+    const gananciaTotal = gBase + gMeta + gMensual + gReleasit + gManager;
     const metaSemanasGanadas = gMeta / BONO_META_SEMANAL;
     return `<div class="ranking-card" style="background:${oc.bg};border-color:${oc.border}">
       <div class="ranking-card-medal">${medals[i]||'🏅'}</div>
@@ -4056,6 +4087,7 @@ function renderRanking(){
       ${gMeta>0?`<div style="font-size:10px;color:var(--green);font-family:'DM Mono',monospace;margin-top:2px">⭐ +${fmtCLP(gMeta)} meta semanal × ${metaSemanasGanadas}</div>`:''}
       ${gMensual>0?`<div style="font-size:10px;color:#7B5BB5;font-family:'DM Mono',monospace;margin-top:2px;font-weight:700">🌟 +${fmtCLP(gMensual)} bono mensual (${mensualDet.length} mes${mensualDet.length!==1?'es':''})</div>`:''}
       ${gReleasit>0?`<div style="font-size:10px;color:#F07070;font-family:'DM Mono',monospace;margin-top:2px">⚙️ +${fmtCLP(gReleasit)} · ${releasitN} releasit</div>`:''}
+      ${gManager>0?`<div style="font-size:10px;color:#F59E0B;font-family:'DM Mono',monospace;margin-top:2px">📤 +${fmtCLP(gManager)} · ${gManagerN} subida${gManagerN!==1?'s':''} MANAGER</div>`:''}
       <div style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">${fmtCLP(gBase)} base</div>
       <div class="ranking-card-bar"><div class="ranking-card-bar-fill" style="width:${barPct}%;background:${oc.border}"></div></div>
     </div>`;
@@ -13979,6 +14011,9 @@ async function initVideosProd(forceReload){
       return;
     }
     renderVideosProdList();
+    // Refresca el ranking principal para que las ganancias MANAGER
+    // (SUBIDO A TIKTOK/META = $1.000) aparezcan sin necesidad de reload.
+    if (typeof renderRanking === 'function') renderRanking();
     if (status) status.textContent = '✓ ' + products.length + ' productos con carpetas Drive · ' + Object.keys(rankings).length + ' rankings asignados';
   } catch (err) {
     console.error('[videos-prod] error cargando:', err);
@@ -15512,6 +15547,7 @@ async function setProductPlatformState(handle, platform, action){
     }
     if (typeof renderAdsQueue === 'function') renderAdsQueue();
     if (typeof renderVpRespSummary === 'function') renderVpRespSummary();
+    if (typeof renderRanking === 'function') renderRanking();
   } catch (err) {
     showToast('Error: ' + (err.message || '?'), '⚠️', 'error');
   }
