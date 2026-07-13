@@ -3355,14 +3355,6 @@
         <span style="flex:1"></span>
         <button onclick="initVideosProd(true).then(()=>renderAdsQueue())" title="Vuelve a cargar desde Firestore" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--text);border-radius:8px;padding:7px 14px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer">🔄 Recargar</button>
       </div>
-      <!-- Subidor actual: quien recibe los $1.000 cuando aprieta SUBIDO A TIKTOK/META -->
-      <div id="mgr-uploader-bar" style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--surface);border:1.5px solid var(--border);border-radius:10px;margin-bottom:14px;flex-wrap:wrap">
-        <span style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);font-family:'DM Mono',monospace">🙋 Subidor actual:</span>
-        <span id="mgr-uploader-name" style="font-family:'DM Mono',monospace;font-weight:700;font-size:13px">—</span>
-        <button onclick="setManagerUploaderPrompt()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:5px 12px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer">✏️ Cambiar</button>
-        <span style="flex:1"></span>
-        <span style="font-size:10px;color:var(--muted2);font-family:'DM Mono',monospace">A esta persona se le atribuyen los $1.000 por SUBIDO A TIKTOK/META</span>
-      </div>
       <div id="ads-queue-list"></div>
     </div>
   </div>
@@ -3762,7 +3754,6 @@ function switchSection(s, silent){
   if(s==='videos') renderVideos();
   if(s==='videos-prod') initVideosProd();
   if(s==='manager'){
-    renderManagerUploaderBar();
     // MANAGER usa los mismos datos de _vpData (rankings + products). Si ya
     // están cargados, sólo renderizamos; si no, los traemos primero.
     if (window._vpData && window._vpData.products && window._vpData.products.length) {
@@ -15430,35 +15421,29 @@ async function setVideoReadyForAds(fileId, ready, handle, fileName){
   }
 }
 
-// Subidor actual (session-level): quien recibe los $1.000 al marcar SUBIDO
-// A TIKTOK/META. Persistido en localStorage por navegador — así cambia según
-// quien esté operando MANAGER en cada momento sin depender del responsable
-// del producto (que suele ser el editor).
-const BK_MGR_UPLOADER_KEY = 'bkdrop_manager_uploader';
-function getManagerUploader(){
-  try { return String(localStorage.getItem(BK_MGR_UPLOADER_KEY) || '').trim(); }
-  catch { return ''; }
-}
-function setManagerUploaderPrompt(){
-  const current = getManagerUploader();
-  const val = prompt('¿Con qué nombre estás subiendo campañas ahora?\n\nA esta persona se le suman $1.000 por cada SUBIDO A TIKTOK/META.', current);
-  if (val === null) return;
+// Subidor por producto: se guarda en productTasks.<handle>.uploader. Cada
+// producto puede tener un subidor distinto. Los $1.000 por SUBIDO A TIKTOK/
+// META se atribuyen a este uploader (snapshot en uploadedToTikTokBy /
+// uploadedToMetaBy al momento del click).
+async function setProductUploaderPrompt(handle){
+  const task = (window._vpData.productTasks && window._vpData.productTasks[handle]) || {};
+  const currentUploader = (task.uploader || '').trim();
+  const val = prompt('¿Quién sube este producto a las plataformas?\n\nA esta persona se le suman $1.000 por cada SUBIDO A TIKTOK/META de este producto.', currentUploader);
+  if (val === null) return null;
   const trimmed = String(val).trim();
-  try { localStorage.setItem(BK_MGR_UPLOADER_KEY, trimmed); } catch {}
-  renderManagerUploaderBar();
-  if (typeof renderAdsQueue === 'function') renderAdsQueue();
-  if (trimmed) showToast('Subidor cambiado a ' + trimmed, '🙋', 'success');
-}
-function renderManagerUploaderBar(){
-  const nameEl = document.getElementById('mgr-uploader-name');
-  if (!nameEl) return;
-  const name = getManagerUploader();
-  if (name) {
-    nameEl.textContent = '👤 ' + name;
-    nameEl.style.color = 'var(--text)';
-  } else {
-    nameEl.textContent = '(sin definir — click "Cambiar")';
-    nameEl.style.color = 'var(--peach)';
+  try {
+    if (typeof firebase === 'undefined' || !firebase.firestore) throw new Error('Firestore no disponible');
+    const db = firebase.firestore();
+    const update = { handle, uploader: trimmed, updatedAt: Date.now() };
+    await db.collection('bkdrop_video_product_tasks').doc(handle).set(update, { merge: true });
+    if (!window._vpData.productTasks) window._vpData.productTasks = {};
+    window._vpData.productTasks[handle] = { ...task, ...update };
+    if (trimmed) showToast('Subidor asignado: ' + trimmed, '🙋', 'success');
+    if (typeof renderAdsQueue === 'function') renderAdsQueue();
+    return trimmed;
+  } catch (err) {
+    showToast('Error guardando subidor: ' + (err.message || '?'), '⚠️', 'error');
+    return null;
   }
 }
 
@@ -15477,15 +15462,16 @@ async function setProductPlatformState(handle, platform, action){
   const skField    = upField + 'Skipped';      // uploadedToTikTokSkipped
   const skAtField  = skField + 'At';
 
-  // Al hacer upload: cobra el SUBIDOR de la sesión (no el responsable del
-  // producto, que suele ser el editor). Si no hay subidor set, pedir.
+  // Al hacer upload: cobra el subidor asignado a ESTE producto (no un valor
+  // global). Si el producto no tiene subidor, pedimos el nombre y lo
+  // guardamos en productTasks.<handle>.uploader, después continuamos.
   let uploader = '';
   if (action === 'upload') {
-    uploader = getManagerUploader();
+    uploader = (task.uploader || '').trim();
     if (!uploader) {
-      setManagerUploaderPrompt();
-      showToast('Definí quien está subiendo y volvé a intentar', 'ℹ️', 'info');
-      return;
+      const set = await setProductUploaderPrompt(handle);
+      if (!set) return;
+      uploader = set;
     }
   }
 
@@ -15634,9 +15620,14 @@ function renderAdsQueue(){
     const items = (byProduct[h] || []).sort((a, b) => (b.readyForAdsAt || 0) - (a.readyForAdsAt || 0));
     const driveFolderUrl = (p && p.productFolderId) ? 'https://drive.google.com/drive/folders/' + p.productFolderId : null;
     const task = productTasks[h] || {};
+    const uploader = (task.uploader || '').trim();
+    const uploaderBadge = uploader
+      ? '<span onclick="setProductUploaderPrompt(\'' + esc(h) + '\')" title="Click para cambiar el subidor de este producto" style="cursor:pointer;font-size:10px;font-family:\'DM Mono\',monospace;background:#F59E0B;color:#fff;padding:3px 10px;border-radius:10px;font-weight:700">🙋 ' + esc(uploader) + ' ✏️</span>'
+      : '<span onclick="setProductUploaderPrompt(\'' + esc(h) + '\')" title="Click para asignar quien lo sube (recibirá $1.000 por SUBIDO)" style="cursor:pointer;font-size:10px;font-family:\'DM Mono\',monospace;background:transparent;color:var(--peach);border:1.5px dashed var(--peach);padding:2px 10px;border-radius:10px;font-weight:700">🙋 asignar subidor</span>';
     html += '<div style="background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:14px;margin-bottom:14px">' +
       '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">' +
         '<div style="font-family:\'Montserrat\',sans-serif;font-weight:800;font-size:14px;color:var(--text);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc(title) + '">📦 ' + esc(title) + '</div>' +
+        uploaderBadge +
         '<span style="font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace;background:var(--surface2);padding:3px 8px;border-radius:10px">' + items.length + ' pendiente' + (items.length !== 1 ? 's' : '') + '</span>' +
         (driveFolderUrl ? '<a href="' + driveFolderUrl + '" target="_blank" rel="noopener" style="background:#4285F4;color:#fff;text-decoration:none;border-radius:6px;padding:4px 10px;font-size:10px;font-family:\'DM Mono\',monospace">↗ Drive producto</a>' : '') +
       '</div>' +
