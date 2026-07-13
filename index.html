@@ -3355,6 +3355,14 @@
         <span style="flex:1"></span>
         <button onclick="initVideosProd(true).then(()=>renderAdsQueue())" title="Vuelve a cargar desde Firestore" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--text);border-radius:8px;padding:7px 14px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer">🔄 Recargar</button>
       </div>
+      <!-- Subidor actual: quien recibe los $1.000 cuando aprieta SUBIDO A TIKTOK/META -->
+      <div id="mgr-uploader-bar" style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--surface);border:1.5px solid var(--border);border-radius:10px;margin-bottom:14px;flex-wrap:wrap">
+        <span style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);font-family:'DM Mono',monospace">🙋 Subidor actual:</span>
+        <span id="mgr-uploader-name" style="font-family:'DM Mono',monospace;font-weight:700;font-size:13px">—</span>
+        <button onclick="setManagerUploaderPrompt()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:5px 12px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer">✏️ Cambiar</button>
+        <span style="flex:1"></span>
+        <span style="font-size:10px;color:var(--muted2);font-family:'DM Mono',monospace">A esta persona se le atribuyen los $1.000 por SUBIDO A TIKTOK/META</span>
+      </div>
       <div id="ads-queue-list"></div>
     </div>
   </div>
@@ -3754,6 +3762,7 @@ function switchSection(s, silent){
   if(s==='videos') renderVideos();
   if(s==='videos-prod') initVideosProd();
   if(s==='manager'){
+    renderManagerUploaderBar();
     // MANAGER usa los mismos datos de _vpData (rankings + products). Si ya
     // están cargados, sólo renderizamos; si no, los traemos primero.
     if (window._vpData && window._vpData.products && window._vpData.products.length) {
@@ -15421,6 +15430,38 @@ async function setVideoReadyForAds(fileId, ready, handle, fileName){
   }
 }
 
+// Subidor actual (session-level): quien recibe los $1.000 al marcar SUBIDO
+// A TIKTOK/META. Persistido en localStorage por navegador — así cambia según
+// quien esté operando MANAGER en cada momento sin depender del responsable
+// del producto (que suele ser el editor).
+const BK_MGR_UPLOADER_KEY = 'bkdrop_manager_uploader';
+function getManagerUploader(){
+  try { return String(localStorage.getItem(BK_MGR_UPLOADER_KEY) || '').trim(); }
+  catch { return ''; }
+}
+function setManagerUploaderPrompt(){
+  const current = getManagerUploader();
+  const val = prompt('¿Con qué nombre estás subiendo campañas ahora?\n\nA esta persona se le suman $1.000 por cada SUBIDO A TIKTOK/META.', current);
+  if (val === null) return;
+  const trimmed = String(val).trim();
+  try { localStorage.setItem(BK_MGR_UPLOADER_KEY, trimmed); } catch {}
+  renderManagerUploaderBar();
+  if (typeof renderAdsQueue === 'function') renderAdsQueue();
+  if (trimmed) showToast('Subidor cambiado a ' + trimmed, '🙋', 'success');
+}
+function renderManagerUploaderBar(){
+  const nameEl = document.getElementById('mgr-uploader-name');
+  if (!nameEl) return;
+  const name = getManagerUploader();
+  if (name) {
+    nameEl.textContent = '👤 ' + name;
+    nameEl.style.color = 'var(--text)';
+  } else {
+    nameEl.textContent = '(sin definir — click "Cambiar")';
+    nameEl.style.color = 'var(--peach)';
+  }
+}
+
 // Cambia el estado de plataforma (TikTok/Meta) a nivel producto.
 //   action = 'upload' → marcar subido (suma $1.000 al responsable actual)
 //   action = 'skip'   → marcar "no aplica" (no suma $ ni cobra)
@@ -15429,7 +15470,6 @@ async function setVideoReadyForAds(fileId, ready, handle, fileName){
 // acumulado no se mueva si después el responsable cambia.
 async function setProductPlatformState(handle, platform, action){
   const task = (window._vpData.productTasks && window._vpData.productTasks[handle]) || {};
-  const currentResp = (task.responsible || '').trim();
   const capPlat = platform === 'tiktok' ? 'TikTok' : 'Meta';
   const upField    = 'uploadedTo' + capPlat;   // uploadedToTikTok / uploadedToMeta
   const upAtField  = upField + 'At';
@@ -15437,16 +15477,23 @@ async function setProductPlatformState(handle, platform, action){
   const skField    = upField + 'Skipped';      // uploadedToTikTokSkipped
   const skAtField  = skField + 'At';
 
-  if (action === 'upload' && !currentResp) {
-    showToast('Este producto no tiene responsable. Asignale uno en Videos por producto primero.', '⚠️', 'error');
-    return;
+  // Al hacer upload: cobra el SUBIDOR de la sesión (no el responsable del
+  // producto, que suele ser el editor). Si no hay subidor set, pedir.
+  let uploader = '';
+  if (action === 'upload') {
+    uploader = getManagerUploader();
+    if (!uploader) {
+      setManagerUploaderPrompt();
+      showToast('Definí quien está subiendo y volvé a intentar', 'ℹ️', 'info');
+      return;
+    }
   }
 
   const update = { handle, updatedAt: Date.now() };
   if (action === 'upload') {
     update[upField]   = true;
     update[upAtField] = Date.now();
-    update[upByField] = currentResp;
+    update[upByField] = uploader;
     update[skField]   = false;
     update[skAtField] = null;
   } else if (action === 'skip') {
@@ -15471,7 +15518,7 @@ async function setProductPlatformState(handle, platform, action){
     window._vpData.productTasks[handle] = { ...task, ...update };
     if (action === 'upload') {
       const undoHtml = '<button onclick="setProductPlatformState(\'' + handle + '\', \'' + platform + '\', \'reset\')" style="background:transparent;color:#fff;border:1px solid rgba(255,255,255,.65);border-radius:6px;padding:3px 12px;font-size:11px;font-family:\'DM Mono\',monospace;cursor:pointer;margin-left:10px;font-weight:700">↩ DESHACER</button>';
-      showToast('Subido a ' + capPlat + ' · +$1.000 a ' + currentResp + undoHtml, '📤', 'success');
+      showToast('Subido a ' + capPlat + ' · +$1.000 a ' + uploader + undoHtml, '📤', 'success');
     } else if (action === 'skip') {
       showToast('Marcado no aplica en ' + capPlat, '—', 'info');
     } else {
@@ -15551,13 +15598,13 @@ function renderAdsQueue(){
     if (r.readyForAds && !r.uploadedToAds) pending.push({ fileId, ...r });
   }
 
-  // Productos que estuvieron alguna vez en la queue (algún video marcado
-  // readyForAds). Usado para saber a qué productos aplica el estado de
-  // "subido a TikTok/Meta" a nivel producto.
-  const productsEverInQueue = new Set();
-  for (const fileId of Object.keys(rankings)) {
-    const r = rankings[fileId] || {};
-    if (r.readyForAds) productsEverInQueue.add(r.productHandle || '_sin_producto');
+  if (!pending.length) {
+    container.innerHTML = `<div style="background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:40px;text-align:center;color:var(--muted2);font-size:13px">
+      <div style="font-size:48px;margin-bottom:12px">✨</div>
+      <div style="margin-bottom:6px">No hay videos pendientes de subir.</div>
+      <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace">Cuando el editor marque un video como "📤 Listo para ads" en la carpeta de testeo, aparecerá acá.</div>
+    </div>`;
+    return;
   }
 
   // Agrupar videos pendientes por producto
@@ -15568,29 +15615,11 @@ function renderAdsQueue(){
     byProduct[h].push(it);
   }
 
-  // Handles a mostrar: productos con videos pendientes OR con plataformas
-  // pendientes. Una plataforma se considera cerrada si está en "uploaded"
-  // (subida) o "skipped" (marcada como no aplica).
-  const handlesSet = new Set(Object.keys(byProduct));
-  for (const h of productsEverInQueue) {
-    const t = productTasks[h] || {};
-    const ttDone = t.uploadedToTikTok || t.uploadedToTikTokSkipped;
-    const mtDone = t.uploadedToMeta   || t.uploadedToMetaSkipped;
-    if (!ttDone || !mtDone) handlesSet.add(h);
-  }
-
-  if (!handlesSet.size) {
-    container.innerHTML = `<div style="background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:40px;text-align:center;color:var(--muted2);font-size:13px">
-      <div style="font-size:48px;margin-bottom:12px">✨</div>
-      <div style="margin-bottom:6px">No hay productos pendientes.</div>
-      <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace">Cuando el editor marque un video como "📤 Listo para ads" en la carpeta de testeo, aparecerá acá.</div>
-    </div>`;
-    return;
-  }
-
-  // Orden: productos con más videos pendientes primero, después los que solo
-  // esperan marca de plataforma.
-  const handles = [...handlesSet].sort((a, b) => (byProduct[b]?.length || 0) - (byProduct[a]?.length || 0));
+  // Handles a mostrar: SOLO productos con videos pendientes. Cuando el
+  // subidor marca el último video como LISTO, el producto sale del MANAGER
+  // (comportamiento original). Los botones SUBIDO A TIKTOK/META deben
+  // apretarse ANTES de marcar el último video como LISTO.
+  const handles = Object.keys(byProduct).sort((a, b) => byProduct[b].length - byProduct[a].length);
 
   const fmtTime = (ts) => {
     if (!ts) return '—';
@@ -15605,16 +15634,10 @@ function renderAdsQueue(){
     const items = (byProduct[h] || []).sort((a, b) => (b.readyForAdsAt || 0) - (a.readyForAdsAt || 0));
     const driveFolderUrl = (p && p.productFolderId) ? 'https://drive.google.com/drive/folders/' + p.productFolderId : null;
     const task = productTasks[h] || {};
-    const resp = (task.responsible || '').trim();
-    const respLabel = resp ? '👤 ' + esc(resp) : '<span style="color:var(--peach)">⚠ sin responsable</span>';
-    const badgeText = items.length
-      ? items.length + ' pendiente' + (items.length !== 1 ? 's' : '')
-      : '✓ videos listos';
     html += '<div style="background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:14px;margin-bottom:14px">' +
       '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">' +
         '<div style="font-family:\'Montserrat\',sans-serif;font-weight:800;font-size:14px;color:var(--text);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc(title) + '">📦 ' + esc(title) + '</div>' +
-        '<span style="font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace">' + respLabel + '</span>' +
-        '<span style="font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace;background:var(--surface2);padding:3px 8px;border-radius:10px">' + badgeText + '</span>' +
+        '<span style="font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace;background:var(--surface2);padding:3px 8px;border-radius:10px">' + items.length + ' pendiente' + (items.length !== 1 ? 's' : '') + '</span>' +
         (driveFolderUrl ? '<a href="' + driveFolderUrl + '" target="_blank" rel="noopener" style="background:#4285F4;color:#fff;text-decoration:none;border-radius:6px;padding:4px 10px;font-size:10px;font-family:\'DM Mono\',monospace">↗ Drive producto</a>' : '') +
       '</div>' +
       '<div style="display:flex;flex-direction:column;gap:8px">';
@@ -15639,10 +15662,8 @@ function renderAdsQueue(){
     html += '</div>'; // cierre lista de videos
 
     // Footer del producto: SUBIDO / NO APLICA por plataforma. 3 estados:
-    // pendiente (mostrar 2 botones: SUBIDO + ✕ N/A), subido ($1.000 al resp),
-    // no aplica (gris, no cobra).
-    const noResp = !resp;
-
+    // pendiente (mostrar 2 botones: SUBIDO + ✕ N/A), subido ($1.000 al
+    // subidor de sesión), no aplica (gris, no cobra).
     const platBtn = (plat) => {
       const capPlat = plat === 'tiktok' ? 'TikTok' : 'Meta';
       const emoji = plat === 'tiktok' ? '🎵' : '📘';
@@ -15670,11 +15691,9 @@ function renderAdsQueue(){
           '</div>';
       }
       // Pendiente: dos botones (SUBIDO + N/A) juntos.
-      const disAttr = noResp ? 'disabled' : '';
-      const opacity = noResp ? '0.5' : '1';
-      const upTitle = noResp ? 'Asigná un responsable primero en Videos por producto' : 'Marcar subido a ' + capPlat + ' (+$1.000 al responsable)';
+      const upTitle = 'Marcar subido a ' + capPlat + ' (+$1.000 al subidor actual)';
       return '<div style="display:flex;gap:6px;flex:1;min-width:200px">' +
-        '<button onclick="setProductPlatformState(\'' + esc(h) + '\', \'' + plat + '\', \'upload\')" ' + disAttr + ' title="' + esc(upTitle) + '" style="background:' + color + ';color:#fff;border:none;border-radius:8px;padding:10px 12px;font-size:12px;font-family:\'DM Mono\',monospace;font-weight:800;cursor:' + (noResp ? 'not-allowed' : 'pointer') + ';flex:1;opacity:' + opacity + ';letter-spacing:.5px">' + emoji + ' SUBIDO A ' + capPlat.toUpperCase() + '</button>' +
+        '<button onclick="setProductPlatformState(\'' + esc(h) + '\', \'' + plat + '\', \'upload\')" title="' + esc(upTitle) + '" style="background:' + color + ';color:#fff;border:none;border-radius:8px;padding:10px 12px;font-size:12px;font-family:\'DM Mono\',monospace;font-weight:800;cursor:pointer;flex:1;letter-spacing:.5px">' + emoji + ' SUBIDO A ' + capPlat.toUpperCase() + '</button>' +
         '<button onclick="setProductPlatformState(\'' + esc(h) + '\', \'' + plat + '\', \'skip\')" title="Marcar que no aplica a ' + capPlat + ' — no suma $" style="background:transparent;border:1.5px dashed var(--border);color:var(--muted);border-radius:8px;padding:10px 10px;font-size:10px;font-family:\'DM Mono\',monospace;cursor:pointer;white-space:nowrap">✕ N/A</button>' +
       '</div>';
     };
