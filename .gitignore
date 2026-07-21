@@ -2,3 +2,6 @@
 .netlify
 bookmarklet-min.txt
 bookmarklet-min.js
+
+# Generado en build por build-sa-key.js — contiene GOOGLE_DRIVE_SA_KEY
+netlify/functions/_generated-sa.json

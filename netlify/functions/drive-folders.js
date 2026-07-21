@@ -21,14 +21,31 @@ exports.handler = async (event) => {
     return { statusCode: 204, headers: cors(), body: '' };
   }
 
-  const saKey = process.env.GOOGLE_DRIVE_SA_KEY;
   const rootFolderId = process.env.GOOGLE_DRIVE_ROOT_FOLDER;
-  if (!saKey)        return respond(500, { error: 'Falta GOOGLE_DRIVE_SA_KEY' });
   if (!rootFolderId) return respond(500, { error: 'Falta GOOGLE_DRIVE_ROOT_FOLDER' });
 
+  // La SA_KEY se lee de un archivo generado en build (evita el limite 4KB
+  // de AWS Lambda env vars). Fallback a env var si el archivo no existe.
   let credentials;
-  try { credentials = JSON.parse(saKey); }
-  catch (e) { return respond(500, { error: 'GOOGLE_DRIVE_SA_KEY no es JSON válido: ' + e.message }); }
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    const raw = fs.readFileSync(path.join(__dirname, '_generated-sa.json'), 'utf8');
+    if (raw && raw.trim() && raw.trim() !== '{}') {
+      credentials = JSON.parse(raw);
+    } else if (process.env.GOOGLE_DRIVE_SA_KEY) {
+      credentials = JSON.parse(process.env.GOOGLE_DRIVE_SA_KEY);
+    } else {
+      return respond(500, { error: 'Falta GOOGLE_DRIVE_SA_KEY (ni archivo ni env)' });
+    }
+  } catch (e) {
+    if (process.env.GOOGLE_DRIVE_SA_KEY) {
+      try { credentials = JSON.parse(process.env.GOOGLE_DRIVE_SA_KEY); }
+      catch (e2) { return respond(500, { error: 'GOOGLE_DRIVE_SA_KEY no es JSON valido: ' + e2.message }); }
+    } else {
+      return respond(500, { error: 'No se pudo leer SA: ' + e.message });
+    }
+  }
 
   try {
     const token = await getAccessToken(credentials);
