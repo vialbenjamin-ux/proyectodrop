@@ -74,16 +74,18 @@ exports.handler = async (event) => {
 // { id, status, created (YYYY-MM-DD), producto, productoId, ciudad, provincia,
 //   transportadora, flete, total, guia, dir (90 chars), fin (updated_at YYYY-MM-DD) }
 function compact(o) {
-  const productName = firstOf(o, ['name_product', 'product_name', 'product', 'producto']);
+  const productName = firstOf(o, ['name_product', 'product_name', 'product', 'producto', 'products_name', 'name']);
   const productId   = firstOf(o, ['id_product', 'product_id', 'productoId']);
-  const carrier     = firstOf(o, ['transport', 'transportadora', 'carrier', 'shipping_company']);
-  const guia        = firstOf(o, ['guide', 'guia', 'tracking_number', 'tracking']);
+  const carrier     = firstOf(o, ['transport', 'transportadora', 'carrier', 'shipping_company', 'transport_service']);
+  const guia        = firstOf(o, ['guide', 'guia', 'tracking_number', 'tracking', 'transport_guide']);
   const city        = firstOf(o, ['city', 'ciudad', 'city_name']);
-  const state       = firstOf(o, ['state', 'provincia', 'department', 'region']);
+  const state       = firstOf(o, ['state', 'provincia', 'department', 'region', 'department_name']);
   const status      = firstOf(o, ['status', 'estado', 'order_status']);
-  const total       = numOf(firstOf(o, ['total_order', 'total', 'amount', 'monto']));
-  const flete       = numOf(firstOf(o, ['transport_price', 'shipping_price', 'flete']));
+  const total       = numOf(firstOf(o, ['total_order', 'total', 'amount', 'monto', 'total_price']));
+  const flete       = numOf(firstOf(o, ['transport_price', 'shipping_price', 'flete', 'transport_service_price']));
   const dirRaw      = firstOf(o, ['dir', 'address', 'direccion', 'shipping_address']);
+  const phoneRaw    = firstOf(o, ['phone', 'telefono', 'client_phone', 'phone_client', 'phone_number', 'whatsapp']);
+  const clientName  = firstOf(o, ['client_name', 'name_client', 'client', 'customer', 'customer_name']);
 
   return {
     id: firstOf(o, ['id']),
@@ -98,6 +100,8 @@ function compact(o) {
     total: total,
     guia: String(guia || ''),
     dir: String(dirRaw || '').slice(0, 90),
+    phone: String(phoneRaw || ''),
+    cliente: String(clientName || '').slice(0, 80),
     fin: dateOnly(firstOf(o, ['updated_at', 'date_updated', 'finished_at', 'delivered_at'])),
   };
 }

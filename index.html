@@ -1501,6 +1501,10 @@
     🔄 Sync
   </button>
 
+  <button class="tab-btn ng-standalone" data-section="rescates" onclick="switchSection('rescates')">
+    🚀 Rescates
+  </button>
+
   <button class="tab-btn ng-standalone" data-section="calculadora" onclick="switchSection('calculadora')">
     🧮 Calculadora
   </button>
@@ -3408,6 +3412,85 @@
     </div>
   </div>
 
+  <!-- ═══════════════════════════════════════════════════════════════
+       SECCION RESCATES - SOP Chatea+Dropi Fase C
+       Confirmacion Express (§5.2): auto-confirma pedidos de clientes
+       con historial fuerte (10+ pedidos, ≥75% entrega). Rescata la plata
+       que queda atrapada en PENDIENTE CONFIRMACION.
+       ═══════════════════════════════════════════════════════════════ -->
+  <div id="section-rescates" class="section">
+    <div style="max-width:1100px;margin:0 auto">
+      <div style="margin-bottom:18px">
+        <div style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:20px;color:var(--text);margin-bottom:4px">🚀 Rescates — Confirmacion Express</div>
+        <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace">SOP §5.2 · clientes con ≥10 pedidos y ≥75% entrega · ventana 3-48h sin confirmar</div>
+      </div>
+
+      <!-- Config + boton buscar -->
+      <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:12px;padding:20px;margin-bottom:16px">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:14px">
+          <label style="display:flex;flex-direction:column;gap:4px">
+            <span style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">Min pedidos historicos</span>
+            <input type="number" id="exp-min-orders" value="10" min="1" max="100" style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:13px;font-family:'DM Mono',monospace;color:var(--text)">
+          </label>
+          <label style="display:flex;flex-direction:column;gap:4px">
+            <span style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">Tasa entrega minima (%)</span>
+            <input type="number" id="exp-min-rate" value="75" min="1" max="100" style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:13px;font-family:'DM Mono',monospace;color:var(--text)">
+          </label>
+          <label style="display:flex;flex-direction:column;gap:4px">
+            <span style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">Horas min sin confirmar</span>
+            <input type="number" id="exp-min-hours" value="3" min="0" max="72" style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:13px;font-family:'DM Mono',monospace;color:var(--text)">
+          </label>
+          <label style="display:flex;flex-direction:column;gap:4px">
+            <span style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">Horas max sin confirmar</span>
+            <input type="number" id="exp-max-hours" value="48" min="1" max="240" style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:13px;font-family:'DM Mono',monospace;color:var(--text)">
+          </label>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <button id="exp-scan-btn" onclick="scanExpressCandidates()" style="background:var(--accent);color:#000;border:none;border-radius:8px;padding:10px 22px;font-size:13px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">Buscar candidatos</button>
+          <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;cursor:pointer">
+            <input type="checkbox" id="exp-check-chatea" checked>
+            <span>Chequear arrepentimiento en Chatea (mas lento)</span>
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;cursor:pointer">
+            <input type="checkbox" id="exp-send-msg" checked>
+            <span>Enviar mensaje cortesia al confirmar</span>
+          </label>
+        </div>
+        <div id="exp-scan-status" style="margin-top:12px;font-size:11px;color:var(--muted);font-family:'DM Mono',monospace"></div>
+      </div>
+
+      <!-- Resultados -->
+      <div id="exp-results" style="display:none">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:10px">
+          <div id="exp-summary" style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text)"></div>
+          <button id="exp-confirm-all" onclick="confirmAllExpressCandidates()" style="background:#2b7a2b;color:#fff;border:none;border-radius:8px;padding:9px 18px;font-size:12px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">Confirmar TODOS los elegibles</button>
+        </div>
+        <div style="overflow-x:auto;background:var(--surface);border:1.5px solid var(--border);border-radius:10px">
+          <table id="exp-table" style="width:100%;border-collapse:collapse;font-family:'DM Mono',monospace;font-size:11px">
+            <thead>
+              <tr style="background:var(--surface2);border-bottom:1.5px solid var(--border)">
+                <th style="padding:10px 8px;text-align:left">Orden</th>
+                <th style="padding:10px 8px;text-align:left">Cliente</th>
+                <th style="padding:10px 8px;text-align:left">Comuna</th>
+                <th style="padding:10px 8px;text-align:right">Total</th>
+                <th style="padding:10px 8px;text-align:center">Historial</th>
+                <th style="padding:10px 8px;text-align:center">Edad</th>
+                <th style="padding:10px 8px;text-align:left">Veredicto</th>
+                <th style="padding:10px 8px;text-align:center">Accion</th>
+              </tr>
+            </thead>
+            <tbody id="exp-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div style="margin-top:18px;padding:14px;background:var(--surface2);border:1px dashed var(--border);border-radius:8px;font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;line-height:1.7">
+        <b style="color:var(--text)">⚠️ Antes de activar modo automatico:</b> valida manualmente al menos 5-10 confirmaciones y verifica que <b>hayan efectivamente sido entregadas</b> (no rechazadas). Recien ahi habilitamos el cron cada 15 min.<br>
+        <b style="color:var(--text)">📖 Referencia SOP:</b> §5.2 Confirmacion Express (elite ≥75%/10 pedidos) + §6 Validacion.
+      </div>
+    </div>
+  </div>
+
   <div id="section-calculadora" class="section">
     <div style="max-width:620px;margin:0 auto">
 
@@ -3815,6 +3898,7 @@ function switchSection(s, silent){
   if(s==='prompts'){ renderPrompts(); loadBkVars(); }
   if(s==='reportes') initReportes();
   if(s==='sync') initSync();
+  if(s==='rescates') initRescates();
   // Pipeline removido — la sección ya no existe en el nav
   // Sección Personal/bkfit removida del nav
   if(s==='investigacion') bkInvInit();
@@ -4007,6 +4091,347 @@ async function syncChatea() {
 
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// SECCION RESCATES — SOP §5.2 Confirmacion Express
+// Detector: lee cache Dropi (Firestore), agrupa por cliente (phone),
+// calcula tasa de entrega, filtra candidatos con criterios del SOP.
+// Confirmacion: llama a dropi-confirm.js + chatea-express-notify.js.
+// ═══════════════════════════════════════════════════════════════════
+window._expressData = {
+  allOrders: [],       // todas las ordenes del cache Dropi
+  byPhone: {},         // { phone: [ordenes...] }
+  candidates: [],      // ordenes elegibles (post-filtro)
+  loadedAt: null,
+};
+
+async function initRescates() {
+  // Precarga silenciosa del cache — mostrar hint si vacio
+  const statusEl = document.getElementById('exp-scan-status');
+  if (window._expressData.allOrders.length === 0) {
+    statusEl.textContent = 'Cache vacio. Anda a Sync y corre "Sincronizar Dropi" primero.';
+  } else {
+    statusEl.textContent = 'Cache: ' + window._expressData.allOrders.length + ' ordenes cargadas (' + timeAgo(window._expressData.loadedAt) + ').';
+  }
+}
+
+// Normaliza phone: solo digitos, quitar +56 / 56 inicial de Chile.
+function normalizePhone(p) {
+  if (!p) return '';
+  let s = String(p).replace(/\D/g, '');
+  if (s.startsWith('56') && s.length >= 11) s = s.slice(2);
+  if (s.startsWith('9') && s.length === 9) return s; // celular chileno
+  return s;
+}
+
+function timeAgo(ts) {
+  if (!ts) return '?';
+  const diff = Date.now() - ts;
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'ahora';
+  if (mins < 60) return 'hace ' + mins + ' min';
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return 'hace ' + hrs + 'h';
+  return 'hace ' + Math.floor(hrs / 24) + 'd';
+}
+
+// Extrae phone de una orden. Dropi puede tenerlo en distintos campos segun
+// version — probamos varios comunes.
+function orderPhone(o) {
+  // Los datos crudos van en la orden compactada, pero solo tenemos los campos
+  // del SOP. Como no tenemos phone en el compact, hay que sacarlo de "dir" o
+  // agregar phone al compact. Por ahora, usamos un phone_raw si existe.
+  return normalizePhone(o.phone || o._phone || '');
+}
+
+async function loadDropiCacheFromFirestore() {
+  const statusEl = document.getElementById('exp-scan-status');
+  statusEl.textContent = 'Cargando cache Dropi desde Firestore...';
+  const db = firebase.firestore();
+  const snap = await db.collection('bkdrop_dropi_orders').get();
+  const orders = [];
+  snap.forEach(doc => orders.push(doc.data()));
+  window._expressData.allOrders = orders;
+  window._expressData.loadedAt = Date.now();
+
+  // Index por phone
+  const byPhone = {};
+  for (const o of orders) {
+    const ph = orderPhone(o);
+    if (!ph) continue;
+    if (!byPhone[ph]) byPhone[ph] = [];
+    byPhone[ph].push(o);
+  }
+  window._expressData.byPhone = byPhone;
+  return orders.length;
+}
+
+// Calcula stats de un cliente para el SOP §5.2:
+// - total: cantidad total de pedidos.
+// - delivered: cantidad ENTREGADO.
+// - failed: DEVOLUCION + SINIESTRO (contra la tasa).
+// - inFlight: ordenes en transito aun (no cuentan en denominador).
+// - rate: delivered / (delivered + failed).
+function customerStats(orders) {
+  let delivered = 0, failed = 0, inFlight = 0, cancelled = 0;
+  for (const o of orders) {
+    const s = String(o.status || '').toUpperCase();
+    if (s === 'ENTREGADO') delivered++;
+    else if (s === 'DEVOLUCION' || s === 'DEVOLUCIÓN' || s === 'SINIESTRO') failed++;
+    else if (s === 'CANCELADO') cancelled++;
+    else inFlight++;
+  }
+  const total = orders.length;
+  const decidedTotal = delivered + failed;
+  const rate = decidedTotal > 0 ? (delivered / decidedTotal) : 0;
+  return { total, delivered, failed, inFlight, cancelled, rate };
+}
+
+// Direccion "ubicable" segun SOP §5.2: tiene numeracion (1-5 digitos junto a texto)
+// y no es puramente generica ("casa").
+function isAddressUsable(dir) {
+  if (!dir) return false;
+  const s = String(dir).toLowerCase().trim();
+  if (s.length < 6) return false;
+  if (/^(casa|hogar|domicilio)\.?$/.test(s)) return false;
+  // Numero de calle 1-5 digitos
+  if (!/\d{1,5}/.test(s)) return false;
+  return true;
+}
+
+// Chequea arrepentimiento en los ultimos 15 mensajes del cliente en Chatea.
+// Devuelve { hasRegret, snippet } o { skipped: true, reason }.
+async function checkChateaRegret(phone) {
+  if (!phone) return { skipped: true, reason: 'sin phone' };
+
+  // Buscar subscriber por phone en cache Chatea
+  const db = firebase.firestore();
+  const snap = await db.collection('bkdrop_chatea_subscribers').where('phone', '==', phone).limit(1).get();
+  if (snap.empty) {
+    // Reintentar con phone sin 9 inicial (por si Chatea lo guarda distinto)
+    const snap2 = await db.collection('bkdrop_chatea_subscribers').where('phone', '==', '56' + phone).limit(1).get();
+    if (snap2.empty) return { skipped: true, reason: 'subscriber no encontrado en Chatea' };
+    snap2.forEach(d => snap.docs = [d]);
+  }
+  const doc = snap.docs[0];
+  const user_ns = doc.data().user_ns;
+  if (!user_ns) return { skipped: true, reason: 'sin user_ns' };
+
+  // Fetch mensajes recientes
+  const resp = await fetch('/.netlify/functions/chatea-fetch?op=messages&user_ns=' + encodeURIComponent(user_ns) + '&limit=15');
+  const data = await resp.json();
+  if (!resp.ok) return { skipped: true, reason: 'chatea-fetch fail: ' + (data.error || resp.status) };
+  const msgs = data.messages || [];
+
+  // Solo mensajes del CLIENTE (no bot, no agent) en los ultimos 15
+  const clientMsgs = msgs.filter(m => !m.from_bot && !m.from_agent);
+  const regretRegex = /(cancelar|anular|arrepent|equivoq|ya no lo? ?quiero|no lo quiero mas|desistir)/i;
+  for (const m of clientMsgs) {
+    if (regretRegex.test(m.text || '')) {
+      return { hasRegret: true, snippet: (m.text || '').slice(0, 80), ts: m.ts };
+    }
+  }
+  return { hasRegret: false };
+}
+
+async function scanExpressCandidates() {
+  const btn = document.getElementById('exp-scan-btn');
+  const statusEl = document.getElementById('exp-scan-status');
+  const results = document.getElementById('exp-results');
+  btn.disabled = true;
+  btn.textContent = 'Escaneando...';
+  btn.style.opacity = '0.6';
+
+  try {
+    const minOrders = parseInt(document.getElementById('exp-min-orders').value, 10) || 10;
+    const minRate = (parseInt(document.getElementById('exp-min-rate').value, 10) || 75) / 100;
+    const minHours = parseInt(document.getElementById('exp-min-hours').value, 10) || 3;
+    const maxHours = parseInt(document.getElementById('exp-max-hours').value, 10) || 48;
+    const checkChatea = document.getElementById('exp-check-chatea').checked;
+
+    // Cargar cache si vacio o viejo (>10 min)
+    if (window._expressData.allOrders.length === 0 || (Date.now() - (window._expressData.loadedAt || 0)) > 600000) {
+      const n = await loadDropiCacheFromFirestore();
+      statusEl.textContent = 'Cargadas ' + n + ' ordenes. Analizando...';
+    }
+
+    // Filtrar candidatas: PENDIENTE CONFIRMACION + edad 3-48h
+    const now = Date.now();
+    const pending = window._expressData.allOrders.filter(o => {
+      const s = String(o.status || '').toUpperCase();
+      if (s !== 'PENDIENTE CONFIRMACION') return false;
+      if (!o.created) return false;
+      const created = new Date(o.created).getTime();
+      const ageHrs = (now - created) / 3600000;
+      return ageHrs >= minHours && ageHrs <= maxHours;
+    });
+
+    statusEl.textContent = 'Candidatas iniciales: ' + pending.length + '. Cruzando historial y Chatea...';
+
+    // Para cada candidata, calcular stats y decidir
+    const rows = [];
+    for (let i = 0; i < pending.length; i++) {
+      const o = pending[i];
+      const ph = orderPhone(o);
+      const history = ph ? (window._expressData.byPhone[ph] || []).filter(x => x.id !== o.id) : [];
+      const stats = customerStats(history);
+      const ageHrs = ((now - new Date(o.created).getTime()) / 3600000).toFixed(1);
+      const dirOk = isAddressUsable(o.dir);
+
+      let verdict = 'Elegible';
+      let elegible = true;
+
+      if (!ph) {
+        verdict = '⛔ Sin phone';
+        elegible = false;
+      } else if (stats.total < minOrders) {
+        verdict = `⛔ Historial ${stats.total} < ${minOrders}`;
+        elegible = false;
+      } else if (stats.rate < minRate) {
+        verdict = `⛔ Tasa ${(stats.rate*100).toFixed(0)}% < ${(minRate*100).toFixed(0)}%`;
+        elegible = false;
+      } else if (!dirOk) {
+        verdict = '⛔ Direccion no ubicable';
+        elegible = false;
+      }
+
+      let chateaCheck = null;
+      if (elegible && checkChatea) {
+        try {
+          statusEl.textContent = `Chequeando Chatea (${i+1}/${pending.length})...`;
+          chateaCheck = await checkChateaRegret(ph);
+          if (chateaCheck.hasRegret) {
+            verdict = '⛔ Arrepentimiento: ' + (chateaCheck.snippet || '?');
+            elegible = false;
+          }
+        } catch (e) {
+          chateaCheck = { skipped: true, reason: e.message };
+        }
+      }
+
+      rows.push({ order: o, phone: ph, stats, ageHrs, verdict, elegible, chateaCheck });
+    }
+
+    window._expressData.candidates = rows;
+    renderExpressRows(rows);
+    statusEl.textContent = 'Analisis completo: ' + rows.length + ' revisadas, ' + rows.filter(r => r.elegible).length + ' elegibles.';
+    results.style.display = 'block';
+  } catch (err) {
+    statusEl.textContent = 'Error: ' + (err.message || String(err));
+    console.error(err);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Buscar candidatos';
+    btn.style.opacity = '1';
+  }
+}
+
+function renderExpressRows(rows) {
+  const tbody = document.getElementById('exp-tbody');
+  const summary = document.getElementById('exp-summary');
+  const elegibles = rows.filter(r => r.elegible);
+  const totalMoney = elegibles.reduce((sum, r) => sum + (r.order.total || 0), 0);
+  summary.innerHTML = `${rows.length} candidatas · <b style="color:#2b7a2b">${elegibles.length} elegibles</b> ($${totalMoney.toLocaleString('es-CL')} CLP en juego)`;
+
+  tbody.innerHTML = rows.map((r, i) => {
+    const o = r.order;
+    const s = r.stats;
+    const green = r.elegible ? '#2b7a2b' : '';
+    return `<tr data-idx="${i}" style="border-bottom:1px solid var(--border)${r.elegible ? ';background:rgba(43,122,43,0.05)' : ''}">
+      <td style="padding:8px">#${o.id}</td>
+      <td style="padding:8px">${escapeHtml(r.phone || '(sin phone)')}</td>
+      <td style="padding:8px">${escapeHtml(o.ciudad || '')}</td>
+      <td style="padding:8px;text-align:right">$${(o.total || 0).toLocaleString('es-CL')}</td>
+      <td style="padding:8px;text-align:center" title="${s.delivered} entregadas / ${s.failed} devueltas / ${s.inFlight} en juego">
+        ${s.total > 0 ? `${(s.rate*100).toFixed(0)}%<br><span style="font-size:9px;color:var(--muted)">(${s.delivered}/${s.delivered+s.failed})</span>` : '<span style="color:var(--muted)">nuevo</span>'}
+      </td>
+      <td style="padding:8px;text-align:center">${r.ageHrs}h</td>
+      <td style="padding:8px;color:${green || 'var(--muted)'}">${escapeHtml(r.verdict)}</td>
+      <td style="padding:8px;text-align:center">
+        ${r.elegible ? `<button onclick="confirmSingleExpress(${i})" style="background:#2b7a2b;color:#fff;border:none;border-radius:6px;padding:5px 12px;font-size:10px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">Confirmar</button>` : '<span style="color:var(--muted);font-size:10px">—</span>'}
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+async function confirmSingleExpress(idx) {
+  const row = window._expressData.candidates[idx];
+  if (!row || !row.elegible) return;
+  await doConfirmExpress([row]);
+}
+
+async function confirmAllExpressCandidates() {
+  const rows = window._expressData.candidates.filter(r => r.elegible);
+  if (rows.length === 0) return alert('Sin elegibles.');
+  if (!confirm(`Vas a confirmar ${rows.length} ordenes. ¿Seguro?`)) return;
+  await doConfirmExpress(rows);
+}
+
+async function doConfirmExpress(rows) {
+  const sendMsg = document.getElementById('exp-send-msg').checked;
+  const statusEl = document.getElementById('exp-scan-status');
+
+  // Batch a Dropi de max 50
+  const orderIds = rows.map(r => r.order.id);
+  statusEl.textContent = `Confirmando ${orderIds.length} orden(es) en Dropi...`;
+
+  try {
+    const resp = await fetch('/.netlify/functions/dropi-confirm', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ orderIds }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || ('HTTP ' + resp.status));
+
+    // Post-confirmacion: agregar tag + msg cortesia en Chatea, uno a uno
+    let notified = 0;
+    for (const r of rows) {
+      if (!r.phone) continue;
+      try {
+        // Buscar user_ns por phone
+        const db = firebase.firestore();
+        const snap = await db.collection('bkdrop_chatea_subscribers').where('phone', '==', r.phone).limit(1).get();
+        if (snap.empty) continue;
+        const user_ns = snap.docs[0].data().user_ns;
+        if (!user_ns) continue;
+        await fetch('/.netlify/functions/chatea-express-notify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_ns, sendMessage: sendMsg }),
+        });
+        notified++;
+        // Delay para respetar rate limit Chatea
+        await new Promise(r => setTimeout(r, 500));
+      } catch (e) {
+        console.warn('Chatea notify fail para orden', r.order.id, e);
+      }
+    }
+
+    // Marcar como confirmadas localmente
+    for (const r of rows) {
+      r.elegible = false;
+      r.verdict = '✅ Confirmada';
+    }
+    renderExpressRows(window._expressData.candidates);
+    statusEl.textContent = `✅ ${orderIds.length} confirmadas en Dropi · ${notified} notificadas en Chatea`;
+    if (typeof showToast === 'function') showToast(`Express: ${orderIds.length} confirmadas`, '✅', 'ok');
+
+    // Guardar log en Firestore para auditoria
+    try {
+      const db = firebase.firestore();
+      await db.collection('bkdrop_express_log').add({
+        at: firebase.firestore.FieldValue.serverTimestamp(),
+        orderIds,
+        notified,
+        mode: 'manual',
+      });
+    } catch (_) {}
+  } catch (e) {
+    statusEl.textContent = 'Error confirmando: ' + (e.message || '?');
+    if (typeof showToast === 'function') showToast('Error: ' + e.message, '⚠️', 'error');
+  }
 }
 
 // Toggle dropdown de un grupo del nav. Cierra los demás.
