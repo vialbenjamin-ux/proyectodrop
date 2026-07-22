@@ -6,7 +6,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const saKey = process.env.GOOGLE_DRIVE_SA_KEY;
+let saKey = process.env.GOOGLE_DRIVE_SA_KEY;
 const target = path.join(__dirname, 'netlify', 'functions', '_generated-sa.json');
 
 if (!saKey) {
@@ -15,10 +15,17 @@ if (!saKey) {
   process.exit(0);
 }
 
+// Sanitizar: quitar BOM U+FEFF (se agrega si se escribio el valor con
+// PowerShell Set-Content -Encoding UTF8) y whitespace/newlines en bordes.
+if (saKey.charCodeAt(0) === 0xFEFF) saKey = saKey.slice(1);
+saKey = saKey.trim();
+
 try {
   JSON.parse(saKey);
 } catch (e) {
   console.error('[build-sa-key] ERROR: GOOGLE_DRIVE_SA_KEY no es JSON valido:', e.message);
+  console.error('[build-sa-key] Primeros 60 chars:', JSON.stringify(saKey.slice(0, 60)));
+  console.error('[build-sa-key] charCodes[0..3]:', [0,1,2,3].map(i => saKey.charCodeAt(i)));
   process.exit(1);
 }
 
