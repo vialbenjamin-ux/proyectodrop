@@ -1497,12 +1497,8 @@
     📤 Manager
   </button>
 
-  <button class="tab-btn ng-standalone" data-section="sync" onclick="switchSection('sync')">
-    🔄 Sync
-  </button>
-
-  <button class="tab-btn ng-standalone" data-section="rescates" onclick="switchSection('rescates')">
-    🚀 Rescates
+  <button class="tab-btn ng-standalone" data-section="dropitea" onclick="switchSection('dropitea')">
+    ⚡ DROPITEA
   </button>
 
   <button class="tab-btn ng-standalone" data-section="calculadora" onclick="switchSection('calculadora')">
@@ -3368,12 +3364,17 @@
   </div>
 
   <!-- ═══════════════════════════════════════════════════════════════
-       SECCION SYNC - SOP Chatea+Dropi Fase A
-       Sincroniza ordenes de Dropi y subscribers de Chatea Pro a
-       Firestore. Es la base para metricas honestas, auditor del bot,
-       rescates (Express/Rezagados/Carritos) y selector de transportadora.
+       SECCION DROPITEA - SOP Chatea+Dropi combinado
+       Contiene 2 sub-tabs: Sync (Fase A) + Rescates (Fase C.1+).
        ═══════════════════════════════════════════════════════════════ -->
-  <div id="section-sync" class="section">
+  <div id="section-dropitea" class="section">
+    <div style="max-width:1180px;margin:0 auto;padding-bottom:8px">
+      <div class="report-subtabs" style="margin-bottom:14px">
+        <button class="report-subtab active" data-dropiteatab="sync" onclick="switchDropiteaTab('sync')">🔄 Sync</button>
+        <button class="report-subtab" data-dropiteatab="rescates" onclick="switchDropiteaTab('rescates')">🚀 Rescates</button>
+      </div>
+    </div>
+  <div id="dropitea-tab-sync" class="dropitea-tab-content" style="display:block">
     <div style="max-width:820px;margin:0 auto">
       <div style="margin-bottom:18px">
         <div style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:20px;color:var(--text);margin-bottom:4px">🔄 Sync — Fuente de verdad operativa</div>
@@ -3410,15 +3411,15 @@
         <b style="color:var(--text)">⚠️ Primera corrida:</b> puede tardar unos minutos (Dropi ~10k ordenes, Chatea ~3k+ subscribers). Corridas incrementales despues son rapidas. Rate limits respetados con delays automaticos.
       </div>
     </div>
-  </div>
+  </div><!-- fin dropitea-tab-sync -->
 
   <!-- ═══════════════════════════════════════════════════════════════
-       SECCION RESCATES - SOP Chatea+Dropi Fase C
+       SUB-TAB RESCATES - SOP Chatea+Dropi Fase C
        Confirmacion Express (§5.2): auto-confirma pedidos de clientes
        con historial fuerte (10+ pedidos, ≥75% entrega). Rescata la plata
        que queda atrapada en PENDIENTE CONFIRMACION.
        ═══════════════════════════════════════════════════════════════ -->
-  <div id="section-rescates" class="section">
+  <div id="dropitea-tab-rescates" class="dropitea-tab-content" style="display:none">
     <div style="max-width:1100px;margin:0 auto">
       <div style="margin-bottom:18px">
         <div style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:20px;color:var(--text);margin-bottom:4px">🚀 Rescates — Confirmacion Express</div>
@@ -3489,7 +3490,8 @@
         <b style="color:var(--text)">📖 Referencia SOP:</b> §5.2 Confirmacion Express (elite ≥75%/10 pedidos) + §6 Validacion.
       </div>
     </div>
-  </div>
+  </div><!-- fin dropitea-tab-rescates -->
+  </div><!-- fin section-dropitea -->
 
   <div id="section-calculadora" class="section">
     <div style="max-width:620px;margin:0 auto">
@@ -3897,8 +3899,7 @@ function switchSection(s, silent){
   if(s==='calendario') renderCalendar();
   if(s==='prompts'){ renderPrompts(); loadBkVars(); }
   if(s==='reportes') initReportes();
-  if(s==='sync') initSync();
-  if(s==='rescates') initRescates();
+  if(s==='dropitea') initDropitea();
   // Pipeline removido — la sección ya no existe en el nav
   // Sección Personal/bkfit removida del nav
   if(s==='investigacion') bkInvInit();
@@ -3912,6 +3913,30 @@ function switchSection(s, silent){
 async function initSync() {
   await loadSyncStatus('dropi');
   await loadSyncStatus('chatea');
+}
+
+// DROPITEA — tab principal que agrupa Sync + Rescates en 2 sub-tabs.
+async function initDropitea() {
+  // Por default abre el sub-tab "sync". Si el usuario ya cambio a "rescates",
+  // respetamos ese estado.
+  const activeSub = document.querySelector('[data-dropiteatab].active');
+  const which = activeSub ? activeSub.dataset.dropiteatab : 'sync';
+  await runDropiteaSubtabInit(which);
+}
+
+function switchDropiteaTab(which) {
+  document.querySelectorAll('.dropitea-tab-content').forEach(el => el.style.display = 'none');
+  document.querySelectorAll('[data-dropiteatab]').forEach(el => el.classList.remove('active'));
+  const target = document.getElementById('dropitea-tab-' + which);
+  if (target) target.style.display = 'block';
+  const btn = document.querySelector('[data-dropiteatab="' + which + '"]');
+  if (btn) btn.classList.add('active');
+  runDropiteaSubtabInit(which);
+}
+
+async function runDropiteaSubtabInit(which) {
+  if (which === 'sync') await initSync();
+  if (which === 'rescates') await initRescates();
 }
 
 async function loadSyncStatus(kind) {
