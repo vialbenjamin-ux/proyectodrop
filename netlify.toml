@@ -1,6 +1,10 @@
 [build]
   publish = "."
   functions = "netlify/functions"
+  command = "node build-sa-key.js"
+
+[functions]
+  included_files = ["netlify/functions/_generated-sa.json"]
 
 # Cross-origin isolation para habilitar SharedArrayBuffer (necesario por
 # ffmpeg.wasm en el generador de GIF/WebP).
