@@ -3939,6 +3939,69 @@ async function runDropiteaSubtabInit(which) {
   if (which === 'rescates') await initRescates();
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// AP marks — marcado manual de productos como "AdsPower" en el reporte
+// Shopify. El user tiene 2 cuentas Meta (BENKO2 + CP CHILE en AdsPower)
+// y necesita distinguir manualmente cuales productos vienen de cada una.
+// ═══════════════════════════════════════════════════════════════════
+window._apMarks = null;
+
+async function ensureApMarksLoaded() {
+  if (window._apMarks !== null) return;
+  if (typeof firebase === 'undefined' || !firebase.firestore) { window._apMarks = {}; return; }
+  try {
+    const db = firebase.firestore();
+    const snap = await db.collection('bkdrop_ap_marks').get();
+    const marks = {};
+    snap.forEach(doc => { marks[doc.id] = true; });
+    window._apMarks = marks;
+  } catch (e) {
+    console.warn('[apMarks] load fail:', e);
+    window._apMarks = {};
+  }
+}
+
+async function toggleApMark(productKey, btnEl) {
+  if (!productKey) return;
+  await ensureApMarksLoaded();
+  const wasOn = !!window._apMarks[productKey];
+  const nowOn = !wasOn;
+
+  // UI optimista
+  if (btnEl) {
+    btnEl.style.background = nowOn ? '#FF9800' : 'transparent';
+    btnEl.style.color = nowOn ? '#fff' : 'var(--muted)';
+    btnEl.style.borderColor = nowOn ? '#FF9800' : 'var(--border)';
+  }
+  window._apMarks[productKey] = nowOn;
+
+  // Persist. Usamos el productKey como docId. Firestore no permite ciertos
+  // caracteres en IDs — hash simple para safety.
+  try {
+    const db = firebase.firestore();
+    const safeId = productKey.replace(/[\/\.\#\$\[\]]/g, '_').slice(0, 200);
+    if (nowOn) {
+      await db.collection('bkdrop_ap_marks').doc(safeId).set({
+        productKey: productKey,
+        marked: true,
+        markedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      });
+    } else {
+      await db.collection('bkdrop_ap_marks').doc(safeId).delete();
+    }
+  } catch (e) {
+    console.error('[apMarks] persist fail:', e);
+    // Revertir UI en caso de error
+    if (btnEl) {
+      btnEl.style.background = wasOn ? '#FF9800' : 'transparent';
+      btnEl.style.color = wasOn ? '#fff' : 'var(--muted)';
+      btnEl.style.borderColor = wasOn ? '#FF9800' : 'var(--border)';
+    }
+    window._apMarks[productKey] = wasOn;
+    if (typeof showToast === 'function') showToast('Error guardando AP: ' + (e.message || '?'), '⚠️', 'error');
+  }
+}
+
 async function loadSyncStatus(kind) {
   if (typeof firebase === 'undefined' || !firebase.firestore) return;
   const db = firebase.firestore();
@@ -14353,6 +14416,9 @@ async function fetchShopifyReport() {
           }).join('');
       }
       var products = data.products || [];
+      // Cargar marcas AP (AdsPower) desde Firestore antes de renderizar.
+      // Sin marcas cargadas, todos los botones aparecen en OFF.
+      await ensureApMarksLoaded();
       document.getElementById('reporte-detail-rows').innerHTML = products.map(function(p, i) {
         var bg = i % 2 ? 'background:var(--surface2)' : '';
         var variantHtml = p.variant ? '<span style="color:var(--muted);font-size:10px;margin-left:6px">' + p.variant + '</span>' : '';
@@ -14360,8 +14426,11 @@ async function fetchShopifyReport() {
           var val = p.bySource[s] || 0;
           return '<td style="padding:10px 14px;font-size:12px;color:' + (sourceColors[s]||'var(--muted)') + ';text-align:right;font-weight:' + (val > 0 ? '700' : '400') + '">' + (val || '—') + '</td>';
         }).join('');
+        var productKey = (p.product || '') + '__' + (p.variant || '');
+        var isAp = !!(window._apMarks && window._apMarks[productKey]);
+        var apBtn = '<button onclick="toggleApMark(' + JSON.stringify(productKey).replace(/"/g, '&quot;') + ', this)" title="Marcar como AdsPower" style="margin-left:8px;padding:1px 6px;font-size:9px;font-family:\'DM Mono\',monospace;font-weight:700;letter-spacing:.5px;border:1px solid ' + (isAp ? '#FF9800' : 'var(--border)') + ';background:' + (isAp ? '#FF9800' : 'transparent') + ';color:' + (isAp ? '#fff' : 'var(--muted)') + ';border-radius:4px;cursor:pointer;vertical-align:middle">AP</button>';
         return '<tr style="border-bottom:1px solid var(--border);' + bg + '">' +
-          '<td style="padding:10px 20px;font-size:12px;color:var(--text);font-weight:500">' + p.product + variantHtml + '</td>' +
+          '<td style="padding:10px 20px;font-size:12px;color:var(--text);font-weight:500">' + p.product + variantHtml + apBtn + '</td>' +
           '<td style="padding:10px 20px;font-size:12px;color:var(--muted);text-align:right">' + p.orders + '</td>' +
           '<td style="padding:10px 16px;font-size:12px;color:var(--accent);text-align:right;font-weight:700">' + p.qty + '</td>' +
           '<td style="padding:10px 16px;font-size:12px;color:var(--text);text-align:right">$' + Math.round(p.revenue).toLocaleString('es-CL') + '</td>' +
