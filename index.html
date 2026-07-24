@@ -3371,7 +3371,8 @@
     <div style="max-width:1180px;margin:0 auto;padding-bottom:8px">
       <div class="report-subtabs" style="margin-bottom:14px">
         <button class="report-subtab active" data-dropiteatab="sync" onclick="switchDropiteaTab('sync')">🔄 Sync</button>
-        <button class="report-subtab" data-dropiteatab="rescates" onclick="switchDropiteaTab('rescates')">🚀 Rescates</button>
+        <button class="report-subtab" data-dropiteatab="rescates" onclick="switchDropiteaTab('rescates')">🚀 Express</button>
+        <button class="report-subtab" data-dropiteatab="rezagados" onclick="switchDropiteaTab('rezagados')">🕐 Rezagados</button>
       </div>
     </div>
   <div id="dropitea-tab-sync" class="dropitea-tab-content" style="display:block">
@@ -3491,6 +3492,114 @@
       </div>
     </div>
   </div><!-- fin dropitea-tab-rescates -->
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       SUB-TAB REZAGADOS - SOP §5.3 Red de seguridad universal
+       Barre TODOS los PENDIENTE CONFIRMACION (no elite). Calcula P
+       bayesiana + decaimiento por edad. Categoriza en 4: domicilio,
+       corregir dir, manual, descartar. La joya para negocios con
+       pocos clientes recurrentes.
+       ═══════════════════════════════════════════════════════════════ -->
+  <div id="dropitea-tab-rezagados" class="dropitea-tab-content" style="display:none">
+    <div style="max-width:1200px;margin:0 auto">
+      <div style="margin-bottom:18px">
+        <div style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:20px;color:var(--text);margin-bottom:4px">🕐 Rezagados — Red universal</div>
+        <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace">SOP §5.3 · TODOS los PENDIENTE CONFIRMACION · P bayesiana + edad + chat</div>
+      </div>
+
+      <!-- Config -->
+      <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:12px;padding:20px;margin-bottom:16px">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:14px">
+          <label style="display:flex;flex-direction:column;gap:4px">
+            <span style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">Umbral P (%) - break-even</span>
+            <input type="number" id="rez-min-p" value="35" min="1" max="100" style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:13px;font-family:'DM Mono',monospace;color:var(--text)">
+          </label>
+          <label style="display:flex;flex-direction:column;gap:4px">
+            <span style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">Edad max (dias)</span>
+            <input type="number" id="rez-max-days" value="10" min="1" max="30" style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:13px;font-family:'DM Mono',monospace;color:var(--text)">
+          </label>
+          <label style="display:flex;flex-direction:column;gap:4px">
+            <span style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">Tasa base (%) - auto</span>
+            <input type="number" id="rez-base-rate" value="62" min="1" max="100" style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:13px;font-family:'DM Mono',monospace;color:var(--text)">
+          </label>
+          <label style="display:flex;flex-direction:column;gap:4px">
+            <span style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">Decaimiento (%/dia)</span>
+            <input type="number" id="rez-decay" value="20" min="0" max="100" style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:13px;font-family:'DM Mono',monospace;color:var(--text)">
+          </label>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <button id="rez-scan-btn" onclick="scanRezagadosCandidates()" style="background:var(--accent);color:#000;border:none;border-radius:8px;padding:10px 22px;font-size:13px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">Buscar rezagados</button>
+          <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;cursor:pointer">
+            <input type="checkbox" id="rez-check-chatea" checked>
+            <span>Chequear chat (confirmacion + arrepentimiento)</span>
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;cursor:pointer">
+            <input type="checkbox" id="rez-send-msg">
+            <span>Enviar mensaje cortesia al confirmar</span>
+          </label>
+        </div>
+        <div id="rez-scan-status" style="margin-top:12px;font-size:11px;color:var(--muted);font-family:'DM Mono',monospace"></div>
+      </div>
+
+      <!-- Resultados: 4 tarjetas resumen + tabla -->
+      <div id="rez-results" style="display:none">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-bottom:14px">
+          <div id="rez-cat-domicilio" style="background:rgba(43,122,43,0.08);border:1.5px solid #2b7a2b;border-radius:10px;padding:14px;text-align:center">
+            <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;margin-bottom:4px">🏠 Domicilio</div>
+            <div style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:22px;color:#2b7a2b" id="rez-cat-domicilio-n">0</div>
+            <div style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace" id="rez-cat-domicilio-money">$0 CLP</div>
+          </div>
+          <div id="rez-cat-corregir" style="background:rgba(255,152,0,0.08);border:1.5px solid #FF9800;border-radius:10px;padding:14px;text-align:center">
+            <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;margin-bottom:4px">✏️ Corregir dir</div>
+            <div style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:22px;color:#FF9800" id="rez-cat-corregir-n">0</div>
+            <div style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace" id="rez-cat-corregir-money">$0 CLP</div>
+          </div>
+          <div id="rez-cat-manual" style="background:rgba(100,100,150,0.08);border:1.5px solid var(--muted);border-radius:10px;padding:14px;text-align:center">
+            <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;margin-bottom:4px">✋ Manual</div>
+            <div style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:22px;color:var(--text)" id="rez-cat-manual-n">0</div>
+            <div style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace" id="rez-cat-manual-money">$0 CLP</div>
+          </div>
+          <div id="rez-cat-descartar" style="background:rgba(228,102,102,0.08);border:1.5px solid #e46;border-radius:10px;padding:14px;text-align:center">
+            <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;margin-bottom:4px">⛔ Descartar</div>
+            <div style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:22px;color:#e46" id="rez-cat-descartar-n">0</div>
+            <div style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace" id="rez-cat-descartar-money">$0 CLP</div>
+          </div>
+        </div>
+
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:10px">
+          <div style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text)">
+            <label style="cursor:pointer">
+              <input type="checkbox" id="rez-filter-domicilio-only" checked onchange="renderRezagadosTable()"> Solo mostrar categoria "Domicilio"
+            </label>
+          </div>
+          <button id="rez-confirm-all" onclick="confirmAllRezagadosDomicilio()" style="background:#2b7a2b;color:#fff;border:none;border-radius:8px;padding:9px 18px;font-size:12px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">Confirmar TODOS domicilio</button>
+        </div>
+
+        <div style="overflow-x:auto;background:var(--surface);border:1.5px solid var(--border);border-radius:10px">
+          <table id="rez-table" style="width:100%;border-collapse:collapse;font-family:'DM Mono',monospace;font-size:11px">
+            <thead>
+              <tr style="background:var(--surface2);border-bottom:1.5px solid var(--border)">
+                <th style="padding:10px 8px;text-align:left">Orden</th>
+                <th style="padding:10px 8px;text-align:left">Cliente</th>
+                <th style="padding:10px 8px;text-align:left">Comuna</th>
+                <th style="padding:10px 8px;text-align:right">Total</th>
+                <th style="padding:10px 8px;text-align:center">P bayes.</th>
+                <th style="padding:10px 8px;text-align:center">Edad</th>
+                <th style="padding:10px 8px;text-align:left">Categoria</th>
+                <th style="padding:10px 8px;text-align:center">Accion</th>
+              </tr>
+            </thead>
+            <tbody id="rez-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div style="margin-top:18px;padding:14px;background:var(--surface2);border:1px dashed var(--border);border-radius:8px;font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;line-height:1.7">
+        <b style="color:var(--text)">🧮 Formula:</b> P = (entregados + 5×tasa_base) / (n + 5) × exp(-0.20×(edad_dias-1)). Con n chico usa tasa base como prior; con historial se ajusta al cliente. Edad descuenta agresivamente.<br>
+        <b style="color:var(--text)">📖 Referencia SOP:</b> §5.3 Rezagados (P≥35% break-even con margen $15k y flete $8k).
+      </div>
+    </div>
+  </div><!-- fin dropitea-tab-rezagados -->
   </div><!-- fin section-dropitea -->
 
   <div id="section-calculadora" class="section">
@@ -3937,6 +4046,359 @@ function switchDropiteaTab(which) {
 async function runDropiteaSubtabInit(which) {
   if (which === 'sync') await initSync();
   if (which === 'rescates') await initRescates();
+  if (which === 'rezagados') await initRezagados();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// SUB-TAB REZAGADOS — SOP §5.3 Red universal
+// Barre TODOS los PENDIENTE CONFIRMACION. Calcula P bayesiana +
+// decaimiento por edad. Cruza con Chatea para confirmar/arrepentir.
+// Categoriza en 4: domicilio, corregir_dir, manual, descartar.
+// ═══════════════════════════════════════════════════════════════════
+window._rezData = { candidates: [], scannedAt: null };
+
+async function initRezagados() {
+  const el = document.getElementById('rez-scan-status');
+  if (!el) return;
+  if (!window._expressData || window._expressData.allOrders.length === 0) {
+    el.textContent = 'Cache vacio. Anda a Sync y sincroniza Dropi primero.';
+  } else {
+    // Sugerir tasa base auto-calculada del cache
+    const stats = customerStats(window._expressData.allOrders);
+    const baseRate = stats.rate > 0 ? Math.round(stats.rate * 100) : 62;
+    const inp = document.getElementById('rez-base-rate');
+    if (inp && !inp.dataset.userSet) inp.value = baseRate;
+    el.textContent = 'Cache: ' + window._expressData.allOrders.length + ' ordenes · tasa base sugerida ' + baseRate + '% (' + stats.delivered + ' entregadas / ' + (stats.delivered + stats.failed) + ' resueltas)';
+  }
+}
+
+// Detecta si el cliente confirmo positivamente en el chat en los ultimos
+// 15 mensajes. Retorna { confirmed, snippet } o { skipped, reason }.
+async function checkChateaConfirmationAndRegret(phone) {
+  if (!phone) return { skipped: true, reason: 'sin phone' };
+  const db = firebase.firestore();
+  let snap = await db.collection('bkdrop_chatea_subscribers').where('phone', '==', phone).limit(1).get();
+  if (snap.empty) {
+    snap = await db.collection('bkdrop_chatea_subscribers').where('phone', '==', '56' + phone).limit(1).get();
+    if (snap.empty) return { skipped: true, reason: 'subscriber no encontrado' };
+  }
+  const user_ns = snap.docs[0].data().user_ns;
+  if (!user_ns) return { skipped: true, reason: 'sin user_ns' };
+  const resp = await fetch('/.netlify/functions/chatea-fetch?op=messages&user_ns=' + encodeURIComponent(user_ns) + '&limit=15');
+  const data = await resp.json();
+  if (!resp.ok) return { skipped: true, reason: 'chatea-fetch fail: ' + (data.error || resp.status) };
+  const msgs = data.messages || [];
+  const clientMsgs = msgs.filter(m => !m.from_bot && !m.from_agent);
+
+  const regretRegex = /(cancelar|anular|arrepent|equivoq|ya no lo? ?quiero|no lo quiero mas|desistir)/i;
+  const confirmRegex = /(\bsi\b|\bs[ií]\b|\bconfirmo\b|\bok\b|\blisto\b|\bde acuerdo\b|\bperfecto\b|\bexcelente\b|\bdale\b|lo quiero|lo espero|\bacepto\b|\bcorrect[ao]\b|\bcompra\b|\bproced[ea]\b|\bconforme\b)/i;
+
+  let hasRegret = false, regretSnippet = null;
+  let hasConfirm = false, confirmSnippet = null;
+
+  for (const m of clientMsgs) {
+    const t = (m.text || '').trim();
+    if (!t) continue;
+    if (regretRegex.test(t)) { hasRegret = true; regretSnippet = t.slice(0, 80); }
+    if (confirmRegex.test(t)) { hasConfirm = true; confirmSnippet = t.slice(0, 80); }
+  }
+  return { hasConfirm, confirmSnippet, hasRegret, regretSnippet };
+}
+
+// Rechazador serial: 0 entregas con 6+ pedidos, o <20% con 10+.
+function isSerialRejector(stats) {
+  if (stats.delivered === 0 && stats.total >= 6) return true;
+  if (stats.total >= 10 && stats.rate < 0.20) return true;
+  return false;
+}
+
+async function scanRezagadosCandidates() {
+  const btn = document.getElementById('rez-scan-btn');
+  const statusEl = document.getElementById('rez-scan-status');
+  const results = document.getElementById('rez-results');
+  btn.disabled = true;
+  btn.textContent = 'Escaneando...';
+  btn.style.opacity = '0.6';
+
+  try {
+    const minP = (parseInt(document.getElementById('rez-min-p').value, 10) || 35) / 100;
+    const maxDays = parseInt(document.getElementById('rez-max-days').value, 10) || 10;
+    const baseRate = (parseInt(document.getElementById('rez-base-rate').value, 10) || 62) / 100;
+    const decay = (parseInt(document.getElementById('rez-decay').value, 10) || 20) / 100;
+    const checkChatea = document.getElementById('rez-check-chatea').checked;
+
+    // Cargar cache si vacio
+    if (!window._expressData || window._expressData.allOrders.length === 0) {
+      statusEl.textContent = 'Cargando cache Dropi...';
+      const n = await loadDropiCacheFromFirestore();
+      statusEl.textContent = 'Cargadas ' + n + ' ordenes. Analizando...';
+    }
+
+    const now = Date.now();
+    // Filtrar candidatas: PENDIENTE CONFIRMACION + edad <= maxDays.
+    const pending = window._expressData.allOrders.filter(o => {
+      const s = String(o.status || '').toUpperCase();
+      if (s !== 'PENDIENTE CONFIRMACION') return false;
+      if (!o.created) return false;
+      const ageDays = (now - new Date(o.created).getTime()) / (86400000);
+      return ageDays <= maxDays;
+    });
+
+    statusEl.textContent = 'Candidatas: ' + pending.length + '. Calculando P y cruzando chat...';
+
+    const rows = [];
+    for (let i = 0; i < pending.length; i++) {
+      const o = pending[i];
+      const ph = orderPhone(o);
+      const history = ph ? (window._expressData.byPhone[ph] || []).filter(x => x.id !== o.id) : [];
+      const stats = customerStats(history);
+      const ageDaysRaw = (now - new Date(o.created).getTime()) / 86400000;
+      const ageDays = Math.max(0, ageDaysRaw);
+      const dirOk = isAddressUsable(o.dir);
+
+      // P bayesiana: (entregados + 5*base) / (n + 5) donde n = delivered+failed
+      const n = stats.delivered + stats.failed;
+      let pRaw = (stats.delivered + 5 * baseRate) / (n + 5);
+      // Decaimiento por edad: factor = edad<=1 ? 1 : max(0.10, exp(-decay*(edad-1)))
+      const decayFactor = ageDays <= 1 ? 1 : Math.max(0.10, Math.exp(-decay * (ageDays - 1)));
+      const p = pRaw * decayFactor;
+
+      // Chat check (opcional)
+      let chatCheck = null;
+      if (checkChatea) {
+        try {
+          statusEl.textContent = `Chequeando Chatea (${i+1}/${pending.length})...`;
+          chatCheck = await checkChateaConfirmationAndRegret(ph);
+        } catch (e) {
+          chatCheck = { skipped: true, reason: e.message };
+        }
+      }
+
+      // Categorizacion (SOP §5.3)
+      let category = 'manual', reason = '';
+      if (isSerialRejector(stats)) {
+        category = 'descartar';
+        reason = `Rechazador serial (${stats.delivered}/${stats.total})`;
+      } else if (ageDays > maxDays) {
+        category = 'descartar';
+        reason = `Muy viejo (${ageDays.toFixed(1)}d)`;
+      } else if (chatCheck && chatCheck.hasRegret) {
+        category = 'descartar';
+        reason = `Arrepentimiento: ${(chatCheck.regretSnippet||'').slice(0,40)}`;
+      } else if (chatCheck && chatCheck.hasConfirm) {
+        if (dirOk && p >= minP) {
+          category = 'domicilio';
+          reason = `Confirmo + dir OK + P=${(p*100).toFixed(0)}%`;
+        } else if (!dirOk) {
+          category = 'corregir_dir';
+          reason = `Confirmo pero dir mala`;
+        } else {
+          category = 'manual';
+          reason = `Confirmo pero P=${(p*100).toFixed(0)}% <${(minP*100).toFixed(0)}%`;
+        }
+      } else {
+        // No hay confirmacion en chat: solo si elite del historial (SOP: ≥65%/n≥10)
+        if (stats.total >= 10 && stats.rate >= 0.65 && dirOk && p >= minP) {
+          category = 'manual';
+          reason = `Sin confirm chat pero elite historia (${(stats.rate*100).toFixed(0)}%/${stats.total})`;
+        } else {
+          category = 'manual';
+          reason = chatCheck && chatCheck.skipped ? `Chat: ${chatCheck.reason}` : 'Sin confirmacion en chat';
+        }
+      }
+
+      rows.push({ order: o, phone: ph, stats, ageDays, p, dirOk, chatCheck, category, reason });
+    }
+
+    window._rezData.candidates = rows;
+    window._rezData.scannedAt = Date.now();
+    updateRezagadosSummary(rows);
+    renderRezagadosTable();
+    results.style.display = 'block';
+    statusEl.textContent = 'Analisis completo: ' + rows.length + ' revisadas · ' + rows.filter(r=>r.category==='domicilio').length + ' domicilio · ' + rows.filter(r=>r.category==='corregir_dir').length + ' corregir · ' + rows.filter(r=>r.category==='manual').length + ' manual · ' + rows.filter(r=>r.category==='descartar').length + ' descartar.';
+  } catch (err) {
+    statusEl.textContent = 'Error: ' + (err.message || String(err));
+    console.error(err);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Buscar rezagados';
+    btn.style.opacity = '1';
+  }
+}
+
+function updateRezagadosSummary(rows) {
+  const cats = ['domicilio', 'corregir_dir', 'manual', 'descartar'];
+  const catIdMap = { domicilio: 'domicilio', corregir_dir: 'corregir', manual: 'manual', descartar: 'descartar' };
+  for (const c of cats) {
+    const items = rows.filter(r => r.category === c);
+    const money = items.reduce((s, r) => s + (r.order.total || 0), 0);
+    const id = catIdMap[c];
+    const nEl = document.getElementById('rez-cat-' + id + '-n');
+    const mEl = document.getElementById('rez-cat-' + id + '-money');
+    if (nEl) nEl.textContent = items.length;
+    if (mEl) mEl.textContent = '$' + money.toLocaleString('es-CL') + ' CLP';
+  }
+}
+
+function renderRezagadosTable() {
+  const tbody = document.getElementById('rez-tbody');
+  if (!tbody) return;
+  const onlyDom = document.getElementById('rez-filter-domicilio-only').checked;
+  const rows = onlyDom
+    ? window._rezData.candidates.filter(r => r.category === 'domicilio')
+    : window._rezData.candidates;
+
+  const catStyle = {
+    domicilio:    { color: '#2b7a2b', label: '🏠 Domicilio' },
+    corregir_dir: { color: '#FF9800', label: '✏️ Corregir dir' },
+    manual:       { color: 'var(--text)', label: '✋ Manual' },
+    descartar:    { color: '#e46', label: '⛔ Descartar' },
+  };
+
+  tbody.innerHTML = rows.map((r, idx) => {
+    const o = r.order;
+    const cs = catStyle[r.category];
+    const bg = r.category === 'domicilio' ? 'background:rgba(43,122,43,0.05)' : '';
+    const globalIdx = window._rezData.candidates.indexOf(r);
+    return `<tr style="border-bottom:1px solid var(--border);${bg}">
+      <td style="padding:8px">#${o.id}</td>
+      <td style="padding:8px">${escapeHtml(r.phone || '(sin phone)')}</td>
+      <td style="padding:8px">${escapeHtml(o.ciudad || '')}</td>
+      <td style="padding:8px;text-align:right">$${(o.total || 0).toLocaleString('es-CL')}</td>
+      <td style="padding:8px;text-align:center" title="${r.stats.delivered} entregados / ${r.stats.failed} fallidos / n=${r.stats.total}">${(r.p*100).toFixed(0)}%</td>
+      <td style="padding:8px;text-align:center">${r.ageDays.toFixed(1)}d</td>
+      <td style="padding:8px;color:${cs.color}" title="${escapeHtml(r.reason)}">${cs.label}<br><span style="font-size:9px;color:var(--muted)">${escapeHtml(r.reason.slice(0,50))}</span></td>
+      <td style="padding:8px;text-align:center">
+        ${r.category === 'domicilio' ? `<button onclick="confirmSingleRezagado(${globalIdx})" style="background:#2b7a2b;color:#fff;border:none;border-radius:6px;padding:4px 10px;font-size:10px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer;margin-right:4px">Confirmar</button>` : ''}
+        <button onclick="cancelSingleRezagado(${globalIdx})" title="Cancelar en Dropi (destructivo)" style="background:transparent;color:#e46;border:1px solid #e46;border-radius:6px;padding:4px 10px;font-size:10px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">Cancelar</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+async function confirmSingleRezagado(idx) {
+  const row = window._rezData.candidates[idx];
+  if (!row || row.category !== 'domicilio') return;
+  await doConfirmRezagados([row]);
+}
+
+async function cancelSingleRezagado(idx) {
+  const row = window._rezData.candidates[idx];
+  if (!row) return;
+  const o = row.order;
+  const money = (o.total || 0).toLocaleString('es-CL');
+  // Doble confirmacion: mensaje claro sobre lo destructivo.
+  const msg = `¿CANCELAR pedido #${o.id}?\n\n` +
+    `Cliente: ${row.phone || '(sin phone)'}\n` +
+    `Comuna: ${o.ciudad || '?'}\n` +
+    `Total: $${money} CLP\n` +
+    `Categoria detector: ${row.category}\n\n` +
+    `⚠️ ESTO CANCELA LA ORDEN EN DROPI. Si te equivocas, perdes la venta entera.\n\n` +
+    `Escribi "SI" a la siguiente pregunta para confirmar.`;
+  if (!confirm(msg)) return;
+  const typed = prompt('Ultima confirmacion. Escribi SI para cancelar en Dropi:');
+  if (String(typed || '').trim().toUpperCase() !== 'SI') {
+    if (typeof showToast === 'function') showToast('Cancelacion abortada', 'ℹ️', 'info');
+    return;
+  }
+
+  const statusEl = document.getElementById('rez-scan-status');
+  statusEl.textContent = `Cancelando #${o.id} en Dropi...`;
+  try {
+    const resp = await fetch('/.netlify/functions/dropi-cancel', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ orderIds: [o.id] }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || ('HTTP ' + resp.status));
+
+    // Marcar localmente
+    row.category = 'cancelada';
+    row.reason = '❌ Cancelada';
+    updateRezagadosSummary(window._rezData.candidates);
+    renderRezagadosTable();
+    statusEl.textContent = `❌ Orden #${o.id} cancelada en Dropi.`;
+    if (typeof showToast === 'function') showToast(`Cancelada #${o.id}`, '❌', 'ok');
+
+    // Log auditoria
+    try {
+      const db = firebase.firestore();
+      await db.collection('bkdrop_rezagados_log').add({
+        at: firebase.firestore.FieldValue.serverTimestamp(),
+        action: 'cancel', orderIds: [o.id],
+        cancelledCategory: row.category, mode: 'manual',
+      });
+    } catch (_) {}
+  } catch (e) {
+    statusEl.textContent = 'Error cancelando: ' + (e.message || '?');
+    if (typeof showToast === 'function') showToast('Error: ' + e.message, '⚠️', 'error');
+  }
+}
+
+async function confirmAllRezagadosDomicilio() {
+  const rows = window._rezData.candidates.filter(r => r.category === 'domicilio');
+  if (rows.length === 0) return alert('Sin candidatos en categoria Domicilio.');
+  if (!confirm(`Vas a confirmar ${rows.length} ordenes categoria DOMICILIO. Total $${rows.reduce((s,r)=>s+(r.order.total||0),0).toLocaleString('es-CL')} CLP. ¿Seguro?`)) return;
+  await doConfirmRezagados(rows);
+}
+
+async function doConfirmRezagados(rows) {
+  const sendMsg = document.getElementById('rez-send-msg').checked;
+  const statusEl = document.getElementById('rez-scan-status');
+  const orderIds = rows.map(r => r.order.id);
+  statusEl.textContent = `Confirmando ${orderIds.length} orden(es) en Dropi...`;
+  try {
+    // Confirmar en Dropi via masive
+    const resp = await fetch('/.netlify/functions/dropi-confirm', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ orderIds }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || ('HTTP ' + resp.status));
+
+    // Post-confirmacion: tag + msg cortesia (opcional)
+    let notified = 0;
+    for (const r of rows) {
+      if (!r.phone) continue;
+      try {
+        const db = firebase.firestore();
+        const snap = await db.collection('bkdrop_chatea_subscribers').where('phone', '==', r.phone).limit(1).get();
+        if (snap.empty) continue;
+        const user_ns = snap.docs[0].data().user_ns;
+        if (!user_ns) continue;
+        await fetch('/.netlify/functions/chatea-express-notify', {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ user_ns, sendMessage: sendMsg, tag: '[App] Rezagado confirmado' }),
+        });
+        notified++;
+        await new Promise(x => setTimeout(x, 500));
+      } catch (e) {
+        console.warn('Chatea notify fail para orden', r.order.id, e);
+      }
+    }
+
+    // Marcar confirmadas localmente
+    for (const r of rows) {
+      r.category = 'confirmada';
+      r.reason = '✅ Confirmada';
+    }
+    updateRezagadosSummary(window._rezData.candidates);
+    renderRezagadosTable();
+    statusEl.textContent = `✅ ${orderIds.length} confirmadas en Dropi · ${notified} notificadas en Chatea`;
+    if (typeof showToast === 'function') showToast(`Rezagados: ${orderIds.length} confirmadas`, '✅', 'ok');
+
+    // Log auditoria
+    try {
+      const db = firebase.firestore();
+      await db.collection('bkdrop_rezagados_log').add({
+        at: firebase.firestore.FieldValue.serverTimestamp(),
+        orderIds, notified, mode: 'manual',
+      });
+    } catch (_) {}
+  } catch (e) {
+    statusEl.textContent = 'Error confirmando: ' + (e.message || '?');
+    if (typeof showToast === 'function') showToast('Error: ' + e.message, '⚠️', 'error');
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════
