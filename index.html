@@ -4290,11 +4290,13 @@ function renderRezagadosTable() {
     corregir_dir: { color: '#FF9800', label: '✏️ Corregir dir' },
     manual:       { color: 'var(--text)', label: '✋ Manual' },
     descartar:    { color: '#e46', label: '⛔ Descartar' },
+    confirmada:   { color: '#2b7a2b', label: '✅ Confirmada' },
+    cancelada:    { color: '#e46', label: '❌ Cancelada' },
   };
 
   tbody.innerHTML = rows.map((r, idx) => {
     const o = r.order;
-    const cs = catStyle[r.category];
+    const cs = catStyle[r.category] || { color: 'var(--muted)', label: r.category };
     const bg = r.category === 'domicilio' ? 'background:rgba(43,122,43,0.05)' : '';
     const globalIdx = window._rezData.candidates.indexOf(r);
     return `<tr style="border-bottom:1px solid var(--border);${bg}">
