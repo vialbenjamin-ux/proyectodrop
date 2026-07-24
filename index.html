@@ -3527,7 +3527,7 @@
             <input type="number" id="rez-decay" value="20" min="0" max="100" style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:13px;font-family:'DM Mono',monospace;color:var(--text)">
           </label>
         </div>
-        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
           <button id="rez-scan-btn" onclick="scanRezagadosCandidates()" style="background:var(--accent);color:#000;border:none;border-radius:8px;padding:10px 22px;font-size:13px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">Buscar rezagados</button>
           <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;cursor:pointer">
             <input type="checkbox" id="rez-check-chatea" checked>
@@ -3537,6 +3537,22 @@
             <input type="checkbox" id="rez-send-msg">
             <span>Enviar mensaje cortesia al confirmar</span>
           </label>
+        </div>
+        <!-- Auto-confirmar bloque -->
+        <div style="padding:10px 12px;background:rgba(43,122,43,0.05);border:1px dashed #2b7a2b;border-radius:8px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+          <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:#2b7a2b;font-family:'DM Mono',monospace;cursor:pointer;font-weight:700">
+            <input type="checkbox" id="rez-auto-confirm">
+            <span>⚡ Auto-confirmar los que cumplan historial fuerte</span>
+          </label>
+          <label style="display:flex;align-items:center;gap:5px;font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">
+            <span>Min pedidos:</span>
+            <input type="number" id="rez-auto-min-orders" value="5" min="1" max="50" style="width:52px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:3px 6px;font-size:11px;font-family:'DM Mono',monospace;color:var(--text)">
+          </label>
+          <label style="display:flex;align-items:center;gap:5px;font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">
+            <span>Min tasa (%):</span>
+            <input type="number" id="rez-auto-min-rate" value="70" min="1" max="100" style="width:52px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:3px 6px;font-size:11px;font-family:'DM Mono',monospace;color:var(--text)">
+          </label>
+          <span style="font-size:9px;color:var(--muted);font-family:'DM Mono',monospace">Aplica solo a candidatos "🏠 Domicilio"</span>
         </div>
         <div id="rez-scan-status" style="margin-top:12px;font-size:11px;color:var(--muted);font-family:'DM Mono',monospace"></div>
       </div>
@@ -4215,7 +4231,28 @@ async function scanRezagadosCandidates() {
     updateRezagadosSummary(rows);
     renderRezagadosTable();
     results.style.display = 'block';
-    statusEl.textContent = 'Analisis completo: ' + rows.length + ' revisadas · ' + rows.filter(r=>r.category==='domicilio').length + ' domicilio · ' + rows.filter(r=>r.category==='corregir_dir').length + ' corregir · ' + rows.filter(r=>r.category==='manual').length + ' manual · ' + rows.filter(r=>r.category==='descartar').length + ' descartar.';
+    const summary = 'Analisis completo: ' + rows.length + ' revisadas · ' + rows.filter(r=>r.category==='domicilio').length + ' domicilio · ' + rows.filter(r=>r.category==='corregir_dir').length + ' corregir · ' + rows.filter(r=>r.category==='manual').length + ' manual · ' + rows.filter(r=>r.category==='descartar').length + ' descartar.';
+    statusEl.textContent = summary;
+
+    // Auto-confirmar: si el toggle esta ON, buscar los que cumplan historial
+    // fuerte y confirmar automaticamente. Aplica solo a categoria "domicilio".
+    const autoOn = document.getElementById('rez-auto-confirm').checked;
+    if (autoOn) {
+      const autoMinOrders = parseInt(document.getElementById('rez-auto-min-orders').value, 10) || 5;
+      const autoMinRate = (parseInt(document.getElementById('rez-auto-min-rate').value, 10) || 70) / 100;
+      const autoCandidates = rows.filter(r =>
+        r.category === 'domicilio' &&
+        r.stats.total >= autoMinOrders &&
+        r.stats.rate >= autoMinRate
+      );
+      if (autoCandidates.length > 0) {
+        statusEl.textContent = summary + ' · ⚡ Auto-confirmando ' + autoCandidates.length + '...';
+        await doConfirmRezagados(autoCandidates);
+        statusEl.textContent = summary + ' · ⚡ ' + autoCandidates.length + ' auto-confirmados.';
+      } else {
+        statusEl.textContent = summary + ' · ⚡ Auto: 0 califican (necesitan ≥' + autoMinOrders + ' pedidos y ≥' + (autoMinRate*100).toFixed(0) + '% tasa).';
+      }
+    }
   } catch (err) {
     statusEl.textContent = 'Error: ' + (err.message || String(err));
     console.error(err);
