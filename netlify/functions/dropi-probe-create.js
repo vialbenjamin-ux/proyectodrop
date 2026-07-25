@@ -30,6 +30,7 @@ exports.handler = async (event) => {
       warehouse_id: 79,
       shop_id: 152458,
       total_order: 1000,
+      shipping_company: 'STARKEN',
       products: [{ id: 15053, product_id: 15053, quantity: 1, price: 1000 }],
     };
     try {
