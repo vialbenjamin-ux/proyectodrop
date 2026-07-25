@@ -179,10 +179,17 @@ exports.handler = async (event) => {
   if (!shopUsed) shopUsed = 152458;
 
   if (dropiProducts.length === 0) {
+    // DEBUG: incluir mas info para diagnosticar
+    const bodyItemsDebug = (body.items || []).map(it => ({ name: (it.name||'').slice(0,50), sku: it.sku, barcode: it.barcode }));
+    const cacheProductIds = Object.keys(productMapById).slice(0, 20);
+    const cacheSkuSamples = Object.keys(productMap).slice(0, 10);
     return respond(400, {
       error: 'Ningun producto matcheado en Dropi',
       unmatched,
-      hint: 'Los productos Shopify no aparecen en las ultimas 200 ordenes Dropi. Verifica SKU/nombre.',
+      itemsRecibidos: bodyItemsDebug,
+      cacheDropiPrimeros20ProductIds: cacheProductIds,
+      cacheDropiPrimeros10SKUsNombres: cacheSkuSamples,
+      hint: 'Verifica que los barcode/SKU coincidan con IDs Dropi validos.',
     });
   }
 
