@@ -28,7 +28,6 @@ exports.handler = async (event) => {
       type: 'FINAL_ORDER',
       rate_type: 'CON RECAUDO',
       warehouse_id: 79,
-      distribution_company_id: 2,
       shop_id: 152458,
       total_order: 1000,
       products: [{ id: 15053, product_id: 15053, quantity: 1, price: 1000 }],
