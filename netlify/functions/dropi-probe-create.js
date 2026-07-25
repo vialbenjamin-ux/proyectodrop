@@ -31,7 +31,7 @@ exports.handler = async (event) => {
       distribution_company_id: 2,
       shop_id: 152458,
       total_order: 1000,
-      orderdetails: [{ product_id: 15053, quantity: 1 }],
+      products: [{ id: 15053, product_id: 15053, quantity: 1, price: 1000 }],
     };
     try {
       const resp = await fetch(base + '/integrations/orders/myorders', {
