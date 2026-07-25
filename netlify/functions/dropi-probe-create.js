@@ -13,6 +13,31 @@ exports.handler = async (event) => {
 
   const qs = event.queryStringParameters || {};
 
+  // Modo distinct: listar distribution_company_ids unicos de mis ordenes
+  if (qs.distinct === 'YES') {
+    const listResp = await fetch(base + '/integrations/orders/myorders?start=0&result_number=100', {
+      method: 'GET', headers,
+    });
+    const listData = JSON.parse(await listResp.text());
+    const orders = listData.objects || [];
+    const dcIds = {};
+    for (const o of orders) {
+      if (o.distribution_company_id) {
+        const key = o.distribution_company_id + ':' + (o.shipping_company || '?');
+        dcIds[key] = (dcIds[key] || 0) + 1;
+      }
+    }
+    const warehouses = {};
+    for (const o of orders) {
+      if (o.warehouse_id) warehouses[o.warehouse_id + ':' + (o.warehouse && o.warehouse.name || '?')] = (warehouses[o.warehouse_id + ':' + (o.warehouse && o.warehouse.name || '?')] || 0) + 1;
+    }
+    return respond(200, {
+      totalOrders: orders.length,
+      distributionCompanies: dcIds,
+      warehouses,
+    });
+  }
+
   // Modo POST: solo si viene ?post=YES
   if (qs.post === 'YES') {
     const body = {
