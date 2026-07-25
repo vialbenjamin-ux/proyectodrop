@@ -38,6 +38,49 @@ exports.handler = async (event) => {
     });
   }
 
+  // Modo cloneStarken: buscar una orden STARKEN reciente y clonarla (con phone falso)
+  if (qs.cloneStarken === 'YES') {
+    const listResp = await fetch(base + '/integrations/orders/myorders?start=0&result_number=50', {
+      method: 'GET', headers,
+    });
+    const listData = JSON.parse(await listResp.text());
+    const orders = listData.objects || [];
+    const starken = orders.find(o => o.distribution_company_id === 5);
+    if (!starken) return respond(200, { error: 'No hay ordenes STARKEN recientes' });
+    const firstProd = (starken.orderdetails && starken.orderdetails[0]) || null;
+    if (!firstProd) return respond(200, { error: 'Orden STARKEN sin orderdetails' });
+    const body = {
+      name: 'TEST BKDROP',
+      surname: 'PROBE STARKEN',
+      phone: '999999999',
+      dir: 'Prueba API - NO DESPACHAR',
+      city: starken.city,
+      state: starken.state,
+      zip_code: null,
+      colonia: null,
+      notes: 'ORDEN API PROBE - CANCELAR',
+      type: 'FINAL_ORDER',
+      rate_type: 'CON RECAUDO',
+      warehouse_id: starken.warehouse_id,
+      shop_id: starken.shop_id,
+      distribution_company_id: 5,
+      shipping_company: 'STARKEN',
+      total_order: starken.total_order,
+      products: [{ id: firstProd.product_id, product_id: firstProd.product_id, quantity: 1, price: starken.total_order }],
+    };
+    try {
+      const resp = await fetch(base + '/integrations/orders/myorders', {
+        method: 'POST', headers, body: JSON.stringify(body)
+      });
+      const txt = await resp.text();
+      let parsed = null;
+      try { parsed = JSON.parse(txt); } catch { parsed = { raw: txt.slice(0, 500) }; }
+      return respond(200, { clonedFrom: starken.id, sentBody: body, httpStatus: resp.status, response: parsed });
+    } catch (err) {
+      return respond(500, { error: err.message });
+    }
+  }
+
   // Modo POST: solo si viene ?post=YES
   if (qs.post === 'YES') {
     const body = {
