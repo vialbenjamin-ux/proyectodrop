@@ -53,6 +53,7 @@ exports.handler = async (event) => {
       name: 'TEST BKDROP',
       surname: 'PROBE STARKEN',
       phone: '999999999',
+      client_email: '',
       dir: 'Prueba API - NO DESPACHAR',
       city: starken.city,
       state: starken.state,
