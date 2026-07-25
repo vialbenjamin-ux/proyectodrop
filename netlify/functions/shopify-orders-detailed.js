@@ -131,6 +131,9 @@ function compact(o) {
     qty: li.quantity || 0,
     price: parseFloat(li.price || 0),
     sku: li.sku || '',
+    // 'barcode' de Shopify = product_id de Dropi (validado 25-jul: el user
+    // pone el ID Dropi en este campo para cada producto).
+    barcode: li.barcode || '',
   }));
 
   return {

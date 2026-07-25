@@ -49,33 +49,50 @@ exports.handler = async (event) => {
     'User-Agent': 'BKDROP-Sync/1.0',
   };
 
-  // 1. Fetch ultimas 200 ordenes Dropi para descubrir product_id + warehouse_id + shop_id
-  //    por SKU/nombre. Es 2 requests paginados (100 x 2).
+  // Modo manual override: si viene forcedProductId en el body, uso ese directo.
+  const forcedProductId = body.forcedProductId ? parseInt(body.forcedProductId, 10) : null;
+  const forcedWarehouseId = body.forcedWarehouseId ? parseInt(body.forcedWarehouseId, 10) : null;
+  const forcedShopId = body.forcedShopId ? parseInt(body.forcedShopId, 10) : null;
+
+  // Cheque previo: si TODOS los items del huerfano ya tienen 'barcode' (que
+  // es el product_id de Dropi), saltamos el fetch de 500 ordenes. Solo
+  // necesitamos buscar warehouse_id + shop_id.
+  const allHaveBarcode = !forcedProductId &&
+    Array.isArray(body.items) &&
+    body.items.length > 0 &&
+    body.items.every(it => it.barcode && /^\d+$/.test(String(it.barcode).trim()));
+
+  // 1. Fetch ultimas 500 ordenes Dropi para descubrir warehouse_id + shop_id
+  //    (skip si vino forcedProductId manual).
   let dropiOrders = [];
-  try {
-    for (let start = 0; start < 200; start += 100) {
-      const listResp = await fetch(
-        'https://api.dropi.cl/integrations/orders/myorders?start=' + start + '&result_number=100',
-        { method: 'GET', headers }
-      );
-      if (!listResp.ok) break;
-      const data = await listResp.json();
-      const objs = data.objects || [];
-      if (objs.length === 0) break;
-      dropiOrders = dropiOrders.concat(objs);
-      // pequeño delay para no gatillar rate limit
-      if (start === 0) await new Promise(r => setTimeout(r, 300));
+  if (!forcedProductId) {
+    try {
+      for (let start = 0; start < 500; start += 100) {
+        const listResp = await fetch(
+          'https://api.dropi.cl/integrations/orders/myorders?start=' + start + '&result_number=100',
+          { method: 'GET', headers }
+        );
+        if (!listResp.ok) break;
+        const data = await listResp.json();
+        const objs = data.objects || [];
+        if (objs.length === 0) break;
+        dropiOrders = dropiOrders.concat(objs);
+        // pequeño delay para no gatillar rate limit
+        await new Promise(r => setTimeout(r, 250));
+      }
+    } catch (err) {
+      return respond(502, { error: 'Fetch ordenes Dropi fallo: ' + err.message });
     }
-  } catch (err) {
-    return respond(502, { error: 'Fetch ordenes Dropi fallo: ' + err.message });
   }
 
-  if (dropiOrders.length === 0) {
+  if (!forcedProductId && dropiOrders.length === 0) {
     return respond(500, { error: 'No se pudo cargar cache Dropi (0 ordenes)' });
   }
 
   // 2. Construir mapa de productos: { sku_o_nombre_normalizado: {product_id, warehouse_id, shop_id} }
+  //    Ademas mapa por productId numerico (para match directo via 'barcode' Shopify).
   const productMap = {};
+  const productMapById = {};   // { productId: {warehouse_id, shop_id} }
   for (const o of dropiOrders) {
     for (const od of (o.orderdetails || [])) {
       const p = od.product;
@@ -87,6 +104,7 @@ exports.handler = async (event) => {
       };
       if (p.sku) productMap[normalize(p.sku)] = info;
       if (p.name) productMap[normalize(p.name)] = info;
+      productMapById[p.id] = { warehouse_id: o.warehouse_id, shop_id: o.shop_id };
     }
   }
 
@@ -95,34 +113,70 @@ exports.handler = async (event) => {
   const unmatched = [];
   let warehouseUsed = null;
   let shopUsed = null;
-  for (const it of body.items) {
-    const skuKey = normalize(it.sku || '');
-    const nameKey = normalize(it.name || '');
-    let match = productMap[skuKey] || productMap[nameKey];
 
-    // Si no hay match exacto, intentar contains (para variantes de nombre)
-    if (!match && nameKey) {
-      for (const [key, info] of Object.entries(productMap)) {
-        if (key.length > 10 && (key.includes(nameKey.slice(0, 15)) || nameKey.includes(key.slice(0, 15)))) {
-          match = info;
-          break;
+  // Si viene forcedProductId, uso ese directo para todos los items
+  if (forcedProductId) {
+    for (const it of body.items) {
+      dropiProducts.push({
+        id: forcedProductId,
+        product_id: forcedProductId,
+        quantity: it.qty || 1,
+        price: it.price || 0,
+      });
+    }
+    warehouseUsed = forcedWarehouseId || 79;  // default RVG si no viene
+    shopUsed = forcedShopId || 152458;
+  } else {
+    for (const it of body.items) {
+      // PRIORIDAD 1: barcode Shopify = product_id Dropi (match directo).
+      const barcode = String(it.barcode || '').trim();
+      if (barcode && /^\d+$/.test(barcode)) {
+        const pid = parseInt(barcode, 10);
+        const wh = productMapById[pid] || {};
+        dropiProducts.push({
+          id: pid,
+          product_id: pid,
+          quantity: it.qty || 1,
+          price: it.price || 0,
+        });
+        if (!warehouseUsed) warehouseUsed = wh.warehouse_id || null;
+        if (!shopUsed) shopUsed = wh.shop_id || null;
+        continue;
+      }
+
+      // PRIORIDAD 2: match por SKU normalizado.
+      const skuKey = normalize(it.sku || '');
+      const nameKey = normalize(it.name || '');
+      let match = productMap[skuKey] || productMap[nameKey];
+
+      // PRIORIDAD 3: match por contains en nombre.
+      if (!match && nameKey) {
+        for (const [key, info] of Object.entries(productMap)) {
+          if (key.length > 10 && (key.includes(nameKey.slice(0, 15)) || nameKey.includes(key.slice(0, 15)))) {
+            match = info;
+            break;
+          }
         }
       }
-    }
 
-    if (!match) {
-      unmatched.push({ sku: it.sku, name: it.name });
-      continue;
+      if (!match) {
+        unmatched.push({ sku: it.sku, name: it.name, barcode: it.barcode });
+        continue;
+      }
+      dropiProducts.push({
+        id: match.product_id,
+        product_id: match.product_id,
+        quantity: it.qty || 1,
+        price: it.price || 0,
+      });
+      if (!warehouseUsed) warehouseUsed = match.warehouse_id;
+      if (!shopUsed) shopUsed = match.shop_id;
     }
-    dropiProducts.push({
-      id: match.product_id,
-      product_id: match.product_id,
-      quantity: it.qty || 1,
-      price: it.price || 0,
-    });
-    if (!warehouseUsed) warehouseUsed = match.warehouse_id;
-    if (!shopUsed) shopUsed = match.shop_id;
   }
+
+  // Fallback warehouse/shop si no se encontraron en cache (raro con match por barcode).
+  if (!warehouseUsed) warehouseUsed = 79;   // RVG default
+  if (!shopUsed) shopUsed = 152458;
 
   if (dropiProducts.length === 0) {
     return respond(400, {
