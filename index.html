@@ -4143,10 +4143,10 @@ async function scanHuerfanos() {
     if (!resp.ok) throw new Error(data.error || ('HTTP ' + resp.status));
     const shopifyOrders = data.orders || [];
 
-    // Filtrar por etiqueta (case insensitive, exact match en la lista de tags)
+    // Filtrar por etiqueta (case insensitive, exact match Y contiene)
     const orphans = shopifyOrders.filter(o => {
-      const tags = String(o.tags || '').toLowerCase().split(',').map(t => t.trim());
-      return tags.some(t => t === tagFilter);
+      const tags = String(o.tags || '').toLowerCase().split(',').map(t => t.trim()).filter(Boolean);
+      return tags.some(t => t === tagFilter || t.includes(tagFilter));
     });
 
     // Sort por fecha desc (mas recientes primero)
@@ -4156,7 +4156,24 @@ async function scanHuerfanos() {
     window._huerData.scannedAt = Date.now();
     renderHuerfanos();
     results.style.display = 'block';
-    statusEl.textContent = `Analisis completo: ${shopifyOrders.length} Shopify (ultimas ${hours}h) · ${orphans.length} con etiqueta "${tagFilter}".`;
+
+    // Debug: si 0 huerfanos, mostrar todas las etiquetas unicas del periodo
+    if (orphans.length === 0) {
+      const tagCounts = {};
+      shopifyOrders.forEach(o => {
+        String(o.tags || '').split(',').forEach(t => {
+          const clean = t.trim();
+          if (clean) tagCounts[clean] = (tagCounts[clean] || 0) + 1;
+        });
+      });
+      const sorted = Object.entries(tagCounts).sort((a, b) => b[1] - a[1]);
+      const debug = sorted.length === 0
+        ? 'Ninguna orden tiene tags. Verifica que tu trigger Shopify este funcionando.'
+        : 'Etiquetas encontradas en el periodo (nombre exacto : cantidad):\n' + sorted.map(([t, c]) => `  "${t}" : ${c}`).join('\n');
+      statusEl.innerHTML = `Analisis completo: ${shopifyOrders.length} Shopify · <b>0 con "${tagFilter}"</b><br><pre style="white-space:pre-wrap;font-size:10px;margin:8px 0 0 0;background:var(--surface2);padding:8px;border-radius:4px">${debug}</pre>`;
+    } else {
+      statusEl.textContent = `Analisis completo: ${shopifyOrders.length} Shopify (ultimas ${hours}h) · ${orphans.length} con etiqueta "${tagFilter}".`;
+    }
   } catch (err) {
     statusEl.textContent = 'Error: ' + (err.message || String(err));
     console.error(err);
