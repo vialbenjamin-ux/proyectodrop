@@ -4290,8 +4290,11 @@ async function createHuerfanoInDropi(idx) {
     const data = await resp.json();
     if (!resp.ok || !data.ok) {
       const errText = data.error || ('HTTP ' + resp.status);
-      const unmatched = data.unmatched ? '\n\nProductos no encontrados en Dropi:\n' + data.unmatched.map(u => '- ' + (u.sku || u.name)).join('\n') : '';
-      alert('❌ Error creando en Dropi: ' + errText + unmatched);
+      // Detalle real de Dropi (mensaje descriptivo con motivo del rechazo)
+      const dropiMsg = data.detail && (data.detail.message || data.detail.data_error || data.detail.error) ? String(data.detail.message || data.detail.data_error || data.detail.error) : '';
+      const unmatched = data.unmatched && data.unmatched.length > 0 ? '\n\nProductos no encontrados:\n' + data.unmatched.map(u => '- ' + (u.sku || u.name || u.barcode)).join('\n') : '';
+      const fullMsg = '❌ ' + errText + (dropiMsg ? '\n\n📋 Dropi dice:\n' + dropiMsg : '') + unmatched;
+      alert(fullMsg);
       throw new Error(errText);
     }
 

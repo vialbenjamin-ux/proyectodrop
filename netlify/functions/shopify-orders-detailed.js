@@ -160,6 +160,11 @@ function compact(o) {
     || (ship.province && ship.province.length > 4 ? ship.province.toUpperCase() : '')
     || regionRaw.toUpperCase();
 
+  // City cleanup: Releasit a veces trae "SECTOR - COMUNA" (ej "PLACILLA - V DEL MAR").
+  // Dropi solo reconoce la comuna real. Tomamos la ULTIMA parte del split y
+  // aplicamos alias comunes.
+  const cityCleaned = cleanCityForDropi(cityRaw);
+
   const lineItems = (o.line_items || []).map(li => ({
     name: li.title || '',
     variant: (li.variant_title && li.variant_title !== 'Default Title') ? li.variant_title : '',
@@ -186,7 +191,8 @@ function compact(o) {
     phone_raw: String(phoneRaw || ''),
     email: cust.email || o.contact_email || '',
     address: addressRaw,
-    city: cityRaw.toUpperCase(),
+    city: cityCleaned,
+    city_raw: cityRaw.toUpperCase(),
     province: regionDropi,
     province_raw: regionRaw,
     zip: ship.zip || '',
@@ -196,6 +202,36 @@ function compact(o) {
     tags: String(o.tags || ''),
     note: String(o.note || '').slice(0, 300),
   };
+}
+
+// Alias de comunas: Releasit COD Form a veces trae "SECTOR - COMUNA" o
+// abreviaciones. Este mapa transforma a la comuna oficial que Dropi acepta.
+const CITY_ALIASES = {
+  'V DEL MAR': 'VINA DEL MAR',
+  'VDELMAR': 'VINA DEL MAR',
+  'VIÑA DEL MAR': 'VINA DEL MAR',
+  'VINA': 'VINA DEL MAR',
+  'CONCE': 'CONCEPCION',
+  'CONCEPCIÓN': 'CONCEPCION',
+  'VALPO': 'VALPARAISO',
+  'VALPARAÍSO': 'VALPARAISO',
+  'STGO': 'SANTIAGO',
+  'SGTO': 'SANTIAGO',
+};
+
+function cleanCityForDropi(raw) {
+  if (!raw) return '';
+  let s = String(raw).toUpperCase().trim();
+  // Si viene "SECTOR - COMUNA" quedarnos con la ultima parte
+  if (s.includes(' - ')) {
+    const parts = s.split(' - ').map(p => p.trim()).filter(Boolean);
+    s = parts[parts.length - 1];
+  }
+  // Aplicar alias
+  if (CITY_ALIASES[s]) s = CITY_ALIASES[s];
+  // Quitar acentos
+  s = s.normalize('NFD').replace(/[̀-ͯ]/g, '');
+  return s;
 }
 
 function normalizePhone(p) {
