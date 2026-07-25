@@ -4123,6 +4123,23 @@ async function initHuerfanos() {
   const el = document.getElementById('huer-scan-status');
   if (!el) return;
   el.textContent = 'Aprieta "Buscar huerfanos" para traer ordenes Shopify con la etiqueta configurada.';
+  // Precargar cache de huerfanos ya creados (para filtrar duplicados)
+  await loadCreatedHuerfanos();
+}
+
+window._createdHuerfanos = null;
+async function loadCreatedHuerfanos() {
+  if (typeof firebase === 'undefined' || !firebase.firestore) { window._createdHuerfanos = {}; return; }
+  try {
+    const db = firebase.firestore();
+    const snap = await db.collection('bkdrop_huerfanos_created').get();
+    const map = {};
+    snap.forEach(doc => { map[doc.id] = doc.data(); });
+    window._createdHuerfanos = map;
+  } catch (e) {
+    console.warn('[huerfanos] load created fail:', e);
+    window._createdHuerfanos = {};
+  }
 }
 
 async function scanHuerfanos() {
@@ -4144,9 +4161,16 @@ async function scanHuerfanos() {
     const shopifyOrders = data.orders || [];
 
     // Filtrar por etiqueta (case insensitive, exact match Y contiene)
+    // Ademas filtrar los que YA fueron creados en Dropi via BKDROP (no repetir)
+    await loadCreatedHuerfanos();
+    const createdMap = window._createdHuerfanos || {};
     const orphans = shopifyOrders.filter(o => {
       const tags = String(o.tags || '').toLowerCase().split(',').map(t => t.trim()).filter(Boolean);
-      return tags.some(t => t === tagFilter || t.includes(tagFilter));
+      const hasTag = tags.some(t => t === tagFilter || t.includes(tagFilter));
+      if (!hasTag) return false;
+      const shopifyKey = String(o.name || '').replace(/^#/, '');
+      if (createdMap[shopifyKey]) return false; // ya creado, no lo mostramos
+      return true;
     });
 
     // Sort por fecha desc (mas recientes primero)
@@ -4203,13 +4227,16 @@ function renderHuerfanos() {
     ).join('<br>');
     const created = new Date(o.created_at).toLocaleString('es-CL', { timeZone: 'America/Santiago' });
     const ageHrs = ((Date.now() - new Date(o.created_at).getTime()) / 3600000).toFixed(1);
-    return `<div style="background:var(--surface);border:1.5px solid #FF9800;border-radius:10px;padding:14px">
+    return `<div id="huer-card-${idx}" style="background:var(--surface);border:1.5px solid #FF9800;border-radius:10px;padding:14px">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:10px">
         <div>
           <div style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:14px;color:var(--text)">${escapeHtml(o.name)} · ${escapeHtml(o.customer_name || '(sin nombre)')}</div>
           <div style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">${created} · hace ${ageHrs}h · ${escapeHtml(o.financial_status || '?')}</div>
         </div>
-        <button onclick="copyHuerfanoData(${idx})" style="background:#FF9800;color:#fff;border:none;border-radius:6px;padding:6px 14px;font-size:11px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer;white-space:nowrap">📋 Copiar datos</button>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
+          <button onclick="copyHuerfanoData(${idx})" style="background:transparent;color:#FF9800;border:1px solid #FF9800;border-radius:6px;padding:5px 10px;font-size:10px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer;white-space:nowrap">📋 Copiar</button>
+          <button onclick="createHuerfanoInDropi(${idx})" id="huer-create-btn-${idx}" style="background:#2b7a2b;color:#fff;border:none;border-radius:6px;padding:5px 12px;font-size:11px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer;white-space:nowrap">⚡ Crear en Dropi</button>
+        </div>
       </div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px;font-size:11px;font-family:'DM Mono',monospace;color:var(--text);background:var(--surface2);padding:10px;border-radius:6px">
         <div><span style="color:var(--muted)">Tel:</span> ${escapeHtml(o.phone_raw || '(sin)')}</div>
@@ -4221,6 +4248,87 @@ function renderHuerfanos() {
       </div>
     </div>`;
   }).join('');
+}
+
+async function createHuerfanoInDropi(idx) {
+  const o = window._huerData.orphans[idx];
+  if (!o) return;
+  const btn = document.getElementById('huer-create-btn-' + idx);
+  const card = document.getElementById('huer-card-' + idx);
+  if (!btn) return;
+
+  // Doble confirmacion breve (crea en Dropi = plata en juego)
+  const money = (o.total || 0).toLocaleString('es-CL');
+  const msg = `Crear pedido en Dropi:\n\n` +
+    `${o.name} · ${o.customer_name || '(sin nombre)'}\n` +
+    `Tel: ${o.phone_raw || o.phone}\n` +
+    `Comuna: ${o.city} · ${o.province}\n` +
+    `Monto: $${money}\n\n` +
+    `Se creara en PENDIENTE CONFIRMACION.\n¿Confirmar?`;
+  if (!confirm(msg)) return;
+
+  btn.disabled = true;
+  btn.textContent = 'Creando...';
+  btn.style.opacity = '0.6';
+
+  try {
+    const payload = {
+      name: o.customer_name || 'Cliente',
+      phone: o.phone_raw || o.phone,
+      email: o.email || '',
+      dir: o.address,
+      city: o.city,
+      state: o.province,
+      items: (o.items || []).map(it => ({ sku: it.sku, name: it.name, qty: it.qty, price: it.price })),
+      total: o.total,
+      notes: 'Creado desde BKDROP · Shopify ' + o.name,
+    };
+    const resp = await fetch('/.netlify/functions/dropi-create-order', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(payload),
+    });
+    const data = await resp.json();
+    if (!resp.ok || !data.ok) {
+      const errText = data.error || ('HTTP ' + resp.status);
+      const unmatched = data.unmatched ? '\n\nProductos no encontrados en Dropi:\n' + data.unmatched.map(u => '- ' + (u.sku || u.name)).join('\n') : '';
+      alert('❌ Error creando en Dropi: ' + errText + unmatched);
+      throw new Error(errText);
+    }
+
+    // Guardar en Firestore para no repetir en scans futuros
+    const shopifyKey = String(o.name || '').replace(/^#/, '');
+    try {
+      const db = firebase.firestore();
+      await db.collection('bkdrop_huerfanos_created').doc(shopifyKey).set({
+        shopifyName: o.name,
+        dropiOrderId: data.dropiOrderId || null,
+        warehouseUsed: data.warehouseUsed || null,
+        customerName: o.customer_name,
+        total: o.total,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      });
+      if (!window._createdHuerfanos) window._createdHuerfanos = {};
+      window._createdHuerfanos[shopifyKey] = { shopifyName: o.name, dropiOrderId: data.dropiOrderId };
+    } catch (e) {
+      console.warn('[huerfanos] no se pudo marcar como creado en Firestore:', e);
+    }
+
+    // UI: cambiar tarjeta a verde con checkmark
+    if (card) {
+      card.style.borderColor = '#2b7a2b';
+      card.style.background = 'rgba(43,122,43,0.05)';
+    }
+    btn.textContent = '✅ Creada #' + (data.dropiOrderId || '?');
+    btn.style.background = '#2b7a2b';
+    btn.disabled = true;
+    btn.style.opacity = '1';
+    if (typeof showToast === 'function') showToast(`Huerfano creado: ${o.name} → Dropi #${data.dropiOrderId || '?'}`, '⚡', 'ok');
+  } catch (e) {
+    btn.disabled = false;
+    btn.textContent = '⚡ Crear en Dropi';
+    btn.style.opacity = '1';
+    console.error('[huerfanos] create fail:', e);
+  }
 }
 
 async function copyHuerfanoData(idx) {
