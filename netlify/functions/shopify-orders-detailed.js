@@ -67,10 +67,64 @@ exports.handler = async function (event) {
   });
 };
 
+// Codigos de region Chile (Shopify usa ISO abreviado) → nombre formal Dropi
+const REGION_CODE_TO_DROPI = {
+  'RM': 'METROPOLITANA DE SANTIAGO',
+  'BI': 'BIO - BIO',
+  'BB': 'BIO - BIO',
+  'VS': 'VALPARAISO',
+  'ML': 'MAULE',
+  'AR': 'ARAUCANIA',
+  'LL': 'LOS LAGOS',
+  'LR': 'LOS RIOS',
+  'NB': 'NUBLE',
+  'CO': 'COQUIMBO',
+  'AT': 'ATACAMA',
+  'AN': 'ANTOFAGASTA',
+  'TA': 'TARAPACA',
+  'AP': 'ARICA Y PARINACOTA',
+  'LI': 'OHIGGINS',
+  'AI': 'AISEN DEL GENERAL CARLOS',
+  'MA': 'MAGALLANES Y LA ANTARTICA',
+};
+
+// Busca en note_attributes por cualquiera de las claves (case-insensitive, contains)
+function findAttr(attrs, patterns) {
+  if (!Array.isArray(attrs)) return '';
+  for (const a of attrs) {
+    const name = String(a.name || '').toLowerCase().trim();
+    for (const p of patterns) {
+      if (name === p.toLowerCase() || name.includes(p.toLowerCase())) {
+        return String(a.value || '').trim();
+      }
+    }
+  }
+  return '';
+}
+
 function compact(o) {
   const cust = o.customer || {};
   const ship = o.shipping_address || o.billing_address || {};
-  const phoneRaw = ship.phone || cust.phone || o.phone || (o.billing_address && o.billing_address.phone) || '';
+  const attrs = o.note_attributes || [];
+
+  // Datos del Releasit COD Form (viven en note_attributes)
+  const attrName    = findAttr(attrs, ['nombre y apellido', 'nombre completo', 'nombre']);
+  const attrPhone   = findAttr(attrs, ['telefono', 'teléfono', 'whatsapp', 'phone']);
+  const attrAddress = findAttr(attrs, ['direccion completa', 'dirección completa', 'direccion', 'dirección', 'address']);
+  const attrCity    = findAttr(attrs, ['comuna', 'city', 'ciudad']);
+  const attrRegion  = findAttr(attrs, ['region', 'región', 'departamento', 'state']);
+
+  // Fallback: shipping_address estandar
+  const phoneRaw = attrPhone || ship.phone || cust.phone || o.phone || '';
+  const nameRaw = attrName || [cust.first_name, cust.last_name].filter(Boolean).join(' ') || [ship.first_name, ship.last_name].filter(Boolean).join(' ');
+  const addressRaw = attrAddress || [ship.address1, ship.address2].filter(Boolean).join(' - ');
+  const cityRaw = attrCity || ship.city || '';
+  // Region: si es codigo (2 chars) mapeamos a nombre Dropi
+  const regionRaw = attrRegion || ship.province_code || ship.province || '';
+  const regionDropi = (regionRaw && regionRaw.length <= 3 && REGION_CODE_TO_DROPI[regionRaw.toUpperCase()])
+    || (ship.province && ship.province.length > 4 ? ship.province.toUpperCase() : '')
+    || regionRaw.toUpperCase();
+
   const lineItems = (o.line_items || []).map(li => ({
     name: li.title || '',
     variant: (li.variant_title && li.variant_title !== 'Default Title') ? li.variant_title : '',
@@ -78,6 +132,7 @@ function compact(o) {
     price: parseFloat(li.price || 0),
     sku: li.sku || '',
   }));
+
   return {
     id: o.id,
     name: o.name,
@@ -85,19 +140,20 @@ function compact(o) {
     financial_status: o.financial_status,
     total: parseFloat(o.total_price || 0),
     subtotal: parseFloat(o.current_subtotal_price || 0),
-    customer_name: [cust.first_name, cust.last_name].filter(Boolean).join(' ') || (ship.first_name || '') + ' ' + (ship.last_name || ''),
+    customer_name: nameRaw,
     phone: normalizePhone(phoneRaw),
     phone_raw: String(phoneRaw || ''),
     email: cust.email || o.contact_email || '',
-    address: [ship.address1, ship.address2].filter(Boolean).join(' - '),
-    city: ship.city || '',
-    province: ship.province || '',
+    address: addressRaw,
+    city: cityRaw.toUpperCase(),
+    province: regionDropi,
+    province_raw: regionRaw,
     zip: ship.zip || '',
-    country: ship.country || '',
+    country: ship.country || 'Chile',
     items: lineItems,
     source: (o.source_name || '').toLowerCase(),
     tags: String(o.tags || ''),
-    note: String(o.note || ''),
+    note: String(o.note || '').slice(0, 300),
   };
 }
 
