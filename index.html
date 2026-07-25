@@ -4321,7 +4321,7 @@ async function createHuerfanoInDropi(idx) {
       card.style.borderColor = '#2b7a2b';
       card.style.background = 'rgba(43,122,43,0.05)';
     }
-    btn.textContent = '✅ Creada #' + (data.dropiOrderId || '?');
+    btn.textContent = data.dropiOrderId ? '✅ Creada #' + data.dropiOrderId : '✅ Creada';
     btn.style.background = '#2b7a2b';
     btn.disabled = true;
     btn.style.opacity = '1';
