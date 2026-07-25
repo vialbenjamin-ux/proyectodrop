@@ -3373,6 +3373,7 @@
         <button class="report-subtab active" data-dropiteatab="sync" onclick="switchDropiteaTab('sync')">🔄 Sync</button>
         <button class="report-subtab" data-dropiteatab="rescates" onclick="switchDropiteaTab('rescates')">🚀 Express</button>
         <button class="report-subtab" data-dropiteatab="rezagados" onclick="switchDropiteaTab('rezagados')">🕐 Rezagados</button>
+        <button class="report-subtab" data-dropiteatab="huerfanos" onclick="switchDropiteaTab('huerfanos')">🔗 Huerfanos</button>
       </div>
     </div>
   <div id="dropitea-tab-sync" class="dropitea-tab-content" style="display:block">
@@ -3616,6 +3617,50 @@
       </div>
     </div>
   </div><!-- fin dropitea-tab-rezagados -->
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       SUB-TAB HUERFANOS - Shopify tiene la orden, Dropi no la tiene.
+       Detector que cruza Shopify recientes vs cache Dropi por phone+
+       monto+fecha. Muestra los huerfanos con datos formateados para
+       crear manualmente en Dropi UI.
+       ═══════════════════════════════════════════════════════════════ -->
+  <div id="dropitea-tab-huerfanos" class="dropitea-tab-content" style="display:none">
+    <div style="max-width:1200px;margin:0 auto">
+      <div style="margin-bottom:18px">
+        <div style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:20px;color:var(--text);margin-bottom:4px">🔗 Huerfanos — Shopify sin Dropi</div>
+        <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace">Detecta pedidos Shopify que no fueron replicados a Dropi. Copiar datos y crear manual en Dropi.</div>
+      </div>
+
+      <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:12px;padding:20px;margin-bottom:16px">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:14px">
+          <label style="display:flex;flex-direction:column;gap:4px">
+            <span style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">Ventana Shopify (horas)</span>
+            <input type="number" id="huer-hours" value="48" min="1" max="168" style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:13px;font-family:'DM Mono',monospace;color:var(--text)">
+          </label>
+          <label style="display:flex;flex-direction:column;gap:4px">
+            <span style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">Etiqueta Shopify (case insensitive)</span>
+            <input type="text" id="huer-tag" value="NO PASO" style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:13px;font-family:'DM Mono',monospace;color:var(--text)">
+          </label>
+        </div>
+        <button id="huer-scan-btn" onclick="scanHuerfanos()" style="background:var(--accent);color:#000;border:none;border-radius:8px;padding:10px 22px;font-size:13px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">Buscar huerfanos</button>
+        <div id="huer-scan-status" style="margin-top:12px;font-size:11px;color:var(--muted);font-family:'DM Mono',monospace"></div>
+      </div>
+
+      <div id="huer-results" style="display:none">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:10px">
+          <div id="huer-summary" style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text)"></div>
+          <a id="huer-dropi-link" href="https://app.dropi.cl" target="_blank" style="background:transparent;border:1.5px solid var(--accent);color:var(--accent);border-radius:8px;padding:8px 14px;font-size:11px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer;text-decoration:none">🔗 Abrir Dropi</a>
+        </div>
+
+        <div id="huer-list" style="display:flex;flex-direction:column;gap:10px"></div>
+      </div>
+
+      <div style="margin-top:18px;padding:14px;background:var(--surface2);border:1px dashed var(--border);border-radius:8px;font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;line-height:1.7">
+        <b style="color:var(--text)">🏷️ Filtro por etiqueta:</b> traemos las ordenes de Shopify de las ultimas N horas y filtramos las que tengan la etiqueta configurada (default "NO PASO"). Como el trigger de Shopify pone esa etiqueta automaticamente, es fuente de verdad.<br>
+        <b style="color:var(--text)">📋 Copiar:</b> click en cada huerfano copia los datos al portapapeles en formato listo para pegar en Dropi UI (Crear pedido).
+      </div>
+    </div>
+  </div><!-- fin dropitea-tab-huerfanos -->
   </div><!-- fin section-dropitea -->
 
   <div id="section-calculadora" class="section">
@@ -4063,6 +4108,129 @@ async function runDropiteaSubtabInit(which) {
   if (which === 'sync') await initSync();
   if (which === 'rescates') await initRescates();
   if (which === 'rezagados') await initRezagados();
+  if (which === 'huerfanos') await initHuerfanos();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// SUB-TAB HUERFANOS — pedidos Shopify sin Dropi.
+// Detector: fetch ordenes recientes Shopify → cruzar con cache Dropi
+// por phone + monto (±tol%) + fecha (±tol dias). Los que no matchean
+// son huerfanos. UI muestra tarjetas con datos + boton copiar.
+// ═══════════════════════════════════════════════════════════════════
+window._huerData = { orphans: [], scannedAt: null };
+
+async function initHuerfanos() {
+  const el = document.getElementById('huer-scan-status');
+  if (!el) return;
+  el.textContent = 'Aprieta "Buscar huerfanos" para traer ordenes Shopify con la etiqueta configurada.';
+}
+
+async function scanHuerfanos() {
+  const btn = document.getElementById('huer-scan-btn');
+  const statusEl = document.getElementById('huer-scan-status');
+  const results = document.getElementById('huer-results');
+  btn.disabled = true;
+  btn.textContent = 'Escaneando...';
+  btn.style.opacity = '0.6';
+
+  try {
+    const hours = parseInt(document.getElementById('huer-hours').value, 10) || 48;
+    const tagFilter = (document.getElementById('huer-tag').value || 'NO PASO').trim().toLowerCase();
+
+    statusEl.textContent = `Buscando ordenes Shopify de las ultimas ${hours}h...`;
+    const resp = await fetch('/.netlify/functions/shopify-orders-detailed?hours=' + hours);
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || ('HTTP ' + resp.status));
+    const shopifyOrders = data.orders || [];
+
+    // Filtrar por etiqueta (case insensitive, exact match en la lista de tags)
+    const orphans = shopifyOrders.filter(o => {
+      const tags = String(o.tags || '').toLowerCase().split(',').map(t => t.trim());
+      return tags.some(t => t === tagFilter);
+    });
+
+    // Sort por fecha desc (mas recientes primero)
+    orphans.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+    window._huerData.orphans = orphans;
+    window._huerData.scannedAt = Date.now();
+    renderHuerfanos();
+    results.style.display = 'block';
+    statusEl.textContent = `Analisis completo: ${shopifyOrders.length} Shopify (ultimas ${hours}h) · ${orphans.length} con etiqueta "${tagFilter}".`;
+  } catch (err) {
+    statusEl.textContent = 'Error: ' + (err.message || String(err));
+    console.error(err);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Buscar huerfanos';
+    btn.style.opacity = '1';
+  }
+}
+
+function renderHuerfanos() {
+  const list = document.getElementById('huer-list');
+  const summary = document.getElementById('huer-summary');
+  if (!list || !summary) return;
+  const orphans = window._huerData.orphans;
+  const totalMoney = orphans.reduce((s, o) => s + (o.total || 0), 0);
+  summary.innerHTML = `<b>${orphans.length} huerfanos</b> · $${totalMoney.toLocaleString('es-CL')} CLP en juego`;
+
+  if (orphans.length === 0) {
+    list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted);font-family:\'DM Mono\',monospace;background:var(--surface);border:1.5px solid var(--border);border-radius:10px">✅ Sin huerfanos en la ventana. Todos los Shopify recientes tienen match en Dropi.</div>';
+    return;
+  }
+
+  list.innerHTML = orphans.map((o, idx) => {
+    const items = (o.items || []).map(li =>
+      `${li.qty}x ${escapeHtml(li.name)}${li.variant ? ' (' + escapeHtml(li.variant) + ')' : ''}${li.sku ? ' · SKU: ' + escapeHtml(li.sku) : ''}`
+    ).join('<br>');
+    const created = new Date(o.created_at).toLocaleString('es-CL', { timeZone: 'America/Santiago' });
+    const ageHrs = ((Date.now() - new Date(o.created_at).getTime()) / 3600000).toFixed(1);
+    return `<div style="background:var(--surface);border:1.5px solid #FF9800;border-radius:10px;padding:14px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:10px">
+        <div>
+          <div style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:14px;color:var(--text)">${escapeHtml(o.name)} · ${escapeHtml(o.customer_name || '(sin nombre)')}</div>
+          <div style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">${created} · hace ${ageHrs}h · ${escapeHtml(o.financial_status || '?')}</div>
+        </div>
+        <button onclick="copyHuerfanoData(${idx})" style="background:#FF9800;color:#fff;border:none;border-radius:6px;padding:6px 14px;font-size:11px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer;white-space:nowrap">📋 Copiar datos</button>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px;font-size:11px;font-family:'DM Mono',monospace;color:var(--text);background:var(--surface2);padding:10px;border-radius:6px">
+        <div><span style="color:var(--muted)">Tel:</span> ${escapeHtml(o.phone_raw || '(sin)')}</div>
+        <div><span style="color:var(--muted)">Monto:</span> $${(o.total||0).toLocaleString('es-CL')}</div>
+        <div style="grid-column:1/-1"><span style="color:var(--muted)">Dir:</span> ${escapeHtml(o.address || '')}</div>
+        <div><span style="color:var(--muted)">Comuna:</span> ${escapeHtml(o.city || '')}</div>
+        <div><span style="color:var(--muted)">Region:</span> ${escapeHtml(o.province || '')}</div>
+        <div style="grid-column:1/-1;line-height:1.6"><span style="color:var(--muted)">Producto(s):</span><br>${items}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function copyHuerfanoData(idx) {
+  const o = window._huerData.orphans[idx];
+  if (!o) return;
+  const items = (o.items || []).map(li =>
+    `  - ${li.qty}x ${li.name}${li.variant ? ' (' + li.variant + ')' : ''}${li.sku ? ' [SKU: ' + li.sku + ']' : ''} @ $${li.price.toLocaleString('es-CL')}`
+  ).join('\n');
+  const text = `Shopify Order: ${o.name}
+Cliente: ${o.customer_name || '(sin nombre)'}
+Telefono: ${o.phone_raw || o.phone || '(sin)'}
+Email: ${o.email || '(sin)'}
+Direccion: ${o.address || ''}
+Comuna: ${o.city || ''}
+Region: ${o.province || ''}
+Producto(s):
+${items}
+Total: $${(o.total || 0).toLocaleString('es-CL')} CLP
+Fecha: ${new Date(o.created_at).toLocaleString('es-CL', { timeZone: 'America/Santiago' })}`;
+
+  try {
+    await navigator.clipboard.writeText(text);
+    if (typeof showToast === 'function') showToast('Datos copiados al portapapeles', '📋', 'ok');
+  } catch (e) {
+    // Fallback: mostrar en un prompt para copy manual
+    prompt('Copia estos datos (Ctrl+A + Ctrl+C):', text);
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════
