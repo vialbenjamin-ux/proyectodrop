@@ -38,11 +38,10 @@ exports.handler = async function (event) {
 
   const allOrders = [];
   let pageUrl = url;
+  const shopifyHeaders = { 'X-Shopify-Access-Token': token, 'Content-Type': 'application/json' };
   try {
     while (pageUrl) {
-      const resp = await fetch(pageUrl, {
-        headers: { 'X-Shopify-Access-Token': token, 'Content-Type': 'application/json' }
-      });
+      const resp = await fetch(pageUrl, { headers: shopifyHeaders });
       if (!resp.ok) return respond(502, { error: 'Shopify ' + resp.status });
       const data = await resp.json();
       for (const o of (data.orders || [])) {
@@ -58,9 +57,45 @@ exports.handler = async function (event) {
     return respond(502, { error: 'Fetch fail: ' + (err.message || 'unknown') });
   }
 
+  // Enriquecer con barcode de cada variant. Shopify NO trae li.barcode
+  // en el line_item por default - hay que hacer lookup por variant_id.
+  // Solo miramos ordenes con etiqueta "Dropi Sync Error" (los huerfanos)
+  // para no gastar rate limit consultando variants de ordenes que ya paso.
+  const dropiSyncErr = allOrders.filter(o => (o.tags || '').toLowerCase().includes('dropi sync error'));
+  const variantIds = new Set();
+  for (const o of dropiSyncErr) {
+    for (const it of (o.items || [])) {
+      if (it.variant_id && !it.barcode) variantIds.add(it.variant_id);
+    }
+  }
+  const variantBarcodes = {};
+  for (const vid of variantIds) {
+    try {
+      const vResp = await fetch(
+        'https://' + domain + '/admin/api/2024-10/variants/' + vid + '.json',
+        { headers: shopifyHeaders }
+      );
+      if (vResp.ok) {
+        const vData = await vResp.json();
+        if (vData.variant && vData.variant.barcode) {
+          variantBarcodes[vid] = String(vData.variant.barcode).trim();
+        }
+      }
+    } catch (_) {}
+  }
+  // Aplicar barcodes
+  for (const o of allOrders) {
+    for (const it of (o.items || [])) {
+      if (!it.barcode && it.variant_id && variantBarcodes[it.variant_id]) {
+        it.barcode = variantBarcodes[it.variant_id];
+      }
+    }
+  }
+
   return respond(200, {
     orders: allOrders,
     count: allOrders.length,
+    variantsLookedUp: variantIds.size,
     hours,
     sinceUTC: sinceUTC.toISOString(),
     fetchedAt: new Date().toISOString(),
@@ -131,8 +166,11 @@ function compact(o) {
     qty: li.quantity || 0,
     price: parseFloat(li.price || 0),
     sku: li.sku || '',
+    variant_id: li.variant_id || null,
     // 'barcode' de Shopify = product_id de Dropi (validado 25-jul: el user
-    // pone el ID Dropi en este campo para cada producto).
+    // pone el ID Dropi en este campo para cada producto). El endpoint
+    // enriquece este campo con lookup a /variants/{id}.json si viene vacio
+    // del line_item.
     barcode: li.barcode || '',
   }));
 
