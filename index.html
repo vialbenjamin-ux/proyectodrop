@@ -4279,7 +4279,7 @@ async function createHuerfanoInDropi(idx) {
       dir: o.address,
       city: o.city,
       state: o.province,
-      items: (o.items || []).map(it => ({ sku: it.sku, name: it.name, qty: it.qty, price: it.price })),
+      items: (o.items || []).map(it => ({ sku: it.sku, name: it.name, qty: it.qty, price: it.price, barcode: it.barcode })),
       total: o.total,
       notes: 'Creado desde BKDROP · Shopify ' + o.name,
     };
