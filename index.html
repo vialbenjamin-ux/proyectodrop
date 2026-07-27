@@ -3374,6 +3374,7 @@
         <button class="report-subtab" data-dropiteatab="rescates" onclick="switchDropiteaTab('rescates')">🚀 Express</button>
         <button class="report-subtab" data-dropiteatab="rezagados" onclick="switchDropiteaTab('rezagados')">🕐 Rezagados</button>
         <button class="report-subtab" data-dropiteatab="huerfanos" onclick="switchDropiteaTab('huerfanos')">🔗 Huerfanos</button>
+        <button class="report-subtab" data-dropiteatab="atascados" onclick="switchDropiteaTab('atascados')">⏱️ Atascados</button>
       </div>
     </div>
   <div id="dropitea-tab-sync" class="dropitea-tab-content" style="display:block">
@@ -3666,6 +3667,81 @@
       </div>
     </div>
   </div><!-- fin dropitea-tab-huerfanos -->
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       SUB-TAB ATASCADOS - pedidos que llevan N dias en PENDIENTE o
+       GUIA GENERADA. Sirve para pedir indemnizacion al proveedor que
+       no despacho a tiempo.
+       ═══════════════════════════════════════════════════════════════ -->
+  <div id="dropitea-tab-atascados" class="dropitea-tab-content" style="display:none">
+    <div style="max-width:1200px;margin:0 auto">
+      <div style="margin-bottom:18px">
+        <div style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:20px;color:var(--text);margin-bottom:4px">⏱️ Atascados — Indemnizacion proveedor</div>
+        <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace">Pedidos en PENDIENTE o GUIA GENERADA que llevan >N dias · para pedir indemnizacion al que no despacho</div>
+      </div>
+
+      <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:12px;padding:20px;margin-bottom:16px">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:14px">
+          <label style="display:flex;flex-direction:column;gap:4px">
+            <span style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">Dias min sin mover</span>
+            <input type="number" id="atas-min-days" value="4" min="1" max="60" style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:13px;font-family:'DM Mono',monospace;color:var(--text)">
+          </label>
+          <label style="display:flex;flex-direction:column;gap:4px">
+            <span style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">Incluir status</span>
+            <div style="display:flex;gap:12px;padding-top:8px;flex-wrap:wrap">
+              <label style="display:flex;align-items:center;gap:4px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer">
+                <input type="checkbox" id="atas-status-pendiente" checked> PENDIENTE
+              </label>
+              <label style="display:flex;align-items:center;gap:4px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer">
+                <input type="checkbox" id="atas-status-guia" checked> GUIA GENERADA
+              </label>
+            </div>
+          </label>
+        </div>
+        <button id="atas-scan-btn" onclick="scanAtascados()" style="background:var(--accent);color:#000;border:none;border-radius:8px;padding:10px 22px;font-size:13px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">Buscar atascados</button>
+        <div id="atas-scan-status" style="margin-top:12px;font-size:11px;color:var(--muted);font-family:'DM Mono',monospace"></div>
+      </div>
+
+      <div id="atas-results" style="display:none">
+        <!-- Tarjetas resumen por transportadora -->
+        <div id="atas-by-carrier" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-bottom:16px"></div>
+
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:10px">
+          <div id="atas-summary" style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text)"></div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <select id="atas-filter-carrier" onchange="renderAtascadosTable()" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:6px 10px;border-radius:8px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer">
+              <option value="">Todas las transportadoras</option>
+            </select>
+            <button onclick="copyAtascadosTable()" style="background:transparent;color:#FF9800;border:1.5px solid #FF9800;border-radius:8px;padding:7px 14px;font-size:11px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">📋 Copiar tabla</button>
+            <button onclick="exportAtascadosCSV()" style="background:#2b7a2b;color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:11px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">📥 Exportar Excel</button>
+          </div>
+        </div>
+
+        <div style="overflow-x:auto;background:var(--surface);border:1.5px solid var(--border);border-radius:10px">
+          <table id="atas-table" style="width:100%;border-collapse:collapse;font-family:'DM Mono',monospace;font-size:11px">
+            <thead>
+              <tr style="background:var(--surface2);border-bottom:1.5px solid var(--border)">
+                <th style="padding:10px 8px;text-align:left">Orden</th>
+                <th style="padding:10px 8px;text-align:left">Cliente</th>
+                <th style="padding:10px 8px;text-align:left">Comuna</th>
+                <th style="padding:10px 8px;text-align:left">Transportadora</th>
+                <th style="padding:10px 8px;text-align:left">Guia</th>
+                <th style="padding:10px 8px;text-align:left">Status</th>
+                <th style="padding:10px 8px;text-align:center">Creada</th>
+                <th style="padding:10px 8px;text-align:center">Edad</th>
+                <th style="padding:10px 8px;text-align:right">Total</th>
+              </tr>
+            </thead>
+            <tbody id="atas-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div style="margin-top:18px;padding:14px;background:var(--surface2);border:1px dashed var(--border);border-radius:8px;font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;line-height:1.7">
+        <b style="color:var(--text)">💡 Uso:</b> las tarjetas resumen muestran cuantas ordenes y cuanta plata debe cada transportadora si no despacha. La tabla es filtrable y exportable a CSV para enviarla al proveedor con el reclamo de indemnizacion.
+      </div>
+    </div>
+  </div><!-- fin dropitea-tab-atascados -->
   </div><!-- fin section-dropitea -->
 
   <div id="section-calculadora" class="section">
@@ -4114,6 +4190,207 @@ async function runDropiteaSubtabInit(which) {
   if (which === 'rescates') await initRescates();
   if (which === 'rezagados') await initRezagados();
   if (which === 'huerfanos') await initHuerfanos();
+  if (which === 'atascados') await initAtascados();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// SUB-TAB ATASCADOS — pedidos en PENDIENTE o GUIA GENERADA por >N dias
+// Sirve para reclamar indemnizacion al proveedor que no despacho.
+// ═══════════════════════════════════════════════════════════════════
+window._atasData = { rows: [], byCarrier: {}, scannedAt: null };
+
+async function initAtascados() {
+  const el = document.getElementById('atas-scan-status');
+  if (!el) return;
+  if (!window._expressData || window._expressData.allOrders.length === 0) {
+    el.textContent = 'Cache Dropi vacio. Anda a Sync y sincroniza Dropi primero.';
+  } else {
+    el.textContent = 'Cache: ' + window._expressData.allOrders.length + ' ordenes disponibles. Aprieta "Buscar atascados".';
+  }
+}
+
+async function scanAtascados() {
+  const btn = document.getElementById('atas-scan-btn');
+  const statusEl = document.getElementById('atas-scan-status');
+  const results = document.getElementById('atas-results');
+  btn.disabled = true;
+  btn.textContent = 'Analizando...';
+  btn.style.opacity = '0.6';
+
+  try {
+    const minDays = parseInt(document.getElementById('atas-min-days').value, 10) || 4;
+    const incPendiente = document.getElementById('atas-status-pendiente').checked;
+    const incGuia = document.getElementById('atas-status-guia').checked;
+    const targetStatuses = new Set();
+    if (incPendiente) targetStatuses.add('PENDIENTE');
+    if (incGuia) { targetStatuses.add('GUIA GENERADA'); targetStatuses.add('GUÍA GENERADA'); }
+    if (targetStatuses.size === 0) { statusEl.textContent = 'Selecciona al menos un status.'; return; }
+
+    if (!window._expressData || window._expressData.allOrders.length === 0) {
+      statusEl.textContent = 'Cargando cache Dropi desde Firestore...';
+      await loadDropiCacheFromFirestore();
+    }
+    const orders = window._expressData.allOrders;
+    const now = Date.now();
+    const rows = [];
+    for (const o of orders) {
+      const s = String(o.status || '').toUpperCase().trim();
+      if (!targetStatuses.has(s)) continue;
+      if (!o.created) continue;
+      const created = new Date(o.created).getTime();
+      const ageDays = (now - created) / 86400000;
+      if (ageDays < minDays) continue;
+      rows.push({
+        ...o,
+        ageDays: ageDays,
+        _statusUpper: s,
+      });
+    }
+
+    // Sort por edad desc (mas viejos primero, prioridad para reclamar)
+    rows.sort((a, b) => b.ageDays - a.ageDays);
+
+    // Agrupar por transportadora
+    const byCarrier = {};
+    for (const r of rows) {
+      const c = (r.transportadora || 'SIN DEFINIR').toUpperCase().trim();
+      if (!byCarrier[c]) byCarrier[c] = { count: 0, total: 0, orders: [] };
+      byCarrier[c].count++;
+      byCarrier[c].total += (r.total || 0);
+      byCarrier[c].orders.push(r);
+    }
+
+    window._atasData.rows = rows;
+    window._atasData.byCarrier = byCarrier;
+    window._atasData.scannedAt = Date.now();
+
+    // Poblar select de filtro
+    const sel = document.getElementById('atas-filter-carrier');
+    sel.innerHTML = '<option value="">Todas las transportadoras (' + rows.length + ')</option>' +
+      Object.entries(byCarrier).sort((a,b) => b[1].count - a[1].count).map(([c, v]) => `<option value="${escapeHtml(c)}">${escapeHtml(c)} (${v.count})</option>`).join('');
+
+    renderAtascadosByCarrier();
+    renderAtascadosTable();
+    results.style.display = 'block';
+    const totalMoney = rows.reduce((s, r) => s + (r.total || 0), 0);
+    statusEl.textContent = 'Encontrados ' + rows.length + ' atascados (>= ' + minDays + 'd) · $' + totalMoney.toLocaleString('es-CL') + ' CLP en juego.';
+  } catch (err) {
+    statusEl.textContent = 'Error: ' + (err.message || String(err));
+    console.error(err);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Buscar atascados';
+    btn.style.opacity = '1';
+  }
+}
+
+function renderAtascadosByCarrier() {
+  const container = document.getElementById('atas-by-carrier');
+  if (!container) return;
+  const entries = Object.entries(window._atasData.byCarrier).sort((a, b) => b[1].count - a[1].count);
+  container.innerHTML = entries.map(([carrier, data]) => `
+    <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:10px;padding:14px;text-align:center;cursor:pointer" onclick="filterAtascadosByCarrier(${JSON.stringify(carrier).replace(/"/g,'&quot;')})">
+      <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;margin-bottom:4px">🚚 ${escapeHtml(carrier)}</div>
+      <div style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:22px;color:var(--text)">${data.count}</div>
+      <div style="font-size:11px;color:#e46;font-family:'DM Mono',monospace;font-weight:700">$${Math.round(data.total).toLocaleString('es-CL')}</div>
+    </div>
+  `).join('');
+}
+
+function filterAtascadosByCarrier(carrier) {
+  const sel = document.getElementById('atas-filter-carrier');
+  sel.value = carrier;
+  renderAtascadosTable();
+}
+
+function renderAtascadosTable() {
+  const tbody = document.getElementById('atas-tbody');
+  const summary = document.getElementById('atas-summary');
+  if (!tbody) return;
+  const sel = document.getElementById('atas-filter-carrier');
+  const filter = sel.value || '';
+  const all = window._atasData.rows;
+  const rows = filter ? all.filter(r => (r.transportadora || 'SIN DEFINIR').toUpperCase().trim() === filter) : all;
+  const totalMoney = rows.reduce((s, r) => s + (r.total || 0), 0);
+  summary.innerHTML = `<b>${rows.length} atascados${filter ? ' en ' + escapeHtml(filter) : ''}</b> · $${totalMoney.toLocaleString('es-CL')} CLP`;
+
+  tbody.innerHTML = rows.map(r => {
+    const statusColor = r._statusUpper === 'PENDIENTE' ? '#FF9800' : '#e46';
+    return `<tr style="border-bottom:1px solid var(--border)">
+      <td style="padding:8px">#${r.id}</td>
+      <td style="padding:8px">${escapeHtml((r.cliente || '').slice(0, 30))}</td>
+      <td style="padding:8px">${escapeHtml(r.ciudad || '')}</td>
+      <td style="padding:8px">${escapeHtml(r.transportadora || 'SIN')}</td>
+      <td style="padding:8px">${escapeHtml(r.guia || '—')}</td>
+      <td style="padding:8px;color:${statusColor};font-weight:700">${escapeHtml(r.status || '')}</td>
+      <td style="padding:8px;text-align:center">${escapeHtml((r.created || '').slice(0, 10))}</td>
+      <td style="padding:8px;text-align:center;color:#e46;font-weight:700">${r.ageDays.toFixed(1)}d</td>
+      <td style="padding:8px;text-align:right">$${(r.total || 0).toLocaleString('es-CL')}</td>
+    </tr>`;
+  }).join('');
+}
+
+function copyAtascadosTable() {
+  const sel = document.getElementById('atas-filter-carrier');
+  const filter = sel.value || '';
+  const all = window._atasData.rows;
+  const rows = filter ? all.filter(r => (r.transportadora || 'SIN DEFINIR').toUpperCase().trim() === filter) : all;
+  const header = ['Orden','Cliente','Comuna','Transportadora','Guia','Status','Creada','Edad_dias','Total_CLP'].join('\t');
+  const body = rows.map(r => [
+    '#' + r.id,
+    (r.cliente || ''),
+    (r.ciudad || ''),
+    (r.transportadora || ''),
+    (r.guia || ''),
+    (r.status || ''),
+    (r.created || ''),
+    r.ageDays.toFixed(1),
+    r.total || 0,
+  ].join('\t')).join('\n');
+  const text = header + '\n' + body;
+  navigator.clipboard.writeText(text).then(() => {
+    if (typeof showToast === 'function') showToast(`${rows.length} filas copiadas al portapapeles`, '📋', 'ok');
+  }).catch(() => {
+    prompt('Copia esto (Ctrl+A + Ctrl+C):', text);
+  });
+}
+
+function exportAtascadosCSV() {
+  const sel = document.getElementById('atas-filter-carrier');
+  const filter = sel.value || '';
+  const all = window._atasData.rows;
+  const rows = filter ? all.filter(r => (r.transportadora || 'SIN DEFINIR').toUpperCase().trim() === filter) : all;
+  const esc = (v) => {
+    const s = String(v == null ? '' : v);
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  };
+  const header = ['Orden','Cliente','Comuna','Transportadora','Guia','Status','Creada','Edad_dias','Total_CLP'];
+  const lines = [header.join(',')];
+  for (const r of rows) {
+    lines.push([
+      '#' + r.id,
+      r.cliente || '',
+      r.ciudad || '',
+      r.transportadora || '',
+      r.guia || '',
+      r.status || '',
+      r.created || '',
+      r.ageDays.toFixed(1),
+      r.total || 0,
+    ].map(esc).join(','));
+  }
+  const csv = '﻿' + lines.join('\n'); // BOM para Excel
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const suffix = filter ? '_' + filter.replace(/\s+/g, '_') : '';
+  a.href = url;
+  a.download = 'atascados' + suffix + '_' + new Date().toISOString().slice(0,10) + '.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  if (typeof showToast === 'function') showToast(`CSV descargado (${rows.length} filas)`, '📥', 'ok');
 }
 
 // ═══════════════════════════════════════════════════════════════════
