@@ -178,6 +178,21 @@ exports.handler = async (event) => {
   if (!warehouseUsed) warehouseUsed = 79;   // RVG default
   if (!shopUsed) shopUsed = 152458;
 
+  // FIX 2x1 y ofertas combo: Shopify puede traer qty=2 con price=precio_combo
+  // (ej 2x $27.990 pero el cliente paga $27.990 total, no $55.980). Si
+  // sum(qty*price) != body.total, ajustamos price proporcionalmente para
+  // que Dropi calcule bien el total.
+  const targetTotal = parseFloat(body.total || 0);
+  if (targetTotal > 0 && dropiProducts.length > 0) {
+    const rawSum = dropiProducts.reduce((s, p) => s + (p.quantity * p.price), 0);
+    if (rawSum > 0 && Math.abs(rawSum - targetTotal) > 1) {
+      const factor = targetTotal / rawSum;
+      for (const p of dropiProducts) {
+        p.price = Math.round(p.price * factor);
+      }
+    }
+  }
+
   if (dropiProducts.length === 0) {
     // DEBUG: incluir mas info para diagnosticar
     const bodyItemsDebug = (body.items || []).map(it => ({ name: (it.name||'').slice(0,50), sku: it.sku, barcode: it.barcode }));
