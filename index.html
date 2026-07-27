@@ -3791,6 +3791,74 @@
           </select>
           <input type="text" id="cv-tt-search" placeholder="🔍 Buscar por nombre..." oninput="cvTtRender()" style="flex:1;min-width:200px;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:8px;font-size:11px;font-family:'DM Mono',monospace">
           <button onclick="cvTtLoadCampanas()" style="background:transparent;border:1.5px solid var(--accent);color:var(--accent);border-radius:8px;padding:7px 14px;font-size:11px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">↻ Refrescar</button>
+          <button onclick="cvTtOpenCreate()" style="background:var(--accent);color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:11px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer" title="Crear campaña desde cero">➕ Nueva campaña</button>
+        </div>
+
+        <!-- MODAL INSPECCIONAR ESTRUCTURA -->
+        <div id="cv-tt-inspect-modal" style="display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center">
+          <div style="background:var(--surface);border:2px solid var(--muted2);border-radius:14px;padding:20px;max-width:900px;width:94%;max-height:88vh;overflow-y:auto;font-family:'DM Mono',monospace;box-shadow:0 20px 60px rgba(0,0,0,.4)">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;position:sticky;top:0;background:var(--surface);padding-bottom:8px;border-bottom:1px solid var(--border)">
+              <div>
+                <div style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:16px;color:var(--text)">🔍 Estructura de campaña</div>
+                <div id="cv-inspect-subtitle" style="font-size:10px;color:var(--muted)"></div>
+              </div>
+              <button onclick="document.getElementById('cv-tt-inspect-modal').style.display='none'" style="background:none;border:none;color:var(--muted);font-size:22px;cursor:pointer">✕</button>
+            </div>
+            <div id="cv-inspect-body" style="font-size:11px;color:var(--muted2)"></div>
+          </div>
+        </div>
+
+        <!-- MODAL CREAR CAMPAÑA -->
+        <div id="cv-tt-create-modal" style="display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center">
+          <div style="background:var(--surface);border:2px solid var(--accent);border-radius:14px;padding:24px;max-width:520px;width:92%;font-family:'DM Mono',monospace;box-shadow:0 20px 60px rgba(0,0,0,.4)">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+              <div style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:18px;color:var(--text)">➕ Nueva campaña TikTok</div>
+              <button onclick="cvTtCloseCreate()" style="background:none;border:none;color:var(--muted);font-size:22px;cursor:pointer">✕</button>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:12px">
+              <div>
+                <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">Nombre (max 120)</label>
+                <input id="cv-create-name" type="text" placeholder="Ej: 0727 TITANIO NUEVO CREATIVO" maxlength="120" style="width:100%;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:9px 12px;border-radius:8px;font-family:'DM Mono',monospace;font-size:12px;box-sizing:border-box">
+              </div>
+              <div>
+                <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">Objetivo</label>
+                <select id="cv-create-objective" style="width:100%;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:9px 12px;border-radius:8px;font-family:'DM Mono',monospace;font-size:12px;box-sizing:border-box">
+                  <option value="PRODUCT_SALES" selected>💰 Ventas de productos (recomendado)</option>
+                  <option value="WEB_CONVERSIONS">🎯 Conversiones web</option>
+                  <option value="TRAFFIC">🌐 Tráfico</option>
+                  <option value="VIDEO_VIEWS">🎬 Reproducciones de video</option>
+                  <option value="REACH">📢 Alcance</option>
+                  <option value="ENGAGEMENT">💬 Interacción</option>
+                  <option value="LEAD_GENERATION">📝 Generación de leads</option>
+                  <option value="APP_PROMOTION">📱 Promoción de app</option>
+                  <option value="CATALOG_SALES">🛒 Ventas de catálogo</option>
+                </select>
+              </div>
+              <div style="display:flex;gap:10px">
+                <div style="flex:1">
+                  <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">Modo presupuesto</label>
+                  <select id="cv-create-mode" onchange="cvTtCreateModeChange()" style="width:100%;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:9px 12px;border-radius:8px;font-family:'DM Mono',monospace;font-size:12px;box-sizing:border-box">
+                    <option value="BUDGET_MODE_DAY" selected>📅 Diario</option>
+                    <option value="BUDGET_MODE_TOTAL">💯 Total (lifetime)</option>
+                    <option value="BUDGET_MODE_INFINITE">∞ Sin límite (en adgroup)</option>
+                  </select>
+                </div>
+                <div style="flex:1" id="cv-create-budget-wrap">
+                  <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">Presupuesto en CLP</label>
+                  <input id="cv-create-budget" type="number" min="1" placeholder="Ej: 20000" oninput="cvTtCreateModeChange()" style="width:100%;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:9px 12px;border-radius:8px;font-family:'DM Mono',monospace;font-size:12px;box-sizing:border-box">
+                </div>
+              </div>
+              <div id="cv-create-conversion" style="font-size:10px;color:var(--muted);font-style:italic"></div>
+              <div style="background:rgba(139,92,246,.08);border:1px dashed #8b5cf6;border-radius:8px;padding:10px;font-size:10px;color:var(--muted2);line-height:1.5">
+                ⚠️ Se creará <b>SOLO la carcasa</b>. Necesitarás agregar adgroups + ads después
+                (en TikTok Ads Manager o duplicando desde una plantilla). La campaña arranca sin gasto.
+              </div>
+              <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:6px">
+                <button onclick="cvTtCloseCreate()" style="background:transparent;border:1.5px solid var(--border);color:var(--muted2);border-radius:8px;padding:8px 16px;font-family:'DM Mono',monospace;font-size:11px;font-weight:700;cursor:pointer">Cancelar</button>
+                <button onclick="cvTtSubmitCreate()" style="background:var(--accent);color:#fff;border:none;border-radius:8px;padding:8px 16px;font-family:'DM Mono',monospace;font-size:11px;font-weight:700;cursor:pointer">Crear campaña</button>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div id="cv-tt-status" style="margin-bottom:10px;font-size:11px;color:var(--muted);font-family:'DM Mono',monospace"></div>
@@ -19821,9 +19889,13 @@ function cvTtRender() {
     const badge = isActive
       ? '<span style="display:inline-block;background:rgba(34,197,94,.15);color:#22c55e;padding:3px 10px;border-radius:12px;font-size:10px;font-weight:700">ACTIVA</span>'
       : '<span style="display:inline-block;background:rgba(156,163,175,.15);color:#9ca3af;padding:3px 10px;border-radius:12px;font-size:10px;font-weight:700">' + escapeHtml(String(r.status||'?').replace('STATUS_','')) + '</span>';
-    const btn = isActive
-      ? `<button onclick="cvTtAction('${escapeHtml(r.id)}', 'DISABLE', ${JSON.stringify(String(r.name||'').slice(0,60)).replace(/"/g,'&quot;')})" style="background:#eab308;color:#000;border:none;border-radius:6px;padding:6px 14px;font-size:11px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">⏸ Pausar</button>`
-      : `<button onclick="cvTtAction('${escapeHtml(r.id)}', 'ENABLE', ${JSON.stringify(String(r.name||'').slice(0,60)).replace(/"/g,'&quot;')})" style="background:#22c55e;color:#000;border:none;border-radius:6px;padding:6px 14px;font-size:11px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">▶ Activar</button>`;
+    const nameEscaped = JSON.stringify(String(r.name||'').slice(0,60)).replace(/"/g,'&quot;');
+    const btnMain = isActive
+      ? `<button onclick="cvTtAction('${escapeHtml(r.id)}', 'DISABLE', ${nameEscaped})" style="background:#eab308;color:#000;border:none;border-radius:6px;padding:6px 12px;font-size:11px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">⏸ Pausar</button>`
+      : `<button onclick="cvTtAction('${escapeHtml(r.id)}', 'ENABLE', ${nameEscaped})" style="background:#22c55e;color:#000;border:none;border-radius:6px;padding:6px 12px;font-size:11px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">▶ Activar</button>`;
+    const btnDup = `<button onclick="cvTtDuplicate('${escapeHtml(r.id)}', ${nameEscaped})" style="background:transparent;border:1.5px solid var(--accent);color:var(--accent);border-radius:6px;padding:5px 10px;font-size:11px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer" title="Duplicar campaña (queda pausada)">📋</button>`;
+    const btnInspect = `<button onclick="cvTtInspect('${escapeHtml(r.id)}', ${nameEscaped})" style="background:transparent;border:1.5px solid var(--muted2);color:var(--muted2);border-radius:6px;padding:5px 10px;font-size:11px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer" title="Inspeccionar estructura (adgroups + ads + targeting)">🔍</button>`;
+    const btn = `<div style="display:inline-flex;gap:6px;align-items:center">${btnMain}${btnDup}${btnInspect}</div>`;
     // Ppto: preferir diario, fallback lifetime (para modos BUDGET_MODE_TOTAL)
     const budgetVal = (r.dailyBudget != null) ? r.dailyBudget : r.lifetimeBudget;
     const budgetMode = (r.dailyBudget != null) ? 'BUDGET_MODE_DAY'
@@ -19842,8 +19914,12 @@ function cvTtRender() {
     // Compras Shopify si hay
     const buys = r.realPurchases || 0;
     const buysLabel = buys > 0 ? ` <span style="color:var(--muted2);font-size:9px">(${buys}×)</span>` : '';
-    return `<tr data-id="${escapeHtml(r.id)}" style="border-bottom:1px solid var(--border)">
-      <td style="padding:10px 12px;color:var(--text)">${escapeHtml(r.name||'')}</td>
+    // Detectar la campaña de TEST oficial para resaltarla
+    const isTestCamp = /1\.1\s*testeo\s*oficial/i.test(String(r.name||''));
+    const rowBg = isTestCamp ? 'background:rgba(139,92,246,.08);' : '';
+    const testBadge = isTestCamp ? '<span style="background:#8b5cf6;color:#fff;padding:2px 6px;border-radius:4px;font-size:9px;font-weight:700;margin-right:6px" title="Campaña sacrificable para tests">🧪 TEST</span>' : '';
+    return `<tr data-id="${escapeHtml(r.id)}" style="${rowBg}border-bottom:1px solid var(--border)">
+      <td style="padding:10px 12px;color:var(--text)">${testBadge}<span style="cursor:pointer;border-bottom:1px dashed transparent" onmouseover="this.style.borderBottomColor='var(--muted2)'" onmouseout="this.style.borderBottomColor='transparent'" onclick="cvTtEditName('${escapeHtml(r.id)}', ${JSON.stringify(String(r.name||'')).replace(/"/g,'&quot;')})" title="Click para editar nombre">${escapeHtml(r.name||'')} <span style="color:var(--muted2);font-size:10px">✏</span></span></td>
       <td style="padding:10px 8px;text-align:center">${badge}</td>
       <td style="padding:10px 10px;text-align:right;color:var(--muted2)">${budgetLabel}</td>
       <td style="padding:10px 10px;text-align:right;color:var(--text);font-weight:700">${fmtSpend(r.spend)}</td>
@@ -19851,6 +19927,304 @@ function cvTtRender() {
       <td style="padding:8px 8px;text-align:center">${btn}</td>
     </tr>`;
   }).join('') || '<tr><td colspan="6" style="padding:24px;text-align:center;color:var(--muted)">No hay campañas con el filtro actual.</td></tr>';
+}
+
+async function cvTtInspect(campaignId, campaignName) {
+  const advertiserId = window._cvData.tt.accountId;
+  if (!advertiserId) { alert('No hay cuenta seleccionada'); return; }
+  const modal = document.getElementById('cv-tt-inspect-modal');
+  const subtitle = document.getElementById('cv-inspect-subtitle');
+  const bodyEl = document.getElementById('cv-inspect-body');
+  subtitle.textContent = campaignName + ' · ID ' + campaignId;
+  bodyEl.innerHTML = '<div style="padding:40px;text-align:center;color:var(--muted)">Cargando estructura...</div>';
+  modal.style.display = 'flex';
+
+  try {
+    const resp = await fetch('/.netlify/functions/tiktok-campaign-inspect?advertiser_id=' + encodeURIComponent(advertiserId) + '&campaign_id=' + encodeURIComponent(campaignId));
+    const data = await resp.json();
+    if (!resp.ok) {
+      bodyEl.innerHTML = '<div style="padding:20px;color:#ef4444">❌ Error: ' + escapeHtml(data.error || 'unknown') + '<br><br><pre style="font-size:10px;background:var(--surface2);padding:10px;border-radius:6px;overflow-x:auto">' + escapeHtml(JSON.stringify(data.detail || data, null, 2)) + '</pre></div>';
+      return;
+    }
+    window._cvData.tt.lastInspect = data;
+    cvTtInspectRender(data, bodyEl);
+  } catch (e) {
+    bodyEl.innerHTML = '<div style="padding:20px;color:#ef4444">Error red: ' + escapeHtml(e.message || '?') + '</div>';
+  }
+}
+
+function cvTtInspectRender(data, bodyEl) {
+  const c = data.campaign || {};
+  const s = data.summary || {};
+  const ags = data.adgroups || [];
+  const origCur = window._cvData.tt.originalCurrency || 'CLP';
+  const fxRate = window._cvData.tt.fxRate || 1;
+  const toClp = (v) => (v == null ? '—' : '$' + Math.round(v * (origCur === 'CLP' ? 1 : fxRate)).toLocaleString('es-CL') + ' CLP');
+
+  let html = '';
+  // Resumen top
+  html += `<div style="background:var(--surface2);border-left:3px solid var(--accent);padding:12px 14px;border-radius:6px;margin-bottom:14px">
+    <div style="color:var(--text);font-weight:700;font-size:13px;margin-bottom:6px">${escapeHtml(c.name||'')}</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;font-size:10px">
+      <div><b>Objetivo:</b> ${escapeHtml(c.objective||'?')}</div>
+      <div><b>Estado:</b> ${escapeHtml(c.status||'?')}</div>
+      <div><b>Ppto modo:</b> ${escapeHtml(c.budget_mode||'?')}</div>
+      <div><b>Ppto:</b> ${toClp(c.budget)}</div>
+      <div><b>AdGroups:</b> ${s.adgroups_count||0}</div>
+      <div><b>Ads:</b> ${s.ads_count||0}</div>
+      <div><b>Videos únicos:</b> ${s.videos_unique||0}</div>
+    </div>
+  </div>`;
+
+  // AdGroups
+  if (ags.length === 0) {
+    html += '<div style="padding:20px;text-align:center;color:var(--muted);border:1px dashed var(--border);border-radius:8px">Sin adgroups</div>';
+  }
+  ags.forEach((a, idx) => {
+    const t = a.targeting || {};
+    const sch = a.schedule || {};
+    html += `<div style="border:1px solid var(--border);border-radius:8px;margin-bottom:10px;overflow:hidden">
+      <div style="background:var(--surface2);padding:10px 12px;border-bottom:1px solid var(--border)">
+        <div style="color:var(--text);font-weight:700;font-size:12px">📦 AdGroup ${idx+1}: ${escapeHtml(a.name||'')}</div>
+        <div style="color:var(--muted2);font-size:9px;margin-top:2px">ID ${a.id} · ${a.ads_count||0} ads · ${escapeHtml(a.status||'?')}</div>
+      </div>
+      <div style="padding:10px 12px;font-size:10px;color:var(--muted2);line-height:1.7">
+        <div><b>Ppto:</b> ${escapeHtml(a.budget_mode||'?')} — ${toClp(a.budget)}</div>
+        <div><b>Bid:</b> ${escapeHtml(a.bid_type||'?')} ${a.bid_price != null ? '/ ' + toClp(a.bid_price) : ''}</div>
+        <div><b>Optimización:</b> ${escapeHtml(a.optimization_goal||'?')} ${a.optimization_event ? '('+escapeHtml(a.optimization_event)+')' : ''}</div>
+        <div><b>Billing:</b> ${escapeHtml(a.billing_event||'?')} · <b>Pacing:</b> ${escapeHtml(a.pacing||'?')}</div>
+        <div><b>Schedule:</b> ${escapeHtml(sch.type||'?')} · <b>Inicio:</b> ${escapeHtml(sch.start||'—')} · <b>Fin:</b> ${escapeHtml(sch.end||'—')}</div>
+        <div style="margin-top:6px;padding-top:6px;border-top:1px dashed var(--border)"><b style="color:var(--accent)">Targeting:</b></div>
+        <div><b>Ubicaciones:</b> ${(t.location_ids||[]).join(', ') || '—'}</div>
+        <div><b>Edades:</b> ${(t.age_groups||[]).join(', ') || '—'} · <b>Género:</b> ${escapeHtml(t.gender||'—')}</div>
+        <div><b>Idiomas:</b> ${(t.languages||[]).join(', ') || '—'}</div>
+        <div><b>OS:</b> ${(t.operating_systems||[]).join(', ') || '—'}</div>
+        <div><b>Placement:</b> ${escapeHtml(t.placement_type||'?')} — ${(t.placements||[]).join(', ')}</div>
+        <div><b>Intereses (cat):</b> ${(t.interest_category_ids||[]).slice(0,10).join(', ') || '—'}${(t.interest_category_ids||[]).length>10 ? ' +'+(t.interest_category_ids.length-10)+' más' : ''}</div>
+        <div><b>Intereses (kw):</b> ${(t.interest_keyword_ids||[]).slice(0,5).join(', ') || '—'}</div>
+        <div><b>Acciones:</b> ${(t.action_categories||[]).join(', ') || '—'} en ${escapeHtml(String(t.action_period||'—'))}d</div>
+        <div style="margin-top:6px;padding-top:6px;border-top:1px dashed var(--border)"><b style="color:var(--accent)">Creative:</b></div>
+        <div><b>Modo material:</b> ${escapeHtml(a.creative_material_mode||'?')} · <b>Identity:</b> ${escapeHtml(a.identity_type||'?')} ${a.identity_id ? '('+escapeHtml(a.identity_id)+')' : ''}</div>
+        <div><b>Pixel:</b> ${escapeHtml(a.pixel_id||'—')} · <b>Conversion event:</b> ${escapeHtml(a.conversion_id||'—')}</div>
+      </div>`;
+    if (a.ads && a.ads.length > 0) {
+      html += `<div style="background:var(--surface2);border-top:1px solid var(--border);padding:8px 12px"><div style="color:var(--text);font-size:10px;font-weight:700;margin-bottom:6px">🎬 Ads (${a.ads.length}):</div>`;
+      a.ads.forEach((ad, i) => {
+        const copy = (ad.ad_text || '').slice(0, 300);
+        html += `<div style="border-top:1px dashed var(--border);padding:6px 0;font-size:10px">
+          <div style="color:var(--muted2)"><b>#${i+1} ${escapeHtml(ad.name||'')}</b> · ${escapeHtml(ad.status||'?')} · ${escapeHtml(ad.format||'?')}</div>
+          <div style="color:var(--muted2)">🎥 video_id: <code>${escapeHtml(ad.video_id||'—')}</code> · CTA: ${escapeHtml(ad.call_to_action||'—')}</div>
+          <div style="color:var(--muted2)">🔗 Landing: <a href="${escapeHtml(ad.landing_page_url||'#')}" target="_blank" style="color:var(--accent)">${escapeHtml((ad.landing_page_url||'').slice(0,80))}</a></div>
+          <div style="color:var(--text);margin-top:4px;padding:6px 8px;background:var(--surface);border-radius:4px;border-left:2px solid var(--accent);white-space:pre-wrap;font-size:10px">📝 ${escapeHtml(copy)}</div>
+        </div>`;
+      });
+      html += '</div>';
+    }
+    html += '</div>';
+  });
+
+  // Botón raw JSON
+  html += `<div style="margin-top:12px;text-align:center">
+    <button onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none';this.textContent=this.nextElementSibling.style.display==='none'?'▸ Ver JSON crudo':'▾ Ocultar JSON crudo'" style="background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:6px;padding:5px 12px;font-size:10px;font-family:'DM Mono',monospace;cursor:pointer">▸ Ver JSON crudo</button>
+    <pre style="display:none;text-align:left;font-size:9px;background:var(--surface2);padding:12px;border-radius:6px;margin-top:8px;overflow-x:auto;max-height:400px;overflow-y:auto">${escapeHtml(JSON.stringify(data, null, 2))}</pre>
+  </div>`;
+
+  bodyEl.innerHTML = html;
+}
+
+function cvTtOpenCreate() {
+  if (!window._cvData.tt.accountId) { alert('Selecciona primero una cuenta TikTok'); return; }
+  document.getElementById('cv-tt-create-modal').style.display = 'flex';
+  document.getElementById('cv-create-name').value = '';
+  document.getElementById('cv-create-budget').value = '';
+  document.getElementById('cv-create-objective').value = 'PRODUCT_SALES';
+  document.getElementById('cv-create-mode').value = 'BUDGET_MODE_DAY';
+  cvTtCreateModeChange();
+  setTimeout(() => document.getElementById('cv-create-name').focus(), 60);
+}
+
+function cvTtCloseCreate() {
+  document.getElementById('cv-tt-create-modal').style.display = 'none';
+}
+
+function cvTtCreateModeChange() {
+  const mode = document.getElementById('cv-create-mode').value;
+  const wrap = document.getElementById('cv-create-budget-wrap');
+  const conv = document.getElementById('cv-create-conversion');
+  const infinite = (mode === 'BUDGET_MODE_INFINITE');
+  wrap.style.opacity = infinite ? '.4' : '1';
+  wrap.style.pointerEvents = infinite ? 'none' : 'auto';
+  if (infinite) { conv.textContent = '∞ El presupuesto se define a nivel de adgroup'; return; }
+  const budget = parseInt(document.getElementById('cv-create-budget').value || '0', 10);
+  const origCur = window._cvData.tt.originalCurrency || 'CLP';
+  const fxRate = window._cvData.tt.fxRate || 1;
+  if (budget > 0 && origCur !== 'CLP') {
+    const enMoneda = Math.round(budget / fxRate);
+    conv.textContent = `💱 Se enviarán ${enMoneda.toLocaleString('es-CL')} ${origCur} a TikTok (tasa 1 ${origCur} = ${fxRate.toFixed(4)} CLP)`;
+  } else {
+    conv.textContent = origCur === 'CLP' ? '' : `Cuenta en ${origCur}; convertimos automáticamente cuando ingreses el monto.`;
+  }
+}
+
+async function cvTtSubmitCreate() {
+  const advertiserId = window._cvData.tt.accountId;
+  if (!advertiserId) { alert('No hay cuenta seleccionada'); return; }
+  const name = String(document.getElementById('cv-create-name').value || '').trim();
+  const objective = document.getElementById('cv-create-objective').value;
+  const mode = document.getElementById('cv-create-mode').value;
+  const budgetClp = parseInt(String(document.getElementById('cv-create-budget').value || '').replace(/[^\d]/g, ''), 10);
+  if (!name) { alert('Falta nombre'); return; }
+  if (name.length > 120) { alert('Nombre muy largo (max 120)'); return; }
+  const necesitaBudget = (mode !== 'BUDGET_MODE_INFINITE');
+  if (necesitaBudget && (!isFinite(budgetClp) || budgetClp <= 0)) {
+    alert('Falta presupuesto válido en CLP');
+    return;
+  }
+  const origCur = window._cvData.tt.originalCurrency || 'CLP';
+  const fxRate = window._cvData.tt.fxRate || 1;
+  const budgetEnMoneda = necesitaBudget
+    ? (origCur === 'CLP' ? budgetClp : Math.round(budgetClp / fxRate))
+    : null;
+
+  const modeLabel = mode === 'BUDGET_MODE_DAY' ? 'Diario' : (mode === 'BUDGET_MODE_TOTAL' ? 'Total lifetime' : '∞ Sin límite');
+  const budgetMsg = necesitaBudget
+    ? `Presupuesto: $${budgetClp.toLocaleString('es-CL')} CLP` +
+      (origCur !== 'CLP' ? ` (${budgetEnMoneda.toLocaleString('es-CL')} ${origCur})` : '')
+    : 'Presupuesto: ∞ (se define en adgroup)';
+
+  if (!confirm(
+    `⚠️ CONFIRMAR CREAR CAMPAÑA\n\n` +
+    `Nombre: ${name}\n` +
+    `Objetivo: ${objective}\n` +
+    `Modo: ${modeLabel}\n` +
+    `${budgetMsg}\n\n` +
+    `➜ Se creará solo la carcasa (sin adgroups/ads).\n\n` +
+    `¿Crear?`
+  )) return;
+
+  try {
+    const bodyPayload = {
+      advertiser_id: advertiserId,
+      campaign_name: name,
+      objective_type: objective,
+      budget_mode: mode,
+    };
+    if (necesitaBudget) bodyPayload.budget = budgetEnMoneda;
+    const resp = await fetch('/.netlify/functions/tiktok-campaign-create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(bodyPayload),
+    });
+    const data = await resp.json();
+    if (!resp.ok || !data.ok) {
+      const detail = data.detail ? (data.detail.message || JSON.stringify(data.detail).slice(0, 300)) : '';
+      alert('❌ Error TikTok: ' + (data.error || 'unknown') + (detail ? '\n\n' + detail : ''));
+      return;
+    }
+    cvTtCloseCreate();
+    alert(`✅ Campaña creada${data.campaignId ? '\nID: ' + data.campaignId : ''}\n\n${data.hint || ''}`);
+    await cvTtLoadCampanas();
+  } catch (e) {
+    alert('Error red: ' + (e.message || '?'));
+  }
+}
+
+async function cvTtDuplicate(campaignId, campaignName) {
+  const advertiserId = window._cvData.tt.accountId;
+  if (!advertiserId) { alert('No hay cuenta seleccionada'); return; }
+
+  const nuevoNombre = prompt(
+    `📋 Duplicar campaña\n\n` +
+    `Origen: ${campaignName}\n` +
+    `ID origen: ${campaignId}\n\n` +
+    `Nombre para la COPIA (deja vacío para usar auto "(Copy)"):`,
+    campaignName + ' (COPIA)'
+  );
+  if (nuevoNombre == null) return;  // cancel
+  const trimmed = String(nuevoNombre).trim();
+  if (trimmed.length > 120) { alert('Nombre muy largo (max 120 chars)'); return; }
+
+  if (!confirm(
+    `⚠️ CONFIRMAR DUPLICADO\n\n` +
+    `Origen: ${campaignName}\n` +
+    `Copia:  ${trimmed || '(auto)'}\n\n` +
+    `➜ Se copian adgroups + ads.\n` +
+    `➜ La copia queda PAUSADA (revísala antes de activar).\n\n` +
+    `¿Duplicar?`
+  )) return;
+
+  try {
+    const resp = await fetch('/.netlify/functions/tiktok-campaign-duplicate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        advertiser_id: advertiserId,
+        source_campaign_id: campaignId,
+        new_name: trimmed || null,
+      }),
+    });
+    const data = await resp.json();
+    if (!resp.ok || !data.ok) {
+      const detail = data.detail ? (data.detail.message || JSON.stringify(data.detail).slice(0, 300)) : '';
+      alert('❌ Error TikTok: ' + (data.error || 'unknown') + (detail ? '\n\n' + detail : ''));
+      return;
+    }
+    const newIdMsg = data.newCampaignId ? `\nNueva ID: ${data.newCampaignId}` : '';
+    const renameMsg = data.renamed ? '\n✓ Renombrada' : (trimmed ? '\n⚠️ Rename falló (nombre auto)' : '');
+    alert(`✅ Copia creada${newIdMsg}${renameMsg}\n\nRecuerda: quedó pausada.`);
+    // Refrescar tabla para ver la copia
+    await cvTtLoadCampanas();
+  } catch (e) {
+    alert('Error red: ' + (e.message || '?'));
+  }
+}
+
+async function cvTtEditName(campaignId, currentName) {
+  const advertiserId = window._cvData.tt.accountId;
+  if (!advertiserId) { alert('No hay cuenta seleccionada'); return; }
+  const nuevoNombre = prompt(
+    `Renombrar campaña\n\n` +
+    `ID: ${campaignId}\n` +
+    `Actual: ${currentName}\n\n` +
+    `Ingresa el nuevo nombre (max 120 chars):`,
+    currentName
+  );
+  if (nuevoNombre == null) return;
+  const trimmed = String(nuevoNombre).trim();
+  if (!trimmed) { alert('Nombre vacío'); return; }
+  if (trimmed === currentName) { alert('El nombre no cambió'); return; }
+  if (trimmed.length > 120) { alert('Nombre muy largo (max 120 chars)'); return; }
+
+  if (!confirm(
+    `⚠️ CONFIRMAR RENOMBRAR\n\n` +
+    `Actual: ${currentName}\n` +
+    `Nuevo:  ${trimmed}\n\n` +
+    `¿Aplicar?`
+  )) return;
+
+  try {
+    const resp = await fetch('/.netlify/functions/tiktok-campaign-update', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        advertiser_id: advertiserId,
+        campaign_id: campaignId,
+        campaign_name: trimmed,
+      }),
+    });
+    const data = await resp.json();
+    if (!resp.ok || !data.ok) {
+      const detail = data.detail ? (data.detail.message || JSON.stringify(data.detail).slice(0, 300)) : '';
+      alert('❌ Error TikTok: ' + (data.error || 'unknown') + (detail ? '\n\n' + detail : ''));
+      return;
+    }
+    const row = window._cvData.tt.campanas.find(r => String(r.id) === String(campaignId));
+    if (row) row.name = trimmed;
+    cvTtRender();
+    if (typeof showToast === 'function') showToast('Nombre actualizado', '✏️', 'ok');
+  } catch (e) {
+    alert('Error red: ' + (e.message || '?'));
+  }
 }
 
 async function cvTtEditBudget(campaignId, currentBudgetClp, budgetMode, campaignName) {
