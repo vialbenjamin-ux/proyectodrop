@@ -74,18 +74,32 @@ exports.handler = async (event) => {
 // { id, status, created (YYYY-MM-DD), producto, productoId, ciudad, provincia,
 //   transportadora, flete, total, guia, dir (90 chars), fin (updated_at YYYY-MM-DD) }
 function compact(o) {
-  const productName = firstOf(o, ['name_product', 'product_name', 'product', 'producto', 'products_name', 'name']);
-  const productId   = firstOf(o, ['id_product', 'product_id', 'productoId']);
-  const carrier     = firstOf(o, ['transport', 'transportadora', 'carrier', 'shipping_company', 'transport_service']);
-  const guia        = firstOf(o, ['guide', 'guia', 'tracking_number', 'tracking', 'transport_guide']);
-  const city        = firstOf(o, ['city', 'ciudad', 'city_name']);
-  const state       = firstOf(o, ['state', 'provincia', 'department', 'region', 'department_name']);
+  // Dropi trae producto ANIDADO en orderdetails[0].product (name + id).
+  // Los aliases top-level NO existen en la respuesta REST y accidentalmente
+  // matcheaban `name` = nombre del cliente. Aca priorizamos el anidado.
+  const orderDetails = Array.isArray(o.orderdetails) ? o.orderdetails : [];
+  const firstItem = orderDetails[0] || {};
+  const productInfo = firstItem.product || {};
+  const productName = productInfo.name || firstOf(o, ['name_product', 'product_name']);
+  const productId   = productInfo.id || firstOf(o, ['id_product', 'product_id']);
+
+  const warehouseInfo = o.warehouse || {};
+  const proveedor = warehouseInfo.name || '';
+
+  // Nombre y apellido del cliente vienen SEPARADOS en top-level (name + surname).
+  const clientFirst = String(o.name || '').trim();
+  const clientLast  = String(o.surname || '').trim();
+  const clientName  = (clientFirst + ' ' + clientLast).trim() || firstOf(o, ['client_name', 'customer_name']);
+
+  const carrier     = firstOf(o, ['shipping_company', 'transport', 'transportadora', 'carrier']);
+  const guia        = firstOf(o, ['shipping_guide', 'guide', 'guia', 'tracking_number']);
+  const city        = firstOf(o, ['city', 'ciudad']);
+  const state       = firstOf(o, ['state', 'provincia', 'department']);
   const status      = firstOf(o, ['status', 'estado', 'order_status']);
-  const total       = numOf(firstOf(o, ['total_order', 'total', 'amount', 'monto', 'total_price']));
-  const flete       = numOf(firstOf(o, ['transport_price', 'shipping_price', 'flete', 'transport_service_price']));
-  const dirRaw      = firstOf(o, ['dir', 'address', 'direccion', 'shipping_address']);
-  const phoneRaw    = firstOf(o, ['phone', 'telefono', 'client_phone', 'phone_client', 'phone_number', 'whatsapp']);
-  const clientName  = firstOf(o, ['client_name', 'name_client', 'client', 'customer', 'customer_name']);
+  const total       = numOf(firstOf(o, ['total_order', 'total']));
+  const flete       = numOf(firstOf(o, ['shipping_amount', 'transport_price', 'flete']));
+  const dirRaw      = firstOf(o, ['dir', 'address', 'direccion']);
+  const phoneRaw    = firstOf(o, ['phone', 'telefono']);
 
   return {
     id: firstOf(o, ['id']),
@@ -93,6 +107,7 @@ function compact(o) {
     created: dateOnly(firstOf(o, ['created_at', 'date_created', 'created'])),
     producto: String(productName || '').slice(0, 120),
     productoId: productId != null ? String(productId) : null,
+    proveedor: String(proveedor).slice(0, 80),
     ciudad: String(city || ''),
     provincia: String(state || ''),
     transportadora: String(carrier || ''),

@@ -3724,6 +3724,8 @@
                 <th style="padding:10px 8px;text-align:left">Orden</th>
                 <th style="padding:10px 8px;text-align:left">Cliente</th>
                 <th style="padding:10px 8px;text-align:left">Comuna</th>
+                <th style="padding:10px 8px;text-align:left">Producto</th>
+                <th style="padding:10px 8px;text-align:left">Proveedor</th>
                 <th style="padding:10px 8px;text-align:left">Transportadora</th>
                 <th style="padding:10px 8px;text-align:left">Guia</th>
                 <th style="padding:10px 8px;text-align:left">Status</th>
@@ -4320,6 +4322,8 @@ function renderAtascadosTable() {
       <td style="padding:8px">#${r.id}</td>
       <td style="padding:8px">${escapeHtml((r.cliente || '').slice(0, 30))}</td>
       <td style="padding:8px">${escapeHtml(r.ciudad || '')}</td>
+      <td style="padding:8px">${escapeHtml((r.producto || '').slice(0, 40))}</td>
+      <td style="padding:8px">${escapeHtml(r.proveedor || '—')}</td>
       <td style="padding:8px">${escapeHtml(r.transportadora || 'SIN')}</td>
       <td style="padding:8px">${escapeHtml(r.guia || '—')}</td>
       <td style="padding:8px;color:${statusColor};font-weight:700">${escapeHtml(r.status || '')}</td>
@@ -4335,11 +4339,13 @@ function copyAtascadosTable() {
   const filter = sel.value || '';
   const all = window._atasData.rows;
   const rows = filter ? all.filter(r => (r.transportadora || 'SIN DEFINIR').toUpperCase().trim() === filter) : all;
-  const header = ['Orden','Cliente','Comuna','Transportadora','Guia','Status','Creada','Edad_dias','Total_CLP'].join('\t');
+  const header = ['Orden','Cliente','Comuna','Producto','Proveedor','Transportadora','Guia','Status','Creada','Edad_dias','Total_CLP'].join('\t');
   const body = rows.map(r => [
     '#' + r.id,
     (r.cliente || ''),
     (r.ciudad || ''),
+    (r.producto || ''),
+    (r.proveedor || ''),
     (r.transportadora || ''),
     (r.guia || ''),
     (r.status || ''),
@@ -4364,13 +4370,15 @@ function exportAtascadosCSV() {
     const s = String(v == null ? '' : v);
     return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
   };
-  const header = ['Orden','Cliente','Comuna','Transportadora','Guia','Status','Creada','Edad_dias','Total_CLP'];
+  const header = ['Orden','Cliente','Comuna','Producto','Proveedor','Transportadora','Guia','Status','Creada','Edad_dias','Total_CLP'];
   const lines = [header.join(',')];
   for (const r of rows) {
     lines.push([
       '#' + r.id,
       r.cliente || '',
       r.ciudad || '',
+      r.producto || '',
+      r.proveedor || '',
       r.transportadora || '',
       r.guia || '',
       r.status || '',
