@@ -20002,10 +20002,9 @@ function cvTtInspectRender(data, bodyEl) {
         <div><b>Placement:</b> ${escapeHtml(t.placement_type||'?')} — ${(t.placements||[]).join(', ')}</div>
         <div><b>Intereses (cat):</b> ${(t.interest_category_ids||[]).slice(0,10).join(', ') || '—'}${(t.interest_category_ids||[]).length>10 ? ' +'+(t.interest_category_ids.length-10)+' más' : ''}</div>
         <div><b>Intereses (kw):</b> ${(t.interest_keyword_ids||[]).slice(0,5).join(', ') || '—'}</div>
-        <div><b>Acciones:</b> ${(t.action_categories||[]).join(', ') || '—'} en ${escapeHtml(String(t.action_period||'—'))}d</div>
         <div style="margin-top:6px;padding-top:6px;border-top:1px dashed var(--border)"><b style="color:var(--accent)">Creative:</b></div>
         <div><b>Modo material:</b> ${escapeHtml(a.creative_material_mode||'?')} · <b>Identity:</b> ${escapeHtml(a.identity_type||'?')} ${a.identity_id ? '('+escapeHtml(a.identity_id)+')' : ''}</div>
-        <div><b>Pixel:</b> ${escapeHtml(a.pixel_id||'—')} · <b>Conversion event:</b> ${escapeHtml(a.conversion_id||'—')}</div>
+        <div><b>Pixel:</b> ${escapeHtml(a.pixel_id||'—')} · <b>Promotion:</b> ${escapeHtml(a.promotion_type||'—')}</div>
       </div>`;
     if (a.ads && a.ads.length > 0) {
       html += `<div style="background:var(--surface2);border-top:1px solid var(--border);padding:8px 12px"><div style="color:var(--text);font-size:10px;font-weight:700;margin-bottom:6px">🎬 Ads (${a.ads.length}):</div>`;

@@ -96,18 +96,21 @@ export default async function handler(req) {
   if (!campaignData) return json(404, { error: 'Campaña no encontrada' });
 
   // 2. AdGroups de la campaña
+  // Fields conservadores: solo los oficiales estables en v1.3. TikTok rechaza
+  // el batch completo si algún campo no existe (error 40002).
   const agQs = new URLSearchParams({
     advertiser_id: advertiserId,
     filtering: JSON.stringify({ campaign_ids: [campaignId] }),
     fields: JSON.stringify([
-      'adgroup_id','adgroup_name','operation_status','budget','budget_mode',
-      'bid_type','bid_price','optimization_goal','optimization_event',
-      'billing_event','pacing','schedule_type','schedule_start_time','schedule_end_time',
+      'adgroup_id','adgroup_name','operation_status','secondary_status',
+      'budget','budget_mode','bid_type','bid_price',
+      'optimization_goal','optimization_event','billing_event','pacing',
+      'schedule_type','schedule_start_time','schedule_end_time',
       'location_ids','age_groups','gender','languages','operating_systems',
-      'placement_type','placements','interest_category_ids','interest_keyword_ids',
-      'action_categories','action_period','video_download_disabled',
-      'creative_material_mode','identity_id','identity_type','identity_authorized_bc_id',
-      'promotion_type','app_id','pixel_id','conversion_id',
+      'placement_type','placements',
+      'interest_category_ids','interest_keyword_ids',
+      'creative_material_mode','identity_id','identity_type',
+      'promotion_type','pixel_id',
     ]),
     page_size: '100',
   });
@@ -126,10 +129,9 @@ export default async function handler(req) {
       advertiser_id: advertiserId,
       filtering: JSON.stringify({ adgroup_ids: [adg.adgroup_id] }),
       fields: JSON.stringify([
-        'ad_id','ad_name','operation_status','ad_format','ad_text',
-        'video_id','image_ids','avatar_icon_web_uri','display_name',
-        'call_to_action','landing_page_url','click_tracking_url','impression_tracking_url',
-        'creative_authorized','app_name','profile_image',
+        'ad_id','ad_name','operation_status','secondary_status',
+        'ad_format','ad_text','video_id','image_ids',
+        'display_name','call_to_action','landing_page_url',
       ]),
       page_size: '100',
     });
@@ -164,20 +166,19 @@ export default async function handler(req) {
         placements: adg.placements || [],
         interest_category_ids: adg.interest_category_ids || [],
         interest_keyword_ids: adg.interest_keyword_ids || [],
-        action_categories: adg.action_categories || [],
-        action_period: adg.action_period,
       },
       creative_material_mode: adg.creative_material_mode,
       identity_id: adg.identity_id,
       identity_type: adg.identity_type,
       promotion_type: adg.promotion_type,
       pixel_id: adg.pixel_id,
-      conversion_id: adg.conversion_id,
+      secondary_status: adg.secondary_status,
       ads_count: ads.length,
       ads: ads.map(a => ({
         id: a.ad_id,
         name: a.ad_name,
         status: a.operation_status,
+        secondary_status: a.secondary_status,
         format: a.ad_format,
         ad_text: a.ad_text,
         video_id: a.video_id,
@@ -185,7 +186,6 @@ export default async function handler(req) {
         display_name: a.display_name,
         call_to_action: a.call_to_action,
         landing_page_url: a.landing_page_url,
-        click_tracking_url: a.click_tracking_url,
       })),
     });
   }
