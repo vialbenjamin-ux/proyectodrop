@@ -181,32 +181,22 @@ exports.handler = async (event) => {
   if (!warehouseUsed) warehouseUsed = 79;   // RVG default
   if (!shopUsed) shopUsed = 152458;
 
-  // FIX combos (2x1, 3x1, etc): Shopify a veces manda qty>1 con price=precio_combo
-  // (el cliente paga menos que qty*price). Distinguimos:
-  //   - Items con qty=1: precio unitario es correcto, NO tocar.
-  //   - Items con qty>1: pueden tener combo, ajustar SOLO estos para que
-  //     su suma cuadre con (targetTotal - suma_de_items_qty_1).
-  // Esto preserva la precisión cuando hay 2+ productos distintos y solo
-  // uno tiene combo. Si todos son qty=1, no hay nada que ajustar.
+  // FIX descuentos/combos: Shopify manda line_items[].price que puede estar
+  // mal para varios casos:
+  //   - Combos 2x1/3x1: qty>1 con price=precio_original_por_unidad.
+  //   - Upsells: qty=1 con price=precio_normal (real es descuento).
+  //   - Descuentos globales aplicados.
+  //
+  // En todos los casos, el TOTAL real (body.total) es la fuente de verdad.
+  // Ajustamos proporcionalmente TODOS los items para que sum(qty*price)
+  // coincida con targetTotal. Los precios unitarios individuales pueden
+  // no ser exactos vs Shopify, pero el TOTAL siempre queda correcto.
   const targetTotal = parseFloat(body.total || 0);
   if (targetTotal > 0 && dropiProducts.length > 0) {
-    const singleItems = dropiProducts.filter(p => p.quantity === 1);
-    const multiItems = dropiProducts.filter(p => p.quantity > 1);
-    const singleSum = singleItems.reduce((s, p) => s + p.price, 0);
-    const remainingForMulti = targetTotal - singleSum;
-    const multiSum = multiItems.reduce((s, p) => s + (p.quantity * p.price), 0);
-
-    if (multiItems.length > 0 && multiSum > 0 && remainingForMulti > 0 && Math.abs(multiSum - remainingForMulti) > 1) {
-      // Ajuste solo a los items con qty>1 (los combos).
-      const factor = remainingForMulti / multiSum;
-      for (const p of multiItems) {
-        p.price = Math.round(p.price * factor);
-      }
-    } else if (multiItems.length === 0 && singleItems.length > 0 && Math.abs(singleSum - targetTotal) > 1) {
-      // Todos qty=1 pero total no cuadra (caso raro con descuentos globales):
-      // ajuste proporcional a todos.
-      const factor = targetTotal / singleSum;
-      for (const p of singleItems) {
+    const rawSum = dropiProducts.reduce((s, p) => s + (p.quantity * p.price), 0);
+    if (rawSum > 0 && Math.abs(rawSum - targetTotal) > 1) {
+      const factor = targetTotal / rawSum;
+      for (const p of dropiProducts) {
         p.price = Math.round(p.price * factor);
       }
     }
