@@ -1501,6 +1501,10 @@
     ⚡ DROPITEA
   </button>
 
+  <button class="tab-btn ng-standalone" data-section="campanas" onclick="switchSection('campanas')">
+    🎯 Campañas Vivo
+  </button>
+
   <button class="tab-btn ng-standalone" data-section="calculadora" onclick="switchSection('calculadora')">
     🧮 Calculadora
   </button>
@@ -3746,6 +3750,68 @@
   </div><!-- fin dropitea-tab-atascados -->
   </div><!-- fin section-dropitea -->
 
+  <!-- ═══════════════════════════════════════════════════════════════
+       SECCION CAMPAÑAS VIVO — control operativo de campañas Ads
+       (TikTok + Meta): activar/pausar/apagar sin salir de BKDROP.
+       ═══════════════════════════════════════════════════════════════ -->
+  <div id="section-campanas" class="section">
+    <div style="max-width:1200px;margin:0 auto">
+      <div style="margin-bottom:18px">
+        <div style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:20px;color:var(--text);margin-bottom:4px">🎯 Campañas Vivo</div>
+        <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace">Control operativo · pausar/activar campañas en tiempo real</div>
+      </div>
+
+      <!-- Sub-tabs por plataforma -->
+      <div class="report-subtabs" style="margin-bottom:16px">
+        <button class="report-subtab active" data-cvtab="tiktok" onclick="switchCvTab('tiktok')">🎵 TikTok</button>
+        <button class="report-subtab" data-cvtab="meta" onclick="switchCvTab('meta')" title="Proximamente">📈 Meta (proximo)</button>
+      </div>
+
+      <!-- TAB TIKTOK -->
+      <div id="cv-tab-tiktok" class="cv-tab-content" style="display:block">
+        <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:12px;padding:14px;margin-bottom:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <select id="cv-tt-account" onchange="cvTtLoadCampanas()" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:7px 12px;border-radius:8px;font-size:12px;font-family:'DM Mono',monospace;cursor:pointer;min-width:220px">
+            <option value="">Selecciona una cuenta TikTok...</option>
+          </select>
+          <select id="cv-tt-filter" onchange="cvTtRender()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:8px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer">
+            <option value="all">Todas</option>
+            <option value="active" selected>Solo activas</option>
+            <option value="paused">Solo pausadas</option>
+          </select>
+          <input type="text" id="cv-tt-search" placeholder="🔍 Buscar por nombre..." oninput="cvTtRender()" style="flex:1;min-width:200px;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:8px;font-size:11px;font-family:'DM Mono',monospace">
+          <button onclick="cvTtLoadCampanas()" style="background:transparent;border:1.5px solid var(--accent);color:var(--accent);border-radius:8px;padding:7px 14px;font-size:11px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">↻ Refrescar</button>
+        </div>
+
+        <div id="cv-tt-status" style="margin-bottom:10px;font-size:11px;color:var(--muted);font-family:'DM Mono',monospace"></div>
+
+        <div style="overflow-x:auto;background:var(--surface);border:1.5px solid var(--border);border-radius:10px">
+          <table style="width:100%;border-collapse:collapse;font-family:'DM Mono',monospace;font-size:12px">
+            <thead>
+              <tr style="background:var(--surface2);border-bottom:1.5px solid var(--border)">
+                <th style="padding:10px 12px;text-align:left">Campaña</th>
+                <th style="padding:10px 8px;text-align:center">Estado</th>
+                <th style="padding:10px 10px;text-align:right">Ppto/día <span style="color:var(--muted2);font-size:9px">(CLP)</span></th>
+                <th style="padding:10px 8px;text-align:center">Acción</th>
+              </tr>
+            </thead>
+            <tbody id="cv-tt-tbody"></tbody>
+          </table>
+        </div>
+
+        <div style="margin-top:14px;padding:12px;background:var(--surface2);border:1px dashed var(--border);border-radius:8px;font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;line-height:1.6">
+          <b style="color:var(--text)">💡 Uso:</b> click en ▶ Activar o ⏸ Pausar. Confirma antes de aplicar. Los cambios impactan inmediatamente en TikTok Ads.
+        </div>
+      </div>
+
+      <!-- TAB META (placeholder) -->
+      <div id="cv-tab-meta" class="cv-tab-content" style="display:none">
+        <div style="padding:40px;text-align:center;color:var(--muted);font-family:'DM Mono',monospace">
+          Meta próximamente 🚧
+        </div>
+      </div>
+    </div>
+  </div><!-- fin section-campanas -->
+
   <div id="section-calculadora" class="section">
     <div style="max-width:620px;margin:0 auto">
 
@@ -4153,6 +4219,7 @@ function switchSection(s, silent){
   if(s==='prompts'){ renderPrompts(); loadBkVars(); }
   if(s==='reportes') initReportes();
   if(s==='dropitea') initDropitea();
+  if(s==='campanas') initCampanasVivo();
   // Pipeline removido — la sección ya no existe en el nav
   // Sección Personal/bkfit removida del nav
   if(s==='investigacion') bkInvInit();
@@ -19624,6 +19691,190 @@ function renderTikTokKpisAndTable(){
     accNameEl.textContent = accountInfo + (_ttData.crossEnabled ? '' : ' · ⚠️ cruce Shopify deshabilitado');
   }
   document.getElementById('tt-table').style.display = '';
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// SECCION CAMPAÑAS VIVO — control operativo Ads
+// ═══════════════════════════════════════════════════════════════════
+window._cvData = { tt: { advertisers: [], campanas: [], accountId: null } };
+
+async function initCampanasVivo() {
+  // Cargar lista de advertisers TikTok si no está aún
+  if (window._cvData.tt.advertisers.length === 0) {
+    await cvTtLoadAccounts();
+  }
+}
+
+function switchCvTab(which) {
+  document.querySelectorAll('.cv-tab-content').forEach(el => el.style.display = 'none');
+  document.querySelectorAll('[data-cvtab]').forEach(el => el.classList.remove('active'));
+  const target = document.getElementById('cv-tab-' + which);
+  if (target) target.style.display = 'block';
+  const btn = document.querySelector('[data-cvtab="' + which + '"]');
+  if (btn) btn.classList.add('active');
+}
+
+async function cvTtLoadAccounts() {
+  const sel = document.getElementById('cv-tt-account');
+  const statusEl = document.getElementById('cv-tt-status');
+  statusEl.textContent = 'Cargando cuentas TikTok...';
+  try {
+    const resp = await fetch('/.netlify/functions/tiktok-advertisers');
+    const data = await resp.json();
+    if (!resp.ok || !data.advertisers) {
+      statusEl.textContent = 'Error cargando cuentas: ' + (data.error || 'unknown') + '. ¿Está conectada TikTok en Reportes?';
+      return;
+    }
+    const advs = data.advertisers;
+    window._cvData.tt.advertisers = advs;
+    sel.innerHTML = '<option value="">Selecciona una cuenta TikTok...</option>' +
+      advs.map(a => `<option value="${escapeHtml(a.advertiser_id)}">${escapeHtml(a.advertiser_name || a.advertiser_id)}</option>`).join('');
+    // Auto-seleccionar la primera si hay solo una
+    if (advs.length >= 1) {
+      sel.value = advs[0].advertiser_id;
+      await cvTtLoadCampanas();
+    } else {
+      statusEl.textContent = advs.length + ' cuenta(s) disponible(s). Selecciona una.';
+    }
+  } catch (e) {
+    statusEl.textContent = 'Error: ' + (e.message || '?');
+  }
+}
+
+async function cvTtLoadCampanas() {
+  const sel = document.getElementById('cv-tt-account');
+  const advertiserId = sel.value;
+  const statusEl = document.getElementById('cv-tt-status');
+  if (!advertiserId) {
+    statusEl.textContent = 'Selecciona una cuenta primero.';
+    document.getElementById('cv-tt-tbody').innerHTML = '';
+    return;
+  }
+  window._cvData.tt.accountId = advertiserId;
+  statusEl.textContent = 'Cargando campañas...';
+  try {
+    // Reuso tiktok-report (que ya tiene las campañas con status)
+    const resp = await fetch('/.netlify/functions/tiktok-report?advertiser_id=' + encodeURIComponent(advertiserId) + '&date_preset=today');
+    const data = await resp.json();
+    if (!resp.ok) {
+      statusEl.textContent = 'Error: ' + (data.error || 'unknown');
+      return;
+    }
+    window._cvData.tt.campanas = data.rows || [];
+    window._cvData.tt.currency = data.currency || 'CLP';
+    window._cvData.tt.originalCurrency = data.originalCurrency || null;
+    window._cvData.tt.fxRate = data.fxRate || null;
+    cvTtRender();
+  } catch (e) {
+    statusEl.textContent = 'Error de red: ' + (e.message || '?');
+  }
+}
+
+function cvTtRender() {
+  const filter = document.getElementById('cv-tt-filter').value;
+  const search = (document.getElementById('cv-tt-search').value || '').toLowerCase().trim();
+  const tbody = document.getElementById('cv-tt-tbody');
+  const statusEl = document.getElementById('cv-tt-status');
+  let rows = window._cvData.tt.campanas || [];
+
+  if (filter === 'active') rows = rows.filter(r => r.status === 'STATUS_ENABLE');
+  else if (filter === 'paused') rows = rows.filter(r => r.status !== 'STATUS_ENABLE');
+  if (search) rows = rows.filter(r => String(r.name||'').toLowerCase().includes(search));
+
+  const active = window._cvData.tt.campanas.filter(r => r.status === 'STATUS_ENABLE').length;
+  const paused = window._cvData.tt.campanas.length - active;
+  const origCur = window._cvData.tt.originalCurrency;
+  const fxRate = window._cvData.tt.fxRate;
+  const fxLabel = (origCur && origCur !== 'CLP' && fxRate)
+    ? ` · 💱 ${origCur}→CLP @ ${Math.round(fxRate).toLocaleString('es-CL')}`
+    : '';
+  statusEl.textContent = `Total: ${window._cvData.tt.campanas.length} · Activas: ${active} · Pausadas: ${paused} · Mostrando: ${rows.length}${fxLabel}`;
+
+  const fmtBudget = (v) => v == null ? '—' : '$' + Math.round(v).toLocaleString('es-CL') + ' CLP';
+
+  tbody.innerHTML = rows.map(r => {
+    const isActive = r.status === 'STATUS_ENABLE';
+    const badge = isActive
+      ? '<span style="display:inline-block;background:rgba(34,197,94,.15);color:#22c55e;padding:3px 10px;border-radius:12px;font-size:10px;font-weight:700">ACTIVA</span>'
+      : '<span style="display:inline-block;background:rgba(156,163,175,.15);color:#9ca3af;padding:3px 10px;border-radius:12px;font-size:10px;font-weight:700">' + escapeHtml(String(r.status||'?').replace('STATUS_','')) + '</span>';
+    const btn = isActive
+      ? `<button onclick="cvTtAction('${escapeHtml(r.id)}', 'DISABLE', ${JSON.stringify(String(r.name||'').slice(0,60)).replace(/"/g,'&quot;')})" style="background:#eab308;color:#000;border:none;border-radius:6px;padding:6px 14px;font-size:11px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">⏸ Pausar</button>`
+      : `<button onclick="cvTtAction('${escapeHtml(r.id)}', 'ENABLE', ${JSON.stringify(String(r.name||'').slice(0,60)).replace(/"/g,'&quot;')})" style="background:#22c55e;color:#000;border:none;border-radius:6px;padding:6px 14px;font-size:11px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">▶ Activar</button>`;
+    return `<tr data-id="${escapeHtml(r.id)}" style="border-bottom:1px solid var(--border)">
+      <td style="padding:10px 12px;color:var(--text)">${escapeHtml(r.name||'')}</td>
+      <td style="padding:10px 8px;text-align:center">${badge}</td>
+      <td style="padding:10px 10px;text-align:right;color:var(--muted2)">${fmtBudget(r.dailyBudget)}</td>
+      <td style="padding:8px 8px;text-align:center">${btn}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="4" style="padding:24px;text-align:center;color:var(--muted)">No hay campañas con el filtro actual.</td></tr>';
+}
+
+async function cvTtAction(campaignId, operation, campaignName) {
+  const advertiserId = window._cvData.tt.accountId;
+  if (!advertiserId) { alert('No hay cuenta seleccionada'); return; }
+  const opLabel = operation === 'ENABLE' ? 'ACTIVAR' : 'PAUSAR';
+  const msg = `¿${opLabel} esta campaña?\n\nNombre: ${campaignName}\nID: ${campaignId}\n\n` +
+    (operation === 'DISABLE' ? '⚠️ Deja de gastar hasta reactivarla.' : '⚡ Vuelve a gastar según su presupuesto.');
+  if (!confirm(msg)) return;
+
+  try {
+    const resp = await fetch('/.netlify/functions/tiktok-campaign-status', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ advertiser_id: advertiserId, campaign_ids: [campaignId], operation }),
+    });
+    const data = await resp.json();
+    if (!resp.ok || !data.ok) {
+      const detail = data.detail ? (data.detail.message || JSON.stringify(data.detail).slice(0,200)) : '';
+      alert('❌ Error TikTok: ' + (data.error || 'unknown') + (detail ? '\n\n' + detail : ''));
+      return;
+    }
+    // Actualizar estado local + re-render
+    const row = window._cvData.tt.campanas.find(r => String(r.id) === String(campaignId));
+    if (row) row.status = operation === 'ENABLE' ? 'STATUS_ENABLE' : 'STATUS_DISABLE';
+    cvTtRender();
+    if (typeof showToast === 'function') showToast(`Campaña ${opLabel.toLowerCase()}da`, operation === 'ENABLE' ? '▶️' : '⏸', 'ok');
+  } catch (e) {
+    alert('Error red: ' + (e.message || '?'));
+  }
+}
+
+// Cambiar status de campaña TikTok (ENABLE / DISABLE). Con confirmación
+// para evitar apagar/prender campañas por accidente.
+async function ttCampaignAction(campaignId, operation, campaignName) {
+  const opLabel = operation === 'ENABLE' ? 'ACTIVAR' : 'PAUSAR';
+  const advertiser = _ttData && _ttData.advertiserId;
+  if (!advertiser) { alert('No hay advertiser activo. Recargá la sección TikTok.'); return; }
+  const msg = `¿${opLabel} esta campaña?\n\n` +
+    `Nombre: ${campaignName}\n` +
+    `ID: ${campaignId}\n\n` +
+    (operation === 'DISABLE' ? '⚠️ La campaña deja de gastar hasta que la reactives.' : '⚡ La campaña vuelve a gastar según su presupuesto.');
+  if (!confirm(msg)) return;
+
+  try {
+    const resp = await fetch('/.netlify/functions/tiktok-campaign-status', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        advertiser_id: advertiser,
+        campaign_ids: [campaignId],
+        operation,
+      }),
+    });
+    const data = await resp.json();
+    if (!resp.ok || !data.ok) {
+      const detail = data.detail ? (data.detail.message || JSON.stringify(data.detail).slice(0,200)) : '';
+      alert('❌ TikTok error: ' + (data.error || 'unknown') + (detail ? '\n\nDetalle: ' + detail : ''));
+      return;
+    }
+    // Actualizar estado local + re-render sin fetch completo
+    const row = (_ttData.rows || []).find(r => String(r.id) === String(campaignId));
+    if (row) row.status = operation === 'ENABLE' ? 'STATUS_ENABLE' : 'STATUS_DISABLE';
+    if (typeof renderTt === 'function') renderTt();
+    if (typeof showToast === 'function') showToast(`Campaña ${opLabel.toLowerCase()}da: ${campaignName.slice(0,30)}`, operation === 'ENABLE' ? '▶️' : '⏸', 'ok');
+  } catch (e) {
+    alert('❌ Error de red: ' + (e.message || '?'));
+  }
 }
 
 // Modal con el detalle de órdenes Shopify atribuidas a una campaña TikTok.
