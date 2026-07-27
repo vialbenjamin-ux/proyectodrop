@@ -117,6 +117,7 @@ function compact(o) {
     dir: String(dirRaw || '').slice(0, 90),
     phone: String(phoneRaw || ''),
     cliente: String(clientName || '').slice(0, 80),
+    notes: String(firstOf(o, ['notes']) || '').slice(0, 200),
     fin: dateOnly(firstOf(o, ['updated_at', 'date_updated', 'finished_at', 'delivered_at'])),
   };
 }
