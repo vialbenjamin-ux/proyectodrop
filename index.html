@@ -20009,12 +20009,15 @@ function cvTtInspectRender(data, bodyEl) {
     if (a.ads && a.ads.length > 0) {
       html += `<div style="background:var(--surface2);border-top:1px solid var(--border);padding:8px 12px"><div style="color:var(--text);font-size:10px;font-weight:700;margin-bottom:6px">🎬 Ads (${a.ads.length}):</div>`;
       a.ads.forEach((ad, i) => {
-        const copy = (ad.ad_text || '').slice(0, 300);
+        const copysList = Array.isArray(ad.ad_texts) && ad.ad_texts.length > 0 ? ad.ad_texts : (ad.ad_text ? [ad.ad_text] : []);
         html += `<div style="border-top:1px dashed var(--border);padding:6px 0;font-size:10px">
           <div style="color:var(--muted2)"><b>#${i+1} ${escapeHtml(ad.name||'')}</b> · ${escapeHtml(ad.status||'?')} · ${escapeHtml(ad.format||'?')}</div>
-          <div style="color:var(--muted2)">🎥 video_id: <code>${escapeHtml(ad.video_id||'—')}</code> · CTA: ${escapeHtml(ad.call_to_action||'—')}</div>
-          <div style="color:var(--muted2)">🔗 Landing: <a href="${escapeHtml(ad.landing_page_url||'#')}" target="_blank" style="color:var(--accent)">${escapeHtml((ad.landing_page_url||'').slice(0,80))}</a></div>
-          <div style="color:var(--text);margin-top:4px;padding:6px 8px;background:var(--surface);border-radius:4px;border-left:2px solid var(--accent);white-space:pre-wrap;font-size:10px">📝 ${escapeHtml(copy)}</div>
+          <div style="color:var(--muted2)">🎥 video_id: <code>${escapeHtml(ad.video_id||'—')}</code> · CTA: <b>${escapeHtml(ad.call_to_action||'—')}</b></div>
+          <div style="color:var(--muted2)">🔗 Landing: <a href="${escapeHtml(ad.landing_page_url||'#')}" target="_blank" style="color:var(--accent)">${escapeHtml((ad.landing_page_url||'—').slice(0,80))}</a></div>
+          <div style="color:var(--muted2)">🎭 Display name: ${escapeHtml(ad.display_name||'—')} · Identity: ${escapeHtml(ad.identity_type||'—')} ${ad.identity_id ? '('+escapeHtml(ad.identity_id)+')' : ''}</div>
+          ${ad.tiktok_item_id ? `<div style="color:#8b5cf6"><b>⚡ SPARK AD</b> — tiktok_item_id: ${escapeHtml(ad.tiktok_item_id)}</div>` : ''}
+          ${copysList.length === 0 ? '<div style="color:#eab308;margin-top:4px">⚠ Sin copy en ad_text/ad_texts</div>'
+            : copysList.map((c,ci) => `<div style="color:var(--text);margin-top:4px;padding:6px 8px;background:var(--surface);border-radius:4px;border-left:2px solid var(--accent);white-space:pre-wrap;font-size:10px">📝 <b>Copy ${ci+1}/${copysList.length}:</b> ${escapeHtml(String(c).slice(0,400))}</div>`).join('')}
         </div>`;
       });
       html += '</div>';

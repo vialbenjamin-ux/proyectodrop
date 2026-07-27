@@ -130,8 +130,14 @@ export default async function handler(req) {
       filtering: JSON.stringify({ adgroup_ids: [adg.adgroup_id] }),
       fields: JSON.stringify([
         'ad_id','ad_name','operation_status','secondary_status',
-        'ad_format','ad_text','video_id','image_ids',
+        'ad_format','ad_text','ad_texts','video_id','image_ids',
         'display_name','call_to_action','landing_page_url',
+        // Spark Ads (impulsan post organico)
+        'tiktok_item_id','identity_id','identity_type',
+        // Landing / promotion / catalog
+        'page_id','catalog_id','product_specific_type',
+        // Copys en display card / interactive addons
+        'card_id','click_tracking_url',
       ]),
       page_size: '100',
     });
@@ -179,13 +185,24 @@ export default async function handler(req) {
         name: a.ad_name,
         status: a.operation_status,
         secondary_status: a.secondary_status,
-        format: a.ad_format,
-        ad_text: a.ad_text,
-        video_id: a.video_id,
+        format: a.ad_format || null,
+        ad_text: a.ad_text || '',
+        ad_texts: a.ad_texts || null,   // ACO ads guardan copys aqui (array)
+        video_id: a.video_id || null,
         image_ids: a.image_ids || [],
-        display_name: a.display_name,
-        call_to_action: a.call_to_action,
-        landing_page_url: a.landing_page_url,
+        display_name: a.display_name || null,
+        call_to_action: a.call_to_action || null,
+        landing_page_url: a.landing_page_url || null,
+        // Spark Ads
+        tiktok_item_id: a.tiktok_item_id || null,
+        identity_id: a.identity_id || null,
+        identity_type: a.identity_type || null,
+        // Landing / promotion
+        page_id: a.page_id || null,
+        catalog_id: a.catalog_id || null,
+        product_specific_type: a.product_specific_type || null,
+        card_id: a.card_id || null,
+        click_tracking_url: a.click_tracking_url || null,
       })),
     });
   }
