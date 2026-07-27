@@ -4537,6 +4537,7 @@ function renderHuerfanos() {
         <div><span style="color:var(--muted)">Region:</span> ${escapeHtml(o.province || '')}</div>
         <div style="grid-column:1/-1;line-height:1.6"><span style="color:var(--muted)">Producto(s):</span><br>${items}</div>
       </div>
+      ${renderHuerfanoPreview(o)}
     </div>`;
   }).join('');
 }
@@ -4748,6 +4749,69 @@ async function createAllHuerfanos() {
   allBtn.disabled = false;
   allBtn.textContent = '⚡ Crear TODOS en Dropi';
   if (typeof showToast === 'function') showToast(`Batch: ${okCount} OK · ${failCount} fallidos`, '⚡', okCount > 0 ? 'ok' : 'error');
+}
+
+// Preview de como quedara la orden en Dropi: total ajustado, precio por
+// unidad ajustado si hay combo 2x1/3x1, warnings si hay problemas.
+function renderHuerfanoPreview(o) {
+  const items = o.items || [];
+  const total = parseFloat(o.total || 0);
+  if (items.length === 0 || total === 0) return '';
+  const rawSum = items.reduce((s, it) => s + ((it.qty || 0) * (it.price || 0)), 0);
+  const needsAdjust = rawSum > 0 && Math.abs(rawSum - total) > 1;
+  const factor = needsAdjust ? total / rawSum : 1;
+  const previewItems = items.map(it => ({
+    name: it.name || '',
+    qty: it.qty || 1,
+    originalPrice: it.price || 0,
+    adjustedPrice: Math.round((it.price || 0) * factor),
+    barcode: it.barcode || '(sin)',
+  }));
+  const dropiTotal = previewItems.reduce((s, it) => s + (it.qty * it.adjustedPrice), 0);
+  const missingBarcode = items.some(it => !it.barcode);
+  const missingCity = !o.city || o.city.length < 2;
+  const missingRegion = !o.province || o.province.length < 3;
+  const missingPhone = !o.phone && !o.phone_raw;
+
+  const rows = previewItems.map(it => {
+    const priceChanged = needsAdjust && it.originalPrice !== it.adjustedPrice;
+    return `<tr>
+      <td style="padding:4px 8px">${escapeHtml(it.name.slice(0, 50))}</td>
+      <td style="padding:4px 8px;text-align:center">${it.qty}</td>
+      <td style="padding:4px 8px;text-align:right;${priceChanged ? 'color:var(--muted);text-decoration:line-through' : ''}">$${it.originalPrice.toLocaleString('es-CL')}</td>
+      <td style="padding:4px 8px;text-align:right;${priceChanged ? 'color:#2b7a2b;font-weight:700' : ''}">$${it.adjustedPrice.toLocaleString('es-CL')}</td>
+      <td style="padding:4px 8px;text-align:right">$${(it.qty * it.adjustedPrice).toLocaleString('es-CL')}</td>
+    </tr>`;
+  }).join('');
+
+  const warnings = [];
+  if (needsAdjust) warnings.push(`⚠️ Combo detectado — precios ajustados para que total coincida ($${rawSum.toLocaleString('es-CL')} → $${dropiTotal.toLocaleString('es-CL')})`);
+  if (missingBarcode) warnings.push('❌ Falta barcode en algun producto — no se puede matchear con Dropi');
+  if (missingCity) warnings.push('❌ Comuna vacia');
+  if (missingRegion) warnings.push('❌ Region vacia');
+  if (missingPhone) warnings.push('❌ Telefono vacio');
+
+  return `<details style="margin-top:8px;font-size:10px;font-family:'DM Mono',monospace">
+    <summary style="cursor:pointer;color:var(--muted);padding:4px 0;user-select:none">👁️ Preview cómo quedará en Dropi</summary>
+    <div style="background:rgba(43,122,43,0.05);border:1px solid rgba(43,122,43,0.3);border-radius:6px;padding:10px;margin-top:6px">
+      <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:10px">
+        <thead><tr style="border-bottom:1px solid var(--border);color:var(--muted)">
+          <th style="padding:4px 8px;text-align:left">Producto</th>
+          <th style="padding:4px 8px;text-align:center">Cant</th>
+          <th style="padding:4px 8px;text-align:right">Precio orig.</th>
+          <th style="padding:4px 8px;text-align:right">Precio Dropi</th>
+          <th style="padding:4px 8px;text-align:right">Subtotal</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+        <tfoot><tr style="border-top:1.5px solid var(--border);font-weight:700">
+          <td colspan="4" style="padding:6px 8px;text-align:right">TOTAL DROPI:</td>
+          <td style="padding:6px 8px;text-align:right;color:${Math.abs(dropiTotal-total)<=1?'#2b7a2b':'#e46'}">$${dropiTotal.toLocaleString('es-CL')}</td>
+        </tr></tfoot>
+      </table></div>
+      ${warnings.length ? '<div style="margin-top:8px;padding:6px 8px;background:rgba(228,102,102,0.08);border-radius:4px;line-height:1.5">' + warnings.map(w => escapeHtml(w)).join('<br>') + '</div>' : ''}
+      <div style="margin-top:6px;font-size:9px;color:var(--muted)">Transportadora: STARKEN · Status inicial: PENDIENTE CONFIRMACION</div>
+    </div>
+  </details>`;
 }
 
 async function copyHuerfanoData(idx) {
