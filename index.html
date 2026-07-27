@@ -19826,9 +19826,12 @@ function cvTtRender() {
       : `<button onclick="cvTtAction('${escapeHtml(r.id)}', 'ENABLE', ${JSON.stringify(String(r.name||'').slice(0,60)).replace(/"/g,'&quot;')})" style="background:#22c55e;color:#000;border:none;border-radius:6px;padding:6px 14px;font-size:11px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">▶ Activar</button>`;
     // Ppto: preferir diario, fallback lifetime (para modos BUDGET_MODE_TOTAL)
     const budgetVal = (r.dailyBudget != null) ? r.dailyBudget : r.lifetimeBudget;
-    const budgetLabel = (r.dailyBudget != null) ? fmtMoney(budgetVal)
-                      : (r.lifetimeBudget != null) ? fmtMoney(budgetVal) + ' <span style="color:var(--muted2);font-size:9px">total</span>'
-                      : '<span style="color:var(--muted2)">∞</span>';
+    const budgetMode = (r.dailyBudget != null) ? 'BUDGET_MODE_DAY'
+                     : (r.lifetimeBudget != null) ? 'BUDGET_MODE_TOTAL' : null;
+    const modeTag = budgetMode === 'BUDGET_MODE_TOTAL' ? ' <span style="color:var(--muted2);font-size:9px">total</span>' : '';
+    const budgetLabel = budgetVal != null
+      ? `<span style="cursor:pointer;border-bottom:1px dashed var(--muted2)" onclick="cvTtEditBudget('${escapeHtml(r.id)}', ${budgetVal}, '${budgetMode}', ${JSON.stringify(String(r.name||'').slice(0,60)).replace(/"/g,'&quot;')})" title="Click para editar presupuesto">${fmtMoney(budgetVal)}${modeTag} <span style="color:var(--accent);font-size:10px">✏</span></span>`
+      : '<span style="color:var(--muted2)">∞</span>';
     // CPA: preferir el real Shopify (fuente de verdad), fallback TikTok
     const cpaVal = (r.cpaReal != null && isFinite(r.cpaReal) && r.cpaReal > 0) ? r.cpaReal
                  : (r.cpa != null && isFinite(r.cpa) && r.cpa > 0) ? r.cpa : null;
@@ -19848,6 +19851,71 @@ function cvTtRender() {
       <td style="padding:8px 8px;text-align:center">${btn}</td>
     </tr>`;
   }).join('') || '<tr><td colspan="6" style="padding:24px;text-align:center;color:var(--muted)">No hay campañas con el filtro actual.</td></tr>';
+}
+
+async function cvTtEditBudget(campaignId, currentBudgetClp, budgetMode, campaignName) {
+  const advertiserId = window._cvData.tt.accountId;
+  if (!advertiserId) { alert('No hay cuenta seleccionada'); return; }
+  const origCur = window._cvData.tt.originalCurrency || 'CLP';
+  const fxRate = window._cvData.tt.fxRate || 1;   // 1 <origCur> = fxRate CLP
+  const modeLabel = budgetMode === 'BUDGET_MODE_TOTAL' ? 'lifetime' : 'diario';
+  // Sugerir el actual para editar
+  const nuevoStr = prompt(
+    `Editar presupuesto ${modeLabel}\n\n` +
+    `Campaña: ${campaignName}\n` +
+    `Actual: $${Math.round(currentBudgetClp).toLocaleString('es-CL')} CLP\n\n` +
+    `Ingresa el nuevo presupuesto EN CLP (solo numeros):`,
+    Math.round(currentBudgetClp)
+  );
+  if (nuevoStr == null) return;
+  const nuevoClp = parseInt(String(nuevoStr).replace(/[^\d]/g, ''), 10);
+  if (!isFinite(nuevoClp) || nuevoClp <= 0) { alert('Monto invalido'); return; }
+  if (Math.abs(nuevoClp - currentBudgetClp) < 1) { alert('El presupuesto no cambio'); return; }
+
+  // Convertir CLP -> moneda cuenta (si aplica). fxRate = CLP por 1 unidad moneda.
+  const nuevoEnMonedaCuenta = origCur === 'CLP' ? nuevoClp : Math.round(nuevoClp / fxRate);
+  const conversionMsg = origCur === 'CLP' ? '' :
+    `\n\n💱 Enviamos ${nuevoEnMonedaCuenta.toLocaleString('es-CL')} ${origCur} a TikTok (tasa 1 ${origCur} = ${fxRate.toFixed(4)} CLP)`;
+
+  // Doble confirm
+  if (!confirm(
+    `⚠️ CONFIRMAR CAMBIO DE PRESUPUESTO\n\n` +
+    `Campaña: ${campaignName}\n` +
+    `Modo: ${modeLabel}\n` +
+    `Actual: $${Math.round(currentBudgetClp).toLocaleString('es-CL')} CLP\n` +
+    `Nuevo: $${nuevoClp.toLocaleString('es-CL')} CLP` +
+    conversionMsg +
+    `\n\n¿Aplicar?`
+  )) return;
+
+  try {
+    const resp = await fetch('/.netlify/functions/tiktok-campaign-update', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        advertiser_id: advertiserId,
+        campaign_id: campaignId,
+        budget: nuevoEnMonedaCuenta,
+        budget_mode: budgetMode,
+      }),
+    });
+    const data = await resp.json();
+    if (!resp.ok || !data.ok) {
+      const detail = data.detail ? (data.detail.message || JSON.stringify(data.detail).slice(0, 300)) : '';
+      alert('❌ Error TikTok: ' + (data.error || 'unknown') + (detail ? '\n\n' + detail : ''));
+      return;
+    }
+    // Actualizar estado local en CLP
+    const row = window._cvData.tt.campanas.find(r => String(r.id) === String(campaignId));
+    if (row) {
+      if (budgetMode === 'BUDGET_MODE_DAY') row.dailyBudget = nuevoClp;
+      else row.lifetimeBudget = nuevoClp;
+    }
+    cvTtRender();
+    if (typeof showToast === 'function') showToast('Presupuesto actualizado', '💰', 'ok');
+  } catch (e) {
+    alert('Error red: ' + (e.message || '?'));
+  }
 }
 
 async function cvTtAction(campaignId, operation, campaignName) {
