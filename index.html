@@ -3801,7 +3801,9 @@
               <tr style="background:var(--surface2);border-bottom:1.5px solid var(--border)">
                 <th style="padding:10px 12px;text-align:left">Campaña</th>
                 <th style="padding:10px 8px;text-align:center">Estado</th>
-                <th style="padding:10px 10px;text-align:right">Ppto/día <span style="color:var(--muted2);font-size:9px">(CLP)</span></th>
+                <th style="padding:10px 10px;text-align:right" title="Presupuesto diario (o total si es lifetime)">Ppto <span style="color:var(--muted2);font-size:9px">(CLP)</span></th>
+                <th style="padding:10px 10px;text-align:right" title="Gasto acumulado en el rango de fecha seleccionado">Gasto <span style="color:var(--muted2);font-size:9px">(CLP)</span></th>
+                <th style="padding:10px 10px;text-align:right" title="Costo por compra: preferimos CPA real Shopify, fallback TikTok">CPA <span style="color:var(--muted2);font-size:9px">(CLP)</span></th>
                 <th style="padding:10px 8px;text-align:center">Acción</th>
               </tr>
             </thead>
@@ -19811,7 +19813,8 @@ function cvTtRender() {
     : '';
   statusEl.textContent = `Total: ${window._cvData.tt.campanas.length} · Activas: ${active} · Pausadas: ${paused} · Mostrando: ${rows.length}${fxLabel}`;
 
-  const fmtBudget = (v) => v == null ? '—' : '$' + Math.round(v).toLocaleString('es-CL') + ' CLP';
+  const fmtMoney = (v) => (v == null || !isFinite(v)) ? '—' : '$' + Math.round(v).toLocaleString('es-CL');
+  const fmtSpend = (v) => (v == null || v <= 0) ? '—' : '$' + Math.round(v).toLocaleString('es-CL');
 
   tbody.innerHTML = rows.map(r => {
     const isActive = cvTtIsActive(r.status);
@@ -19821,13 +19824,30 @@ function cvTtRender() {
     const btn = isActive
       ? `<button onclick="cvTtAction('${escapeHtml(r.id)}', 'DISABLE', ${JSON.stringify(String(r.name||'').slice(0,60)).replace(/"/g,'&quot;')})" style="background:#eab308;color:#000;border:none;border-radius:6px;padding:6px 14px;font-size:11px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">⏸ Pausar</button>`
       : `<button onclick="cvTtAction('${escapeHtml(r.id)}', 'ENABLE', ${JSON.stringify(String(r.name||'').slice(0,60)).replace(/"/g,'&quot;')})" style="background:#22c55e;color:#000;border:none;border-radius:6px;padding:6px 14px;font-size:11px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">▶ Activar</button>`;
+    // Ppto: preferir diario, fallback lifetime (para modos BUDGET_MODE_TOTAL)
+    const budgetVal = (r.dailyBudget != null) ? r.dailyBudget : r.lifetimeBudget;
+    const budgetLabel = (r.dailyBudget != null) ? fmtMoney(budgetVal)
+                      : (r.lifetimeBudget != null) ? fmtMoney(budgetVal) + ' <span style="color:var(--muted2);font-size:9px">total</span>'
+                      : '<span style="color:var(--muted2)">∞</span>';
+    // CPA: preferir el real Shopify (fuente de verdad), fallback TikTok
+    const cpaVal = (r.cpaReal != null && isFinite(r.cpaReal) && r.cpaReal > 0) ? r.cpaReal
+                 : (r.cpa != null && isFinite(r.cpa) && r.cpa > 0) ? r.cpa : null;
+    const cpaOrigin = (r.cpaReal != null && r.cpaReal > 0) ? 'real' : (r.cpa != null && r.cpa > 0) ? 'tt' : null;
+    const cpaLabel = cpaVal == null ? '—' : fmtMoney(cpaVal) +
+      (cpaOrigin === 'real' ? ' <span style="color:#22c55e;font-size:9px" title="CPA real: spend/compras Shopify">✓</span>'
+       : ' <span style="color:var(--muted2);font-size:9px" title="CPA reportado por TikTok">tt</span>');
+    // Compras Shopify si hay
+    const buys = r.realPurchases || 0;
+    const buysLabel = buys > 0 ? ` <span style="color:var(--muted2);font-size:9px">(${buys}×)</span>` : '';
     return `<tr data-id="${escapeHtml(r.id)}" style="border-bottom:1px solid var(--border)">
       <td style="padding:10px 12px;color:var(--text)">${escapeHtml(r.name||'')}</td>
       <td style="padding:10px 8px;text-align:center">${badge}</td>
-      <td style="padding:10px 10px;text-align:right;color:var(--muted2)">${fmtBudget(r.dailyBudget)}</td>
+      <td style="padding:10px 10px;text-align:right;color:var(--muted2)">${budgetLabel}</td>
+      <td style="padding:10px 10px;text-align:right;color:var(--text);font-weight:700">${fmtSpend(r.spend)}</td>
+      <td style="padding:10px 10px;text-align:right;color:var(--text)">${cpaLabel}${buysLabel}</td>
       <td style="padding:8px 8px;text-align:center">${btn}</td>
     </tr>`;
-  }).join('') || '<tr><td colspan="4" style="padding:24px;text-align:center;color:var(--muted)">No hay campañas con el filtro actual.</td></tr>';
+  }).join('') || '<tr><td colspan="6" style="padding:24px;text-align:center;color:var(--muted)">No hay campañas con el filtro actual.</td></tr>';
 }
 
 async function cvTtAction(campaignId, operation, campaignName) {
