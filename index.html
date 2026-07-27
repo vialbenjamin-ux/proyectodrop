@@ -3773,6 +3773,17 @@
           <select id="cv-tt-account" onchange="cvTtLoadCampanas()" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:7px 12px;border-radius:8px;font-size:12px;font-family:'DM Mono',monospace;cursor:pointer;min-width:220px">
             <option value="">Selecciona una cuenta TikTok...</option>
           </select>
+          <select id="cv-tt-date" onchange="cvTtLoadCampanas()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:8px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer" title="Rango de fecha del reporte (para spend/CPA)">
+            <option value="today" selected>📅 Hoy</option>
+            <option value="yesterday">Ayer</option>
+            <option value="last_3d">Últimos 3d</option>
+            <option value="last_7d">Últimos 7d</option>
+            <option value="last_14d">Últimos 14d</option>
+            <option value="last_28d">Últimos 28d</option>
+            <option value="last_30d">Últimos 30d</option>
+            <option value="last_90d">Últimos 90d</option>
+            <option value="this_month">Este mes</option>
+          </select>
           <select id="cv-tt-filter" onchange="cvTtRender()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:8px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer">
             <option value="all">Todas</option>
             <option value="active" selected>Solo activas</option>
@@ -19751,10 +19762,12 @@ async function cvTtLoadCampanas() {
     return;
   }
   window._cvData.tt.accountId = advertiserId;
+  const dateEl = document.getElementById('cv-tt-date');
+  const datePreset = (dateEl && dateEl.value) || 'today';
   statusEl.textContent = 'Cargando campañas...';
   try {
     // Reuso tiktok-report (que ya tiene las campañas con status)
-    const resp = await fetch('/.netlify/functions/tiktok-report?advertiser_id=' + encodeURIComponent(advertiserId) + '&date_preset=today');
+    const resp = await fetch('/.netlify/functions/tiktok-report?advertiser_id=' + encodeURIComponent(advertiserId) + '&date_preset=' + encodeURIComponent(datePreset));
     const data = await resp.json();
     if (!resp.ok) {
       statusEl.textContent = 'Error: ' + (data.error || 'unknown');
@@ -19770,6 +19783,12 @@ async function cvTtLoadCampanas() {
   }
 }
 
+function cvTtIsActive(status) {
+  // TikTok Ads API v1.3 devuelve operation_status = "ENABLE" | "DISABLE".
+  // Legacy paneles también han visto "STATUS_ENABLE". Aceptamos ambos.
+  return status === 'ENABLE' || status === 'STATUS_ENABLE';
+}
+
 function cvTtRender() {
   const filter = document.getElementById('cv-tt-filter').value;
   const search = (document.getElementById('cv-tt-search').value || '').toLowerCase().trim();
@@ -19777,23 +19796,25 @@ function cvTtRender() {
   const statusEl = document.getElementById('cv-tt-status');
   let rows = window._cvData.tt.campanas || [];
 
-  if (filter === 'active') rows = rows.filter(r => r.status === 'STATUS_ENABLE');
-  else if (filter === 'paused') rows = rows.filter(r => r.status !== 'STATUS_ENABLE');
+  if (filter === 'active') rows = rows.filter(r => cvTtIsActive(r.status));
+  else if (filter === 'paused') rows = rows.filter(r => !cvTtIsActive(r.status));
   if (search) rows = rows.filter(r => String(r.name||'').toLowerCase().includes(search));
 
-  const active = window._cvData.tt.campanas.filter(r => r.status === 'STATUS_ENABLE').length;
+  const active = window._cvData.tt.campanas.filter(r => cvTtIsActive(r.status)).length;
   const paused = window._cvData.tt.campanas.length - active;
   const origCur = window._cvData.tt.originalCurrency;
   const fxRate = window._cvData.tt.fxRate;
+  // COP→CLP ≈ 0.24 → mostrar con decimales. Ej: 1 COP = 0.2456 CLP.
+  const fxFmt = fxRate ? (fxRate >= 1 ? fxRate.toFixed(2) : fxRate.toFixed(4)) : '?';
   const fxLabel = (origCur && origCur !== 'CLP' && fxRate)
-    ? ` · 💱 ${origCur}→CLP @ ${Math.round(fxRate).toLocaleString('es-CL')}`
+    ? ` · 💱 1 ${origCur} = ${fxFmt} CLP`
     : '';
   statusEl.textContent = `Total: ${window._cvData.tt.campanas.length} · Activas: ${active} · Pausadas: ${paused} · Mostrando: ${rows.length}${fxLabel}`;
 
   const fmtBudget = (v) => v == null ? '—' : '$' + Math.round(v).toLocaleString('es-CL') + ' CLP';
 
   tbody.innerHTML = rows.map(r => {
-    const isActive = r.status === 'STATUS_ENABLE';
+    const isActive = cvTtIsActive(r.status);
     const badge = isActive
       ? '<span style="display:inline-block;background:rgba(34,197,94,.15);color:#22c55e;padding:3px 10px;border-radius:12px;font-size:10px;font-weight:700">ACTIVA</span>'
       : '<span style="display:inline-block;background:rgba(156,163,175,.15);color:#9ca3af;padding:3px 10px;border-radius:12px;font-size:10px;font-weight:700">' + escapeHtml(String(r.status||'?').replace('STATUS_','')) + '</span>';
@@ -19829,9 +19850,9 @@ async function cvTtAction(campaignId, operation, campaignName) {
       alert('❌ Error TikTok: ' + (data.error || 'unknown') + (detail ? '\n\n' + detail : ''));
       return;
     }
-    // Actualizar estado local + re-render
+    // Actualizar estado local + re-render (mismo formato que devuelve la API: ENABLE/DISABLE)
     const row = window._cvData.tt.campanas.find(r => String(r.id) === String(campaignId));
-    if (row) row.status = operation === 'ENABLE' ? 'STATUS_ENABLE' : 'STATUS_DISABLE';
+    if (row) row.status = operation;
     cvTtRender();
     if (typeof showToast === 'function') showToast(`Campaña ${opLabel.toLowerCase()}da`, operation === 'ENABLE' ? '▶️' : '⏸', 'ok');
   } catch (e) {
