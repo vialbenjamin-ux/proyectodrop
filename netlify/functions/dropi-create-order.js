@@ -62,10 +62,14 @@ exports.handler = async (event) => {
     body.items.length > 0 &&
     body.items.every(it => it.barcode && /^\d+$/.test(String(it.barcode).trim()));
 
-  // 1. Fetch ultimas 500 ordenes Dropi para descubrir warehouse_id + shop_id
-  //    (skip si vino forcedProductId manual).
+  // 1. Fetch ultimas 500 ordenes Dropi para descubrir warehouse_id + shop_id.
+  //    SKIP si vino forcedProductId manual O si TODOS los items ya tienen
+  //    barcode (product_id) - en ese caso usamos defaults 79/152458.
+  //    Este skip es CRITICO para batch: cada create hace 5 fetches Dropi
+  //    y en batches gatilla rate limit "Too Many Attempts".
   let dropiOrders = [];
-  if (!forcedProductId) {
+  const needsFetch = !forcedProductId && !allHaveBarcode;
+  if (needsFetch) {
     try {
       for (let start = 0; start < 500; start += 100) {
         const listResp = await fetch(
@@ -77,7 +81,6 @@ exports.handler = async (event) => {
         const objs = data.objects || [];
         if (objs.length === 0) break;
         dropiOrders = dropiOrders.concat(objs);
-        // pequeño delay para no gatillar rate limit
         await new Promise(r => setTimeout(r, 250));
       }
     } catch (err) {
@@ -85,7 +88,7 @@ exports.handler = async (event) => {
     }
   }
 
-  if (!forcedProductId && dropiOrders.length === 0) {
+  if (needsFetch && dropiOrders.length === 0) {
     return respond(500, { error: 'No se pudo cargar cache Dropi (0 ordenes)' });
   }
 
