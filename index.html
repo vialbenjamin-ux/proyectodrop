@@ -4204,11 +4204,7 @@ window._atasData = { rows: [], byCarrier: {}, scannedAt: null };
 async function initAtascados() {
   const el = document.getElementById('atas-scan-status');
   if (!el) return;
-  if (!window._expressData || window._expressData.allOrders.length === 0) {
-    el.textContent = 'Cache Dropi vacio. Anda a Sync y sincroniza Dropi primero.';
-  } else {
-    el.textContent = 'Cache: ' + window._expressData.allOrders.length + ' ordenes disponibles. Aprieta "Buscar atascados".';
-  }
+  el.textContent = 'Consulta en vivo a Dropi (500 ordenes recientes ~15 dias). No requiere sync previo.';
 }
 
 async function scanAtascados() {
@@ -4228,11 +4224,31 @@ async function scanAtascados() {
     if (incGuia) { targetStatuses.add('GUIA GENERADA'); targetStatuses.add('GUÍA GENERADA'); }
     if (targetStatuses.size === 0) { statusEl.textContent = 'Selecciona al menos un status.'; return; }
 
-    if (!window._expressData || window._expressData.allOrders.length === 0) {
-      statusEl.textContent = 'Cargando cache Dropi desde Firestore...';
-      await loadDropiCacheFromFirestore();
+    // Fetch en vivo directo a Dropi (5 paginas x 100 = 500 ordenes recientes).
+    // Sin depender del cache local. Datos siempre frescos, no requiere Sync manual.
+    // 500ms delay entre paginas para no gatillar rate limit Dropi.
+    statusEl.textContent = 'Consultando Dropi en vivo (1/5)...';
+    const orders = [];
+    for (let start = 0; start < 500; start += 100) {
+      const page = Math.floor(start / 100) + 1;
+      statusEl.textContent = `Consultando Dropi en vivo (${page}/5)...`;
+      try {
+        const resp = await fetch('/.netlify/functions/dropi-fetch?start=' + start + '&result_number=100');
+        const data = await resp.json();
+        if (data.orders && data.orders.length > 0) {
+          orders.push(...data.orders);
+          if (!data.hasMore) break;
+        } else break;
+      } catch (e) {
+        statusEl.textContent = 'Error en pagina ' + page + ': ' + (e.message || '?') + '. Analizando con ' + orders.length + ' ordenes.';
+        break;
+      }
+      if (start < 400) await new Promise(r => setTimeout(r, 500));
     }
-    const orders = window._expressData.allOrders;
+    if (orders.length === 0) {
+      statusEl.textContent = 'No se pudieron obtener ordenes de Dropi (rate limit?). Reintenta en unos minutos.';
+      return;
+    }
     const now = Date.now();
     const rows = [];
     for (const o of orders) {
