@@ -3843,10 +3843,16 @@
 
             <!-- Paso 2: videos -->
             <div style="background:var(--surface2);border-radius:8px;padding:12px;margin-bottom:12px">
-              <div style="color:var(--accent);font-weight:700;font-size:11px;margin-bottom:8px">2️⃣ Videos <span style="color:var(--muted);font-weight:400">(URLs públicas MP4 · Drive/Cloudinary/S3)</span></div>
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px">
+                <div style="color:var(--accent);font-weight:700;font-size:11px">2️⃣ Videos</div>
+                <div style="display:inline-flex;background:var(--surface);border:1px solid var(--border);border-radius:6px;overflow:hidden;font-size:10px">
+                  <button type="button" id="cv-fc-mode-id" onclick="cvFcSetVideoMode('id')" style="background:var(--accent);color:#fff;border:none;padding:6px 12px;cursor:pointer;font-family:'DM Mono',monospace;font-weight:700">🆔 Video ID manual</button>
+                  <button type="button" id="cv-fc-mode-url" onclick="cvFcSetVideoMode('url')" style="background:transparent;color:var(--muted);border:none;padding:6px 12px;cursor:pointer;font-family:'DM Mono',monospace" title="Requiere scope Video Management aprobado">🔗 URL (auto-upload)</button>
+                </div>
+              </div>
               <div id="cv-fc-videos-list" style="display:flex;flex-direction:column;gap:6px"></div>
-              <button type="button" onclick="cvFcAddVideoInput()" style="margin-top:8px;background:transparent;border:1px dashed var(--accent);color:var(--accent);padding:6px 12px;border-radius:6px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer">＋ Agregar URL de video</button>
-              <div style="margin-top:6px;font-size:9px;color:var(--muted);line-height:1.5">Cada URL se sube a TikTok Ads Library. Recomendado: 3 videos MP4 públicos (Drive → "Anyone with the link"). Tiempo de proceso: ~30s por video.</div>
+              <button type="button" id="cv-fc-add-video-btn" onclick="cvFcAddVideoInput()" style="margin-top:8px;background:transparent;border:1px dashed var(--accent);color:var(--accent);padding:6px 12px;border-radius:6px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer">＋ Agregar</button>
+              <div id="cv-fc-videos-hint" style="margin-top:6px;font-size:9px;color:var(--muted);line-height:1.5"></div>
             </div>
 
             <!-- Paso 3: copys -->
@@ -20001,6 +20007,10 @@ const CV_FC_IDENTITY_ID = '114ddbee-cc36-52c8-ad07-7beb3d912394';
 const CV_FC_IDENTITY_TYPE = 'BC_AUTH_TT';
 const CV_FC_DISPLAY_NAME = 'benkotienda';
 const CV_FC_CTA = 'SHOP_NOW';
+// Modo del input de videos: 'id' (default, requiere que subas videos manualmente a
+// TikTok Ads Library y pegues los video_id) o 'url' (auto-upload, requiere scope
+// Video Management aprobado).
+let CV_FC_VIDEO_MODE = 'id';
 
 function cvTtOpenFullCreate() {
   if (!window._cvData.tt.accountId) { alert('Selecciona primero una cuenta TikTok'); return; }
@@ -20013,18 +20023,45 @@ function cvTtOpenFullCreate() {
   const cList = document.getElementById('cv-fc-copys-list');
   vList.innerHTML = '';
   cList.innerHTML = '';
+  cvFcSetVideoMode(CV_FC_VIDEO_MODE);   // aplica hint y placeholders
   cvFcAddVideoInput(); cvFcAddVideoInput(); cvFcAddVideoInput();  // 3 videos default
   for (let i = 0; i < 5; i++) cvFcAddCopyInput();  // 5 copys default
   cvFcUpdateSummary();
   setTimeout(() => document.getElementById('cv-fc-name').focus(), 60);
 }
 
+function cvFcSetVideoMode(mode) {
+  CV_FC_VIDEO_MODE = mode === 'url' ? 'url' : 'id';
+  const btnId = document.getElementById('cv-fc-mode-id');
+  const btnUrl = document.getElementById('cv-fc-mode-url');
+  const hint = document.getElementById('cv-fc-videos-hint');
+  const addBtn = document.getElementById('cv-fc-add-video-btn');
+  if (CV_FC_VIDEO_MODE === 'id') {
+    btnId.style.background = 'var(--accent)'; btnId.style.color = '#fff';
+    btnUrl.style.background = 'transparent'; btnUrl.style.color = 'var(--muted)';
+    addBtn.textContent = '＋ Agregar Video ID';
+    hint.innerHTML = 'Subí los MP4 manualmente en <a href="https://ads.tiktok.com/i18n/creative/upload" target="_blank" style="color:var(--accent);text-decoration:underline">TikTok Ads Manager → Assets → Video Library</a>. Copiá el <b>video_id</b> (tipo <code>v10033g50000...</code>) y pegalo abajo. Un video_id por línea. <br><i>Necesitás este modo mientras TikTok aprueba el scope Video Management.</i>';
+  } else {
+    btnUrl.style.background = 'var(--accent)'; btnUrl.style.color = '#fff';
+    btnId.style.background = 'transparent'; btnId.style.color = 'var(--muted)';
+    addBtn.textContent = '＋ Agregar URL';
+    hint.innerHTML = '⚠️ Requiere scope <b>Video Management</b> aprobado en TikTok Developer. Cada URL se descarga y sube a Ads Library automáticamente (~30s por video).';
+  }
+  // Reemplazar placeholders de inputs existentes
+  document.querySelectorAll('.cv-fc-video-input').forEach(inp => {
+    inp.placeholder = CV_FC_VIDEO_MODE === 'id' ? 'v10033g50000d8ehlgvog65tvijvib80' : 'https://... .mp4';
+    inp.type = 'text';
+  });
+  cvFcUpdateSummary();
+}
+
 function cvFcAddVideoInput() {
   const list = document.getElementById('cv-fc-videos-list');
   const row = document.createElement('div');
   row.style.cssText = 'display:flex;gap:6px;align-items:center';
+  const ph = CV_FC_VIDEO_MODE === 'id' ? 'v10033g50000d8ehlgvog65tvijvib80' : 'https://... .mp4';
   row.innerHTML = `
-    <input type="url" placeholder="https://... .mp4" class="cv-fc-video-input" oninput="cvFcUpdateSummary()" style="flex:1;background:var(--surface);border:1.5px solid var(--border);color:var(--text);padding:7px 10px;border-radius:6px;font-family:'DM Mono',monospace;font-size:10px;box-sizing:border-box">
+    <input type="text" placeholder="${ph}" class="cv-fc-video-input" oninput="cvFcUpdateSummary()" style="flex:1;background:var(--surface);border:1.5px solid var(--border);color:var(--text);padding:7px 10px;border-radius:6px;font-family:'DM Mono',monospace;font-size:10px;box-sizing:border-box">
     <button type="button" onclick="this.parentElement.remove();cvFcUpdateSummary()" style="background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer">✕</button>
   `;
   list.appendChild(row);
@@ -20063,9 +20100,14 @@ function cvFcRelabelCopys() {
 }
 
 function cvFcGetVideos() {
-  return Array.from(document.querySelectorAll('.cv-fc-video-input'))
+  const raw = Array.from(document.querySelectorAll('.cv-fc-video-input'))
     .map(i => String(i.value || '').trim())
-    .filter(v => /^https?:\/\//.test(v));
+    .filter(v => v.length > 0);
+  if (CV_FC_VIDEO_MODE === 'id') {
+    // Formato TikTok: v10033g50000... — string alfanumerico ~30 chars
+    return raw.filter(v => /^v\d+g\d+[a-z0-9]+$/i.test(v) || v.length >= 20);
+  }
+  return raw.filter(v => /^https?:\/\//.test(v));
 }
 
 function cvFcGetCopys() {
@@ -20147,6 +20189,9 @@ async function cvFcSubmit() {
   const origCur = window._cvData.tt.originalCurrency || 'CLP';
   const fxRate = window._cvData.tt.fxRate || 1;
 
+  const videoModeMsg = CV_FC_VIDEO_MODE === 'id'
+    ? '➜ Modo: video_id manual (los videos ya están en tu Ads Library).'
+    : '➜ Modo: URL (se descargan y suben a Ads Library, ~30s c/u).';
   if (!confirm(
     `⚠️ CONFIRMAR SUBIDA A TIKTOK\n\n` +
     `Nombre: ${name}\n` +
@@ -20155,37 +20200,45 @@ async function cvFcSubmit() {
     `Videos: ${videos.length}\n` +
     `Copys: ${copys.length}\n` +
     `Total ads: ${totalAds}\n\n` +
+    videoModeMsg + '\n' +
     `➜ Arranca mañana 05:30 AM Chile.\n` +
-    `➜ Los videos deben ser URLs públicos MP4.\n` +
     `➜ Los ads quedan pausados hasta que actives la campaign.\n\n` +
     `¿Continuar?`
   )) return;
 
   const btn = document.getElementById('cv-fc-submit-btn');
   btn.disabled = true;
-  btn.textContent = '📤 Subiendo videos a TikTok...';
   btn.style.background = 'var(--muted2)';
 
-  // Paso 1: subir cada video a TikTok Ads Library
-  const videoIds = [];
-  for (let i = 0; i < videos.length; i++) {
-    btn.textContent = `📤 Video ${i+1}/${videos.length}...`;
-    try {
-      const r = await fetch('/.netlify/functions/tiktok-video-upload', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ advertiser_id: advertiserId, video_url: videos[i] }),
-      });
-      const d = await r.json();
-      if (!r.ok || !d.ok || !d.videoId) {
-        alert(`❌ Falló subida video ${i+1}: ${d.error || 'unknown'}\n\n` + (d.detail ? JSON.stringify(d.detail).slice(0,300) : ''));
+  // Paso 1: obtener video_ids. Dos modos:
+  //   - 'id': el usuario pegó los IDs directamente (los subió manualmente a TikTok Ads
+  //     Library). Skipeamos el upload y usamos esos IDs.
+  //   - 'url': subimos cada URL a TikTok Ads Library (requiere scope Video Management).
+  let videoIds = [];
+  if (CV_FC_VIDEO_MODE === 'id') {
+    videoIds = videos.slice();
+    btn.textContent = '🏗 Usando video_ids provistos...';
+  } else {
+    btn.textContent = '📤 Subiendo videos a TikTok...';
+    for (let i = 0; i < videos.length; i++) {
+      btn.textContent = `📤 Video ${i+1}/${videos.length}...`;
+      try {
+        const r = await fetch('/.netlify/functions/tiktok-video-upload', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ advertiser_id: advertiserId, video_url: videos[i] }),
+        });
+        const d = await r.json();
+        if (!r.ok || !d.ok || !d.videoId) {
+          alert(`❌ Falló subida video ${i+1}: ${d.error || 'unknown'}\n\n` + (d.detail ? JSON.stringify(d.detail).slice(0,300) : ''));
+          btn.disabled = false; btn.textContent = '🚀 Subir a TikTok'; btn.style.background = 'var(--accent)';
+          return;
+        }
+        videoIds.push(d.videoId);
+      } catch (e) {
+        alert('❌ Error red video ' + (i+1) + ': ' + (e.message || '?'));
         btn.disabled = false; btn.textContent = '🚀 Subir a TikTok'; btn.style.background = 'var(--accent)';
         return;
       }
-      videoIds.push(d.videoId);
-    } catch (e) {
-      alert('❌ Error red video ' + (i+1) + ': ' + (e.message || '?'));
-      btn.disabled = false; btn.textContent = '🚀 Subir a TikTok'; btn.style.background = 'var(--accent)';
-      return;
     }
   }
 
