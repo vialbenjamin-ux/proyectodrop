@@ -34,6 +34,7 @@ const BUDGET_MODES_VALIDOS = new Set([
   'BUDGET_MODE_DAY',
   'BUDGET_MODE_TOTAL',
   'BUDGET_MODE_INFINITE',
+  'BUDGET_MODE_DYNAMIC_DAILY_BUDGET',
 ]);
 
 async function getActiveAuth(store) {

@@ -3791,7 +3791,8 @@
           </select>
           <input type="text" id="cv-tt-search" placeholder="🔍 Buscar por nombre..." oninput="cvTtRender()" style="flex:1;min-width:200px;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:8px;font-size:11px;font-family:'DM Mono',monospace">
           <button onclick="cvTtLoadCampanas()" style="background:transparent;border:1.5px solid var(--accent);color:var(--accent);border-radius:8px;padding:7px 14px;font-size:11px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">↻ Refrescar</button>
-          <button onclick="cvTtOpenCreate()" style="background:var(--accent);color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:11px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer" title="Crear campaña desde cero">➕ Nueva campaña</button>
+          <button onclick="cvTtOpenCreate()" style="background:transparent;color:var(--muted2);border:1px solid var(--border);border-radius:8px;padding:7px 14px;font-size:11px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer" title="Solo la carcasa (sin adgroups/ads)">➕ Vacía</button>
+          <button onclick="cvTtOpenFullCreate()" style="background:var(--accent);color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:11px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer" title="Campaña completa con videos + copys autogenerados">🚀 Subir Campaña</button>
         </div>
 
         <!-- MODAL INSPECCIONAR ESTRUCTURA -->
@@ -3805,6 +3806,70 @@
               <button onclick="document.getElementById('cv-tt-inspect-modal').style.display='none'" style="background:none;border:none;color:var(--muted);font-size:22px;cursor:pointer">✕</button>
             </div>
             <div id="cv-inspect-body" style="font-size:11px;color:var(--muted2)"></div>
+          </div>
+        </div>
+
+        <!-- MODAL SUBIR CAMPAÑA COMPLETA (Fase 5b) -->
+        <div id="cv-tt-fullcreate-modal" style="display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,.6);z-index:9999;align-items:center;justify-content:center">
+          <div style="background:var(--surface);border:2px solid var(--accent);border-radius:14px;padding:22px;max-width:820px;width:96%;max-height:92vh;overflow-y:auto;font-family:'DM Mono',monospace;box-shadow:0 20px 60px rgba(0,0,0,.5)">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;position:sticky;top:0;background:var(--surface);padding-bottom:8px;border-bottom:1px solid var(--border);z-index:2">
+              <div>
+                <div style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:19px;color:var(--text)">🚀 Subir campaña completa</div>
+                <div style="font-size:10px;color:var(--muted)">Videos + 5 copys autogen · targeting Chile · start mañana 05:30 CL</div>
+              </div>
+              <button onclick="document.getElementById('cv-tt-fullcreate-modal').style.display='none'" style="background:none;border:none;color:var(--muted);font-size:22px;cursor:pointer">✕</button>
+            </div>
+
+            <!-- Paso 1: nombre + landing + presupuesto -->
+            <div style="background:var(--surface2);border-radius:8px;padding:12px;margin-bottom:12px">
+              <div style="color:var(--accent);font-weight:700;font-size:11px;margin-bottom:8px">1️⃣ Datos de la campaña</div>
+              <div style="display:flex;flex-direction:column;gap:8px">
+                <div>
+                  <label style="font-size:10px;color:var(--muted);display:block;margin-bottom:3px">Nombre campaña (será también el del adgroup)</label>
+                  <input id="cv-fc-name" type="text" placeholder="Ej: 0728 MOPA TITANIO" maxlength="100" style="width:100%;background:var(--surface);border:1.5px solid var(--border);color:var(--text);padding:8px 10px;border-radius:6px;font-family:'DM Mono',monospace;font-size:12px;box-sizing:border-box">
+                </div>
+                <div style="display:flex;gap:10px">
+                  <div style="flex:2">
+                    <label style="font-size:10px;color:var(--muted);display:block;margin-bottom:3px">Landing benkotienda</label>
+                    <input id="cv-fc-landing" type="url" placeholder="https://benkotienda.com/products/..." style="width:100%;background:var(--surface);border:1.5px solid var(--border);color:var(--text);padding:8px 10px;border-radius:6px;font-family:'DM Mono',monospace;font-size:11px;box-sizing:border-box">
+                  </div>
+                  <div style="flex:1">
+                    <label style="font-size:10px;color:var(--muted);display:block;margin-bottom:3px">Ppto diario (CLP)</label>
+                    <input id="cv-fc-budget" type="number" min="1000" placeholder="25000" style="width:100%;background:var(--surface);border:1.5px solid var(--border);color:var(--text);padding:8px 10px;border-radius:6px;font-family:'DM Mono',monospace;font-size:12px;box-sizing:border-box">
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Paso 2: videos -->
+            <div style="background:var(--surface2);border-radius:8px;padding:12px;margin-bottom:12px">
+              <div style="color:var(--accent);font-weight:700;font-size:11px;margin-bottom:8px">2️⃣ Videos <span style="color:var(--muted);font-weight:400">(URLs públicas MP4 · Drive/Cloudinary/S3)</span></div>
+              <div id="cv-fc-videos-list" style="display:flex;flex-direction:column;gap:6px"></div>
+              <button type="button" onclick="cvFcAddVideoInput()" style="margin-top:8px;background:transparent;border:1px dashed var(--accent);color:var(--accent);padding:6px 12px;border-radius:6px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer">＋ Agregar URL de video</button>
+              <div style="margin-top:6px;font-size:9px;color:var(--muted);line-height:1.5">Cada URL se sube a TikTok Ads Library. Recomendado: 3 videos MP4 públicos (Drive → "Anyone with the link"). Tiempo de proceso: ~30s por video.</div>
+            </div>
+
+            <!-- Paso 3: copys -->
+            <div style="background:var(--surface2);border-radius:8px;padding:12px;margin-bottom:12px">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                <div style="color:var(--accent);font-weight:700;font-size:11px">3️⃣ Copys <span style="color:var(--muted);font-weight:400">(máx 100 chars cada uno)</span></div>
+                <button type="button" onclick="cvFcClaudePrompt()" style="background:#8b5cf6;color:#fff;border:none;padding:6px 12px;border-radius:6px;font-size:11px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer" title="Copia al portapapeles un prompt para pegar en Claude">📋 Prompt para Claude</button>
+              </div>
+              <div id="cv-fc-copys-list" style="display:flex;flex-direction:column;gap:6px"></div>
+              <button type="button" onclick="cvFcAddCopyInput()" style="margin-top:8px;background:transparent;border:1px dashed var(--muted2);color:var(--muted2);padding:6px 12px;border-radius:6px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer">＋ Agregar copy</button>
+              <div id="cv-fc-copys-status" style="margin-top:6px;font-size:10px;color:var(--muted);font-style:italic"></div>
+            </div>
+
+            <!-- Preview totales -->
+            <div id="cv-fc-summary" style="background:rgba(34,197,94,.08);border-left:3px solid #22c55e;padding:10px 12px;border-radius:6px;margin-bottom:12px;font-size:11px;color:var(--muted2)">
+              Ingresa datos para ver el resumen
+            </div>
+
+            <!-- Botones -->
+            <div style="display:flex;gap:10px;justify-content:flex-end;position:sticky;bottom:0;background:var(--surface);padding-top:10px;border-top:1px solid var(--border)">
+              <button onclick="document.getElementById('cv-tt-fullcreate-modal').style.display='none'" style="background:transparent;border:1.5px solid var(--border);color:var(--muted2);border-radius:8px;padding:9px 18px;font-family:'DM Mono',monospace;font-size:11px;font-weight:700;cursor:pointer">Cancelar</button>
+              <button id="cv-fc-submit-btn" onclick="cvFcSubmit()" style="background:var(--accent);color:#fff;border:none;border-radius:8px;padding:9px 18px;font-family:'DM Mono',monospace;font-size:11px;font-weight:700;cursor:pointer">🚀 Subir a TikTok</button>
+            </div>
           </div>
         </div>
 
@@ -19928,6 +19993,251 @@ function cvTtRender() {
     </tr>`;
   }).join('') || '<tr><td colspan="6" style="padding:24px;text-align:center;color:var(--muted)">No hay campañas con el filtro actual.</td></tr>';
 }
+
+// ==================== FASE 5b: SUBIR CAMPAÑA COMPLETA ====================
+
+// Identidad TikTok de FEXXA (extraida de inspeccion 1.1 TESTEO OFICIAL)
+const CV_FC_IDENTITY_ID = '114ddbee-cc36-52c8-ad07-7beb3d912394';
+const CV_FC_IDENTITY_TYPE = 'BC_AUTH_TT';
+const CV_FC_DISPLAY_NAME = 'benkotienda';
+const CV_FC_CTA = 'SHOP_NOW';
+
+function cvTtOpenFullCreate() {
+  if (!window._cvData.tt.accountId) { alert('Selecciona primero una cuenta TikTok'); return; }
+  document.getElementById('cv-tt-fullcreate-modal').style.display = 'flex';
+  document.getElementById('cv-fc-name').value = '';
+  document.getElementById('cv-fc-landing').value = 'https://benkotienda.com/products/';
+  document.getElementById('cv-fc-budget').value = '';
+  // Reset listas
+  const vList = document.getElementById('cv-fc-videos-list');
+  const cList = document.getElementById('cv-fc-copys-list');
+  vList.innerHTML = '';
+  cList.innerHTML = '';
+  cvFcAddVideoInput(); cvFcAddVideoInput(); cvFcAddVideoInput();  // 3 videos default
+  for (let i = 0; i < 5; i++) cvFcAddCopyInput();  // 5 copys default
+  cvFcUpdateSummary();
+  setTimeout(() => document.getElementById('cv-fc-name').focus(), 60);
+}
+
+function cvFcAddVideoInput() {
+  const list = document.getElementById('cv-fc-videos-list');
+  const row = document.createElement('div');
+  row.style.cssText = 'display:flex;gap:6px;align-items:center';
+  row.innerHTML = `
+    <input type="url" placeholder="https://... .mp4" class="cv-fc-video-input" oninput="cvFcUpdateSummary()" style="flex:1;background:var(--surface);border:1.5px solid var(--border);color:var(--text);padding:7px 10px;border-radius:6px;font-family:'DM Mono',monospace;font-size:10px;box-sizing:border-box">
+    <button type="button" onclick="this.parentElement.remove();cvFcUpdateSummary()" style="background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer">✕</button>
+  `;
+  list.appendChild(row);
+}
+
+function cvFcAddCopyInput(text = '', angulo = '') {
+  const list = document.getElementById('cv-fc-copys-list');
+  const idx = list.children.length + 1;
+  const row = document.createElement('div');
+  row.style.cssText = 'display:flex;gap:6px;align-items:flex-start';
+  row.innerHTML = `
+    <div style="width:26px;text-align:center;color:var(--muted2);font-size:10px;padding-top:8px">${idx}</div>
+    <div style="flex:1">
+      ${angulo ? `<div style="font-size:9px;color:#8b5cf6;font-weight:700;margin-bottom:2px">🎯 ${escapeHtml(angulo)}</div>` : ''}
+      <textarea maxlength="100" placeholder="Copy corto que capta en 3 segundos..." class="cv-fc-copy-input" oninput="cvFcUpdateSummary();cvFcCountChars(this)" style="width:100%;min-height:44px;background:var(--surface);border:1.5px solid var(--border);color:var(--text);padding:7px 10px;border-radius:6px;font-family:'DM Mono',monospace;font-size:11px;box-sizing:border-box;resize:vertical">${escapeHtml(text)}</textarea>
+      <div class="cv-fc-copy-count" style="font-size:9px;color:var(--muted2);text-align:right;margin-top:2px">${text.length}/100</div>
+    </div>
+    <button type="button" onclick="this.parentElement.remove();cvFcRelabelCopys();cvFcUpdateSummary()" style="background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer;margin-top:4px">✕</button>
+  `;
+  list.appendChild(row);
+}
+
+function cvFcCountChars(ta) {
+  const count = ta.value.length;
+  const countEl = ta.parentElement.querySelector('.cv-fc-copy-count');
+  countEl.textContent = count + '/100';
+  countEl.style.color = count > 90 ? '#eab308' : (count === 100 ? '#ef4444' : 'var(--muted2)');
+}
+
+function cvFcRelabelCopys() {
+  const list = document.getElementById('cv-fc-copys-list');
+  Array.from(list.children).forEach((row, i) => {
+    const num = row.querySelector('div');
+    if (num) num.textContent = String(i + 1);
+  });
+}
+
+function cvFcGetVideos() {
+  return Array.from(document.querySelectorAll('.cv-fc-video-input'))
+    .map(i => String(i.value || '').trim())
+    .filter(v => /^https?:\/\//.test(v));
+}
+
+function cvFcGetCopys() {
+  return Array.from(document.querySelectorAll('.cv-fc-copy-input'))
+    .map(t => String(t.value || '').trim())
+    .filter(c => c.length > 0);
+}
+
+function cvFcUpdateSummary() {
+  const name = String(document.getElementById('cv-fc-name').value || '').trim();
+  const landing = String(document.getElementById('cv-fc-landing').value || '').trim();
+  const budget = parseInt(document.getElementById('cv-fc-budget').value || '0', 10);
+  const videos = cvFcGetVideos();
+  const copys = cvFcGetCopys();
+  const totalAds = videos.length * copys.length;
+  const summary = document.getElementById('cv-fc-summary');
+  const origCur = window._cvData.tt.originalCurrency || 'CLP';
+  const fxRate = window._cvData.tt.fxRate || 1;
+  const budgetOrig = budget > 0 && origCur !== 'CLP' ? Math.round(budget / fxRate) : budget;
+  const budgetMsg = budget > 0 ? `$${budget.toLocaleString('es-CL')} CLP` +
+    (origCur !== 'CLP' ? ` → ${budgetOrig.toLocaleString('es-CL')} ${origCur}` : '') : '(sin ppto)';
+  const okName = name ? '✅' : '❌';
+  const okLanding = /^https?:\/\/.+\.\w+/.test(landing) ? '✅' : '❌';
+  const okBudget = budget > 0 ? '✅' : '❌';
+  const okVideos = videos.length > 0 ? '✅' : '❌';
+  const okCopys = copys.length > 0 ? '✅' : '❌';
+  const canSubmit = name && okLanding === '✅' && budget > 0 && videos.length > 0 && copys.length > 0;
+  summary.innerHTML = `
+    <div style="line-height:1.7">
+      ${okName} Nombre · ${okLanding} Landing · ${okBudget} Ppto: ${budgetMsg}<br>
+      ${okVideos} ${videos.length} videos · ${okCopys} ${copys.length} copys<br>
+      <b style="color:${totalAds>0?'#22c55e':'var(--muted)'}">📊 Se crearán ${totalAds} ads (${videos.length}×${copys.length}) que arrancan mañana 05:30 AM Chile</b>
+    </div>`;
+  document.getElementById('cv-fc-submit-btn').disabled = !canSubmit;
+  document.getElementById('cv-fc-submit-btn').style.opacity = canSubmit ? '1' : '.4';
+  document.getElementById('cv-fc-submit-btn').style.cursor = canSubmit ? 'pointer' : 'not-allowed';
+}
+
+async function cvFcClaudePrompt() {
+  const landing = String(document.getElementById('cv-fc-landing').value || '').trim();
+  if (!/^https?:\/\/.+\.\w+/.test(landing)) { alert('Ingresa primero el URL de la landing'); return; }
+  const prompt = `Necesito 5 copys DISTINTOS para un anuncio de TikTok Ads (Chile).
+
+LANDING DEL PRODUCTO: ${landing}
+
+REGLAS ESTRICTAS:
+- Cada copy MÁXIMO 90 caracteres (límite duro TikTok es 100, dejá margen).
+- Español chileno neutro, sin modismos regionales fuertes.
+- Estilo TikTok: informal, hook rápido, tono como si fuera un usuario recomendando.
+- Los 5 DEBEN atacar ángulos distintos: dolor, curiosidad, prueba social, oferta, humor/impacto.
+- NADA de emojis (los limita TikTok).
+- NADA de mayúsculas gritadas.
+- NO uses "Descubre" ni "Increíble" (banal). Lenguaje concreto y visual.
+- NO menciones "TikTok" ni "porcentaje descuento". Enfocate en el resultado del producto.
+
+Devuelveme SOLO los 5 copys numerados, uno por línea. Sin comentarios ni explicaciones.`;
+  const statusEl = document.getElementById('cv-fc-copys-status');
+  try {
+    await navigator.clipboard.writeText(prompt);
+    statusEl.innerHTML = '✅ Prompt copiado al portapapeles. <a href="https://claude.ai/new" target="_blank" style="color:#8b5cf6;text-decoration:underline;font-weight:700">Abrí Claude</a> · pegá · trae los 5 copys y pegalos abajo (uno por textarea).';
+  } catch (e) {
+    // Fallback: mostrar el prompt en un textarea para copiar manualmente
+    statusEl.innerHTML = `⚠️ No se pudo copiar automáticamente. Copia manual desde acá:<br><textarea readonly onclick="this.select()" style="width:100%;height:120px;background:var(--surface);border:1px solid var(--border);color:var(--text);padding:8px;font-size:10px;margin-top:4px;font-family:'DM Mono',monospace">${prompt.replace(/&/g,'&amp;').replace(/</g,'&lt;')}</textarea>`;
+  }
+}
+
+async function cvFcSubmit() {
+  const advertiserId = window._cvData.tt.accountId;
+  if (!advertiserId) { alert('No hay cuenta seleccionada'); return; }
+  const name = String(document.getElementById('cv-fc-name').value || '').trim();
+  const landing = String(document.getElementById('cv-fc-landing').value || '').trim();
+  const budget = parseInt(document.getElementById('cv-fc-budget').value || '0', 10);
+  const videos = cvFcGetVideos();
+  const copys = cvFcGetCopys();
+  if (!name || !landing || !budget || videos.length === 0 || copys.length === 0) { alert('Faltan datos'); return; }
+  const badCopy = copys.find(c => c.length > 100);
+  if (badCopy) { alert('Un copy supera 100 chars:\n\n' + badCopy); return; }
+  const totalAds = videos.length * copys.length;
+  const origCur = window._cvData.tt.originalCurrency || 'CLP';
+  const fxRate = window._cvData.tt.fxRate || 1;
+
+  if (!confirm(
+    `⚠️ CONFIRMAR SUBIDA A TIKTOK\n\n` +
+    `Nombre: ${name}\n` +
+    `Landing: ${landing}\n` +
+    `Ppto: $${budget.toLocaleString('es-CL')} CLP\n` +
+    `Videos: ${videos.length}\n` +
+    `Copys: ${copys.length}\n` +
+    `Total ads: ${totalAds}\n\n` +
+    `➜ Arranca mañana 05:30 AM Chile.\n` +
+    `➜ Los videos deben ser URLs públicos MP4.\n` +
+    `➜ Los ads quedan pausados hasta que actives la campaign.\n\n` +
+    `¿Continuar?`
+  )) return;
+
+  const btn = document.getElementById('cv-fc-submit-btn');
+  btn.disabled = true;
+  btn.textContent = '📤 Subiendo videos a TikTok...';
+  btn.style.background = 'var(--muted2)';
+
+  // Paso 1: subir cada video a TikTok Ads Library
+  const videoIds = [];
+  for (let i = 0; i < videos.length; i++) {
+    btn.textContent = `📤 Video ${i+1}/${videos.length}...`;
+    try {
+      const r = await fetch('/.netlify/functions/tiktok-video-upload', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ advertiser_id: advertiserId, video_url: videos[i] }),
+      });
+      const d = await r.json();
+      if (!r.ok || !d.ok || !d.videoId) {
+        alert(`❌ Falló subida video ${i+1}: ${d.error || 'unknown'}\n\n` + (d.detail ? JSON.stringify(d.detail).slice(0,300) : ''));
+        btn.disabled = false; btn.textContent = '🚀 Subir a TikTok'; btn.style.background = 'var(--accent)';
+        return;
+      }
+      videoIds.push(d.videoId);
+    } catch (e) {
+      alert('❌ Error red video ' + (i+1) + ': ' + (e.message || '?'));
+      btn.disabled = false; btn.textContent = '🚀 Subir a TikTok'; btn.style.background = 'var(--accent)';
+      return;
+    }
+  }
+
+  // Paso 2: crear campaign + adgroup + ads en un solo request
+  btn.textContent = '🏗 Creando campaña + adgroup + ' + totalAds + ' ads...';
+  try {
+    const r = await fetch('/.netlify/functions/tiktok-campaign-full-create', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        advertiser_id: advertiserId,
+        campaign_name: name,
+        adgroup_name: name,
+        budget_clp: budget,
+        fx_rate: fxRate,
+        original_currency: origCur,
+        video_ids: videoIds,
+        copys,
+        landing_page_url: landing,
+        identity_id: CV_FC_IDENTITY_ID,
+        identity_type: CV_FC_IDENTITY_TYPE,
+        display_name: CV_FC_DISPLAY_NAME,
+        call_to_action: CV_FC_CTA,
+      }),
+    });
+    const d = await r.json();
+    if (!r.ok) {
+      alert(`❌ Falló ${d.step || 'creación'}: ${d.error}\n\n` + (d.detail ? JSON.stringify(d.detail).slice(0,400) : ''));
+      btn.disabled = false; btn.textContent = '🚀 Subir a TikTok'; btn.style.background = 'var(--accent)';
+      return;
+    }
+    document.getElementById('cv-tt-fullcreate-modal').style.display = 'none';
+    alert(`✅ Campaña creada.\n\n` +
+      `📊 Campaign ID: ${d.campaignId}\n` +
+      `📦 AdGroup ID: ${d.adgroupId}\n` +
+      `🎬 Ads creadas: ${d.adsCreated}/${d.adsExpected}\n` +
+      `⏰ Arranca: ${d.schedule.start} (Chile)\n\n` +
+      (d.errors && d.errors.length ? `⚠️ ${d.errors.length} errores en ads (revisá el reporte).` : '') +
+      `\n\n${d.hint || ''}`);
+    await cvTtLoadCampanas();
+  } catch (e) {
+    alert('❌ Error red: ' + (e.message || '?'));
+  } finally {
+    btn.disabled = false; btn.textContent = '🚀 Subir a TikTok'; btn.style.background = 'var(--accent)';
+  }
+}
+
+// Recomputar summary cuando cambien nombre/landing/budget
+document.addEventListener('input', (e) => {
+  if (e.target && (e.target.id === 'cv-fc-name' || e.target.id === 'cv-fc-landing' || e.target.id === 'cv-fc-budget')) {
+    if (typeof cvFcUpdateSummary === 'function') cvFcUpdateSummary();
+  }
+});
 
 async function cvTtInspect(campaignId, campaignName) {
   const advertiserId = window._cvData.tt.accountId;
