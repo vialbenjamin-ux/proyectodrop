@@ -149,11 +149,15 @@ export default async function handler(req) {
   };
 
   // 1. Crear Campaign
+  // NOTA: aunque 1.1 TESTEO usa BUDGET_MODE_DYNAMIC_DAILY_BUDGET, TikTok API
+  // rechaza ese modo al crear con WEB_CONVERSIONS ("dynamic daily budget is
+  // not supported"). Usamos BUDGET_MODE_DAY (diario tradicional). Funcional
+  // idéntico para el usuario — el ppto se gasta por día.
   const campBody = {
     advertiser_id: String(advertiserId),
     campaign_name: campaignName.slice(0, 120),
     objective_type: 'WEB_CONVERSIONS',
-    budget_mode: 'BUDGET_MODE_DYNAMIC_DAILY_BUDGET',
+    budget_mode: 'BUDGET_MODE_DAY',
     budget: budgetEnMoneda,
   };
   const camp = await ttFetch(base + '/campaign/create/', token, campBody);
