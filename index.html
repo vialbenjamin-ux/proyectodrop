@@ -20232,8 +20232,10 @@ function cvFcGetVideos() {
     .map(i => String(i.value || '').trim())
     .filter(v => v.length > 0);
   if (CV_FC_VIDEO_MODE === 'id') {
-    // Formato TikTok: v10033g50000... — string alfanumerico ~30 chars
-    return raw.filter(v => /^v\d+g\d+[a-z0-9]+$/i.test(v) || v.length >= 20);
+    // TikTok tiene DOS formatos de video_id:
+    //  - Nuevo: 15-25 dígitos numéricos (ej 7667374048066355207)
+    //  - Viejo: v10033g50000... alfanumérico ~30 chars
+    return raw.filter(v => /^\d{15,25}$/.test(v) || /^v\d+g\d+[a-z0-9]+$/i.test(v));
   }
   return raw.filter(v => /^https?:\/\//.test(v));
 }
