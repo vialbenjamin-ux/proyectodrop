@@ -3851,15 +3851,31 @@
                 </div>
               </div>
               <div id="cv-fc-videos-list" style="display:flex;flex-direction:column;gap:6px"></div>
-              <button type="button" id="cv-fc-add-video-btn" onclick="cvFcAddVideoInput()" style="margin-top:8px;background:transparent;border:1px dashed var(--accent);color:var(--accent);padding:6px 12px;border-radius:6px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer">＋ Agregar</button>
+              <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+                <button type="button" id="cv-fc-add-video-btn" onclick="cvFcAddVideoInput()" style="background:transparent;border:1px dashed var(--accent);color:var(--accent);padding:6px 12px;border-radius:6px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer">＋ Agregar</button>
+                <button type="button" onclick="cvFcOpenLibrary()" style="background:#8b5cf6;border:none;color:#fff;padding:6px 12px;border-radius:6px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer;font-weight:700">🎬 Ver mi Video Library</button>
+              </div>
               <div id="cv-fc-videos-hint" style="margin-top:6px;font-size:9px;color:var(--muted);line-height:1.5"></div>
+              <!-- Panel Video Library -->
+              <div id="cv-fc-library-panel" style="display:none;margin-top:10px;background:var(--surface);border:1.5px solid #8b5cf6;border-radius:8px;padding:12px">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                  <div style="font-size:11px;color:var(--text);font-weight:700">🎬 Video Library</div>
+                  <div style="display:flex;gap:6px">
+                    <button type="button" onclick="cvFcLoadLibrary()" style="background:transparent;border:1px solid var(--border);color:var(--muted2);padding:4px 10px;border-radius:6px;font-size:10px;cursor:pointer">↻ Recargar</button>
+                    <button type="button" onclick="document.getElementById('cv-fc-library-panel').style.display='none'" style="background:transparent;border:none;color:var(--muted);font-size:16px;cursor:pointer">✕</button>
+                  </div>
+                </div>
+                <input id="cv-fc-library-search" type="text" placeholder="🔍 Filtrar por nombre..." oninput="cvFcRenderLibrary()" style="width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:6px;font-size:10px;font-family:'DM Mono',monospace;box-sizing:border-box;margin-bottom:8px">
+                <div id="cv-fc-library-status" style="font-size:10px;color:var(--muted);margin-bottom:8px"></div>
+                <div id="cv-fc-library-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;max-height:340px;overflow-y:auto"></div>
+              </div>
             </div>
 
             <!-- Paso 3: copys -->
             <div style="background:var(--surface2);border-radius:8px;padding:12px;margin-bottom:12px">
               <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
                 <div style="color:var(--accent);font-weight:700;font-size:11px">3️⃣ Copys <span style="color:var(--muted);font-weight:400">(máx 100 chars cada uno)</span></div>
-                <button type="button" onclick="cvFcClaudePrompt()" style="background:#8b5cf6;color:#fff;border:none;padding:6px 12px;border-radius:6px;font-size:11px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer" title="Copia al portapapeles un prompt para pegar en Claude">📋 Prompt para Claude</button>
+                <button type="button" onclick="cvFcClaudePrompt()" style="background:#8b5cf6;color:#fff;border:none;padding:6px 12px;border-radius:6px;font-size:11px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer" title="Copia al portapapeles un prompt listo para pegar en claude.ai">📋 Prompt para Claude</button>
               </div>
               <div id="cv-fc-copys-list" style="display:flex;flex-direction:column;gap:6px"></div>
               <button type="button" onclick="cvFcAddCopyInput()" style="margin-top:8px;background:transparent;border:1px dashed var(--muted2);color:var(--muted2);padding:6px 12px;border-radius:6px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer">＋ Agregar copy</button>
@@ -20067,6 +20083,118 @@ function cvFcAddVideoInput() {
   list.appendChild(row);
 }
 
+// Cache de la ultima carga de la library
+window._cvFcLibrary = { videos: [], loadedFor: null };
+
+function cvFcOpenLibrary() {
+  const advertiserId = window._cvData.tt.accountId;
+  if (!advertiserId) { alert('Selecciona primero una cuenta TikTok'); return; }
+  document.getElementById('cv-fc-library-panel').style.display = 'block';
+  // Cargar si no hay cache o cambio la cuenta
+  if (window._cvFcLibrary.loadedFor !== advertiserId) cvFcLoadLibrary();
+  else cvFcRenderLibrary();
+}
+
+async function cvFcLoadLibrary() {
+  const advertiserId = window._cvData.tt.accountId;
+  const statusEl = document.getElementById('cv-fc-library-status');
+  const gridEl = document.getElementById('cv-fc-library-grid');
+  statusEl.textContent = 'Cargando Video Library...';
+  gridEl.innerHTML = '';
+  try {
+    const resp = await fetch('/.netlify/functions/tiktok-videos-list?advertiser_id=' + encodeURIComponent(advertiserId) + '&size=100');
+    const data = await resp.json();
+    if (!resp.ok) {
+      if (data.error === 'SCOPE_MISSING') {
+        statusEl.innerHTML = '⚠️ ' + escapeHtml(data.hint || 'Scope insuficiente. Sigue en review si lo aplicaste hoy.');
+      } else {
+        statusEl.textContent = '❌ ' + (data.error || 'unknown') + (data.message ? ': ' + data.message : '');
+      }
+      return;
+    }
+    window._cvFcLibrary = { videos: data.videos || [], loadedFor: advertiserId };
+    cvFcRenderLibrary();
+  } catch (e) {
+    statusEl.textContent = '❌ Error red: ' + (e.message || '?');
+  }
+}
+
+function cvFcRenderLibrary() {
+  const search = String(document.getElementById('cv-fc-library-search').value || '').toLowerCase().trim();
+  const statusEl = document.getElementById('cv-fc-library-status');
+  const gridEl = document.getElementById('cv-fc-library-grid');
+  const all = window._cvFcLibrary.videos || [];
+  const filtered = search ? all.filter(v => String(v.name||'').toLowerCase().includes(search) || String(v.video_id||'').includes(search)) : all;
+  statusEl.textContent = 'Total: ' + all.length + ' videos · Mostrando: ' + filtered.length + (search ? ' (filtro: "' + search + '")' : '');
+  if (filtered.length === 0) {
+    gridEl.innerHTML = '<div style="grid-column:1/-1;padding:20px;text-align:center;color:var(--muted);font-size:11px">Sin videos.</div>';
+    return;
+  }
+  gridEl.innerHTML = filtered.slice(0, 100).map(v => {
+    const cover = v.cover_url
+      ? `<img src="${escapeHtml(v.cover_url)}" style="width:100%;height:180px;object-fit:cover;border-radius:4px;display:block" alt="" loading="lazy">`
+      : '<div style="width:100%;height:180px;background:var(--surface2);display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:10px;border-radius:4px">sin thumb</div>';
+    const dur = v.duration ? `${Math.round(v.duration)}s` : '';
+    const hasPreview = !!v.preview_url;
+    const eyeBtn = hasPreview
+      ? `<button type="button" onclick="event.stopPropagation();cvFcPreviewVideo('${escapeHtml(v.preview_url)}','${escapeHtml(v.cover_url||'')}',${JSON.stringify(String(v.name||'').slice(0,50)).replace(/"/g,'&quot;')})" style="position:absolute;top:6px;right:6px;background:rgba(0,0,0,.6);border:none;color:#fff;border-radius:50%;width:26px;height:26px;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center" title="Reproducir">▶</button>`
+      : '';
+    const durBadge = dur ? `<div style="position:absolute;bottom:6px;right:6px;background:rgba(0,0,0,.6);color:#fff;padding:2px 6px;border-radius:4px;font-size:9px">${dur}</div>` : '';
+    return `<div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px;cursor:pointer;transition:transform .1s,border-color .1s" onmouseover="this.style.transform='scale(1.02)';this.style.borderColor='var(--accent)'" onmouseout="this.style.transform='';this.style.borderColor='var(--border)'" onclick="cvFcPickVideo('${escapeHtml(v.video_id)}',this)" title="Click para agregar al primer campo vacío">
+      <div style="position:relative">
+        ${cover}
+        ${eyeBtn}
+        ${durBadge}
+      </div>
+      <div style="font-size:9px;color:var(--text);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${escapeHtml(v.name||'')}">${escapeHtml((v.name||'sin nombre').slice(0,40))}</div>
+      <div style="font-size:8px;color:var(--muted);opacity:.7;margin-top:1px;font-family:'DM Mono',monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${escapeHtml(v.video_id||'')}">${escapeHtml(String(v.video_id||'').slice(0,24))}...</div>
+    </div>`;
+  }).join('');
+}
+
+function cvFcPreviewVideo(previewUrl, coverUrl, name) {
+  // Modal ad-hoc para reproducir un video
+  let modal = document.getElementById('cv-fc-video-preview-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'cv-fc-video-preview-modal';
+    modal.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,.85);z-index:10000;display:none;align-items:center;justify-content:center;padding:20px';
+    modal.onclick = (e) => { if (e.target === modal) modal.style.display = 'none'; };
+    document.body.appendChild(modal);
+  }
+  modal.innerHTML = `<div style="position:relative;max-width:420px;width:100%">
+    <button type="button" onclick="document.getElementById('cv-fc-video-preview-modal').style.display='none';document.querySelectorAll('#cv-fc-video-preview-modal video').forEach(v=>v.pause())" style="position:absolute;top:-40px;right:0;background:transparent;border:none;color:#fff;font-size:28px;cursor:pointer;line-height:1">✕</button>
+    <div style="color:#fff;text-align:center;font-family:'DM Mono',monospace;font-size:11px;margin-bottom:8px">${escapeHtml(name || '')}</div>
+    <video src="${escapeHtml(previewUrl)}" poster="${escapeHtml(coverUrl || '')}" controls autoplay playsinline style="width:100%;max-height:75vh;border-radius:10px;background:#000"></video>
+  </div>`;
+  modal.style.display = 'flex';
+}
+
+function cvFcPickVideo(videoId, cardEl) {
+  // Cambia a modo id automatico si no lo esta
+  if (CV_FC_VIDEO_MODE !== 'id') cvFcSetVideoMode('id');
+  // Pega el video_id en el primer input vacio, o crea uno nuevo si no hay
+  const inputs = Array.from(document.querySelectorAll('.cv-fc-video-input'));
+  const empty = inputs.find(i => !i.value.trim());
+  if (empty) {
+    empty.value = videoId;
+  } else {
+    cvFcAddVideoInput();
+    const newInputs = document.querySelectorAll('.cv-fc-video-input');
+    newInputs[newInputs.length - 1].value = videoId;
+  }
+  // Feedback visual
+  if (cardEl) {
+    cardEl.style.borderColor = '#22c55e';
+    cardEl.style.background = 'rgba(34,197,94,.1)';
+    setTimeout(() => {
+      cardEl.style.borderColor = 'var(--border)';
+      cardEl.style.background = 'var(--surface2)';
+    }, 700);
+  }
+  cvFcUpdateSummary();
+}
+
 function cvFcAddCopyInput(text = '', angulo = '') {
   const list = document.getElementById('cv-fc-copys-list');
   const idx = list.children.length + 1;
@@ -20169,7 +20297,6 @@ Devuelveme SOLO los 5 copys numerados, uno por línea. Sin comentarios ni explic
     await navigator.clipboard.writeText(prompt);
     statusEl.innerHTML = '✅ Prompt copiado al portapapeles. <a href="https://claude.ai/new" target="_blank" style="color:#8b5cf6;text-decoration:underline;font-weight:700">Abrí Claude</a> · pegá · trae los 5 copys y pegalos abajo (uno por textarea).';
   } catch (e) {
-    // Fallback: mostrar el prompt en un textarea para copiar manualmente
     statusEl.innerHTML = `⚠️ No se pudo copiar automáticamente. Copia manual desde acá:<br><textarea readonly onclick="this.select()" style="width:100%;height:120px;background:var(--surface);border:1px solid var(--border);color:var(--text);padding:8px;font-size:10px;margin-top:4px;font-family:'DM Mono',monospace">${prompt.replace(/&/g,'&amp;').replace(/</g,'&lt;')}</textarea>`;
   }
 }
