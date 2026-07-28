@@ -170,13 +170,18 @@ export default async function handler(req) {
   }
 
   // 2. Crear AdGroup con schedule mañana 5:30 CL
+  // NOTA: Sin CBO (Campaign Budget Optimization), TikTok requiere que el
+  // adgroup tenga su propio budget. Usamos el mismo monto que la campaign.
+  // 1.1 TESTEO usa CBO (por eso su adgroup es INFINITE), pero activarlo via
+  // API requiere campos extras — más simple duplicar el ppto.
   const start = tomorrowChile530(startDate);
   const end = farFutureEnd(start);
   const agBody = {
     advertiser_id: String(advertiserId),
     campaign_id: String(result.campaignId),
     adgroup_name: adgroupName.slice(0, 100),
-    budget_mode: 'BUDGET_MODE_INFINITE',
+    budget_mode: 'BUDGET_MODE_DAY',
+    budget: budgetEnMoneda,
     optimization_goal: 'CONVERT',
     optimization_event: 'SHOPPING',
     billing_event: 'OCPM',
