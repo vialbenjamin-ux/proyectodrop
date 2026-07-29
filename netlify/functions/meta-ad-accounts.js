@@ -97,9 +97,15 @@ exports.handler = async (event) => {
     }
   }
 
-  // Whitelist opcional: si META_ACCOUNT_ALLOWLIST está seteada, solo devolvemos
-  // esas cuentas. Formato: "act_123,act_456" o "123,456" (con o sin prefijo act_).
-  const allowRaw = (process.env.META_ACCOUNT_ALLOWLIST || '').split(',').map(s => s.trim()).filter(Boolean);
+  // Whitelist de cuentas Meta a mostrar. Si META_ACCOUNT_ALLOWLIST está seteada
+  // en env vars, se usa esa. Si no, cae al hardcode default (BENKO2 + CP Chile).
+  // Para agregar/quitar cuentas: editar la env var o esta lista + deploy.
+  const HARDCODED_ALLOWLIST = [
+    'act_1661774377877344',   // BENKO2
+    'act_918870097301836',    // CP Chile 1 - 1
+  ];
+  const envRaw = (process.env.META_ACCOUNT_ALLOWLIST || '').split(',').map(s => s.trim()).filter(Boolean);
+  const allowRaw = envRaw.length > 0 ? envRaw : HARDCODED_ALLOWLIST;
   if (allowRaw.length > 0) {
     const allowSet = new Set();
     for (const id of allowRaw) {
