@@ -139,10 +139,17 @@ function extractCampaignKeywords(name) {
   s = s.replace(/\s*\(\d+\)\s*$/, '');                   // quitar sufijo " (5)"
   s = s.replace(/[^\w\sáéíóúñü]/gi, ' ');                // caracteres especiales -> espacio
   s = s.replace(/\s+/g, ' ').trim();
+  // Stopwords: prefijos/siglas comunes que aparecen en nombres de campana pero
+  // NO en nombres de producto Shopify. Se excluyen del match. Editar aca si
+  // aparecen otros patterns (ej "TEST", "PRUEBA", etc.)
+  const STOPWORDS = new Set(['ap','cp','bk','ba','v1','v2','v3','v4','v5','av','ad','ads']);
   const tokens = s.split(' ').filter(t => {
     if (t.length < 2) return false;
     if (/^\d+$/.test(t)) return false;                    // puros números
-    if (/^\d+m$/i.test(t)) return true;                   // 3m, 4m ok
+    if (/^\d+[a-z]$/i.test(t)) return true;               // 3m, 4g, 5v ok
+    if (STOPWORDS.has(t)) return false;                    // AP, CP, etc.
+    // Tokens de 2 letras puras (no num+letra) suelen ser siglas → excluir
+    if (t.length < 3 && !/^\d/.test(t)) return false;
     return true;
   });
   return tokens;
