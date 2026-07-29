@@ -10,8 +10,15 @@ exports.handler = async (event) => {
   if (!token) return respond(500, { error: 'META_ACCESS_TOKEN no configurada' });
   const V = meta.META_API_VERSION;
   try {
-    const data = await meta.fetchOne(`https://graph.facebook.com/${V}/me?fields=id,name&access_token=${encodeURIComponent(token)}`);
-    return respond(200, { id: data.id, name: data.name, tenant });
+    const data = await meta.fetchOne(`https://graph.facebook.com/${V}/me?fields=id,name,business{id,name},list_of_permissions&access_token=${encodeURIComponent(token)}`);
+    return respond(200, {
+      id: data.id,
+      name: data.name,
+      business: data.business || null,
+      permissions: data.list_of_permissions || null,
+      tenant,
+      hint: 'El "business" es el BM padre del System User. Ese es el socio al que hay que asignar la nueva cuenta.',
+    });
   } catch (err) {
     if (err.isPolicyViolation || err.tokenInvalid || err.isRateLimit) return meta.metaErrorToResponse(err, respond);
     return respond(500, { error: err.message || 'Error' });
