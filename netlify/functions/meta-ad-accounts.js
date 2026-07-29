@@ -65,11 +65,16 @@ exports.handler = async (event) => {
         });
       });
     } catch (err) {
-      // Errores críticos (368, 190, rate limit) → devolver inmediato sin probar más tokens
-      if (err.isPolicyViolation || err.tokenInvalid || err.isRateLimit) {
-        return meta.metaErrorToResponse(err, respond);
-      }
-      errors.push({ tenant, source, error: err.message || 'Error consultando Meta' });
+      // Antes: cortabamos al primer error crítico (368/190/rate). Problema:
+      // si UN token caduca, el resto se pierde. Ahora acumulamos y seguimos.
+      // Solo devolvemos error si TODOS fallaron y no hay accounts al final.
+      errors.push({
+        tenant,
+        source,
+        error: err.message || 'Error consultando Meta',
+        code: err.code || null,
+        type: err.type || null,
+      });
     }
   }
 
