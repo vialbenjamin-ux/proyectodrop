@@ -97,6 +97,25 @@ exports.handler = async (event) => {
     }
   }
 
+  // Whitelist opcional: si META_ACCOUNT_ALLOWLIST está seteada, solo devolvemos
+  // esas cuentas. Formato: "act_123,act_456" o "123,456" (con o sin prefijo act_).
+  const allowRaw = (process.env.META_ACCOUNT_ALLOWLIST || '').split(',').map(s => s.trim()).filter(Boolean);
+  if (allowRaw.length > 0) {
+    const allowSet = new Set();
+    for (const id of allowRaw) {
+      allowSet.add(id);
+      allowSet.add(id.replace(/^act_/, ''));
+      allowSet.add('act_' + id.replace(/^act_/, ''));
+    }
+    const before = allAccounts.length;
+    for (let i = allAccounts.length - 1; i >= 0; i--) {
+      if (!allowSet.has(allAccounts[i].id) && !allowSet.has(String(allAccounts[i].id).replace(/^act_/, ''))) {
+        allAccounts.splice(i, 1);
+      }
+    }
+    console.log(`[meta-ad-accounts] Allowlist activo: ${allAccounts.length}/${before} cuentas mostradas.`);
+  }
+
   // Si TODOS los tokens fallaron, devolver error
   if (allAccounts.length === 0 && errors.length > 0) {
     return respond(500, { error: errors.map(e => `${e.tenant.toUpperCase()}: ${e.error}`).join(' · ') });
