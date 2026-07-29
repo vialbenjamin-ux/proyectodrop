@@ -10,6 +10,7 @@
 // Anti-ban: 2 llamadas secuenciales con >=3s entre cada una.
 
 const meta = require('./_meta-api');
+const utm = require('./_shopify-utm');
 
 const VALID_PRESETS = ['today','yesterday','last_3d','last_7d','last_14d','last_28d','last_30d','last_90d','this_month','last_month','this_quarter','maximum'];
 
@@ -49,6 +50,13 @@ exports.handler = async (event) => {
   const insightsUrl = `https://graph.facebook.com/${V}/${adAccountId}/insights?fields=${insightFields}&date_preset=${datePreset}&level=campaign&limit=500&access_token=${encodeURIComponent(token)}`;
   const acctUrl = `https://graph.facebook.com/${V}/${adAccountId}?fields=id,name,currency,account_status&access_token=${encodeURIComponent(token)}`;
 
+  // Shopify credentials para el cruce (mismo pattern que tiktok-report)
+  const isGT = tenant === 'gt';
+  const shopifyDomain = isGT ? process.env.SHOPIFY_DOMAIN_GT : process.env.SHOPIFY_DOMAIN;
+  const shopifyToken  = isGT ? process.env.SHOPIFY_TOKEN_GT  : process.env.SHOPIFY_TOKEN;
+  const canCross = !!(shopifyDomain && shopifyToken);
+  const range = utm.computeDateRange(datePreset);
+
   try {
     const fxPromise = tenant === 'gt' ? getUsdToClpRate() : Promise.resolve(null);
     const campsData = await meta.fetchOne(campsUrl);
@@ -56,6 +64,9 @@ exports.handler = async (event) => {
     const insightsData = await meta.fetchOne(insightsUrl);
     await meta.delay();
     const acctData = await meta.fetchOne(acctUrl);
+    const shopifyOrders = canCross
+      ? await utm.fetchShopifyOrders(shopifyDomain, shopifyToken, range.start, range.end).catch(() => [])
+      : [];
     const usdClpRate = await fxPromise;
 
     const accountName = acctData?.name || '';
@@ -65,6 +76,44 @@ exports.handler = async (event) => {
     const insByCamp = {};
     for (const r of (insightsData?.data || [])) {
       insByCamp[r.campaign_id] = r;
+    }
+
+    // Set de campaign_ids con insights (para desambiguar en collisiones de nombre)
+    const insightCampaignIds = new Set(Object.keys(insByCamp));
+
+    // Map campaign_name normalizado -> [{ id, name }] para matchear utm_campaign.
+    // Si un mismo nombre aparece varias veces (borradas + activa), preferimos la
+    // que tenga insights en el rango.
+    const campsByName = {};
+    (campsData?.data || []).forEach(c => {
+      const key = utm.normalizeCampaignName(c.name);
+      if (!key) return;
+      if (!campsByName[key]) campsByName[key] = [];
+      campsByName[key].push({ id: c.id, name: c.name });
+    });
+
+    // Cruzar órdenes Shopify con campañas Meta por nombre
+    const ordersByCampaignId = {};
+    for (const order of shopifyOrders) {
+      if (utm.extractUtmSource(order) !== 'meta') continue;
+      const utmCamp = utm.extractUtmCampaign(order);
+      let campId = null;
+      if (utmCamp) {
+        const candidates = campsByName[utm.normalizeCampaignName(utmCamp)] || [];
+        const preferred = candidates.find(c => insightCampaignIds.has(c.id)) || candidates[0];
+        if (preferred) campId = preferred.id;
+      }
+      if (!campId) continue;
+      const orderRev = utm.computeOrderRevenue(order);
+      let orderQty = 0;
+      for (const li of (order.line_items || [])) {
+        const refunded = utm.getRefundedQty(order, li.id);
+        orderQty += Math.max(0, (li.quantity || 0) - refunded);
+      }
+      if (!ordersByCampaignId[campId]) ordersByCampaignId[campId] = { orders: 0, qty: 0, revenue: 0 };
+      ordersByCampaignId[campId].orders += 1;
+      ordersByCampaignId[campId].qty += orderQty;
+      ordersByCampaignId[campId].revenue += orderRev;
     }
 
     const find = (arr, type) => (arr || []).find(x => x.action_type === type);
@@ -78,17 +127,24 @@ exports.handler = async (event) => {
       // Meta devuelve budgets en centavos de la moneda de la cuenta. Convertir a unidad.
       const dailyBudget    = c.daily_budget    ? Number(c.daily_budget) / 100 : null;
       const lifetimeBudget = c.lifetime_budget ? Number(c.lifetime_budget) / 100 : null;
+      const spend = parseFloat(ins.spend || 0);
+      // Cruce real Shopify
+      const shop = ordersByCampaignId[c.id] || { orders: 0, qty: 0, revenue: 0 };
+      const realPurchases = shop.orders;
+      const realRevenue = shop.revenue;
+      const cpaReal = realPurchases > 0 ? spend / realPurchases : null;
+      const roasReal = spend > 0 && realRevenue > 0 ? realRevenue / spend : null;
       return {
         id: c.id,
         name: c.name || '',
-        status: c.status,                         // ACTIVE/PAUSED/DELETED/ARCHIVED
-        effective_status: c.effective_status,     // (más granular: CAMPAIGN_PAUSED, ADSET_PAUSED, etc)
+        status: c.status,
+        effective_status: c.effective_status,
         objective: c.objective,
         buying_type: c.buying_type,
         dailyBudget,
         lifetimeBudget,
         createdAt: c.created_time,
-        spend: parseFloat(ins.spend || 0),
+        spend,
         impressions: parseInt(ins.impressions || 0, 10),
         clicks: parseInt(ins.clicks || 0, 10),
         cpc: parseFloat(ins.cpc || 0),
@@ -98,10 +154,19 @@ exports.handler = async (event) => {
         purchaseValue: pVal ? parseFloat(pVal.value) : 0,
         cpa: cpa ? parseFloat(cpa.value) : null,
         roas: roas ? parseFloat(roas.value) : null,
+        // Cruce real Shopify
+        realPurchases,
+        realUnits: shop.qty,
+        realRevenue,
+        cpaReal,
+        roasReal,
       };
     });
 
     // Conversión moneda cuenta → CLP si no es CLP.
+    // Campos en moneda cuenta se multiplican. realRevenue viene de Shopify
+    // (CLP siempre), no se toca. cpaReal/roasReal se RECALCULAN con spend
+    // ya convertido a CLP.
     let willConvert = false;
     let fxRate = 1;
     let currency = accountCurrency;
@@ -114,6 +179,8 @@ exports.handler = async (event) => {
         const mul = ['dailyBudget','lifetimeBudget','spend','cpc','cpm','purchaseValue','cpa'];
         for (const row of rows) {
           for (const k of mul) if (row[k] != null) row[k] = row[k] * fxRate;
+          if (row.realPurchases > 0) row.cpaReal = row.spend / row.realPurchases;
+          if (row.spend > 0 && row.realRevenue > 0) row.roasReal = row.realRevenue / row.spend;
         }
       }
     }
@@ -129,6 +196,10 @@ exports.handler = async (event) => {
       adAccountId,
       datePreset,
       tenant,
+      crossEnabled: canCross,
+      shopifyOrdersScanned: shopifyOrders.length,
+      startDate: range.start,
+      endDate: range.end,
     });
   } catch (err) {
     if (err.isPolicyViolation || err.tokenInvalid || err.isRateLimit) {
