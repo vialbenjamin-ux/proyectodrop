@@ -24,10 +24,13 @@ exports.handler = async (event) => {
 
   const params = event.queryStringParameters || {};
   const tenant = String(params.tenant || 'chile').toLowerCase();
-  const token = (tenant === 'gt')
-    ? process.env.META_ACCESS_TOKEN_GT
-    : process.env.META_ACCESS_TOKEN;
-  if (!token) return respond(500, { error: 'META_ACCESS_TOKEN' + (tenant === 'gt' ? '_GT' : '') + ' no configurada' });
+  const tokenByTenant = {
+    gt:    process.env.META_ACCESS_TOKEN_GT,
+    cp:    process.env.META_ACCESS_TOKEN_CP,
+    chile: process.env.META_ACCESS_TOKEN,
+  };
+  const token = tokenByTenant[tenant] || tokenByTenant.chile;
+  if (!token) return respond(500, { error: 'Token Meta no configurado para tenant=' + tenant });
 
   const adAccountId = (params.ad_account_id || '').trim();
   if (!/^act_\d+$/.test(adAccountId)) return respond(400, { error: 'ad_account_id inválido (debe ser act_XXX)' });
@@ -92,21 +95,39 @@ exports.handler = async (event) => {
       campsByName[key].push({ id: c.id, name: c.name });
     });
 
-    // Cruzar órdenes Shopify con campañas Meta por nombre
-    const ordersByCampaignId = {};
+    // Lista de campañas activas (o con insights) para el matcher por producto.
+    // Restringimos a las que están en insights o ACTIVE para evitar matchear
+    // campañas viejas eliminadas.
+    const campsForProductMatch = (campsData?.data || [])
+      .filter(c => insightCampaignIds.has(c.id) || c.status === 'ACTIVE')
+      .map(c => ({ id: c.id, name: c.name || '' }));
+
+    // Cruzar órdenes Shopify con campañas Meta.
+    // Prioridad:
+    //   1) utm_campaign (fuente confiable) → método='utm'
+    //   2) fuzzy match por keywords del nombre de campaña vs line_items → método='product'
+    //   3) sin match → huérfana
+    const ordersByCampaignId = {};    // { campId: { orders, qty, revenue, byMethod: {utm, product} } }
     let unmatchedMetaOrders = 0;
     let unmatchedQty = 0;
     let unmatchedRevenue = 0;
     const unmatchedUtmCounts = {};
-    const orphanOrders = []; // detalle de las huérfanas Meta
+    const orphanOrders = [];
     for (const order of shopifyOrders) {
       if (utm.extractUtmSource(order) !== 'meta') continue;
       const utmCamp = utm.extractUtmCampaign(order);
       let campId = null;
+      let matchMethod = null;
+      // 1) Match por UTM
       if (utmCamp) {
         const candidates = campsByName[utm.normalizeCampaignName(utmCamp)] || [];
         const preferred = candidates.find(c => insightCampaignIds.has(c.id)) || candidates[0];
-        if (preferred) campId = preferred.id;
+        if (preferred) { campId = preferred.id; matchMethod = 'utm'; }
+      }
+      // 2) Fallback: match por producto (keywords campaña vs line_items)
+      if (!campId) {
+        const productMatch = utm.matchOrderToCampaignByProduct(order, campsForProductMatch);
+        if (productMatch) { campId = productMatch.id; matchMethod = 'product'; }
       }
       const orderRev = utm.computeOrderRevenue(order);
       let orderQty = 0;
@@ -115,7 +136,6 @@ exports.handler = async (event) => {
         orderQty += Math.max(0, (li.quantity || 0) - refunded);
       }
       if (!campId) {
-        // Huérfana Meta: es de Meta pero no matcheó ninguna campaña
         unmatchedMetaOrders++;
         unmatchedQty += orderQty;
         unmatchedRevenue += orderRev;
@@ -128,15 +148,18 @@ exports.handler = async (event) => {
           total: orderRev,
           qty: orderQty,
           utmCampaign: utmCamp || null,
+          items: (order.line_items || []).map(li => li.title).slice(0, 3),
         });
         continue;
       }
-      if (!ordersByCampaignId[campId]) ordersByCampaignId[campId] = { orders: 0, qty: 0, revenue: 0 };
+      if (!ordersByCampaignId[campId]) {
+        ordersByCampaignId[campId] = { orders: 0, qty: 0, revenue: 0, byMethod: { utm: 0, product: 0 } };
+      }
       ordersByCampaignId[campId].orders += 1;
       ordersByCampaignId[campId].qty += orderQty;
       ordersByCampaignId[campId].revenue += orderRev;
+      ordersByCampaignId[campId].byMethod[matchMethod] += 1;
     }
-    // Lista de utm_campaigns no matcheados ordenada por frecuencia
     const unmatchedDetail = Object.entries(unmatchedUtmCounts)
       .map(([utmC, count]) => ({ utm: utmC, count }))
       .sort((a, b) => b.count - a.count);
@@ -154,11 +177,15 @@ exports.handler = async (event) => {
       const lifetimeBudget = c.lifetime_budget ? Number(c.lifetime_budget) / 100 : null;
       const spend = parseFloat(ins.spend || 0);
       // Cruce real Shopify
-      const shop = ordersByCampaignId[c.id] || { orders: 0, qty: 0, revenue: 0 };
+      const shop = ordersByCampaignId[c.id] || { orders: 0, qty: 0, revenue: 0, byMethod: { utm: 0, product: 0 } };
       const realPurchases = shop.orders;
       const realRevenue = shop.revenue;
       const cpaReal = realPurchases > 0 ? spend / realPurchases : null;
       const roasReal = spend > 0 && realRevenue > 0 ? realRevenue / spend : null;
+      // Método de match dominante: 'utm' si al menos 1 orden fue por UTM, 'product' si todas fueron por producto
+      const matchByMethod = shop.byMethod || { utm: 0, product: 0 };
+      const realMatchMethod = realPurchases === 0 ? null
+        : matchByMethod.utm > 0 ? 'utm' : 'product';
       return {
         id: c.id,
         name: c.name || '',
@@ -185,6 +212,8 @@ exports.handler = async (event) => {
         realRevenue,
         cpaReal,
         roasReal,
+        realMatchMethod,               // 'utm' | 'product' | null
+        realMatchByMethod: matchByMethod,   // { utm: N, product: M }
       };
     });
 

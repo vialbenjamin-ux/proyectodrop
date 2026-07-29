@@ -32,10 +32,13 @@ exports.handler = async (event) => {
     return respond(400, { error: 'operation debe ser ACTIVE o PAUSED' });
   }
 
-  const token = (tenant === 'gt')
-    ? process.env.META_ACCESS_TOKEN_GT
-    : process.env.META_ACCESS_TOKEN;
-  if (!token) return respond(500, { error: 'META_ACCESS_TOKEN' + (tenant === 'gt' ? '_GT' : '') + ' no configurada' });
+  const tokenByTenant = {
+    gt:    process.env.META_ACCESS_TOKEN_GT,
+    cp:    process.env.META_ACCESS_TOKEN_CP,
+    chile: process.env.META_ACCESS_TOKEN,
+  };
+  const token = tokenByTenant[tenant] || tokenByTenant.chile;
+  if (!token) return respond(500, { error: 'Token Meta no configurado para tenant=' + tenant });
 
   const V = meta.META_API_VERSION;
   const url = `https://graph.facebook.com/${V}/${campaignId}?access_token=${encodeURIComponent(token)}`;

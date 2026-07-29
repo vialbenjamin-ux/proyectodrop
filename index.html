@@ -20077,7 +20077,8 @@ async function cvMtLoadAccounts() {
   const statusEl = document.getElementById('cv-mt-status');
   statusEl.textContent = 'Cargando cuentas Meta...';
   try {
-    const resp = await fetch('/.netlify/functions/meta-ad-accounts?tenant=chile');
+    // Sin ?tenant= = trae de TODOS los tokens (chile, gt, cp, adspower) con dedupe
+    const resp = await fetch('/.netlify/functions/meta-ad-accounts');
     const data = await resp.json();
     if (!resp.ok) {
       statusEl.textContent = 'Error cargando cuentas: ' + (data.error || 'unknown');
@@ -20108,11 +20109,15 @@ async function cvMtLoadCampanas() {
     return;
   }
   window._cvData.mt.adAccountId = adAccountId;
+  // Resolver el tenant del account seleccionado (chile / gt / cp / adspower)
+  const selectedAcct = (window._cvData.mt.accounts || []).find(a => (a.id || a.act_id) === adAccountId);
+  const acctTenant = (selectedAcct && selectedAcct.tenant) || 'chile';
+  window._cvData.mt.acctTenant = acctTenant;
   const dateEl = document.getElementById('cv-mt-date');
   const datePreset = (dateEl && dateEl.value) || 'today';
   statusEl.textContent = 'Cargando campañas Meta... (puede tardar ~10s por anti-ban)';
   try {
-    const resp = await fetch('/.netlify/functions/meta-campaigns-list?ad_account_id=' + encodeURIComponent(adAccountId) + '&date_preset=' + encodeURIComponent(datePreset) + '&tenant=chile');
+    const resp = await fetch('/.netlify/functions/meta-campaigns-list?ad_account_id=' + encodeURIComponent(adAccountId) + '&date_preset=' + encodeURIComponent(datePreset) + '&tenant=' + encodeURIComponent(acctTenant));
     const data = await resp.json();
     if (!resp.ok) {
       statusEl.textContent = '❌ ' + (data.error || 'unknown') + (data.message ? ': ' + data.message : '');
@@ -20177,20 +20182,27 @@ function cvMtRender() {
     const budgetVal = (r.dailyBudget != null) ? r.dailyBudget : r.lifetimeBudget;
     const modeTag = r.dailyBudget == null && r.lifetimeBudget != null ? ' <span style="color:var(--muted2);font-size:9px">total</span>' : '';
     const budgetLabel = budgetVal != null ? fmtMoney(budgetVal) + modeTag : '<span style="color:var(--muted2)">∞</span>';
-    // CPA: preferir el real Shopify (fuente de verdad), fallback CPA Meta
+    // CPA: preferir el real Shopify (fuente de verdad), fallback CPA Meta.
+    // Origen del CPA real: 'utm' (match perfecto por utm_campaign),
+    // 'product' (match fuzzy por keywords campana vs line_items), 'meta' (fallback pixel).
     const cpaVal = (r.cpaReal != null && isFinite(r.cpaReal) && r.cpaReal > 0) ? r.cpaReal
                  : (r.cpa != null && isFinite(r.cpa) && r.cpa > 0) ? r.cpa : null;
-    const cpaOrigin = (r.cpaReal != null && r.cpaReal > 0) ? 'real'
+    const cpaOrigin = (r.cpaReal != null && r.cpaReal > 0)
+                        ? (r.realMatchMethod === 'utm' ? 'utm' : 'product')
                     : (r.cpa != null && r.cpa > 0) ? 'meta' : null;
-    // Cantidad de compras: preferir real Shopify sino Meta reportado
     const buys = r.realPurchases > 0 ? r.realPurchases : (r.purchases || 0);
     const buysOrigin = r.realPurchases > 0 ? 'real' : 'meta';
     const buysLabel = buys > 0
       ? ` <span style="color:var(--muted2);font-size:9px">(${buys}×${buysOrigin === 'real' ? '' : ' m'})</span>`
       : '';
-    const cpaLabel = cpaVal == null ? '—' : fmtMoney(cpaVal) +
-      (cpaOrigin === 'real' ? ' <span style="color:#22c55e;font-size:9px" title="CPA real: spend Meta / compras Shopify">✓</span>'
-       : ' <span style="color:var(--muted2);font-size:9px" title="CPA reportado por Meta (pixel)">m</span>');
+    const cpaBadge = cpaOrigin === 'utm'
+      ? ' <span style="color:#22c55e;font-size:9px" title="CPA real: match perfecto por utm_campaign">✓</span>'
+      : cpaOrigin === 'product'
+      ? ' <span style="color:#3b82f6;font-size:9px" title="CPA real: match por producto (nombre campaña vs line_items Shopify)">p</span>'
+      : cpaOrigin === 'meta'
+      ? ' <span style="color:var(--muted2);font-size:9px" title="CPA reportado por Meta pixel (no cuadrado con Shopify)">m</span>'
+      : '';
+    const cpaLabel = cpaVal == null ? '—' : fmtMoney(cpaVal) + cpaBadge;
     return `<tr data-id="${escapeHtml(r.id)}" style="border-bottom:1px solid var(--border)">
       <td style="padding:10px 12px;color:var(--text)">${escapeHtml(r.name||'')}</td>
       <td style="padding:10px 8px;text-align:center">${badge}</td>
@@ -20266,10 +20278,11 @@ async function cvMtAction(campaignId, operation, campaignName) {
   if (!confirm(msg)) return;
 
   try {
+    const acctTenant = window._cvData.mt.acctTenant || 'chile';
     const resp = await fetch('/.netlify/functions/meta-campaign-status', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ campaign_id: campaignId, operation, tenant: 'chile' }),
+      body: JSON.stringify({ campaign_id: campaignId, operation, tenant: acctTenant }),
     });
     const data = await resp.json();
     if (!resp.ok || !data.ok) {

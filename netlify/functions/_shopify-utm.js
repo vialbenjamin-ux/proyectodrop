@@ -121,6 +121,69 @@ function normalizeCampaignName(s) {
     .trim();
 }
 
+// Extrae keywords "de producto" del nombre de una campaña Ads.
+// Ejemplos:
+//   "0522 GUIRNALDAS 3M"                    -> ["guirnaldas", "3m"]
+//   "0609 GUIRNALDAS 3M BDCAP 4500-5250"    -> ["guirnaldas", "3m"]
+//   "0723 ALUMINIO COCINA BDCAP 35-45"      -> ["aluminio", "cocina"]
+//   "0728 PATINES NIÑO"                     -> ["patines", "niño"]
+// Reglas:
+//   - Quitar prefijo numérico inicial (ej "0522 ")
+//   - Cortar todo lo que venga después de BDCAP/BCAP/CAP (rangos de precio)
+//   - Ignorar tokens muy cortos (< 2 chars) excepto "3m", "4m" y similares
+//   - Ignorar tokens meramente numéricos (fechas, rangos)
+function extractCampaignKeywords(name) {
+  let s = String(name || '').toLowerCase().trim();
+  s = s.replace(/^\d+\s+/, '');                         // quitar "0522 "
+  s = s.replace(/\s+(bdcap|bcap|cap)\s+.*$/i, '');       // quitar " BDCAP 4500-5250"
+  s = s.replace(/\s*\(\d+\)\s*$/, '');                   // quitar sufijo " (5)"
+  s = s.replace(/[^\w\sáéíóúñü]/gi, ' ');                // caracteres especiales -> espacio
+  s = s.replace(/\s+/g, ' ').trim();
+  const tokens = s.split(' ').filter(t => {
+    if (t.length < 2) return false;
+    if (/^\d+$/.test(t)) return false;                    // puros números
+    if (/^\d+m$/i.test(t)) return true;                   // 3m, 4m ok
+    return true;
+  });
+  return tokens;
+}
+
+// Devuelve el campaign_id de la campaña que "posee" el producto de la orden,
+// según fuzzy match entre los keywords del nombre de la campaña y los títulos
+// de line_items de la orden.
+//   - Si UNA sola campaña matchea → return { id, name, score }
+//   - Si múltiples matchean con score similar → return null (ambiguo)
+//   - Si ninguna → return null
+// Score = cantidad de keywords de la campaña presentes en algún line_item.
+function matchOrderToCampaignByProduct(order, campaignsList) {
+  const lineTitles = (order.line_items || [])
+    .map(li => String(li.title || li.name || '').toLowerCase())
+    .filter(Boolean);
+  if (lineTitles.length === 0 || campaignsList.length === 0) return null;
+
+  const matches = [];
+  for (const c of campaignsList) {
+    const kw = extractCampaignKeywords(c.name);
+    if (kw.length === 0) continue;
+    // Score: keywords presentes en algún line_item
+    let score = 0;
+    for (const w of kw) {
+      if (lineTitles.some(t => t.includes(w))) score++;
+    }
+    // Requiere que TODOS los keywords estén presentes (match completo).
+    // Para campañas con 1 solo keyword ("zapatera"), 1/1 es válido.
+    // Para "guirnaldas 3m", exige "guirnaldas" Y "3m".
+    if (score === kw.length) matches.push({ id: c.id, name: c.name, score, kwCount: kw.length });
+  }
+  if (matches.length === 0) return null;
+  if (matches.length === 1) return matches[0];
+  // Ambigüedad: múltiples campañas matchean el mismo producto.
+  // Preferir la que tenga MÁS keywords (más específica). Si empatan, ambigua.
+  matches.sort((a, b) => b.kwCount - a.kwCount);
+  if (matches[0].kwCount > matches[1].kwCount) return matches[0];
+  return null;
+}
+
 // Convierte un date_preset (today / yesterday / last_7d / this_month …) a un
 // rango { start, end } en formato YYYY-MM-DD alineado a calendario Chile.
 function computeDateRange(preset) {
@@ -162,6 +225,8 @@ module.exports = {
   extractUtmSource,
   extractUtmCampaign,
   normalizeCampaignName,
+  extractCampaignKeywords,
+  matchOrderToCampaignByProduct,
   computeOrderRevenue,
   getRefundedQty,
   computeDateRange,
