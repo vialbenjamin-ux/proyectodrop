@@ -3998,6 +3998,10 @@
 
         <div id="cv-mt-status" style="margin-bottom:10px;font-size:11px;color:var(--muted);font-family:'DM Mono',monospace"></div>
 
+        <!-- Aviso de huérfanas Meta (compras Shopify sin matchear ninguna campana) -->
+        <div id="cv-mt-orphan-banner" style="display:none;margin-bottom:10px;padding:10px 12px;background:rgba(234,179,8,.1);border:1px solid #eab308;border-radius:8px;font-size:11px;font-family:'DM Mono',monospace;color:var(--text)"></div>
+        <div id="cv-mt-orphan-panel" style="display:none;margin-bottom:10px;padding:12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;font-size:10px;font-family:'DM Mono',monospace;color:var(--muted2);max-height:400px;overflow-y:auto"></div>
+
         <div style="overflow-x:auto;background:var(--surface);border:1.5px solid var(--border);border-radius:10px">
           <table style="width:100%;border-collapse:collapse;font-family:'DM Mono',monospace;font-size:12px">
             <thead>
@@ -20118,6 +20122,9 @@ async function cvMtLoadCampanas() {
     window._cvData.mt.currency = data.currency || 'CLP';
     window._cvData.mt.originalCurrency = data.originalCurrency || null;
     window._cvData.mt.fxRate = data.fxRate || null;
+    window._cvData.mt.orphan = data.orphan || null;
+    window._cvData.mt.unmatchedDetail = data.unmatchedDetail || [];
+    window._cvData.mt.campaignNames = data.campaignNames || [];
     cvMtRender();
   } catch (e) {
     statusEl.textContent = 'Error red: ' + (e.message || '?');
@@ -20193,6 +20200,63 @@ function cvMtRender() {
       <td style="padding:8px 8px;text-align:center">${btnMain}</td>
     </tr>`;
   }).join('') || '<tr><td colspan="6" style="padding:24px;text-align:center;color:var(--muted)">No hay campañas con el filtro actual.</td></tr>';
+
+  // Banner de huérfanas Meta (compras Shopify con utm_source=meta pero sin
+  // matchear ninguna campaña por utm_campaign)
+  const banner = document.getElementById('cv-mt-orphan-banner');
+  const panel = document.getElementById('cv-mt-orphan-panel');
+  const orphan = window._cvData.mt.orphan;
+  if (orphan && orphan.orders > 0) {
+    banner.style.display = 'block';
+    banner.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+        <div>⚠️ <b>${orphan.orders} orden${orphan.orders === 1 ? '' : 'es'}</b> Meta en Shopify sin matchear campaña (${fmtSpend(orphan.revenue)} CLP) · probable problema de UTM template</div>
+        <button onclick="cvMtToggleOrphanPanel()" style="background:transparent;border:1px solid #eab308;color:#eab308;padding:4px 12px;border-radius:6px;font-size:10px;font-family:'DM Mono',monospace;cursor:pointer;font-weight:700">Ver detalle</button>
+      </div>`;
+  } else {
+    banner.style.display = 'none';
+    panel.style.display = 'none';
+  }
+}
+
+function cvMtToggleOrphanPanel() {
+  const panel = document.getElementById('cv-mt-orphan-panel');
+  if (panel.style.display === 'block') { panel.style.display = 'none'; return; }
+  const orphan = window._cvData.mt.orphan;
+  const unmatched = window._cvData.mt.unmatchedDetail || [];
+  const campNames = window._cvData.mt.campaignNames || [];
+  const details = orphan.details || [];
+  let html = '<div style="font-weight:700;color:var(--text);margin-bottom:6px">📊 UTMs no matcheados</div>';
+  if (unmatched.length === 0) {
+    html += '<div>Sin UTMs para mostrar.</div>';
+  } else {
+    html += '<table style="width:100%;border-collapse:collapse;font-size:10px">';
+    html += '<tr style="border-bottom:1px solid var(--border);color:var(--text)"><th style="text-align:left;padding:4px 8px">utm_campaign recibido</th><th style="text-align:right;padding:4px 8px">Compras</th><th style="text-align:left;padding:4px 8px">Campaña más cercana</th></tr>';
+    for (const u of unmatched) {
+      const utmNorm = String(u.utm || '').toLowerCase().trim();
+      const near = campNames.find(cn => String(cn || '').toLowerCase().includes(utmNorm) || utmNorm.includes(String(cn || '').toLowerCase())) || '—';
+      html += `<tr style="border-bottom:1px dashed var(--border)"><td style="padding:4px 8px;color:var(--text)"><code>${escapeHtml(u.utm || '(vacío)')}</code></td><td style="padding:4px 8px;text-align:right">${u.count}</td><td style="padding:4px 8px;color:var(--muted2)">${escapeHtml(near)}</td></tr>`;
+    }
+    html += '</table>';
+  }
+  html += '<div style="font-weight:700;color:var(--text);margin-top:14px;margin-bottom:6px">📦 Órdenes huérfanas (' + details.length + ')</div>';
+  if (details.length === 0) {
+    html += '<div>Sin detalle.</div>';
+  } else {
+    html += '<table style="width:100%;border-collapse:collapse;font-size:10px">';
+    html += '<tr style="border-bottom:1px solid var(--border);color:var(--text)"><th style="text-align:left;padding:4px 8px">Orden</th><th style="text-align:left;padding:4px 8px">Fecha</th><th style="text-align:right;padding:4px 8px">Total</th><th style="text-align:left;padding:4px 8px">utm_campaign</th></tr>';
+    for (const o of details.slice(0, 100)) {
+      const dt = o.createdAt ? String(o.createdAt).slice(0,16).replace('T',' ') : '—';
+      html += `<tr style="border-bottom:1px dashed var(--border)"><td style="padding:4px 8px;color:var(--text)">${escapeHtml(o.name)}</td><td style="padding:4px 8px">${escapeHtml(dt)}</td><td style="padding:4px 8px;text-align:right">$${Math.round(o.total).toLocaleString('es-CL')}</td><td style="padding:4px 8px"><code>${escapeHtml(o.utmCampaign || '(vacío)')}</code></td></tr>`;
+    }
+    html += '</table>';
+  }
+  html += `<div style="margin-top:14px;padding:8px 10px;background:var(--surface);border-left:2px solid var(--accent);border-radius:4px;color:var(--muted2);line-height:1.5">
+    💡 <b>Cómo arreglar:</b> configurá el UTM template de tus campañas Meta en Ads Manager → URL parameters:<br>
+    <code>utm_source=facebook&utm_campaign={{campaign.name}}&utm_medium=paid_social</code>
+  </div>`;
+  panel.innerHTML = html;
+  panel.style.display = 'block';
 }
 
 async function cvMtAction(campaignId, operation, campaignName) {

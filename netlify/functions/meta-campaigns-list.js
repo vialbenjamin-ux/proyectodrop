@@ -94,6 +94,11 @@ exports.handler = async (event) => {
 
     // Cruzar órdenes Shopify con campañas Meta por nombre
     const ordersByCampaignId = {};
+    let unmatchedMetaOrders = 0;
+    let unmatchedQty = 0;
+    let unmatchedRevenue = 0;
+    const unmatchedUtmCounts = {};
+    const orphanOrders = []; // detalle de las huérfanas Meta
     for (const order of shopifyOrders) {
       if (utm.extractUtmSource(order) !== 'meta') continue;
       const utmCamp = utm.extractUtmCampaign(order);
@@ -103,18 +108,38 @@ exports.handler = async (event) => {
         const preferred = candidates.find(c => insightCampaignIds.has(c.id)) || candidates[0];
         if (preferred) campId = preferred.id;
       }
-      if (!campId) continue;
       const orderRev = utm.computeOrderRevenue(order);
       let orderQty = 0;
       for (const li of (order.line_items || [])) {
         const refunded = utm.getRefundedQty(order, li.id);
         orderQty += Math.max(0, (li.quantity || 0) - refunded);
       }
+      if (!campId) {
+        // Huérfana Meta: es de Meta pero no matcheó ninguna campaña
+        unmatchedMetaOrders++;
+        unmatchedQty += orderQty;
+        unmatchedRevenue += orderRev;
+        const key = utmCamp || '(sin utm_campaign)';
+        unmatchedUtmCounts[key] = (unmatchedUtmCounts[key] || 0) + 1;
+        orphanOrders.push({
+          id: order.id,
+          name: order.order_number ? '#' + order.order_number : '#' + order.id,
+          createdAt: order.created_at,
+          total: orderRev,
+          qty: orderQty,
+          utmCampaign: utmCamp || null,
+        });
+        continue;
+      }
       if (!ordersByCampaignId[campId]) ordersByCampaignId[campId] = { orders: 0, qty: 0, revenue: 0 };
       ordersByCampaignId[campId].orders += 1;
       ordersByCampaignId[campId].qty += orderQty;
       ordersByCampaignId[campId].revenue += orderRev;
     }
+    // Lista de utm_campaigns no matcheados ordenada por frecuencia
+    const unmatchedDetail = Object.entries(unmatchedUtmCounts)
+      .map(([utmC, count]) => ({ utm: utmC, count }))
+      .sort((a, b) => b.count - a.count);
 
     const find = (arr, type) => (arr || []).find(x => x.action_type === type);
 
@@ -187,6 +212,9 @@ exports.handler = async (event) => {
 
     rows.sort((a, b) => b.spend - a.spend);
 
+    // Nombres de campañas (para que el frontend compare visualmente)
+    const campaignNames = (campsData?.data || []).map(c => c.name).slice(0, 200);
+
     return respond(200, {
       rows,
       currency,
@@ -200,6 +228,15 @@ exports.handler = async (event) => {
       shopifyOrdersScanned: shopifyOrders.length,
       startDate: range.start,
       endDate: range.end,
+      unmatchedMetaOrders,
+      unmatchedDetail,
+      orphan: {
+        orders: unmatchedMetaOrders,
+        qty: unmatchedQty,
+        revenue: unmatchedRevenue,
+        details: orphanOrders,
+      },
+      campaignNames,
     });
   } catch (err) {
     if (err.isPolicyViolation || err.tokenInvalid || err.isRateLimit) {
