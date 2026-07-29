@@ -102,11 +102,16 @@ exports.handler = async (event) => {
       .filter(c => insightCampaignIds.has(c.id) || c.status === 'ACTIVE')
       .map(c => ({ id: c.id, name: c.name || '' }));
 
+    // Set de todos los campaign_ids para match directo por ID (Meta UTM template
+    // usa {{campaign.id}} numérico como utm_campaign en muchos casos).
+    const allCampaignIds = new Set((campsData?.data || []).map(c => c.id));
+
     // Cruzar órdenes Shopify con campañas Meta.
     // Prioridad:
-    //   1) utm_campaign (fuente confiable) → método='utm'
-    //   2) fuzzy match por keywords del nombre de campaña vs line_items → método='product'
-    //   3) sin match → huérfana
+    //   1) utm_campaign == campaign_id de Meta (match exacto por ID) → método='utm'
+    //   2) utm_campaign matchea nombre de campaña → método='utm'
+    //   3) fuzzy match por keywords del nombre de campaña vs line_items → método='product'
+    //   4) sin match → huérfana
     const ordersByCampaignId = {};    // { campId: { orders, qty, revenue, byMethod: {utm, product} } }
     let unmatchedMetaOrders = 0;
     let unmatchedQty = 0;
@@ -118,13 +123,18 @@ exports.handler = async (event) => {
       const utmCamp = utm.extractUtmCampaign(order);
       let campId = null;
       let matchMethod = null;
-      // 1) Match por UTM
-      if (utmCamp) {
+      // 1) Match exacto por campaign_id (UTM template Meta con {{campaign.id}})
+      if (utmCamp && /^\d+$/.test(utmCamp) && allCampaignIds.has(utmCamp)) {
+        campId = utmCamp;
+        matchMethod = 'utm';
+      }
+      // 2) Match por nombre de campaña (UTM template Meta con {{campaign.name}})
+      if (!campId && utmCamp) {
         const candidates = campsByName[utm.normalizeCampaignName(utmCamp)] || [];
         const preferred = candidates.find(c => insightCampaignIds.has(c.id)) || candidates[0];
         if (preferred) { campId = preferred.id; matchMethod = 'utm'; }
       }
-      // 2) Fallback: match por producto (keywords campaña vs line_items)
+      // 3) Fallback: match por producto (keywords campaña vs line_items)
       if (!campId) {
         const productMatch = utm.matchOrderToCampaignByProduct(order, campsForProductMatch);
         if (productMatch) { campId = productMatch.id; matchMethod = 'product'; }
