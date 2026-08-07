@@ -36,13 +36,19 @@ exports.handler = async (event) => {
     }
   }
 
-  // Lista de warehouse_ids únicos vistos en las órdenes
+  // Warehouses y shops únicos vistos en órdenes
   const warehousesById = {};
+  const shopsById = {};
   for (const o of allOrders) {
     if (o.warehouse_id != null && o.warehouse) {
       warehousesById[o.warehouse_id] = { id: o.warehouse_id, name: o.warehouse.name || '?' };
     } else if (o.warehouse_id != null) {
       warehousesById[o.warehouse_id] = warehousesById[o.warehouse_id] || { id: o.warehouse_id, name: '?' };
+    }
+    if (o.shop_id != null && o.shop) {
+      shopsById[o.shop_id] = { id: o.shop_id, name: o.shop.name || '?' };
+    } else if (o.shop_id != null) {
+      shopsById[o.shop_id] = shopsById[o.shop_id] || { id: o.shop_id, name: '?' };
     }
   }
   return respond(200, {
@@ -54,6 +60,7 @@ exports.handler = async (event) => {
     sampleOrderKeys: sampleOrderDetail ? Object.keys(sampleOrderDetail) : [],
     productIdsInCache: [...allProductIds].slice(0, 30),
     warehousesInCache: Object.values(warehousesById),
+    shopsInCache: Object.values(shopsById),
   });
 };
 
