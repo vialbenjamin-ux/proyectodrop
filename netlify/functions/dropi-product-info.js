@@ -1,46 +1,49 @@
-// DEBUG endpoint: devuelve raw response de Dropi /integrations/products/{id}
-// para inspeccionar la estructura de variantes + bodegas y adaptar el código.
-// GET /.netlify/functions/dropi-product-info?id=70842
-
+// DEBUG endpoint 2: buscar en cache de ordenes qué campos vienen para product_id=70842
+// y qué warehouse/attribute/variant info se puede sacar.
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: cors(), body: '' };
   const qs = event.queryStringParameters || {};
   const id = String(qs.id || '').trim();
-  if (!/^\d+$/.test(id)) return respond(400, { error: 'id numerico requerido' });
   const token = process.env.DROPI_TOKEN_CL;
   if (!token) return respond(500, { error: 'Falta DROPI_TOKEN_CL' });
-  const headers = {
-    'dropi-integration-key': token,
-    'Content-Type': 'application/json',
-    'User-Agent': 'BKDROP-Sync/1.0',
-  };
-  const attempts = [
-    { url: 'https://api.dropi.cl/integrations/products/' + id, method: 'GET' },
-    { url: 'https://api.dropi.cl/integrations/products', method: 'POST', body: { id: Number(id) } },
-    { url: 'https://api.dropi.cl/integrations/products', method: 'POST', body: { product_id: Number(id) } },
-    { url: 'https://api.dropi.cl/integrations/products/search', method: 'POST', body: { id: Number(id) } },
-    { url: 'https://api.dropi.cl/integrations/products/list', method: 'POST', body: { id: Number(id) } },
-    { url: 'https://api.dropi.cl/integrations/product/' + id, method: 'GET' },
-    { url: 'https://api.dropi.cl/integrations/products/detail/' + id, method: 'GET' },
-    { url: 'https://api.dropi.cl/integrations/inventory/' + id, method: 'GET' },
-    { url: 'https://api.dropi.cl/integrations/warehouses', method: 'GET' },
-    { url: 'https://api.dropi.cl/integrations/products/warehouse-stock/' + id, method: 'GET' },
-  ];
-  const results = [];
-  for (const a of attempts) {
-    try {
-      const opts = { method: a.method, headers };
-      if (a.body) opts.body = JSON.stringify(a.body);
-      const r = await fetch(a.url, opts);
-      const txt = await r.text();
-      let data;
-      try { data = JSON.parse(txt); } catch { data = { raw: txt.slice(0, 1500) }; }
-      results.push({ url: a.url, method: a.method, body: a.body || null, status: r.status, ok: r.ok, data });
-    } catch (err) {
-      results.push({ url: a.url, method: a.method, error: err.message });
-    }
+  const headers = { 'dropi-integration-key': token, 'Content-Type': 'application/json', 'User-Agent': 'BKDROP-Sync/1.0' };
+
+  // Fetch 500 ordenes recientes
+  let allOrders = [];
+  for (let start = 0; start < 500; start += 100) {
+    const r = await fetch('https://api.dropi.cl/integrations/orders/myorders?start=' + start + '&result_number=100', { headers });
+    if (!r.ok) break;
+    const d = await r.json();
+    const objs = d.objects || [];
+    if (objs.length === 0) break;
+    allOrders = allOrders.concat(objs);
+    await new Promise(res => setTimeout(res, 200));
   }
-  return respond(200, { productId: id, tried: results });
+
+  // Buscar orderdetails con product_id = id
+  const matches = [];
+  for (const o of allOrders) {
+    for (const od of (o.orderdetails || [])) {
+      if (od.product && String(od.product.id) === id) {
+        matches.push({
+          order_id: o.id,
+          warehouse_id: o.warehouse_id,
+          shop_id: o.shop_id,
+          orderdetail_keys: Object.keys(od),
+          orderdetail: od,   // TODA la info
+        });
+        if (matches.length >= 3) break;
+      }
+    }
+    if (matches.length >= 3) break;
+  }
+
+  return respond(200, {
+    productId: id,
+    matchesFound: matches.length,
+    totalOrdersScanned: allOrders.length,
+    matches,
+  });
 };
 
 function cors() {
