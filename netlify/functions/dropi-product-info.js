@@ -36,6 +36,15 @@ exports.handler = async (event) => {
     }
   }
 
+  // Lista de warehouse_ids únicos vistos en las órdenes
+  const warehousesById = {};
+  for (const o of allOrders) {
+    if (o.warehouse_id != null && o.warehouse) {
+      warehousesById[o.warehouse_id] = { id: o.warehouse_id, name: o.warehouse.name || '?' };
+    } else if (o.warehouse_id != null) {
+      warehousesById[o.warehouse_id] = warehousesById[o.warehouse_id] || { id: o.warehouse_id, name: '?' };
+    }
+  }
   return respond(200, {
     productId: id,
     matchesFound: matches.length,
@@ -44,6 +53,7 @@ exports.handler = async (event) => {
     sampleOrderDetail,
     sampleOrderKeys: sampleOrderDetail ? Object.keys(sampleOrderDetail) : [],
     productIdsInCache: [...allProductIds].slice(0, 30),
+    warehousesInCache: Object.values(warehousesById),
   });
 };
 
