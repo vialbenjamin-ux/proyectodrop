@@ -1,67 +1,68 @@
-// DEBUG endpoint 2: buscar en cache de ordenes qué campos vienen para product_id=70842
-// y qué warehouse/attribute/variant info se puede sacar.
+// DEBUG endpoint 3: prueba masiva de endpoints Dropi para descubrir uno que
+// devuelva warehouse info de un producto ajeno (marketplace).
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: cors(), body: '' };
   const qs = event.queryStringParameters || {};
-  const id = String(qs.id || '').trim();
+  const id = String(qs.id || '70842').trim();
   const token = process.env.DROPI_TOKEN_CL;
   if (!token) return respond(500, { error: 'Falta DROPI_TOKEN_CL' });
   const headers = { 'dropi-integration-key': token, 'Content-Type': 'application/json', 'User-Agent': 'BKDROP-Sync/1.0' };
 
-  // Fetch 500 ordenes recientes
-  let allOrders = [];
-  for (let start = 0; start < 500; start += 100) {
-    const r = await fetch('https://api.dropi.cl/integrations/orders/myorders?start=' + start + '&result_number=100', { headers });
-    if (!r.ok) break;
-    const d = await r.json();
-    const objs = d.objects || [];
-    if (objs.length === 0) break;
-    allOrders = allOrders.concat(objs);
-    await new Promise(res => setTimeout(res, 200));
-  }
-
-  // Buscar orderdetails con product_id = id
-  const matches = [];
-  const allProductIds = new Set();
-  const sampleOrderDetail = allOrders[0] && allOrders[0].orderdetails && allOrders[0].orderdetails[0] || null;
-  for (const o of allOrders) {
-    for (const od of (o.orderdetails || [])) {
-      if (od.product && od.product.id) allProductIds.add(od.product.id);
-      if (id && od.product && String(od.product.id) === id) {
-        matches.push({
-          order_id: o.id, warehouse_id: o.warehouse_id, shop_id: o.shop_id,
-          orderdetail: od,
-        });
+  const attempts = [
+    // GET search/list (dijeron soportan GET/HEAD/PUT/DELETE)
+    { url: 'https://api.dropi.cl/integrations/products/search?id=' + id, method: 'GET' },
+    { url: 'https://api.dropi.cl/integrations/products/search', method: 'GET' },
+    { url: 'https://api.dropi.cl/integrations/products/list', method: 'GET' },
+    { url: 'https://api.dropi.cl/integrations/products/list?id=' + id, method: 'GET' },
+    { url: 'https://api.dropi.cl/integrations/products/search?product_id=' + id, method: 'GET' },
+    { url: 'https://api.dropi.cl/integrations/products/search?sku=2000', method: 'GET' },
+    // Catalog
+    { url: 'https://api.dropi.cl/integrations/catalog', method: 'GET' },
+    { url: 'https://api.dropi.cl/integrations/catalog/' + id, method: 'GET' },
+    { url: 'https://api.dropi.cl/integrations/products?start=0&result_number=5', method: 'GET' },
+    // User info / shops
+    { url: 'https://api.dropi.cl/integrations/user', method: 'GET' },
+    { url: 'https://api.dropi.cl/integrations/shops', method: 'GET' },
+    { url: 'https://api.dropi.cl/integrations/shop', method: 'GET' },
+    { url: 'https://api.dropi.cl/integrations/dropshippers', method: 'GET' },
+    { url: 'https://api.dropi.cl/integrations/vendors', method: 'GET' },
+    // Quote / simulate
+    { url: 'https://api.dropi.cl/integrations/orders/quote', method: 'POST', body: { product_id: Number(id), quantity: 1 } },
+    { url: 'https://api.dropi.cl/integrations/orders/simulate', method: 'POST', body: { product_id: Number(id), quantity: 1 } },
+    { url: 'https://api.dropi.cl/integrations/orders/preview', method: 'POST', body: { product_id: Number(id), quantity: 1 } },
+    // Producto (métodos permitidos según error 405 previo)
+    { url: 'https://api.dropi.cl/integrations/products', method: 'PUT', body: { id: Number(id) } },
+    { url: 'https://api.dropi.cl/integrations/products', method: 'DELETE' },
+    { url: 'https://api.dropi.cl/integrations/products', method: 'HEAD' },
+  ];
+  const results = [];
+  for (const a of attempts) {
+    try {
+      const opts = { method: a.method, headers };
+      if (a.body) opts.body = JSON.stringify(a.body);
+      const r = await fetch(a.url, opts);
+      const txt = await r.text();
+      let data;
+      try { data = JSON.parse(txt); } catch { data = { raw: txt.slice(0, 300) }; }
+      const brief = {
+        url: a.url,
+        method: a.method,
+        body: a.body || null,
+        status: r.status,
+        ok: r.ok,
+        message: data && data.message ? data.message : null,
+        keys: data && typeof data === 'object' ? Object.keys(data).slice(0, 12) : null,
+      };
+      // Si es OK y hay data útil, incluir preview del cuerpo
+      if (r.ok || (r.status >= 200 && r.status < 500 && !brief.message)) {
+        brief.dataPreview = JSON.stringify(data).slice(0, 500);
       }
+      results.push(brief);
+    } catch (err) {
+      results.push({ url: a.url, method: a.method, error: err.message });
     }
   }
-
-  // Warehouses y shops únicos vistos en órdenes
-  const warehousesById = {};
-  const shopsById = {};
-  for (const o of allOrders) {
-    if (o.warehouse_id != null && o.warehouse) {
-      warehousesById[o.warehouse_id] = { id: o.warehouse_id, name: o.warehouse.name || '?' };
-    } else if (o.warehouse_id != null) {
-      warehousesById[o.warehouse_id] = warehousesById[o.warehouse_id] || { id: o.warehouse_id, name: '?' };
-    }
-    if (o.shop_id != null && o.shop) {
-      shopsById[o.shop_id] = { id: o.shop_id, name: o.shop.name || '?' };
-    } else if (o.shop_id != null) {
-      shopsById[o.shop_id] = shopsById[o.shop_id] || { id: o.shop_id, name: '?' };
-    }
-  }
-  return respond(200, {
-    productId: id,
-    matchesFound: matches.length,
-    totalOrdersScanned: allOrders.length,
-    matches: matches.slice(0, 2),
-    sampleOrderDetail,
-    sampleOrderKeys: sampleOrderDetail ? Object.keys(sampleOrderDetail) : [],
-    productIdsInCache: [...allProductIds].slice(0, 30),
-    warehousesInCache: Object.values(warehousesById),
-    shopsInCache: Object.values(shopsById),
-  });
+  return respond(200, { productId: id, tried: results });
 };
 
 function cors() {
