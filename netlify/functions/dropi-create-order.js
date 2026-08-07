@@ -210,11 +210,10 @@ exports.handler = async (event) => {
           price: it.price || 0,
         };
         if (vid) {
-          // Nombres candidatos que Dropi puede aceptar para identificar la variante.
-          // Enviamos varios; Dropi ignora los que no reconoce.
+          // Dropi lo llama 'variation_id' (validado leyendo orderdetail de
+          // cache 500 ordenes). Mandamos también variant_id como fallback.
+          prod.variation_id = vid;
           prod.variant_id = vid;
-          prod.id_variant = vid;
-          prod.attribute_id = vid;
         }
         if (variantSwapped) prod._variantSwapped = variantSwapped; // debug info (no llega a Dropi si se filtra abajo)
         dropiProducts.push(prod);
@@ -253,9 +252,15 @@ exports.handler = async (event) => {
     }
   }
 
-  // Fallback warehouse/shop si no se encontraron en cache (raro con match por barcode).
-  if (!warehouseUsed) warehouseUsed = 79;   // RVG default
-  if (!shopUsed) shopUsed = 152458;
+  // Fallback warehouse/shop si no se encontraron en cache.
+  // Antes: 79 (RVG) hardcoded. Problema: si el producto está en OTRA bodega
+  // (ej Lo Espejo), Dropi rechaza con "Producto no posee stock en ninguna
+  // de sus bodegas". Ahora: intentar sin warehouse_id (dejar que Dropi
+  // elija). Si Dropi rechaza pidiendo warehouse, iteramos.
+  const warehouseFromCache = !!warehouseUsed;
+  const shopFromCache = !!shopUsed;
+  if (!warehouseUsed) warehouseUsed = null;
+  if (!shopUsed) shopUsed = 152458;   // shop default
 
   // FIX descuentos/combos: Shopify manda line_items[].price que puede estar
   // mal para varios casos:
