@@ -22,27 +22,28 @@ exports.handler = async (event) => {
 
   // Buscar orderdetails con product_id = id
   const matches = [];
+  const allProductIds = new Set();
+  const sampleOrderDetail = allOrders[0] && allOrders[0].orderdetails && allOrders[0].orderdetails[0] || null;
   for (const o of allOrders) {
     for (const od of (o.orderdetails || [])) {
-      if (od.product && String(od.product.id) === id) {
+      if (od.product && od.product.id) allProductIds.add(od.product.id);
+      if (id && od.product && String(od.product.id) === id) {
         matches.push({
-          order_id: o.id,
-          warehouse_id: o.warehouse_id,
-          shop_id: o.shop_id,
-          orderdetail_keys: Object.keys(od),
-          orderdetail: od,   // TODA la info
+          order_id: o.id, warehouse_id: o.warehouse_id, shop_id: o.shop_id,
+          orderdetail: od,
         });
-        if (matches.length >= 3) break;
       }
     }
-    if (matches.length >= 3) break;
   }
 
   return respond(200, {
     productId: id,
     matchesFound: matches.length,
     totalOrdersScanned: allOrders.length,
-    matches,
+    matches: matches.slice(0, 2),
+    sampleOrderDetail,
+    sampleOrderKeys: sampleOrderDetail ? Object.keys(sampleOrderDetail) : [],
+    productIdsInCache: [...allProductIds].slice(0, 30),
   });
 };
 
