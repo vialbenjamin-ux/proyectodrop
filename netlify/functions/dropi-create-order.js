@@ -94,9 +94,14 @@ exports.handler = async (event) => {
 
   // 2. Construir mapa de productos: { sku_o_nombre_normalizado: {product_id, warehouse_id, shop_id} }
   //    Ademas mapa por productId numerico (para match directo via 'barcode' Shopify).
+  //    Ademas set de warehouse_ids únicos vistos, para retry en cascada.
   const productMap = {};
   const productMapById = {};   // { productId: {warehouse_id, shop_id} }
+  const warehouseUsageCount = {};  // { warehouse_id: count } - para ordenar por más comunes primero
   for (const o of dropiOrders) {
+    if (o.warehouse_id != null) {
+      warehouseUsageCount[o.warehouse_id] = (warehouseUsageCount[o.warehouse_id] || 0) + 1;
+    }
     for (const od of (o.orderdetails || [])) {
       const p = od.product;
       if (!p || !p.id) continue;
@@ -110,6 +115,10 @@ exports.handler = async (event) => {
       productMapById[p.id] = { warehouse_id: o.warehouse_id, shop_id: o.shop_id };
     }
   }
+  // Warehouses ordenados por frecuencia (más comunes primero)
+  const knownWarehouses = Object.entries(warehouseUsageCount)
+    .sort((a, b) => b[1] - a[1])
+    .map(e => parseInt(e[0], 10));
 
   // 3. Matchear cada item del huerfano con product Dropi
   const dropiProducts = [];
@@ -331,34 +340,77 @@ exports.handler = async (event) => {
     products: dropiProductsClean,
   };
 
-  // 5. POST a Dropi
-  let dropiResponse;
-  try {
-    const createResp = await fetch('https://api.dropi.cl/integrations/orders/myorders', {
-      method: 'POST', headers, body: JSON.stringify(dropiBody)
-    });
-    const txt = await createResp.text();
-    try { dropiResponse = JSON.parse(txt); } catch { dropiResponse = { raw: txt.slice(0, 500) }; }
-    if (!createResp.ok || !dropiResponse.isSuccess) {
-      return respond(502, {
-        error: 'Dropi create fail',
-        detail: dropiResponse,
-        sentBody: dropiBody,
+  // 5. POST a Dropi con RETRY iterando warehouses conocidos.
+  // Si Dropi rechaza con "Producto no posee stock en ninguna de sus bodegas"
+  // (o similar), probar cada warehouse_id conocido hasta encontrar uno con stock.
+  // Ordenados por frecuencia de uso (más comunes primero).
+  const warehousesToTry = [];
+  if (warehouseUsed != null) warehousesToTry.push(warehouseUsed);  // primero el sugerido
+  for (const wid of knownWarehouses) {
+    if (!warehousesToTry.includes(wid)) warehousesToTry.push(wid);
+  }
+  // También intentar SIN warehouse (algunos productos Dropi lo maneja auto)
+  warehousesToTry.push(null);
+
+  let dropiResponse = null;
+  let successWarehouse = null;
+  const attempts = [];
+  for (const tryWh of warehousesToTry) {
+    const attemptBody = { ...dropiBody, warehouse_id: tryWh };
+    try {
+      const createResp = await fetch('https://api.dropi.cl/integrations/orders/myorders', {
+        method: 'POST', headers, body: JSON.stringify(attemptBody)
       });
+      const txt = await createResp.text();
+      let data;
+      try { data = JSON.parse(txt); } catch { data = { raw: txt.slice(0, 500) }; }
+      const isStockError = data && data.message && /no posee stock|sin stock|no.*bodega/i.test(String(data.message));
+      attempts.push({
+        warehouse_id: tryWh,
+        status: createResp.status,
+        isSuccess: !!data.isSuccess,
+        message: data.message || null,
+      });
+      if (createResp.ok && data.isSuccess) {
+        dropiResponse = data;
+        successWarehouse = tryWh;
+        break;
+      }
+      // Si NO es error de stock, no seguir iterando warehouses (es otro problema).
+      if (!isStockError) {
+        return respond(502, {
+          error: 'Dropi create fail',
+          detail: data,
+          sentBody: attemptBody,
+          attempts,
+        });
+      }
+      // Es error de stock → probar siguiente warehouse
+      await new Promise(r => setTimeout(r, 300));   // pausa anti-rate-limit
+    } catch (err) {
+      attempts.push({ warehouse_id: tryWh, error: err.message });
     }
-  } catch (err) {
-    return respond(502, { error: 'Fetch Dropi create fail: ' + err.message });
+  }
+
+  if (!dropiResponse) {
+    return respond(502, {
+      error: 'Dropi create fail: ningún warehouse aceptó la orden',
+      hint: 'El producto no tiene stock en ninguno de los ' + warehousesToTry.length + ' warehouses probados.',
+      attempts,
+      sentBody: dropiBody,
+    });
   }
 
   return respond(200, {
     ok: true,
     dropiOrderId: (dropiResponse.object && dropiResponse.object.id) || null,
-    warehouseUsed,
+    warehouseUsed: successWarehouse,
     shopUsed,
     productsMatched: dropiProducts.length,
-    variantSwaps,   // info de swaps auto (variante agotada → disponible)
+    variantSwaps,
     unmatched,
     dropiResponse,
+    warehouseRetries: attempts.length - 1,  // cuántos intentos fallaron antes de acertar
     createdAt: new Date().toISOString(),
   });
 };
