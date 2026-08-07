@@ -14,21 +14,30 @@ exports.handler = async (event) => {
     'Content-Type': 'application/json',
     'User-Agent': 'BKDROP-Sync/1.0',
   };
-  const urls = [
-    'https://api.dropi.cl/integrations/products/' + id,
-    'https://api.dropi.cl/integrations/products/get/' + id,
-    'https://api.dropi.cl/integrations/products?id=' + id,
+  const attempts = [
+    { url: 'https://api.dropi.cl/integrations/products/' + id, method: 'GET' },
+    { url: 'https://api.dropi.cl/integrations/products', method: 'POST', body: { id: Number(id) } },
+    { url: 'https://api.dropi.cl/integrations/products', method: 'POST', body: { product_id: Number(id) } },
+    { url: 'https://api.dropi.cl/integrations/products/search', method: 'POST', body: { id: Number(id) } },
+    { url: 'https://api.dropi.cl/integrations/products/list', method: 'POST', body: { id: Number(id) } },
+    { url: 'https://api.dropi.cl/integrations/product/' + id, method: 'GET' },
+    { url: 'https://api.dropi.cl/integrations/products/detail/' + id, method: 'GET' },
+    { url: 'https://api.dropi.cl/integrations/inventory/' + id, method: 'GET' },
+    { url: 'https://api.dropi.cl/integrations/warehouses', method: 'GET' },
+    { url: 'https://api.dropi.cl/integrations/products/warehouse-stock/' + id, method: 'GET' },
   ];
   const results = [];
-  for (const url of urls) {
+  for (const a of attempts) {
     try {
-      const r = await fetch(url, { method: 'GET', headers });
+      const opts = { method: a.method, headers };
+      if (a.body) opts.body = JSON.stringify(a.body);
+      const r = await fetch(a.url, opts);
       const txt = await r.text();
       let data;
-      try { data = JSON.parse(txt); } catch { data = { raw: txt.slice(0, 2000) }; }
-      results.push({ url, status: r.status, ok: r.ok, data });
+      try { data = JSON.parse(txt); } catch { data = { raw: txt.slice(0, 1500) }; }
+      results.push({ url: a.url, method: a.method, body: a.body || null, status: r.status, ok: r.ok, data });
     } catch (err) {
-      results.push({ url, error: err.message });
+      results.push({ url: a.url, method: a.method, error: err.message });
     }
   }
   return respond(200, { productId: id, tried: results });
