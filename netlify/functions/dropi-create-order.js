@@ -130,18 +130,94 @@ exports.handler = async (event) => {
     warehouseUsed = forcedWarehouseId || 79;  // default RVG si no viene
     shopUsed = forcedShopId || 152458;
   } else {
+    // Cache in-request de variantes por product_id (evitar consultas duplicadas en batch)
+    const variantsCache = {};
+    async function fetchDropiVariants(pid) {
+      if (variantsCache[pid] !== undefined) return variantsCache[pid];
+      try {
+        // Endpoints candidatos para obtener variantes con stock de un producto Dropi
+        const urls = [
+          'https://api.dropi.cl/integrations/products/' + pid,
+          'https://api.dropi.cl/integrations/products/get/' + pid,
+        ];
+        for (const url of urls) {
+          try {
+            const r = await fetch(url, { method: 'GET', headers });
+            if (!r.ok) continue;
+            const d = await r.json();
+            // Formatos comunes: { attributes: [...] } | { variants: [...] } |
+            // { object: { attributes: [...] } } | array directo
+            let variants = null;
+            if (Array.isArray(d.attributes)) variants = d.attributes;
+            else if (Array.isArray(d.variants)) variants = d.variants;
+            else if (d.object && Array.isArray(d.object.attributes)) variants = d.object.attributes;
+            else if (d.object && Array.isArray(d.object.variants)) variants = d.object.variants;
+            if (variants) {
+              // Normalizar: { id, stock }
+              const norm = variants.map(v => ({
+                id: v.id || v.attribute_id || v.variant_id,
+                stock: Number(v.stock ?? v.stock_quantity ?? v.available_stock ?? 0),
+              })).filter(v => v.id != null);
+              variantsCache[pid] = norm;
+              return norm;
+            }
+          } catch { /* seguir con siguiente url */ }
+        }
+      } catch { /* swallow */ }
+      variantsCache[pid] = null;
+      return null;
+    }
+
     for (const it of body.items) {
       // PRIORIDAD 1: barcode Shopify = product_id Dropi (match directo).
+      // Formatos aceptados:
+      //   "70842"          -> producto simple, product_id=70842
+      //   "70842-37671"    -> producto Variable, product_id=70842, variant_id=37671
       const barcode = String(it.barcode || '').trim();
-      if (barcode && /^\d+$/.test(barcode)) {
-        const pid = parseInt(barcode, 10);
+      const mSimple = /^\d+$/.test(barcode);
+      const mVariant = /^(\d+)-(\d+)$/.exec(barcode);
+      if (barcode && (mSimple || mVariant)) {
+        const pid = mSimple ? parseInt(barcode, 10) : parseInt(mVariant[1], 10);
+        let vid = mVariant ? parseInt(mVariant[2], 10) : null;
+
+        // AUTO-VARIANT: si el producto tiene variantes, elegir la que tenga stock.
+        // Si la variante del barcode está agotada, buscar otra con stock.
+        // Si el barcode NO trae variant_id, elegir la primera con stock.
+        const variants = await fetchDropiVariants(pid);
+        let variantSwapped = null;
+        if (variants && variants.length > 0) {
+          const withStock = variants.filter(v => v.stock > 0);
+          if (vid) {
+            const chosen = variants.find(v => v.id === vid);
+            const chosenHasStock = chosen && chosen.stock > 0;
+            if (!chosenHasStock && withStock.length > 0) {
+              // Swap: variante del barcode agotada → usar la primera disponible
+              variantSwapped = { from: vid, to: withStock[0].id, reason: 'stock_zero' };
+              vid = withStock[0].id;
+            }
+          } else if (withStock.length > 0) {
+            // Sin variant en el barcode: elegir automáticamente la primera con stock
+            vid = withStock[0].id;
+            variantSwapped = { from: null, to: vid, reason: 'auto_pick' };
+          }
+        }
+
         const wh = productMapById[pid] || {};
-        dropiProducts.push({
+        const prod = {
           id: pid,
           product_id: pid,
           quantity: it.qty || 1,
           price: it.price || 0,
-        });
+        };
+        if (vid) {
+          // Nombres candidatos que Dropi puede aceptar para identificar la variante.
+          // Enviamos varios; Dropi ignora los que no reconoce.
+          prod.variant_id = vid;
+          prod.id_variant = vid;
+          prod.attribute_id = vid;
+        }
+        if (variantSwapped) prod._variantSwapped = variantSwapped; // debug info (no llega a Dropi si se filtra abajo)
+        dropiProducts.push(prod);
         if (!warehouseUsed) warehouseUsed = wh.warehouse_id || null;
         if (!shopUsed) shopUsed = wh.shop_id || null;
         continue;
@@ -217,6 +293,16 @@ exports.handler = async (event) => {
     });
   }
 
+  // Extraer info de swaps (variant auto-picked) para incluirlo en la respuesta.
+  // Después removerlo del body que se manda a Dropi.
+  const variantSwaps = dropiProducts
+    .filter(p => p._variantSwapped)
+    .map(p => ({ product_id: p.product_id, ...p._variantSwapped }));
+  const dropiProductsClean = dropiProducts.map(p => {
+    const { _variantSwapped, ...rest } = p;
+    return rest;
+  });
+
   // 4. Construir body Dropi (schema validado 25-jul)
   const dropiBody = {
     name: String(body.name || '').split(' ')[0] || 'Cliente',
@@ -237,7 +323,7 @@ exports.handler = async (event) => {
     distribution_company_id: 5,   // STARKEN por default
     shipping_company: 'STARKEN',
     total_order: parseFloat(body.total || 0),
-    products: dropiProducts,
+    products: dropiProductsClean,
   };
 
   // 5. POST a Dropi
@@ -265,6 +351,7 @@ exports.handler = async (event) => {
     warehouseUsed,
     shopUsed,
     productsMatched: dropiProducts.length,
+    variantSwaps,   // info de swaps auto (variante agotada → disponible)
     unmatched,
     dropiResponse,
     createdAt: new Date().toISOString(),

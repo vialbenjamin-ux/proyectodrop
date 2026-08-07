@@ -5064,7 +5064,13 @@ function renderHuerfanoPreview(o) {
     barcode: it.barcode || '(sin)',
   }));
   const dropiTotal = previewItems.reduce((s, it) => s + (it.qty * it.adjustedPrice), 0);
-  const missingBarcode = items.some(it => !it.barcode);
+  // Barcode válido: solo dígitos (producto simple) o "NNNN-NNNN" (variante Dropi)
+  const isValidBarcode = (bc) => {
+    if (!bc) return false;
+    const s = String(bc).trim();
+    return /^\d+$/.test(s) || /^\d+-\d+$/.test(s);
+  };
+  const missingBarcode = items.some(it => !isValidBarcode(it.barcode));
   const missingCity = !o.city || o.city.length < 2;
   const missingRegion = !o.province || o.province.length < 3;
   const missingPhone = !o.phone && !o.phone_raw;

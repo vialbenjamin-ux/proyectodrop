@@ -59,14 +59,15 @@ exports.handler = async function (event) {
 
   // Enriquecer con barcode de cada variant. Shopify NO trae li.barcode
   // en el line_item por default - hay que hacer lookup por variant_id.
-  // Solo miramos ordenes con etiqueta "Dropi Sync Error" (los huerfanos)
-  // para no gastar rate limit consultando variants de ordenes que ya paso.
-  const dropiSyncErr = allOrders.filter(o => (o.tags || '').toLowerCase().includes('dropi sync error'));
+  // Antes filtraba solo tag "Dropi Sync Error", pero usuarios usan otros tags
+  // ("NO PASO", etc.). Ahora enriquece TODAS las ordenes con items sin barcode.
+  // Cap 100 variants por request para no reventar rate limit Shopify.
   const variantIds = new Set();
-  for (const o of dropiSyncErr) {
+  for (const o of allOrders) {
     for (const it of (o.items || [])) {
       if (it.variant_id && !it.barcode) variantIds.add(it.variant_id);
     }
+    if (variantIds.size >= 100) break;
   }
   const variantBarcodes = {};
   for (const vid of variantIds) {
