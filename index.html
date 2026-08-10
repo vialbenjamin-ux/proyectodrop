@@ -1508,6 +1508,10 @@
     ⚡ DROPITEA
   </button>
 
+  <button class="tab-btn ng-standalone" data-section="landing" onclick="switchSection('landing')">
+    🚀 Landing Automática
+  </button>
+
   <div style="flex:1"></div>
 
   <!-- Stock alert bell -->
@@ -4180,6 +4184,59 @@
   </div>
 </div>
 
+<!-- ═══════════════════════════════════════════════════════════════════
+     SECCION LANDING AUTOMATICA — importar producto de Dropi a Shopify
+     con imagenes desde landing referencia + combos + upsell
+     ═══════════════════════════════════════════════════════════════════ -->
+<div id="section-landing" class="section">
+  <div style="max-width:1100px;margin:0 auto;padding:0 4px">
+    <div style="margin-bottom:22px">
+      <div style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:22px;color:var(--text);margin-bottom:4px">🚀 Landing Automática</div>
+      <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;line-height:1.6">Fase 1 · <b>Analizar landing referencia</b>. Pegá un URL de otro dropshipper y BKDROP extrae título/imágenes/descripción para reutilizarlas en tu producto Shopify.</div>
+    </div>
+
+    <!-- INPUT -->
+    <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:18px;margin-bottom:14px">
+      <label style="display:block;font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:8px;font-weight:600">URL de landing referencia</label>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <input type="url" id="landing-url-input" placeholder="https://otra-tienda.com/products/mopa-titanio" style="flex:1;min-width:280px;background:var(--surface2);border:1.5px solid var(--border);border-radius:10px;padding:11px 14px;font-size:12px;font-family:'DM Mono',monospace;color:var(--text);outline:none" onkeydown="if(event.key==='Enter') landingScrape()">
+        <button id="landing-scrape-btn" onclick="landingScrape()" style="background:var(--accent);color:#fff;border:none;border-radius:10px;padding:11px 20px;font-size:12px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer;white-space:nowrap">🔍 Analizar</button>
+      </div>
+      <div id="landing-scrape-status" style="margin-top:10px;font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;line-height:1.5">Ingresá un URL para empezar. Ideal: producto en tienda Shopify. También parsea WooCommerce, Vtex, Tiendanube y otros con Open Graph.</div>
+    </div>
+
+    <!-- PREVIEW -->
+    <div id="landing-preview" style="display:none">
+      <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:18px;margin-bottom:14px">
+        <div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);font-weight:600;margin-bottom:10px">Preview extraído · <span id="landing-source-badge"></span></div>
+        <div id="landing-title" style="font-family:'Montserrat',sans-serif;font-weight:700;font-size:18px;color:var(--text);margin-bottom:8px;line-height:1.3"></div>
+        <div id="landing-meta" style="font-size:11px;color:var(--muted2);font-family:'DM Mono',monospace;margin-bottom:14px;line-height:1.6"></div>
+
+        <div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);font-weight:600;margin-bottom:8px">Imágenes (<span id="landing-images-count">0</span>)</div>
+        <div id="landing-images-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-bottom:14px"></div>
+
+        <details style="border:1px solid var(--border);border-radius:10px;padding:12px 14px">
+          <summary style="font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);cursor:pointer;font-weight:600">Descripción HTML extraída</summary>
+          <div id="landing-description" style="margin-top:12px;font-size:12px;color:var(--muted2);line-height:1.6;max-height:300px;overflow-y:auto;padding-right:8px"></div>
+        </details>
+      </div>
+
+      <!-- JSON crudo debug -->
+      <details style="background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:14px 18px">
+        <summary style="font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);cursor:pointer;font-weight:600">Ver JSON crudo (debug)</summary>
+        <pre id="landing-raw-json" style="margin-top:12px;font-size:10px;color:var(--muted2);line-height:1.5;overflow-x:auto;font-family:'DM Mono',monospace;background:var(--surface2);padding:12px;border-radius:8px;max-height:400px"></pre>
+      </details>
+    </div>
+
+    <div style="margin-top:20px;padding:14px 18px;background:var(--surface2);border:1px dashed var(--border);border-radius:12px;font-size:10px;color:var(--muted);line-height:1.7;font-family:'DM Mono',monospace">
+      <b style="color:var(--text)">🚧 Fases pendientes:</b><br>
+      · F2: helper Dropi (traer info producto + sugerir upsells del mismo proveedor)<br>
+      · F3: crear producto Shopify con variantes combo (usa PRECIO_TABLE existente) + metafield upsell<br>
+      · F4: template Elixir para renderizar el upsell en la landing publicada
+    </div>
+  </div>
+</div>
+
 <div id="comments-panel" onclick="closeCommentsOutside(event)">
   <div id="comments-drawer">
     <div id="comments-drawer-header">
@@ -4433,9 +4490,100 @@ function switchSection(s, silent){
   if(s==='reportes') initReportes();
   if(s==='dropitea') initDropitea();
   if(s==='campanas') initCampanasVivo();
+  if(s==='landing') initLanding();
   // Pipeline removido — la sección ya no existe en el nav
   // Sección Personal/bkfit removida del nav
   if(s==='investigacion') bkInvInit();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// SECCION LANDING AUTOMATICA — Fase 1
+// Scrapea landing referencia y muestra preview. F2/F3 vendrán después.
+// ═══════════════════════════════════════════════════════════════════
+function initLanding(){
+  // Nothing heavy — just focus el input
+  const input = document.getElementById('landing-url-input');
+  if (input) setTimeout(() => input.focus(), 60);
+}
+
+async function landingScrape(){
+  const input = document.getElementById('landing-url-input');
+  const statusEl = document.getElementById('landing-scrape-status');
+  const previewEl = document.getElementById('landing-preview');
+  const btn = document.getElementById('landing-scrape-btn');
+  const url = String(input.value || '').trim();
+  if (!url) { statusEl.textContent = '❌ Ingresá un URL primero.'; statusEl.style.color = 'var(--peach)'; return; }
+  if (!/^https?:\/\//i.test(url)) { statusEl.textContent = '❌ URL debe empezar con http:// o https://'; statusEl.style.color = 'var(--peach)'; return; }
+
+  btn.disabled = true;
+  btn.textContent = '⏳ Analizando…';
+  btn.style.opacity = '.6';
+  statusEl.textContent = 'Descargando y parseando…';
+  statusEl.style.color = 'var(--muted)';
+  previewEl.style.display = 'none';
+
+  try {
+    const resp = await fetch('/.netlify/functions/landing-scrape?url=' + encodeURIComponent(url));
+    const data = await resp.json();
+    if (!resp.ok) {
+      statusEl.textContent = '❌ ' + (data.error || 'Error del scraper');
+      statusEl.style.color = 'var(--peach)';
+      return;
+    }
+    landingRenderPreview(data);
+    statusEl.textContent = '✅ Analizado. Revisá el preview abajo.';
+    statusEl.style.color = 'var(--teal)';
+  } catch (e) {
+    statusEl.textContent = '❌ Error red: ' + (e.message || 'desconocido');
+    statusEl.style.color = 'var(--peach)';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🔍 Analizar';
+    btn.style.opacity = '1';
+  }
+}
+
+function landingRenderPreview(data){
+  const previewEl = document.getElementById('landing-preview');
+  const sourceBadge = document.getElementById('landing-source-badge');
+  const titleEl = document.getElementById('landing-title');
+  const metaEl = document.getElementById('landing-meta');
+  const imgCountEl = document.getElementById('landing-images-count');
+  const imgGridEl = document.getElementById('landing-images-grid');
+  const descEl = document.getElementById('landing-description');
+  const rawEl = document.getElementById('landing-raw-json');
+
+  sourceBadge.innerHTML = data.source === 'shopify'
+    ? '<span style="background:#95bf47;color:#fff;padding:2px 8px;border-radius:4px;font-size:9px;letter-spacing:.5px">SHOPIFY</span>'
+    : '<span style="background:var(--muted2);color:var(--surface);padding:2px 8px;border-radius:4px;font-size:9px;letter-spacing:.5px">HTML</span>';
+
+  titleEl.textContent = data.title || '(sin título)';
+
+  const parts = [];
+  if (data.price != null) parts.push('💰 Precio referencia: $' + Number(data.price).toLocaleString('es-CL'));
+  if (data.vendor) parts.push('🏷️ Vendor: ' + data.vendor);
+  if (data.productType) parts.push('📦 Tipo: ' + data.productType);
+  if (data.handle) parts.push('🔗 Handle: ' + data.handle);
+  metaEl.textContent = parts.join('  ·  ') || '—';
+
+  const imgs = Array.isArray(data.images) ? data.images : [];
+  imgCountEl.textContent = imgs.length;
+  imgGridEl.innerHTML = imgs.length === 0
+    ? '<div style="grid-column:1/-1;padding:24px;text-align:center;color:var(--muted);font-size:11px;font-family:\'DM Mono\',monospace">No se pudieron extraer imágenes de este URL.</div>'
+    : imgs.map((src, i) => {
+        const isMain = i === 0;
+        return `<a href="${escapeHtml(src)}" target="_blank" rel="noopener" style="position:relative;display:block;aspect-ratio:1/1;background:var(--surface2);border-radius:8px;overflow:hidden;border:2px solid ${isMain ? 'var(--accent)' : 'var(--border)'}">
+          <img src="${escapeHtml(src)}" alt="" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block">
+          ${isMain ? '<div style="position:absolute;top:6px;left:6px;background:var(--accent);color:#fff;font-size:9px;padding:2px 6px;border-radius:4px;font-family:\'DM Mono\',monospace;font-weight:700">PRINCIPAL</div>' : ''}
+          <div style="position:absolute;bottom:6px;right:6px;background:rgba(0,0,0,.7);color:#fff;font-size:9px;padding:2px 6px;border-radius:4px;font-family:\'DM Mono\',monospace">${i + 1}</div>
+        </a>`;
+      }).join('');
+
+  descEl.innerHTML = data.descriptionHtml
+    || (data.description ? '<div style="white-space:pre-wrap">' + escapeHtml(data.description) + '</div>' : '<div style="color:var(--muted);font-style:italic">Sin descripción extraída.</div>');
+
+  rawEl.textContent = JSON.stringify(data, null, 2);
+  previewEl.style.display = 'block';
 }
 
 // ═══════════════════════════════════════════════════════════════════
