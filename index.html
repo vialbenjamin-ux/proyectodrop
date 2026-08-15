@@ -4228,10 +4228,38 @@
       </details>
     </div>
 
+    <!-- WIDGET PRECIOS EDITABLE (F1.5) -->
+    <div id="landing-prices-box" style="display:none;background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:18px;margin-top:14px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px">
+        <div>
+          <div style="font-family:'Montserrat',sans-serif;font-weight:700;font-size:15px;color:var(--text)">🎯 Precios sugeridos</div>
+          <div style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;margin-top:2px">Ingresá el costo Dropi y ajustá cada precio antes de crear</div>
+        </div>
+        <button type="button" onclick="landingResetPrices()" style="background:transparent;border:1px solid var(--border);color:var(--muted2);padding:6px 12px;border-radius:8px;font-size:10px;font-family:'DM Mono',monospace;cursor:pointer">↻ Reset a sugerido</button>
+      </div>
+
+      <div style="display:flex;gap:12px;align-items:end;margin-bottom:16px;flex-wrap:wrap">
+        <div style="flex:1;min-width:180px">
+          <label style="display:block;font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:6px;font-weight:600">Costo Dropi (CLP)</label>
+          <div style="display:flex;align-items:center;gap:6px">
+            <span style="font-family:'Montserrat',sans-serif;font-size:20px;color:var(--muted2)">$</span>
+            <input type="number" id="landing-cost-input" inputmode="numeric" placeholder="4500" min="1" oninput="landingCalcPrices()" style="flex:1;background:var(--surface2);border:1.5px solid var(--border);border-radius:8px;padding:9px 12px;font-size:16px;font-family:'Montserrat',sans-serif;font-weight:700;color:var(--text);outline:none">
+          </div>
+        </div>
+        <div id="landing-price-mode" style="padding:8px 14px;background:var(--surface2);border-radius:8px;font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);min-height:20px">Ingresá el costo…</div>
+      </div>
+
+      <div id="landing-price-rows" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px"></div>
+
+      <div style="margin-top:14px;padding:10px 14px;background:var(--surface2);border-radius:8px;font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;line-height:1.5">
+        💡 Los 3 precios (1u/2u/3u) se van a mapear como <b>variantes Shopify</b> cuando lleguemos a F3. Podés editar cada uno directamente en el input y quedará como <span style="color:#eab308;font-weight:700">EDITADO</span>. El botón "Reset" vuelve al sugerido automático.
+      </div>
+    </div>
+
     <div style="margin-top:20px;padding:14px 18px;background:var(--surface2);border:1px dashed var(--border);border-radius:12px;font-size:10px;color:var(--muted);line-height:1.7;font-family:'DM Mono',monospace">
       <b style="color:var(--text)">🚧 Fases pendientes:</b><br>
       · F2: helper Dropi (traer info producto + sugerir upsells del mismo proveedor)<br>
-      · F3: crear producto Shopify con variantes combo (usa PRECIO_TABLE existente) + metafield upsell<br>
+      · F3: crear producto Shopify con variantes combo (usa precios de arriba) + metafield upsell<br>
       · F4: template Elixir para renderizar el upsell en la landing publicada
     </div>
   </div>
@@ -4584,6 +4612,121 @@ function landingRenderPreview(data){
 
   rawEl.textContent = JSON.stringify(data, null, 2);
   previewEl.style.display = 'block';
+
+  // Mostrar el widget de precios (F1.5). Si el scraper trajo un price
+  // referencia, lo dejamos como pista pero NO lo autofilleamos como costo
+  // Dropi (son cosas distintas).
+  document.getElementById('landing-prices-box').style.display = 'block';
+  landingCalcPrices();
+}
+
+// ── Widget precios sugeridos + editables ─────────────────────────────
+// Estado: window._landingPrices = { auto: {p1,p2,p3,mode}, edited: {p1?,p2?,p3?} }
+window._landingPrices = { auto: null, edited: {} };
+
+function landingCalcPrices(){
+  const costRaw = document.getElementById('landing-cost-input').value;
+  const cost = parseFloat(costRaw);
+  const modeEl = document.getElementById('landing-price-mode');
+  const rowsEl = document.getElementById('landing-price-rows');
+  if (!cost || cost <= 0) {
+    modeEl.textContent = 'Ingresá el costo…';
+    modeEl.style.color = 'var(--muted)';
+    rowsEl.innerHTML = '';
+    window._landingPrices.auto = null;
+    return;
+  }
+  // Reutilizamos las funciones de la Calculadora ya existentes:
+  //   getPrecio1u, applyFloor, round990, tweakPsico, DESCUENTO_PACK_2/3
+  const { price1u, offer } = getPrecio1u(cost);
+  const p1 = applyFloor(price1u);
+
+  // 3 variantes: cada una tiene precio + qty a Dropi (unidades físicas a despachar)
+  let p2, p3, label2, label3, qty1, qty2, qty3, badgeMode, modeColor;
+  if (offer === '3x1') {
+    p2 = tweakPsico(round990(p1 * 2 * (1 - DESCUENTO_PACK_2)));
+    p3 = p1;
+    label2 = '2 unidades (pack –15%)';
+    label3 = '3x1 (paga 1, lleva 3)';
+    qty1 = 1; qty2 = 2; qty3 = 3;
+    badgeMode = '🔥 OFERTA 3x1';
+    modeColor = '#dc2626';
+  } else if (offer === '2x1') {
+    p2 = p1;
+    p3 = tweakPsico(round990(p1 * 3 * (1 - DESCUENTO_PACK_3)));
+    label2 = '2x1 (paga 1, lleva 2)';
+    label3 = '3 unidades (pack –20%)';
+    qty1 = 1; qty2 = 2; qty3 = 3;
+    badgeMode = '🎁 OFERTA 2x1';
+    modeColor = '#f59e0b';
+  } else {
+    p2 = tweakPsico(round990(p1 * 2 * (1 - DESCUENTO_PACK_2)));
+    p3 = tweakPsico(round990(p1 * 3 * (1 - DESCUENTO_PACK_3)));
+    label2 = '2 unidades (pack –15%)';
+    label3 = '3 unidades (pack –20%)';
+    qty1 = 1; qty2 = 2; qty3 = 3;
+    badgeMode = offer === 'normal_extrap' ? '💼 PACK NORMAL (extrapolado)' : '💼 PACK NORMAL';
+    modeColor = 'var(--accent)';
+  }
+  modeEl.textContent = badgeMode;
+  modeEl.style.color = modeColor;
+  modeEl.style.borderLeft = '3px solid ' + modeColor;
+  modeEl.style.paddingLeft = '10px';
+
+  window._landingPrices.auto = { p1, p2, p3, offer, mode: badgeMode, label2, label3, qty1, qty2, qty3 };
+  landingRenderPriceRows();
+}
+
+function landingRenderPriceRows(){
+  const { auto, edited } = window._landingPrices;
+  if (!auto) return;
+  const rowsEl = document.getElementById('landing-price-rows');
+  const specs = [
+    { pk: 'p1', qk: 'qty1', label: '1 unidad',    autoPrice: auto.p1, autoQty: auto.qty1 },
+    { pk: 'p2', qk: 'qty2', label: auto.label2,   autoPrice: auto.p2, autoQty: auto.qty2 },
+    { pk: 'p3', qk: 'qty3', label: auto.label3,   autoPrice: auto.p3, autoQty: auto.qty3 },
+  ];
+  rowsEl.innerHTML = specs.map(s => {
+    const price = edited[s.pk] != null ? edited[s.pk] : s.autoPrice;
+    const qty   = edited[s.qk] != null ? edited[s.qk] : s.autoQty;
+    const priceEdited = edited[s.pk] != null && edited[s.pk] !== s.autoPrice;
+    const qtyEdited   = edited[s.qk] != null && edited[s.qk] !== s.autoQty;
+    const anyEdited = priceEdited || qtyEdited;
+    const badge = anyEdited
+      ? '<span style="background:#eab308;color:#000;font-size:8px;padding:2px 6px;border-radius:3px;font-weight:700;letter-spacing:.5px">EDITADO</span>'
+      : '<span style="background:#22c55e;color:#000;font-size:8px;padding:2px 6px;border-radius:3px;font-weight:700;letter-spacing:.5px">AUTO</span>';
+    const perUnit = qty > 0 ? Math.round(price / qty) : price;
+    return `<div style="background:var(--surface2);border:1.5px solid ${anyEdited ? '#eab308' : 'var(--border)'};border-radius:10px;padding:12px 14px;transition:border-color .15s">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div style="font-size:11px;color:var(--text);font-weight:600;line-height:1.3">${escapeHtml(s.label)}</div>
+        ${badge}
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+        <span style="font-family:'Montserrat',sans-serif;font-size:15px;color:var(--muted2)">$</span>
+        <input type="number" min="0" value="${price}" oninput="landingEditVal('${s.pk}', this.value, ${s.autoPrice})" title="Precio de la variante"
+          style="flex:1;background:var(--surface);border:1.5px solid ${priceEdited ? '#eab308' : 'var(--border)'};border-radius:6px;padding:6px 10px;font-size:16px;font-family:'Montserrat',sans-serif;font-weight:700;color:var(--text);outline:none">
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+        <span style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.5px">Unidades Dropi</span>
+        <input type="number" min="1" value="${qty}" oninput="landingEditVal('${s.qk}', this.value, ${s.autoQty})" title="Cantidad de unidades físicas a despachar por Dropi"
+          style="width:60px;background:var(--surface);border:1.5px solid ${qtyEdited ? '#eab308' : 'var(--border)'};border-radius:6px;padding:4px 8px;font-size:13px;font-family:'DM Mono',monospace;font-weight:700;color:var(--text);outline:none;text-align:center">
+      </div>
+      <div style="font-size:9px;color:var(--muted);font-family:'DM Mono',monospace">= $${perUnit.toLocaleString('es-CL')} / unidad · Dropi enviará <b>${qty}u</b></div>
+    </div>`;
+  }).join('');
+}
+
+function landingEditVal(key, val, autoVal){
+  const n = parseInt(val, 10);
+  if (!isFinite(n) || n <= 0) { delete window._landingPrices.edited[key]; return landingRenderPriceRows(); }
+  if (n === autoVal) { delete window._landingPrices.edited[key]; }
+  else { window._landingPrices.edited[key] = n; }
+  landingRenderPriceRows();
+}
+
+function landingResetPrices(){
+  window._landingPrices.edited = {};
+  landingRenderPriceRows();
 }
 
 // ═══════════════════════════════════════════════════════════════════
