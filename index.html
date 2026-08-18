@@ -9092,13 +9092,13 @@ async function ejecutarReplicacionGT(){
     const newSuffix = mm + dd + yyyy + '-' + p.handle;
     const newAssetKey = 'templates/product.' + newSuffix + '.json';
 
-    // 1. Clonar imágenes de CL → GT y obtener JSON con refs reescritas
-    const setSt = (msg)=>{ if(status){ status.textContent = '1/3 · ' + msg; status.style.color = 'var(--muted)'; } };
+    // 1. Clonar imágenes del TEMPLATE (secciones custom del landing) CL → GT
+    const setSt = (msg)=>{ if(status){ status.textContent = '1/4 · ' + msg; status.style.color = 'var(--muted)'; } };
     setSt('Detectando imágenes del template…');
     const jsonWithImages = await clonarImagenesDelTemplate(p.jsonText, setSt);
 
     // 2. Subir el template renombrado al theme MAIN de GT
-    if(status){ status.textContent = '2/3 · Subiendo plantilla "' + newSuffix + '" al theme de GT…'; status.style.color = 'var(--muted)'; }
+    if(status){ status.textContent = '2/4 · Subiendo plantilla "' + newSuffix + '" al theme de GT…'; status.style.color = 'var(--muted)'; }
     const wResp = await fetch('/.netlify/functions/shopify-themes?_=1&tenant=gt', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -9108,7 +9108,7 @@ async function ejecutarReplicacionGT(){
     if(!wResp.ok) throw new Error('Subida template GT: ' + (wData.error || 'fallo'));
 
     // 3. Asignar template_suffix renombrado al producto en GT
-    if(status){ status.textContent = '3/3 · Asignando plantilla al producto en GT…'; status.style.color = 'var(--muted)'; }
+    if(status){ status.textContent = '3/4 · Asignando plantilla al producto en GT…'; status.style.color = 'var(--muted)'; }
     const uResp = await fetch('/.netlify/functions/shopify-products?_=1&tenant=gt', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -9117,8 +9117,46 @@ async function ejecutarReplicacionGT(){
     const uData = await uResp.json();
     if(!uResp.ok) throw new Error('Asignar template GT: ' + (uData.error || 'fallo'));
 
+    // 4. Copiar imágenes del PRODUCTO (carrusel principal Shopify) CL → GT.
+    // Solo copia si el producto en GT no tiene imágenes (mode=if_empty) para
+    // no duplicar si el usuario ya las subió manualmente.
+    if(status){ status.textContent = '4/4 · Copiando imágenes del producto (carrusel) CL → GT…'; status.style.color = 'var(--muted)'; }
+    let imgCopyMsg = '';
+    try {
+      const ciResp = await fetch('/.netlify/functions/shopify-copy-product-images', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          source_product_id: String(p.id),
+          target_product_id: String(p.gtId),
+          source_tenant: 'chile',
+          target_tenant: 'gt',
+          mode: 'if_empty',
+        }),
+      });
+      const ciData = await ciResp.json();
+      if (ciResp.ok) {
+        if (ciData.uploaded && ciData.uploaded.length > 0) {
+          imgCopyMsg = ' · ' + ciData.uploaded.length + ' imágenes de producto copiadas';
+        } else if (ciData.targetHadCount > 0) {
+          imgCopyMsg = ' · producto GT ya tenía ' + ciData.targetHadCount + ' imágenes (skip)';
+        } else {
+          imgCopyMsg = ' · sin imágenes de producto para copiar';
+        }
+        if (ciData.errors && ciData.errors.length > 0) {
+          imgCopyMsg += ' (' + ciData.errors.length + ' fallidas)';
+        }
+      } else {
+        imgCopyMsg = ' · ⚠ error copiando imágenes producto (revisá logs)';
+        console.warn('copy-product-images error:', ciData);
+      }
+    } catch (e) {
+      imgCopyMsg = ' · ⚠ error red copiando imágenes producto';
+      console.warn('copy-product-images fetch err:', e);
+    }
+
     if(status){
-      status.innerHTML = '✅ Plantilla "<b>' + esc(newSuffix) + '</b>" + imágenes replicadas al producto de GT.';
+      status.innerHTML = '✅ Plantilla "<b>' + esc(newSuffix) + '</b>" + imágenes replicadas al producto de GT.' + esc(imgCopyMsg);
       status.style.color = 'var(--accent)';
     }
     showToast('🔄 Landing + imágenes replicados a GT', '✨', 'success');
