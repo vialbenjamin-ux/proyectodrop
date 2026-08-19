@@ -6,7 +6,7 @@
 <title>KODE</title>
 <link rel="icon" type="image/png" href="/K.png">
 <link rel="apple-touch-icon" href="/K.png">
-<meta name="theme-color" content="#5BA882">
+<meta name="theme-color" content="#D4A542">
 <meta name="apple-mobile-web-app-title" content="KODE">
 <meta name="application-name" content="KODE">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -45,10 +45,10 @@
      text:      #2D2A26
      muted:     #A09890
      accent:    #B07CDB  (soft purple — primary)
-     teal:      #7ECEC4  (soft teal)
+     teal:      #333333  (soft teal)
      peach:     #F0907A  (soft peach/coral)
      yellow:    #F5C842  (soft yellow)
-     green:     #85C99E  (soft green)
+     green:     #111111  (soft green)
      red:       #E88A8A  (soft red)
   ────────────────────────────────────────────────────────────────────────── */
   :root{
@@ -56,10 +56,10 @@
     --border:#E8E2D9; --border2:#D8D0C5;
     --text:#2D2A26; --muted:#A09890; --muted2:#C8C0B5;
     --accent:#D4A542; --accent-soft:#FCF2D6;
-    --teal:#7ECEC4;  --teal-soft:#DDF4F1;
+    --teal:#333333;  --teal-soft:#DDF4F1;
     --peach:#F0907A; --peach-soft:#FDE8E3;
     --yellow:#E8B840;--yellow-soft:#FDF3D0;
-    --green:#85C99E; --green-soft:#DFF2E8;
+    --green:#111111; --green-soft:#F5F5F5;
     --red:#E88A8A;   --red-soft:#FCEAEA;
   }
   /* Dark mode — activado con data-theme="dark" en <html>.
@@ -74,7 +74,7 @@
     --teal:#85D9D0;  --teal-soft:#1A3835;
     --peach:#F09F8C; --peach-soft:#3D2A24;
     --yellow:#EFC65A;--yellow-soft:#3A3220;
-    --green:#8FD3A8; --green-soft:#1F3A2D;
+    --green:#333333; --green-soft:#1F3A2D;
     --red:#EF9999;   --red-soft:#3A2424;
   }
   /* Override del inline style color:var(--muted) en stage-check-label.
@@ -102,8 +102,8 @@
   html[data-theme="dark"] [style*="background: #FFFFFF"],
   html[data-theme="dark"] [style*="background:white"],
   html[data-theme="dark"] [style*="background: white"],
-  html[data-theme="dark"] [style*="background:#DFF2E8"],
-  html[data-theme="dark"] [style*="background: #DFF2E8"],
+  html[data-theme="dark"] [style*="background:#F5F5F5"],
+  html[data-theme="dark"] [style*="background: #F5F5F5"],
   html[data-theme="dark"] [style*="background:#FDF3D0"],
   html[data-theme="dark"] [style*="background: #FDF3D0"],
   html[data-theme="dark"] [style*="background:#FDE8E3"],
@@ -143,8 +143,8 @@
   html[data-theme="dark"] [style*="background: #FFFFFF"] *,
   html[data-theme="dark"] [style*="background:white"] *,
   html[data-theme="dark"] [style*="background: white"] *,
-  html[data-theme="dark"] [style*="background:#DFF2E8"] *,
-  html[data-theme="dark"] [style*="background: #DFF2E8"] *,
+  html[data-theme="dark"] [style*="background:#F5F5F5"] *,
+  html[data-theme="dark"] [style*="background: #F5F5F5"] *,
   html[data-theme="dark"] [style*="background:#FDF3D0"] *,
   html[data-theme="dark"] [style*="background: #FDF3D0"] *,
   html[data-theme="dark"] [style*="background:#FDE8E3"] *,
@@ -176,7 +176,7 @@
   /* Excepción: las imágenes y SVGs no deben tomar el color forzado */
   html[data-theme="dark"] [style*="background:#fff"] img,
   html[data-theme="dark"] [style*="background:#FFFFFF"] img,
-  html[data-theme="dark"] [style*="background:#DFF2E8"] img,
+  html[data-theme="dark"] [style*="background:#F5F5F5"] img,
   html[data-theme="dark"] [style*="background:#FDF3D0"] img,
   html[data-theme="dark"] [style*="background:#FDE8E3"] img,
   html[data-theme="dark"] [style*="background:#DDF4F1"] img,
@@ -285,7 +285,7 @@
 
   /* COLORES POR ETAPA */
   .card-stage-landing   {border-top:3px solid #60a5fa !important;border-left:4px solid #60a5fa !important;background:linear-gradient(135deg,#eff6ff,#f5f9ff) !important}
-  .card-stage-landingpub{border-top:3px solid #4ade80 !important;border-left:4px solid #4ade80 !important;background:linear-gradient(135deg,#f0fdf4,#f7fef9) !important}
+  .card-stage-landingpub{border-top:3px solid #666666 !important;border-left:4px solid #666666 !important;background:linear-gradient(135deg,#f0fdf4,#f7fef9) !important}
   .card-stage-videos    {border-top:3px solid #a855f7 !important;border-left:4px solid #a855f7 !important;background:linear-gradient(135deg,#faf5ff,#fdf8ff) !important}
   .card-stage-releasit  {border-top:3px solid #f07070 !important;border-left:4px solid #f07070 !important;background:linear-gradient(135deg,#fff1f1,#fff7f7) !important}
   .card-stage-standby   {border-top:3px solid #94a3b8 !important;border-left:4px solid #94a3b8 !important;background:linear-gradient(135deg,#f1f5f9,#f8fafc) !important}
@@ -345,7 +345,7 @@
   /* META SEMANAL PROGRESS */
   .meta-sem-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px}
   .meta-sem-card{border-radius:14px;padding:14px 16px;border:2px solid var(--border);background:var(--surface);font-family:'DM Mono',monospace;transition:all .2s}
-  .meta-sem-card.alcanzada{border-color:#85C99E;background:#DFF2E8}
+  .meta-sem-card.alcanzada{border-color:#111111;background:#F5F5F5}
   .meta-sem-card.cerca{border-color:#E8B840;background:#FDF3D0}
   .meta-sem-label{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:4px}
   .meta-sem-owner{font-family:'Montserrat',sans-serif;font-weight:800;font-size:14px;color:var(--text);margin-bottom:6px}
@@ -641,7 +641,7 @@
   .bk-shrine-chunk-text{flex:1;font-size:12px;color:var(--text);line-height:1.4;word-break:break-word;font-family:'DM Mono',monospace}
   .bk-shrine-chunk-copy{flex-shrink:0;background:#7B5BB5;color:#fff;border:none;border-radius:6px;padding:4px 10px;font-size:10px;font-family:'DM Mono',monospace;cursor:pointer;font-weight:600}
   .bk-shrine-chunk-copy:hover{background:#5B3F8E}
-  .bk-shrine-chunk-copy.copied{background:#16a34a}
+  .bk-shrine-chunk-copy.copied{background:#111111}
   /* Selector visual de ángulos de venta */
   .bk-angulos-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;margin-top:10px}
   .bk-angulo-card{background:var(--surface);border:2px solid var(--border);border-radius:12px;padding:12px 14px;cursor:pointer;transition:transform .15s, border-color .15s, background .15s;display:flex;flex-direction:column;gap:6px;text-align:left}
@@ -720,9 +720,9 @@
   .bk-prompt-card.tone-photo .bk-prompt-card-icon{background:#FAE3F0;border-color:#D85B95;color:#9E3666}
   .bk-prompt-card.tone-photo .bk-prompt-copy-big{background:#D85B95;color:#fff}
   .bk-prompt-card.tone-analisis{border-color:#C5E5D2}
-  .bk-prompt-card.tone-analisis::before{background:#5BA882}
-  .bk-prompt-card.tone-analisis .bk-prompt-card-icon{background:var(--green-soft);border-color:#5BA882;color:#3A6B4F}
-  .bk-prompt-card.tone-analisis .bk-prompt-copy-big{background:#5BA882;color:#fff}
+  .bk-prompt-card.tone-analisis::before{background:#111111}
+  .bk-prompt-card.tone-analisis .bk-prompt-card-icon{background:var(--green-soft);border-color:#111111;color:#111111}
+  .bk-prompt-card.tone-analisis .bk-prompt-copy-big{background:#111111;color:#fff}
 
   /* Panel TTS (ElevenLabs) — aparece dentro del output de la card Transcripción */
   .bk-tts-panel{margin-top:12px;background:var(--surface);border:1.5px solid var(--teal);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:10px}
@@ -933,8 +933,8 @@
   .toast-icon{font-size:14px;margin-right:6px}
 
   /* CARD LANDING PUBLICADO */
-  .card-landing-done{background:linear-gradient(135deg,#e8fdf0 0%,#f0fdf6 100%) !important;border-color:#4ade80 !important}
-  .card-landing-done .card-title{color:#166534}
+  .card-landing-done{background:linear-gradient(135deg,#e8fdf0 0%,#f0fdf6 100%) !important;border-color:#666666 !important}
+  .card-landing-done .card-title{color:#111111}
   .card-landing-wip{background:linear-gradient(135deg,#eff6ff 0%,#f5f9ff 100%) !important;border-color:#60a5fa !important}
   .card-landing-wip .card-title{color:#1e40af}
 
@@ -1092,7 +1092,7 @@
   .bkfit-table td{padding:10px;border-bottom:1px solid var(--border);color:var(--text)}
   .bkfit-week-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:8px}
   .bkfit-week-day{background:var(--surface2);border:1.5px solid var(--border);border-radius:10px;padding:12px 8px;text-align:center;min-height:88px;display:flex;flex-direction:column;justify-content:space-between}
-  .bkfit-week-day.done{background:#E8F5E9;border-color:#5BA882}
+  .bkfit-week-day.done{background:#F5F5F5;border-color:#111111}
   .bkfit-week-day.today{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
   .bkfit-week-day.rest{background:var(--surface2);opacity:0.6}
   .bkfit-week-day-label{font-size:9px;color:var(--muted);letter-spacing:1.2px;font-family:'DM Mono',monospace}
@@ -1176,18 +1176,18 @@
   .meta-backup-status{margin-top:14px;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;font-size:11px;color:var(--muted);font-family:'DM Mono',monospace}
   .meta-backup-status.error{background:var(--red-soft);border-color:var(--red);color:#9B4A4A}
   .meta-backup-result{margin-top:14px}
-  .meta-backup-summary{background:var(--green-soft);border:1px solid var(--green);border-radius:10px;padding:12px 14px;margin-bottom:10px;font-size:11px;color:#3F7F5C;font-family:'DM Mono',monospace;line-height:1.6}
-  .meta-backup-summary b{color:#2D5A3F;font-weight:700}
+  .meta-backup-summary{background:var(--green-soft);border:1px solid var(--green);border-radius:10px;padding:12px 14px;margin-bottom:10px;font-size:11px;color:#111111;font-family:'DM Mono',monospace;line-height:1.6}
+  .meta-backup-summary b{color:#111111;font-weight:700}
   .meta-backup-downloads{display:flex;gap:8px;flex-wrap:wrap}
   .meta-backup-dl{background:var(--text);color:var(--surface);border:none;padding:9px 16px;border-radius:20px;font-size:11px;letter-spacing:.5px;cursor:pointer;font-family:'DM Mono',monospace;font-weight:600}
   .meta-backup-dl:hover{opacity:.85}
-  .meta-backup-dl.csv{background:#3F7F5C}
+  .meta-backup-dl.csv{background:#111111}
 
   /* Sección Creativos */
   .creativos-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;padding:18px 22px}
   .creativo-card{background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:14px 16px;cursor:pointer;transition:transform .15s,box-shadow .15s;position:relative;border-left:4px solid var(--border)}
   .creativo-card:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,0,0,.06)}
-  .creativo-card.v-winner{border-left-color:#3F7F5C}
+  .creativo-card.v-winner{border-left-color:#111111}
   .creativo-card.v-semi{border-left-color:#D9A82E}
   .creativo-card.v-normal{border-left-color:var(--muted2)}
   .creativo-card.v-va_mal{border-left-color:#E08770}
@@ -1202,12 +1202,12 @@
   .creativo-card-stat{background:var(--surface2);padding:6px 8px;border-radius:6px;text-align:center}
   .creativo-card-stat-lbl{color:var(--muted);font-size:8px;letter-spacing:1px;text-transform:uppercase;margin-bottom:2px}
   .creativo-card-stat-val{color:var(--text);font-weight:700;font-size:11px}
-  .creativo-card-stat-val.good{color:#3F7F5C}
+  .creativo-card-stat-val.good{color:#111111}
   .creativo-card-stat-val.bad{color:#9B4A4A}
   .creativo-card-meta{display:flex;flex-wrap:wrap;gap:4px;margin-top:10px}
   .creativo-tag{display:inline-block;font-size:9px;padding:2px 8px;border-radius:8px;background:var(--surface2);color:var(--muted);letter-spacing:.3px;border:1px solid var(--border)}
   .creativo-veredicto-badge{position:absolute;top:12px;right:12px;font-size:9px;padding:3px 9px;border-radius:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase}
-  .creativo-veredicto-badge.v-winner{background:var(--green-soft);color:#2D5A3F}
+  .creativo-veredicto-badge.v-winner{background:var(--green-soft);color:#111111}
   .creativo-veredicto-badge.v-semi{background:#FBF1D9;color:#A6862A}
   .creativo-veredicto-badge.v-normal{background:var(--surface2);color:var(--muted)}
   .creativo-veredicto-badge.v-va_mal{background:var(--peach-soft);color:#C4674F}
@@ -1259,7 +1259,7 @@
   }
 
   .creativo-veredicto-preview{padding:12px 16px;border-radius:10px;font-size:13px;font-weight:700;text-align:center;background:var(--surface2);border:1.5px dashed var(--border);color:var(--muted);margin-bottom:12px;letter-spacing:.5px}
-  .creativo-veredicto-preview.v-winner{background:var(--green-soft);border-color:var(--green);color:#2D5A3F;border-style:solid}
+  .creativo-veredicto-preview.v-winner{background:var(--green-soft);border-color:var(--green);color:#111111;border-style:solid}
   .creativo-veredicto-preview.v-semi{background:#FBF1D9;border-color:#D9A82E;color:#A6862A;border-style:solid}
   .creativo-veredicto-preview.v-normal{background:var(--surface2);border-color:var(--muted2);color:var(--text);border-style:solid}
   .creativo-veredicto-preview.v-va_mal{background:var(--peach-soft);border-color:#E08770;color:#C4674F;border-style:solid}
@@ -1276,7 +1276,7 @@
 
   /* Badges de estado */
   .meta-badge{display:inline-block;font-size:9px;padding:2px 9px;border-radius:10px;letter-spacing:.5px;text-transform:uppercase;font-weight:600;white-space:nowrap}
-  .meta-badge-active{background:var(--green-soft);color:#3F7F5C;border:1px solid var(--green)}
+  .meta-badge-active{background:var(--green-soft);color:#111111;border:1px solid var(--green)}
   .meta-badge-paused{background:var(--surface2);color:var(--muted);border:1px solid var(--border)}
   .meta-badge-disabled{background:var(--red-soft);color:#9B4A4A;border:1px solid var(--red)}
   .meta-badge-archived{background:var(--surface2);color:var(--muted2);border:1px solid var(--border)}
@@ -1299,7 +1299,7 @@
   .cross-rec-name{font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;margin-bottom:3px;word-break:break-word}
   .cross-rec-text{font-size:11px;color:var(--text);line-height:1.5}
   .cross-rec.cross-rec-burned .cross-rec-title,.cross-rec.cross-rec-turnoff .cross-rec-title{color:#B14747}
-  .cross-rec.cross-rec-scale .cross-rec-title{color:#3F7F5C}
+  .cross-rec.cross-rec-scale .cross-rec-title{color:#111111}
   .cross-rec.cross-rec-saturated .cross-rec-title,.cross-rec.cross-rec-underreport .cross-rec-title{color:#A6862A}
   .cross-rec-empty{font-size:11px;color:var(--muted);font-style:italic;padding:8px 0}
 
@@ -1389,7 +1389,7 @@
 
 <div id="mobile-menu">
   <div id="mobile-menu-header">
-    <div id="mobile-menu-logo" style="color:#D4A542">K<span>ODE</span></div>
+    <div id="mobile-menu-logo"><img src="/KK.png" alt="KODE" style="max-width:150px;height:auto;display:block"></div>
     <button id="mobile-menu-close" onclick="closeMobileMenu()">×</button>
   </div>
   <div id="mobile-menu-user"></div>
@@ -1412,7 +1412,7 @@
 
 <div id="login-screen">
   <div id="login-box">
-    <div id="login-logo" style="color:#D4A542">K<span>ODE</span></div>
+    <div id="login-logo"><img src="/KK.png" alt="KODE" style="max-width:min(70vw,280px);height:auto;display:block"></div>
     <div id="login-sub">🛒 panel de dropshipping</div>
     <div id="login-error">Usuario o clave incorrectos. Intenta de nuevo.</div>
     <div class="login-field">
@@ -1659,7 +1659,7 @@
             <button class="bk-step-btn" id="bk-btn-shrine-paste" onclick="abrirShrinePaste()" style="background:#7B5BB5;color:#fff">📋 Copy-paste manual</button>
             <button class="bk-step-btn" id="bk-btn-mis-landings" onclick="abrirMisLandings()" style="background:#5B7CBF;color:#fff">📚 Mis landings</button>
             <button class="bk-step-btn" id="bk-btn-edit-section" onclick="abrirEditarSeccion()" style="background:#0EA5E9;color:#fff">🔧 Editar sección</button>
-            <button class="bk-step-btn" id="bk-btn-replicar-gt" onclick="abrirReplicarGT()" style="background:#22C55E;color:#fff">🔄 Replicar a GT</button>
+            <button class="bk-step-btn" id="bk-btn-replicar-gt" onclick="abrirReplicarGT()" style="background:#111111;color:#fff">🔄 Replicar a GT</button>
             <button class="bk-step-btn" id="bk-btn-template-inspect" onclick="inspeccionarTemplate()" style="background:#E89A4A;color:#fff">🔍 Inspector</button>
           </div>
           <div id="bk-extract-result" class="bk-step-hint"></div>
@@ -1749,8 +1749,8 @@
             <div class="bk-shopify-status" id="bk-edit-section-status"></div>
           </div>
 
-          <div class="bk-shopify-push" id="bk-replicar-gt" style="display:none;border-color:#22C55E">
-            <div class="bk-shopify-push-title" style="color:#22C55E">🔄 Replicar landing existente de Chile → Guatemala</div>
+          <div class="bk-shopify-push" id="bk-replicar-gt" style="display:none;border-color:#111111">
+            <div class="bk-shopify-push-title" style="color:#111111">🔄 Replicar landing existente de Chile → Guatemala</div>
             <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;line-height:1.5">
               Buscás un producto en Chile que ya tenga landing aplicado. BKDROP lee su plantilla, busca el mismo handle en Shopify GT y copia la plantilla allí. <strong>Las imágenes deberás reasignarlas desde el editor de Shopify GT</strong> (las refs <code>shopify://shop_images/</code> son por tienda).
             </div>
@@ -2734,10 +2734,10 @@
         <div id="total-content" style="display:none">
           <!-- KPIs GIGANTES -->
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
-            <div style="background:linear-gradient(135deg,#dcfce7,#bbf7d0);border:2px solid #22C55E;border-radius:14px;padding:18px 22px">
-              <div style="font-size:11px;color:#15803d;font-family:'DM Mono',monospace;letter-spacing:1px;font-weight:700">GANANCIA NETA REAL</div>
-              <div id="total-kpi-net" style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:40px;color:#15803d;line-height:1.1;margin-top:4px">—</div>
-              <div id="total-kpi-net-detail" style="font-size:11px;color:#166534;font-family:'DM Mono',monospace;margin-top:4px"></div>
+            <div style="background:linear-gradient(135deg,#F5F5F5,#EEEEEE);border:2px solid #111111;border-radius:14px;padding:18px 22px">
+              <div style="font-size:11px;color:#111111;font-family:'DM Mono',monospace;letter-spacing:1px;font-weight:700">GANANCIA NETA REAL</div>
+              <div id="total-kpi-net" style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:40px;color:#111111;line-height:1.1;margin-top:4px">—</div>
+              <div id="total-kpi-net-detail" style="font-size:11px;color:#111111;font-family:'DM Mono',monospace;margin-top:4px"></div>
             </div>
             <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:18px 22px">
               <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;letter-spacing:1px;font-weight:700">DESGLOSE</div>
@@ -3133,7 +3133,7 @@
           <div class="bkfit-card-title">💡 Alimentos recomendados (low-carb)</div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;font-family:'DM Mono',monospace;font-size:12px;line-height:1.8">
             <div>
-              <div style="color:#5BA882;font-weight:700;margin-bottom:6px">✅ LIBRE</div>
+              <div style="color:#111111;font-weight:700;margin-bottom:6px">✅ LIBRE</div>
               <div style="color:var(--text)">Carnes, pescado, pollo, huevos<br>Quesos, palta, aceite oliva<br>Verduras de hoja, brócoli, coliflor<br>Frutos secos, almendras<br>Café, té, agua con gas</div>
             </div>
             <div>
@@ -3179,10 +3179,10 @@
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;font-family:'DM Mono',monospace;font-size:12px;text-align:center">
             <div style="background:var(--surface2);border-radius:10px;padding:14px"><div style="color:var(--muted);font-size:10px">PROTEÍNA</div><div style="font-size:20px;font-weight:800;color:var(--accent)">150 g</div><div style="color:var(--muted2);font-size:10px">~30%</div></div>
             <div style="background:var(--surface2);border-radius:10px;padding:14px"><div style="color:var(--muted);font-size:10px">CARBOS</div><div style="font-size:20px;font-weight:800;color:#E88A8A">≤ 80 g</div><div style="color:var(--muted2);font-size:10px">~16%</div></div>
-            <div style="background:var(--surface2);border-radius:10px;padding:14px"><div style="color:var(--muted);font-size:10px">GRASAS</div><div style="font-size:20px;font-weight:800;color:#7ECEC4">120 g</div><div style="color:var(--muted2);font-size:10px">~54%</div></div>
+            <div style="background:var(--surface2);border-radius:10px;padding:14px"><div style="color:var(--muted);font-size:10px">GRASAS</div><div style="font-size:20px;font-weight:800;color:#333333">120 g</div><div style="color:var(--muted2);font-size:10px">~54%</div></div>
           </div>
           <div style="margin-top:14px;font-size:12px;color:var(--text);line-height:1.7">
-            <div><strong style="color:#5BA882">✅ LIBRE:</strong> Carnes, pescados, huevos, queso, palta, verduras de hoja, aceite oliva, frutos secos.</div>
+            <div><strong style="color:#111111">✅ LIBRE:</strong> Carnes, pescados, huevos, queso, palta, verduras de hoja, aceite oliva, frutos secos.</div>
             <div><strong style="color:#E8B840">⚠️ MODERAR:</strong> Frutas bajas en azúcar (frutillas, kiwi, arándanos), legumbres, lácteos enteros.</div>
             <div><strong style="color:#E88A8A">❌ EVITAR:</strong> Pan, arroz, pasta, papas, azúcar, bebidas dulces, alcohol.</div>
           </div>
@@ -3297,7 +3297,7 @@
 
       <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
         <input type="text" id="vp-search" placeholder="Filtrar productos…" style="flex:1;min-width:200px;padding:9px 12px;border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:8px;font-size:13px;font-family:'DM Mono',monospace" oninput="filterVideosProdList()">
-        <button onclick="vpToggleAddPanel()" id="vp-add-btn" style="background:#22C55E;color:#fff;border:none;border-radius:8px;padding:9px 14px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer;font-weight:700">+ Agregar producto</button>
+        <button onclick="vpToggleAddPanel()" id="vp-add-btn" style="background:#111111;color:#fff;border:none;border-radius:8px;padding:9px 14px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer;font-weight:700">+ Agregar producto</button>
         <button onclick="vpToggleLoosePanel()" id="vp-loose-btn" style="background:#8B5CF6;color:#fff;border:none;border-radius:8px;padding:9px 14px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer;font-weight:700">📂 Carpeta suelta</button>
         <button onclick="initVideosProd(true)" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:9px 14px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer">🔄 Recargar</button>
         <button id="vp-archive-toggle" onclick="toggleVpArchive()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:9px 14px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer;font-weight:700">📁 Archivo</button>
@@ -3325,8 +3325,8 @@
       <div id="vp-resp-summary" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin-bottom:14px;font-family:'DM Mono',monospace;font-size:11px;display:flex;flex-wrap:wrap;gap:14px;align-items:center"></div>
 
       <!-- Panel para agregar producto (oculto por default) -->
-      <div id="vp-add-panel" style="display:none;background:var(--surface);border:2px solid #22C55E;border-radius:12px;padding:14px;margin-bottom:14px">
-        <div style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:14px;color:#22C55E;margin-bottom:6px">+ Vincular producto existente</div>
+      <div id="vp-add-panel" style="display:none;background:var(--surface);border:2px solid #111111;border-radius:12px;padding:14px;margin-bottom:14px">
+        <div style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:14px;color:#111111;margin-bottom:6px">+ Vincular producto existente</div>
         <div style="font-size:11px;color:var(--muted);line-height:1.5;margin-bottom:10px">Buscá un producto de tu Shopify (CL o GT) y crea sus 3 carpetas en Drive. Útil para landings que aplicaste antes de tener esta integración.</div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
           <select id="vp-add-tenant" style="padding:8px 10px;border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:6px;font-size:12px;font-family:'DM Mono',monospace">
@@ -3473,7 +3473,7 @@
       <div id="exp-results" style="display:none">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:10px">
           <div id="exp-summary" style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text)"></div>
-          <button id="exp-confirm-all" onclick="confirmAllExpressCandidates()" style="background:#2b7a2b;color:#fff;border:none;border-radius:8px;padding:9px 18px;font-size:12px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">Confirmar TODOS los elegibles</button>
+          <button id="exp-confirm-all" onclick="confirmAllExpressCandidates()" style="background:#111111;color:#fff;border:none;border-radius:8px;padding:9px 18px;font-size:12px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">Confirmar TODOS los elegibles</button>
         </div>
         <div style="overflow-x:auto;background:var(--surface);border:1.5px solid var(--border);border-radius:10px">
           <table id="exp-table" style="width:100%;border-collapse:collapse;font-family:'DM Mono',monospace;font-size:11px">
@@ -3547,8 +3547,8 @@
           </label>
         </div>
         <!-- Auto-confirmar bloque -->
-        <div style="padding:10px 12px;background:rgba(43,122,43,0.05);border:1px dashed #2b7a2b;border-radius:8px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
-          <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:#2b7a2b;font-family:'DM Mono',monospace;cursor:pointer;font-weight:700">
+        <div style="padding:10px 12px;background:rgba(43,122,43,0.05);border:1px dashed #111111;border-radius:8px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+          <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:#111111;font-family:'DM Mono',monospace;cursor:pointer;font-weight:700">
             <input type="checkbox" id="rez-auto-confirm">
             <span>⚡ Auto-confirmar los que cumplan historial fuerte</span>
           </label>
@@ -3568,9 +3568,9 @@
       <!-- Resultados: 4 tarjetas resumen + tabla -->
       <div id="rez-results" style="display:none">
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-bottom:14px">
-          <div id="rez-cat-domicilio" style="background:rgba(43,122,43,0.08);border:1.5px solid #2b7a2b;border-radius:10px;padding:14px;text-align:center">
+          <div id="rez-cat-domicilio" style="background:rgba(43,122,43,0.08);border:1.5px solid #111111;border-radius:10px;padding:14px;text-align:center">
             <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;margin-bottom:4px">🏠 Domicilio</div>
-            <div style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:22px;color:#2b7a2b" id="rez-cat-domicilio-n">0</div>
+            <div style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:22px;color:#111111" id="rez-cat-domicilio-n">0</div>
             <div style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace" id="rez-cat-domicilio-money">$0 CLP</div>
           </div>
           <div id="rez-cat-corregir" style="background:rgba(255,152,0,0.08);border:1.5px solid #FF9800;border-radius:10px;padding:14px;text-align:center">
@@ -3596,7 +3596,7 @@
               <input type="checkbox" id="rez-filter-domicilio-only" checked onchange="renderRezagadosTable()"> Solo mostrar categoria "Domicilio"
             </label>
           </div>
-          <button id="rez-confirm-all" onclick="confirmAllRezagadosDomicilio()" style="background:#2b7a2b;color:#fff;border:none;border-radius:8px;padding:9px 18px;font-size:12px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">Confirmar TODOS domicilio</button>
+          <button id="rez-confirm-all" onclick="confirmAllRezagadosDomicilio()" style="background:#111111;color:#fff;border:none;border-radius:8px;padding:9px 18px;font-size:12px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">Confirmar TODOS domicilio</button>
         </div>
 
         <div style="overflow-x:auto;background:var(--surface);border:1.5px solid var(--border);border-radius:10px">
@@ -3657,7 +3657,7 @@
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:10px">
           <div id="huer-summary" style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text)"></div>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <button id="huer-create-all-btn" onclick="createAllHuerfanos()" style="background:#2b7a2b;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:12px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">⚡ Crear TODOS en Dropi</button>
+            <button id="huer-create-all-btn" onclick="createAllHuerfanos()" style="background:#111111;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:12px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">⚡ Crear TODOS en Dropi</button>
             <a id="huer-dropi-link" href="https://app.dropi.cl" target="_blank" style="background:transparent;border:1.5px solid var(--accent);color:var(--accent);border-radius:8px;padding:7px 14px;font-size:11px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer;text-decoration:none">🔗 Abrir Dropi</a>
           </div>
         </div>
@@ -3719,7 +3719,7 @@
               <option value="">Todas las transportadoras</option>
             </select>
             <button onclick="copyAtascadosTable()" style="background:transparent;color:#FF9800;border:1.5px solid #FF9800;border-radius:8px;padding:7px 14px;font-size:11px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">📋 Copiar tabla</button>
-            <button onclick="exportAtascadosCSV()" style="background:#2b7a2b;color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:11px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">📥 Exportar Excel</button>
+            <button onclick="exportAtascadosCSV()" style="background:#111111;color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:11px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">📥 Exportar Excel</button>
           </div>
         </div>
 
@@ -3885,7 +3885,7 @@
             </div>
 
             <!-- Preview totales -->
-            <div id="cv-fc-summary" style="background:rgba(34,197,94,.08);border-left:3px solid #22c55e;padding:10px 12px;border-radius:6px;margin-bottom:12px;font-size:11px;color:var(--muted2)">
+            <div id="cv-fc-summary" style="background:rgba(34,197,94,.08);border-left:3px solid #111111;padding:10px 12px;border-radius:6px;margin-bottom:12px;font-size:11px;color:var(--muted2)">
               Ingresa datos para ver el resumen
             </div>
 
@@ -4405,7 +4405,7 @@ const STORAGE_KEY = 'dropboard_v2';
 
 const PROD_STAGES = [
   {id:'landing',    label:'Creando Landing',   icon:'🖥️', color:'#4ECDC4'},
-  {id:'landingpub', label:'Landing Publicado', icon:'🌐', color:'#22C55E'},
+  {id:'landingpub', label:'Landing Publicado', icon:'🌐', color:'#111111'},
   {id:'releasit',   label:'Config. Releasit',  icon:'⚙️', color:'#F07070'},
   {id:'videos',     label:'Creando Videos',    icon:'🎬', color:'#A855F7'},
   {id:'standby',    label:'Stand by',          icon:'⏸️', color:'#94A3B8'},
@@ -4693,7 +4693,7 @@ function landingRenderPriceRows(){
     const anyEdited = priceEdited || qtyEdited;
     const badge = anyEdited
       ? '<span style="background:#eab308;color:#000;font-size:8px;padding:2px 6px;border-radius:3px;font-weight:700;letter-spacing:.5px">EDITADO</span>'
-      : '<span style="background:#22c55e;color:#000;font-size:8px;padding:2px 6px;border-radius:3px;font-weight:700;letter-spacing:.5px">AUTO</span>';
+      : '<span style="background:#111111;color:#000;font-size:8px;padding:2px 6px;border-radius:3px;font-weight:700;letter-spacing:.5px">AUTO</span>';
     const perUnit = qty > 0 ? Math.round(price / qty) : price;
     return `<div style="background:var(--surface2);border:1.5px solid ${anyEdited ? '#eab308' : 'var(--border)'};border-radius:10px;padding:12px 14px;transition:border-color .15s">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
@@ -5112,7 +5112,7 @@ function renderHuerfanos() {
         <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
           <button onclick="copyHuerfanoData(${idx})" style="background:transparent;color:#FF9800;border:1px solid #FF9800;border-radius:6px;padding:5px 10px;font-size:10px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer;white-space:nowrap">📋 Copiar</button>
           <button onclick="discardHuerfano(${idx})" id="huer-discard-btn-${idx}" title="Descartar: no procesar esta orden, no reaparece en futuros scans" style="background:transparent;color:var(--muted);border:1px solid var(--muted);border-radius:6px;padding:5px 10px;font-size:10px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer;white-space:nowrap">🗑️ Descartar</button>
-          <button onclick="createHuerfanoInDropi(${idx})" id="huer-create-btn-${idx}" style="background:#2b7a2b;color:#fff;border:none;border-radius:6px;padding:5px 12px;font-size:11px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer;white-space:nowrap">⚡ Crear en Dropi</button>
+          <button onclick="createHuerfanoInDropi(${idx})" id="huer-create-btn-${idx}" style="background:#111111;color:#fff;border:none;border-radius:6px;padding:5px 12px;font-size:11px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer;white-space:nowrap">⚡ Crear en Dropi</button>
         </div>
       </div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px;font-size:11px;font-family:'DM Mono',monospace;color:var(--text);background:var(--surface2);padding:10px;border-radius:6px">
@@ -5196,11 +5196,11 @@ async function createHuerfanoInDropi(idx) {
 
     // UI: cambiar tarjeta a verde con checkmark
     if (card) {
-      card.style.borderColor = '#2b7a2b';
+      card.style.borderColor = '#111111';
       card.style.background = 'rgba(43,122,43,0.05)';
     }
     btn.textContent = data.dropiOrderId ? '✅ Creada #' + data.dropiOrderId : '✅ Creada';
-    btn.style.background = '#2b7a2b';
+    btn.style.background = '#111111';
     btn.disabled = true;
     btn.style.opacity = '1';
     if (typeof showToast === 'function') showToast(`Huerfano creado: ${o.name} → Dropi #${data.dropiOrderId || '?'}`, '⚡', 'ok');
@@ -5311,11 +5311,11 @@ async function createAllHuerfanos() {
         window._createdHuerfanos[shopifyKey] = { shopifyName: o.name, dropiOrderId: data.dropiOrderId };
       } catch (_) {}
       if (card) {
-        card.style.borderColor = '#2b7a2b';
+        card.style.borderColor = '#111111';
         card.style.background = 'rgba(43,122,43,0.05)';
       }
       btn.textContent = data.dropiOrderId ? '✅ Creada #' + data.dropiOrderId : '✅ Creada';
-      btn.style.background = '#2b7a2b';
+      btn.style.background = '#111111';
       btn.style.opacity = '1';
       log.innerHTML += `<br>✅ ${o.name} · ${o.customer_name || ''} · $${(o.total||0).toLocaleString('es-CL')}`;
       okCount++;
@@ -5371,7 +5371,7 @@ function renderHuerfanoPreview(o) {
       <td style="padding:4px 8px">${escapeHtml(it.name.slice(0, 50))}</td>
       <td style="padding:4px 8px;text-align:center">${it.qty}</td>
       <td style="padding:4px 8px;text-align:right;${priceChanged ? 'color:var(--muted);text-decoration:line-through' : ''}">$${it.originalPrice.toLocaleString('es-CL')}</td>
-      <td style="padding:4px 8px;text-align:right;${priceChanged ? 'color:#2b7a2b;font-weight:700' : ''}">$${it.adjustedPrice.toLocaleString('es-CL')}</td>
+      <td style="padding:4px 8px;text-align:right;${priceChanged ? 'color:#111111;font-weight:700' : ''}">$${it.adjustedPrice.toLocaleString('es-CL')}</td>
       <td style="padding:4px 8px;text-align:right">$${(it.qty * it.adjustedPrice).toLocaleString('es-CL')}</td>
     </tr>`;
   }).join('');
@@ -5397,7 +5397,7 @@ function renderHuerfanoPreview(o) {
         <tbody>${rows}</tbody>
         <tfoot><tr style="border-top:1.5px solid var(--border);font-weight:700">
           <td colspan="4" style="padding:6px 8px;text-align:right">TOTAL DROPI:</td>
-          <td style="padding:6px 8px;text-align:right;color:${Math.abs(dropiTotal-total)<=1?'#2b7a2b':'#e46'}">$${dropiTotal.toLocaleString('es-CL')}</td>
+          <td style="padding:6px 8px;text-align:right;color:${Math.abs(dropiTotal-total)<=1?'#111111':'#e46'}">$${dropiTotal.toLocaleString('es-CL')}</td>
         </tr></tfoot>
       </table></div>
       ${warnings.length ? '<div style="margin-top:8px;padding:6px 8px;background:rgba(228,102,102,0.08);border-radius:4px;line-height:1.5">' + warnings.map(w => escapeHtml(w)).join('<br>') + '</div>' : ''}
@@ -5654,11 +5654,11 @@ function renderRezagadosTable() {
     : window._rezData.candidates;
 
   const catStyle = {
-    domicilio:    { color: '#2b7a2b', label: '🏠 Domicilio' },
+    domicilio:    { color: '#111111', label: '🏠 Domicilio' },
     corregir_dir: { color: '#FF9800', label: '✏️ Corregir dir' },
     manual:       { color: 'var(--text)', label: '✋ Manual' },
     descartar:    { color: '#e46', label: '⛔ Descartar' },
-    confirmada:   { color: '#2b7a2b', label: '✅ Confirmada' },
+    confirmada:   { color: '#111111', label: '✅ Confirmada' },
     cancelada:    { color: '#e46', label: '❌ Cancelada' },
   };
 
@@ -5676,7 +5676,7 @@ function renderRezagadosTable() {
       <td style="padding:8px;text-align:center">${r.ageDays.toFixed(1)}d</td>
       <td style="padding:8px;color:${cs.color}" title="${escapeHtml(r.reason)}">${cs.label}<br><span style="font-size:9px;color:var(--muted)">${escapeHtml(r.reason.slice(0,50))}</span></td>
       <td style="padding:8px;text-align:center">
-        ${r.category === 'domicilio' ? `<button onclick="confirmSingleRezagado(${globalIdx})" style="background:#2b7a2b;color:#fff;border:none;border-radius:6px;padding:4px 10px;font-size:10px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer;margin-right:4px">Confirmar</button>` : ''}
+        ${r.category === 'domicilio' ? `<button onclick="confirmSingleRezagado(${globalIdx})" style="background:#111111;color:#fff;border:none;border-radius:6px;padding:4px 10px;font-size:10px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer;margin-right:4px">Confirmar</button>` : ''}
         <button onclick="cancelSingleRezagado(${globalIdx})" title="Cancelar en Dropi (destructivo)" style="background:transparent;color:#e46;border:1px solid #e46;border-radius:6px;padding:4px 10px;font-size:10px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">Cancelar</button>
       </td>
     </tr>`;
@@ -6289,12 +6289,12 @@ function renderExpressRows(rows) {
   const summary = document.getElementById('exp-summary');
   const elegibles = rows.filter(r => r.elegible);
   const totalMoney = elegibles.reduce((sum, r) => sum + (r.order.total || 0), 0);
-  summary.innerHTML = `${rows.length} candidatas · <b style="color:#2b7a2b">${elegibles.length} elegibles</b> ($${totalMoney.toLocaleString('es-CL')} CLP en juego)`;
+  summary.innerHTML = `${rows.length} candidatas · <b style="color:#111111">${elegibles.length} elegibles</b> ($${totalMoney.toLocaleString('es-CL')} CLP en juego)`;
 
   tbody.innerHTML = rows.map((r, i) => {
     const o = r.order;
     const s = r.stats;
-    const green = r.elegible ? '#2b7a2b' : '';
+    const green = r.elegible ? '#111111' : '';
     return `<tr data-idx="${i}" style="border-bottom:1px solid var(--border)${r.elegible ? ';background:rgba(43,122,43,0.05)' : ''}">
       <td style="padding:8px">#${o.id}</td>
       <td style="padding:8px">${escapeHtml(r.phone || '(sin phone)')}</td>
@@ -6306,7 +6306,7 @@ function renderExpressRows(rows) {
       <td style="padding:8px;text-align:center">${r.ageHrs}h</td>
       <td style="padding:8px;color:${green || 'var(--muted)'}">${escapeHtml(r.verdict)}</td>
       <td style="padding:8px;text-align:center">
-        ${r.elegible ? `<button onclick="confirmSingleExpress(${i})" style="background:#2b7a2b;color:#fff;border:none;border-radius:6px;padding:5px 12px;font-size:10px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">Confirmar</button>` : '<span style="color:var(--muted);font-size:10px">—</span>'}
+        ${r.elegible ? `<button onclick="confirmSingleExpress(${i})" style="background:#111111;color:#fff;border:none;border-radius:6px;padding:5px 12px;font-size:10px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">Confirmar</button>` : '<span style="color:var(--muted);font-size:10px">—</span>'}
       </td>
     </tr>`;
   }).join('');
@@ -6735,12 +6735,12 @@ function renderRanking(){
     const pct = Math.min(Math.round((cnt/META_SEMANAL_LANDINGS)*100),100);
     const faltan = Math.max(META_SEMANAL_LANDINGS - cnt, 0);
     const lograda = cnt >= META_SEMANAL_LANDINGS;
-    return `<div class="meta-semanal-card" style="background:${oc.bg};border-color:${lograda?'#4ade80':oc.border}">
-      <div class="meta-semanal-big" style="color:${lograda?'#16a34a':oc.text}">${lograda?'⭐':cnt}</div>
+    return `<div class="meta-semanal-card" style="background:${oc.bg};border-color:${lograda?'#666666':oc.border}">
+      <div class="meta-semanal-big" style="color:${lograda?'#111111':oc.text}">${lograda?'⭐':cnt}</div>
       <div class="meta-semanal-progress">
         <div class="meta-semanal-label" style="color:${oc.text}">Esta semana</div>
         <div class="meta-semanal-name" style="color:${oc.text}">${esc(owner)}</div>
-        <div style="font-size:11px;color:${lograda?'#16a34a':oc.text};font-family:'DM Mono',monospace;margin-top:4px">
+        <div style="font-size:11px;color:${lograda?'#111111':oc.text};font-family:'DM Mono',monospace;margin-top:4px">
           ${lograda?`🎉 Meta lograda · +${fmtCLP(BONO_META_SEMANAL)}`:`Faltan <b>${faltan}</b> para el bono de ${fmtCLP(BONO_META_SEMANAL)}`}
         </div>
       </div>
@@ -7168,7 +7168,7 @@ function renderProducts(){
       : isStandby   ? {label:'Stand by',color:'#94a3b8',bg:'#f1f5f9'}
       : isReleasit  ? {label:'Config. Releasit',color:'#f07070',bg:'#fff1f1'}
       : isVideos    ? {label:'Creando Videos',color:'#a855f7',bg:'#faf5ff'}
-      : isLandingPub? {label:'Landing Publicada',color:'#4ade80',bg:'#f0fdf4'}
+      : isLandingPub? {label:'Landing Publicada',color:'#666666',bg:'#f0fdf4'}
       : isLandingWip? {label:'Creando Landing',color:'#60a5fa',bg:'#eff6ff'}
       : {label:'Sin inicio',color:'var(--muted)',bg:'var(--surface2)'};
 
@@ -7336,7 +7336,7 @@ function showToast(msg, icon, type){
   const t = document.createElement('div');
   t.className='toast';
   if(type==='bono'){
-    t.style.cssText='background:#166534;border:2px solid #4ade80;font-size:13px;padding:14px 20px';
+    t.style.cssText='background:#111111;border:2px solid #666666;font-size:13px;padding:14px 20px';
   }
   t.innerHTML=`<span class="toast-icon">${icon||'💬'}</span>${msg}`;
   c.appendChild(t);
@@ -7418,7 +7418,7 @@ function renderVideos(){
         <input id="vedit-url-${ti}-${vi}" value="${esc(v.url)}" placeholder="URL del video (https://...)">
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
           <label style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace">Fondo:</label>
-          <input type="color" id="vedit-color-${ti}-${vi}" value="${v.color&&v.color.startsWith('#')?v.color:'#5BA882'}" style="width:36px;height:28px;border:1.5px solid var(--border);border-radius:6px;cursor:pointer;padding:2px">
+          <input type="color" id="vedit-color-${ti}-${vi}" value="${v.color&&v.color.startsWith('#')?v.color:'#111111'}" style="width:36px;height:28px;border:1.5px solid var(--border);border-radius:6px;cursor:pointer;padding:2px">
           <label style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace">Texto:</label>
           <input type="color" id="vedit-textcolor-${ti}-${vi}" value="${v.textColor&&v.textColor.startsWith('#')?v.textColor:'#ffffff'}" style="width:36px;height:28px;border:1.5px solid var(--border);border-radius:6px;cursor:pointer;padding:2px">
         </div>
@@ -7560,7 +7560,7 @@ function addVideo(ti){
   const title = document.getElementById('vt-title-'+ti).value.trim();
   const url   = document.getElementById('vt-url-'+ti).value.trim();
   if(!title||!url) return;
-  state.videoTemas[ti].items.push({id:genId(), title, url, color:'#5BA882', textColor:'#ffffff'});
+  state.videoTemas[ti].items.push({id:genId(), title, url, color:'#111111', textColor:'#ffffff'});
   save();
   document.getElementById('vt-title-'+ti).value='';
   document.getElementById('vt-url-'+ti).value='';
@@ -9011,7 +9011,7 @@ async function seleccionarProductoReplicarGT(id, title, handle){
           '<div id="bk-replicar-gt-check" style="margin-top:8px;color:var(--muted);font-size:11px">⏳ Verificando producto en Shopify GT…</div>' +
         '</div>' +
         '<div style="display:flex;gap:6px;flex-wrap:wrap">' +
-          '<button id="bk-replicar-gt-exec" disabled onclick="ejecutarReplicacionGT()" style="background:#22C55E;color:#fff;border:none;border-radius:8px;padding:9px 14px;font-size:12px;font-family:\'DM Mono\',monospace;cursor:pointer;font-weight:700;opacity:0.5">🔄 Replicar a Shopify GT</button>' +
+          '<button id="bk-replicar-gt-exec" disabled onclick="ejecutarReplicacionGT()" style="background:#111111;color:#fff;border:none;border-radius:8px;padding:9px 14px;font-size:12px;font-family:\'DM Mono\',monospace;cursor:pointer;font-weight:700;opacity:0.5">🔄 Replicar a Shopify GT</button>' +
         '</div>';
     }
     // Guardar el template para usar al ejecutar
@@ -9341,7 +9341,7 @@ function editarSeccionEspecifica(id, sectionKey, blockKey){
       const autor = (s.author || '').replace(/<\/?em>/g, '').replace(/<\/?strong>/g, '').trim();
       const currentImage = s.image || '';
       const imgStatus = currentImage
-        ? '<div style="font-size:10px;color:#22C55E;margin-bottom:2px">✓ Imagen actual: <code style="background:var(--surface);padding:1px 4px;border-radius:3px;font-size:9px;word-break:break-all">' + esc(currentImage) + '</code></div>'
+        ? '<div style="font-size:10px;color:#111111;margin-bottom:2px">✓ Imagen actual: <code style="background:var(--surface);padding:1px 4px;border-radius:3px;font-size:9px;word-break:break-all">' + esc(currentImage) + '</code></div>'
         : '<div style="font-size:10px;color:#E74C3C;margin-bottom:2px">⚠ Sin imagen — subí una abajo</div>';
       formHtml += '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:8px">' +
         '<div style="font-size:10px;color:var(--muted);margin-bottom:4px">Columna ' + (idx + 1) + '</div>' +
@@ -10121,8 +10121,8 @@ async function ejecutarAutoShrine(){
     if (status) status.innerHTML = '✅ Plantilla "<b>' + esc(newSuffix) + '</b>" creada y asignada · ' +
       '<a href="' + productUrl + '" target="_blank" style="color:#dc2626;font-weight:700">Ver tienda</a> · ' +
       '<a href="' + adminUrl + '" target="_blank" style="color:var(--accent);font-weight:600">Admin</a>' +
-      '<div style="margin-top:12px;padding:10px 12px;background:linear-gradient(135deg,#4ECDC4 0%,#22C55E 100%);border-radius:8px;color:#fff">' +
-      '<button onclick="replicarTemplateAGT()" id="bk-replicar-gt-btn" style="background:#fff;color:#22C55E;border:none;border-radius:6px;padding:8px 14px;font-size:12px;font-family:\'DM Mono\',monospace;cursor:pointer;font-weight:700">🔄 Replicar este landing a Shopify GT</button>' +
+      '<div style="margin-top:12px;padding:10px 12px;background:linear-gradient(135deg,#4ECDC4 0%,#111111 100%);border-radius:8px;color:#fff">' +
+      '<button onclick="replicarTemplateAGT()" id="bk-replicar-gt-btn" style="background:#fff;color:#111111;border:none;border-radius:6px;padding:8px 14px;font-size:12px;font-family:\'DM Mono\',monospace;cursor:pointer;font-weight:700">🔄 Replicar este landing a Shopify GT</button>' +
       '<div style="font-size:10px;margin-top:6px;opacity:0.9;line-height:1.4">El producto debe existir en GT con el mismo handle: <b>' + esc(_autoShrineProduct.handle) + '</b>. Las imágenes deberás reasignarlas desde el editor de Shopify GT.</div>' +
       '<div id="bk-replicar-gt-status" style="font-size:11px;margin-top:8px;font-family:\'DM Mono\',monospace"></div>' +
       '</div>';
@@ -14976,7 +14976,7 @@ async function bkInvIniciarPollingAutomatico(){
     const mins = Math.floor((TOTAL_SECS - secs) / 60);
     const secsRem = (TOTAL_SECS - secs) % 60;
     el.innerHTML = `
-      <div style="background:linear-gradient(135deg,#5BA882 0%,#7ECEC4 100%);color:#fff;border-radius:14px;padding:28px 24px;text-align:center">
+      <div style="background:linear-gradient(135deg,#111111 0%,#333333 100%);color:#fff;border-radius:14px;padding:28px 24px;text-align:center">
         <div style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:20px;margin-bottom:6px">🔍 Buscando winners…</div>
         <div style="font-size:13px;opacity:0.95;line-height:1.5;margin-bottom:14px">
           Apify está scrapeando Meta Ad Library. Voy a chequear automáticamente cada ~30s.<br>
@@ -15127,7 +15127,7 @@ async function bkInvSync(){
 
 function bkInvScoreColor(s){
   if(s == null) return 'var(--muted)';
-  if(s >= 85) return '#5BA882';
+  if(s >= 85) return '#111111';
   if(s >= 70) return '#E8B840';
   return '#E88A8A';
 }
@@ -15146,13 +15146,13 @@ function bkInvRenderCapturas(){
   if(!el) return;
   if(!list.length){
     el.innerHTML = `
-      <div style="background:linear-gradient(135deg,#5BA882 0%,#7ECEC4 100%);color:#fff;border-radius:14px;padding:28px 24px;text-align:center;margin-bottom:14px">
+      <div style="background:linear-gradient(135deg,#111111 0%,#333333 100%);color:#fff;border-radius:14px;padding:28px 24px;text-align:center;margin-bottom:14px">
         <div style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:20px;margin-bottom:6px">🤖 Sin capturas todavía</div>
         <div style="font-size:13px;opacity:0.95;line-height:1.5;margin-bottom:18px;max-width:520px;margin-left:auto;margin-right:auto">
           El descubrimiento automático corre <strong>Lun / Mié / Vie a las 7 AM</strong>.
           Podés disparar uno ahora mismo (consume ~$0.30 USD del crédito Apify, tarda ~3 min).
         </div>
-        <button onclick="bkInvBuscarAhora()" style="background:#fff;color:#5BA882;border:none;border-radius:10px;padding:13px 28px;font-size:14px;font-family:'Montserrat',sans-serif;font-weight:800;cursor:pointer">
+        <button onclick="bkInvBuscarAhora()" style="background:#fff;color:#111111;border:none;border-radius:10px;padding:13px 28px;font-size:14px;font-family:'Montserrat',sans-serif;font-weight:800;cursor:pointer">
           🤖 Buscar productos winners ahora
         </button>
       </div>
@@ -15171,7 +15171,7 @@ function bkInvRenderCapturas(){
     const productName = c.product_name || c.page_name || 'Sin nombre';
     const searchQuery = encodeURIComponent(productName);
     return `
-    <div style="border:1.5px solid ${score && score>=85?'#5BA882':'var(--border)'};border-radius:10px;padding:12px;margin-bottom:10px;background:var(--surface2);position:relative">
+    <div style="border:1.5px solid ${score && score>=85?'#111111':'var(--border)'};border-radius:10px;padding:12px;margin-bottom:10px;background:var(--surface2);position:relative">
       <div style="position:absolute;top:8px;right:36px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end;max-width:60%">
         ${c.adn_match ? `<span style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:2px 10px;font-size:10px;color:var(--text);font-family:'DM Mono',monospace">${esc(c.adn_match)}</span>` : ''}
         ${c.novelty_score != null ? `<span title="${esc(c.novelty_reason||'')}" style="background:${bkInvScoreColor(c.novelty_score)};color:#fff;border-radius:14px;padding:2px 10px;font-size:10px;font-weight:700;font-family:'DM Mono',monospace;opacity:0.85">🆕 ${c.novelty_score}</span>` : ''}
@@ -15190,7 +15190,7 @@ function bkInvRenderCapturas(){
             ${c.started ? '📅 '+esc(c.started) : ''}
             ${days != null ? `<span style="color:${days>=7&&days<=50?'var(--accent)':'var(--muted)'}">⏱ ${days}d activos</span>` : ''}
             ${c.collation_count > 1 ? `<span style="color:#E89A4A">🔁 ${c.collation_count} variantes</span>` : ''}
-            ${c.times_seen > 1 ? `<span style="color:#5BA882;font-weight:700" title="Detectado en ${c.times_seen} runs distintos = winner consistente">👁 ${c.times_seen} runs</span>` : ''}
+            ${c.times_seen > 1 ? `<span style="color:#111111;font-weight:700" title="Detectado en ${c.times_seen} runs distintos = winner consistente">👁 ${c.times_seen} runs</span>` : ''}
             ${c.library_id ? '🆔 '+esc(c.library_id) : ''}
           </div>
           <div style="font-size:11px;color:var(--text);line-height:1.4;max-height:60px;overflow:hidden">${esc((c.text||'').slice(0,260))}${c.text && c.text.length>260 ? '…' : ''}</div>
@@ -15578,14 +15578,14 @@ function bkfitRenderDashboard(){
     const pointsEner = last.map((c,i)=>`${i*stepX},${H-(c.energia/max)*H}`).join(' ');
     chartEl.innerHTML = `
       <svg viewBox="0 0 100 110" preserveAspectRatio="none" style="width:100%;height:170px">
-        <polyline points="${pointsRopa}" fill="none" stroke="#5BA882" stroke-width="2"/>
+        <polyline points="${pointsRopa}" fill="none" stroke="#111111" stroke-width="2"/>
         <polyline points="${pointsEner}" fill="none" stroke="#E8B840" stroke-width="2" stroke-dasharray="2,2"/>
-        ${last.map((c,i)=>`<circle cx="${i*stepX}" cy="${H-(c.ropa/max)*H}" r="1.5" fill="#5BA882"/>`).join('')}
+        ${last.map((c,i)=>`<circle cx="${i*stepX}" cy="${H-(c.ropa/max)*H}" r="1.5" fill="#111111"/>`).join('')}
         <text x="0" y="108" font-size="4" fill="#999" font-family="monospace">${last[0].fecha.slice(5)}</text>
         <text x="100" y="108" font-size="4" fill="#999" text-anchor="end" font-family="monospace">${last[last.length-1].fecha.slice(5)}</text>
       </svg>
       <div style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;margin-top:6px;display:flex;gap:14px;justify-content:center">
-        <span><span style="color:#5BA882">━</span> Ropa</span>
+        <span><span style="color:#111111">━</span> Ropa</span>
         <span><span style="color:#E8B840">┄</span> Energía</span>
       </div>`;
   }
@@ -15630,7 +15630,7 @@ function bkfitRenderComidasHoy(){
   const hoy = (state.bkfit_meals||[]).filter(m=>m.fecha===today);
   const totalCarbos = hoy.reduce((s,m)=>s+(m.carbos||0),0);
   const totalKcal = hoy.reduce((s,m)=>s+(m.kcal||0),0);
-  document.getElementById('bkfit-m-hoy-title').innerHTML = `📊 Hoy · <span style="color:${totalCarbos>80?'#E88A8A':'#5BA882'}">${totalCarbos}g carbos</span> · ${totalKcal} kcal`;
+  document.getElementById('bkfit-m-hoy-title').innerHTML = `📊 Hoy · <span style="color:${totalCarbos>80?'#E88A8A':'#111111'}">${totalCarbos}g carbos</span> · ${totalKcal} kcal`;
   const el = document.getElementById('bkfit-m-hoy');
   if(!hoy.length){ el.innerHTML = '<div style="color:var(--muted2);font-size:12px;text-align:center;padding:14px">Sin comidas registradas hoy.</div>'; return; }
   const labelComida = {desayuno:'🌅 Desayuno', almuerzo:'☀️ Almuerzo', cena:'🌙 Cena', snack:'🥑 Snack'};
@@ -15853,11 +15853,11 @@ var _calModalDate = null;
 var _calModalHour = null;
 
 const CAL_COLORS = {
-  evento:'#5BA882', reunion:'#7ECEC4', deadline:'#E88A8A',
+  evento:'#111111', reunion:'#333333', deadline:'#E88A8A',
   recordatorio:'#E8B840', personal:'#B07CDB',
   // Categorías para plantilla de rutina diaria
   deporte:'#7AB8E8',      // azul claro — ocio/cuerpo
-  research:'#5BA882',     // verde — búsqueda/análisis
+  research:'#111111',     // verde — búsqueda/análisis
   operacion:'#8CA3B8',    // gris azul — operativo
   creativo:'#E89A4A',     // naranja — edición/contenido
   publicidad:'#E25A5A',   // rojo — campañas/ads
@@ -16154,7 +16154,7 @@ function setReporteDelta(id, current, previous) {
   if (previous === null || previous === undefined || previous === 0) { el.textContent = ''; return; }
   var pct = ((current - previous) / previous) * 100;
   var sign = pct >= 0 ? '+' : '';
-  el.style.color = pct >= 0 ? '#16a34a' : '#dc2626';
+  el.style.color = pct >= 0 ? '#111111' : '#dc2626';
   el.textContent = sign + pct.toFixed(1) + '% vs ayer';
 }
 
@@ -16590,7 +16590,7 @@ const PIPELINE_TAGS = [
 
 const PIPELINE_STATES = {
   pending_review: { label: '⏳ En revisión', color:'#D9A82E' },
-  approved:       { label: '✅ Aprobado',    color:'#3F7F5C' },
+  approved:       { label: '✅ Aprobado',    color:'#111111' },
   needs_changes:  { label: '⚠️ Cambios',     color:'#D88A2A' },
   in_test:        { label: '🧪 En test',     color:'#5B7CBF' },
   winner:         { label: '🏆 WINNER',      color:'#2C8B5C' },
@@ -16614,7 +16614,7 @@ let _pipelineCurrentAssignment = null; // para form de subida con contexto
 const ASSIGNMENT_STATES = {
   pending_edit: { label: '🕐 Por editar',  color: '#D9A82E' },
   in_edit:      { label: '✂️ Editando',    color: '#5B7CBF' },
-  completed:    { label: '✅ Completada',   color: '#3F7F5C' },
+  completed:    { label: '✅ Completada',   color: '#111111' },
 };
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -16869,7 +16869,7 @@ function renderVideosProdList(){
     } else {
       const diff = vpDayDiff(today, d);
       if (diff < 0)            b = ensure('_atrasadas_', { date: '_keep_', label: '🔴 ATRASADAS', order: 0, color: '#dc2626' });
-      else if (diff === 0)     b = ensure('_hoy_', { date: today, label: '📌 TAREA DE HOY · ' + vpFmtDM(today), order: 1, color: '#16a34a' });
+      else if (diff === 0)     b = ensure('_hoy_', { date: today, label: '📌 TAREA DE HOY · ' + vpFmtDM(today), order: 1, color: '#111111' });
       else if (d === tomorrow) b = ensure(d, { date: d, label: '🟠 MAÑANA · ' + vpFmtWD(d), order: 2, color: '#f59e0b' });
       else                     b = ensure(d, { date: d, label: '📅 ' + vpFmtWD(d), order: 3, color: 'var(--accent)' });
     }
@@ -16945,7 +16945,7 @@ function renderVideosProdCard(p){
       <div style="display:flex;gap:8px;align-items:center;font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;flex-wrap:wrap" onclick="event.stopPropagation()">
         <label style="display:flex;align-items:center;gap:4px">📅 Día:<input type="date" value="${esc(startDate || endDate)}" onchange="setProductTaskDay('${esc(handle)}',this.value)" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);font-size:10px;font-family:'DM Mono',monospace;padding:2px 6px;border-radius:5px"></label>
         ${isDone ? `<button onclick="event.stopPropagation();unmarkProductTaskDone('${esc(handle)}')" title="Reabrir tarea" style="background:transparent;color:var(--muted);border:1px solid var(--border);border-radius:14px;padding:2px 8px;font-size:9px;font-family:'DM Mono',monospace;cursor:pointer">↩ Reabrir</button>` : ''}
-        ${isDone ? `<span style="color:#22C55E;font-weight:700">✅ TERMINADO</span>` : ''}
+        ${isDone ? `<span style="color:#111111;font-weight:700">✅ TERMINADO</span>` : ''}
       </div>`;
   } else {
     const theDay = startDate || endDate;
@@ -17493,7 +17493,7 @@ function renderVideosProdFolders(p){
   const folders = [
     { type: 'brutos',   id: p.brutosId,   label: '1 — Brutos',   color: '#94A3B8', icon: '🎬' },
     { type: 'testeo',   id: p.testeoId,   label: '2 — Testeo',   color: '#F59E0B', icon: '🧪' },
-    { type: 'escalado', id: p.escaladoId, label: '3 — Escalado', color: '#22C55E', icon: '🚀' },
+    { type: 'escalado', id: p.escaladoId, label: '3 — Escalado', color: '#111111', icon: '🚀' },
   ];
   return folders.map(f => {
     const assignKey = handle + '__' + f.type;
@@ -17507,9 +17507,9 @@ function renderVideosProdFolders(p){
       if (status === 'pending') {
         statusBtn = `<button onclick="setFolderStatus('${esc(handle)}','${f.type}','started')" style="background:#F59E0B;color:#fff;border:none;border-radius:5px;padding:4px 10px;font-size:10px;font-family:'DM Mono',monospace;cursor:pointer;font-weight:700;white-space:nowrap">▶ Empezar</button>`;
       } else if (status === 'started') {
-        statusBtn = `<span style="font-size:9px;color:#F59E0B;background:#F59E0B1a;padding:3px 8px;border-radius:10px;font-family:'DM Mono',monospace;font-weight:700">🔵 EN CURSO</span><button onclick="setFolderStatus('${esc(handle)}','${f.type}','completed')" style="background:#22C55E;color:#fff;border:none;border-radius:5px;padding:4px 10px;font-size:10px;font-family:'DM Mono',monospace;cursor:pointer;font-weight:700;white-space:nowrap">✓ Terminar</button>`;
+        statusBtn = `<span style="font-size:9px;color:#F59E0B;background:#F59E0B1a;padding:3px 8px;border-radius:10px;font-family:'DM Mono',monospace;font-weight:700">🔵 EN CURSO</span><button onclick="setFolderStatus('${esc(handle)}','${f.type}','completed')" style="background:#111111;color:#fff;border:none;border-radius:5px;padding:4px 10px;font-size:10px;font-family:'DM Mono',monospace;cursor:pointer;font-weight:700;white-space:nowrap">✓ Terminar</button>`;
       } else if (status === 'completed') {
-        statusBtn = `<span style="font-size:9px;color:#22C55E;background:#22C55E1a;padding:3px 8px;border-radius:10px;font-family:'DM Mono',monospace;font-weight:700">✅ TERMINADO</span><button onclick="setFolderStatus('${esc(handle)}','${f.type}','pending')" title="Reabrir" style="background:transparent;color:var(--muted);border:1px solid var(--border);border-radius:5px;padding:3px 8px;font-size:9px;font-family:'DM Mono',monospace;cursor:pointer">↩</button>`;
+        statusBtn = `<span style="font-size:9px;color:#111111;background:#1111111a;padding:3px 8px;border-radius:10px;font-family:'DM Mono',monospace;font-weight:700">✅ TERMINADO</span><button onclick="setFolderStatus('${esc(handle)}','${f.type}','pending')" title="Reabrir" style="background:transparent;color:var(--muted);border:1px solid var(--border);border-radius:5px;padding:3px 8px;font-size:9px;font-family:'DM Mono',monospace;cursor:pointer">↩</button>`;
       }
     }
     return `
@@ -17648,7 +17648,7 @@ function renderVideoCard(file, type, handle, showRank){
 
   let rankHtml = '';
   if (showRank) {
-    const colorByRank = (n) => n >= 6 ? '#22C55E' : n >= 4 ? '#F59E0B' : n >= 1 ? '#E74C3C' : 'var(--muted)';
+    const colorByRank = (n) => n >= 6 ? '#111111' : n >= 4 ? '#F59E0B' : n >= 1 ? '#E74C3C' : 'var(--muted)';
     // Métricas del video guardadas en el mismo doc bkdrop_video_rankings
     const salesToday = (r && r.salesToday != null) ? r.salesToday : '';
     const cpa        = (r && r.cpa != null)        ? r.cpa        : '';
@@ -17690,7 +17690,7 @@ function renderVideoCard(file, type, handle, showRank){
       readyForAdsHtml = `<div style="padding:6px 10px;border-top:1px dashed var(--border);background:var(--surface);font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;text-align:center" onclick="event.stopPropagation()">✓ YA SUBIDO A ADS</div>`;
     } else if (isReady) {
       readyForAdsHtml = `<div style="padding:6px 10px;border-top:1px dashed var(--border);background:var(--surface)" onclick="event.stopPropagation()">
-        <button onclick="event.stopPropagation();setVideoReadyForAds('${esc(file.id)}', false, '${esc(handle)}', '${safeFileName}')" title="Desmarcar — el subidor ya no lo verá en MANAGER" style="width:100%;background:#22C55E;color:#fff;border:none;border-radius:5px;padding:6px 8px;font-size:10px;font-family:'DM Mono',monospace;cursor:pointer;font-weight:700">📤 LISTO PARA ADS · click para desmarcar</button>
+        <button onclick="event.stopPropagation();setVideoReadyForAds('${esc(file.id)}', false, '${esc(handle)}', '${safeFileName}')" title="Desmarcar — el subidor ya no lo verá en MANAGER" style="width:100%;background:#111111;color:#fff;border:none;border-radius:5px;padding:6px 8px;font-size:10px;font-family:'DM Mono',monospace;cursor:pointer;font-weight:700">📤 LISTO PARA ADS · click para desmarcar</button>
       </div>`;
     } else {
       readyForAdsHtml = `<div style="padding:6px 10px;border-top:1px dashed var(--border);background:var(--surface)" onclick="event.stopPropagation()">
@@ -17709,7 +17709,7 @@ function renderVideoCard(file, type, handle, showRank){
     ? `<span style="font-size:9px;color:var(--muted2);font-family:'DM Mono',monospace">${esc(notesAuthor)} · ${notesAt}</span>`
     : '';
   const notesBadge = notes
-    ? `<span style="display:inline-block;background:#22C55E;color:#fff;border-radius:8px;padding:1px 6px;font-size:9px;font-family:'DM Mono',monospace;font-weight:700">✓</span>`
+    ? `<span style="display:inline-block;background:#111111;color:#fff;border-radius:8px;padding:1px 6px;font-size:9px;font-family:'DM Mono',monospace;font-weight:700">✓</span>`
     : '';
   // Calcular altura inicial según líneas de contenido (mínimo 60px, máximo 200px)
   const lineCount = Math.max(2, (notes.match(/\n/g) || []).length + 1);
@@ -17793,8 +17793,8 @@ async function vpSearchShopify(){
       const handleAttr = String(p.handle || '').replace(/'/g, "\\'");
       const alreadyExists = window._vpData.products.find(x => (x.handle || x.id) === p.handle);
       const indicator = alreadyExists
-        ? '<span style="font-size:9px;background:#22C55E;color:#fff;padding:2px 6px;border-radius:10px;font-family:\'DM Mono\',monospace;font-weight:700;white-space:nowrap">✓ ya vinculado</span>'
-        : '<button onclick="vpLinkProduct(' + p.id + ", '" + titleAttr + "', '" + handleAttr + "')\" style=\"background:#22C55E;color:#fff;border:none;border-radius:5px;padding:5px 10px;font-size:10px;font-family:'DM Mono',monospace;cursor:pointer;font-weight:700;white-space:nowrap\">+ Crear carpetas</button>";
+        ? '<span style="font-size:9px;background:#111111;color:#fff;padding:2px 6px;border-radius:10px;font-family:\'DM Mono\',monospace;font-weight:700;white-space:nowrap">✓ ya vinculado</span>'
+        : '<button onclick="vpLinkProduct(' + p.id + ", '" + titleAttr + "', '" + handleAttr + "')\" style=\"background:#111111;color:#fff;border:none;border-radius:5px;padding:5px 10px;font-size:10px;font-family:'DM Mono',monospace;cursor:pointer;font-weight:700;white-space:nowrap\">+ Crear carpetas</button>";
       return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px">' +
         '<div style="flex:1;min-width:0">' +
           '<div style="font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc(p.title || '') + '">' + esc(p.title || '') + '</div>' +
@@ -18348,7 +18348,7 @@ function renderAdsQueue(){
           '<input type="date" value="' + esc(uploadDate) + '" onchange="setVideoUploadDate(\'' + esc(it.fileId) + '\', this.value, \'' + esc(it.productHandle || '') + '\', \'' + safeName + '\')" style="background:var(--surface);border:1px solid var(--border);color:var(--text);font-size:11px;font-family:\'DM Mono\',monospace;padding:3px 6px;border-radius:5px">' +
         '</label>' +
         '<a href="' + driveUrl + '" target="_blank" rel="noopener" style="background:#4285F4;color:#fff;text-decoration:none;border-radius:6px;padding:6px 12px;font-size:11px;font-family:\'DM Mono\',monospace">↗ Ver video</a>' +
-        '<button onclick="setVideoUploadedToAds(\'' + esc(it.fileId) + '\', true, \'' + esc(it.productHandle || '') + '\', \'' + safeName + '\')" style="background:#22C55E;color:#fff;border:none;border-radius:6px;padding:6px 16px;font-size:12px;font-family:\'DM Mono\',monospace;cursor:pointer;font-weight:800;letter-spacing:.5px">✓ LISTO</button>' +
+        '<button onclick="setVideoUploadedToAds(\'' + esc(it.fileId) + '\', true, \'' + esc(it.productHandle || '') + '\', \'' + safeName + '\')" style="background:#111111;color:#fff;border:none;border-radius:6px;padding:6px 16px;font-size:12px;font-family:\'DM Mono\',monospace;cursor:pointer;font-weight:800;letter-spacing:.5px">✓ LISTO</button>' +
       '</div>';
     }
     html += '</div>'; // cierre lista de videos
@@ -18368,7 +18368,7 @@ function renderAdsQueue(){
       const at = task[upField + 'At'];
 
       if (uploaded) {
-        return '<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:#22C55E;color:#fff;border-radius:8px;flex:1;min-width:200px">' +
+        return '<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:#111111;color:#fff;border-radius:8px;flex:1;min-width:200px">' +
           '<span style="font-family:\'DM Mono\',monospace;font-weight:800;font-size:12px">✓ Subido a ' + capPlat + '</span>' +
           '<span style="font-size:10px;opacity:.9;font-family:\'DM Mono\',monospace">· ' + fmtTime(at) + (by ? ' · $1.000 a ' + esc(by) : '') + '</span>' +
           '<span style="flex:1"></span>' +
@@ -18825,7 +18825,7 @@ function pipelineSupervisorActions(v){
 
   if (v.state === 'pending_review') {
     return '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">' +
-      '<button class="bk-step-btn" onclick="pipelineApprove(\'' + v.id + '\')" style="background:#3F7F5C;color:#fff;flex:1">✅ VIDEO OK</button>' +
+      '<button class="bk-step-btn" onclick="pipelineApprove(\'' + v.id + '\')" style="background:#111111;color:#fff;flex:1">✅ VIDEO OK</button>' +
       '<button class="bk-step-btn" onclick="pipelineRequestChanges(\'' + v.id + '\')" style="background:#D88A2A;color:#fff;flex:1">⚠️ Pedir cambios</button>' +
     '</div>' + forceActions;
   }
@@ -19085,7 +19085,7 @@ function pipelineRenderAssignmentsTab(role){
       // Progress
       '<div style="display:flex;align-items:center;gap:8px;background:var(--surface2);padding:6px 10px;border-radius:6px">' +
         '<div style="flex:1;font-size:11px;color:var(--muted)">Editados subidos:</div>' +
-        '<div style="font-size:13px;font-weight:700;color:' + (progress >= 3 ? '#3F7F5C' : 'var(--accent)') + '">' + progress + '/3</div>' +
+        '<div style="font-size:13px;font-weight:700;color:' + (progress >= 3 ? '#111111' : 'var(--accent)') + '">' + progress + '/3</div>' +
       '</div>' +
       // Notes
       (a.notes ? '<div style="font-size:11px;color:var(--muted);line-height:1.5;background:var(--surface2);padding:8px;border-radius:6px;border-left:3px solid var(--accent)">📝 <b>Briefing:</b> ' + esc(a.notes) + '</div>' : '') +
@@ -19124,7 +19124,7 @@ function pipelineRenderAssignmentForm(){
       '<div><label style="font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace;display:block;margin-bottom:4px">PRODUCTO (escribe para buscar)</label>' +
         '<input id="pipeline-assign-product-search" oninput="filterAssignProductOptions(this.value)" placeholder="🔍 Buscar por nombre..." style="width:100%;padding:9px 12px;border-radius:8px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text);font-size:13px;font-family:\'DM Mono\',monospace;box-sizing:border-box;margin-bottom:6px">' +
         '<select id="pipeline-assign-product" size="6" onchange="updateAssignProductSelected()" onclick="updateAssignProductSelected()" style="width:100%;padding:6px;border-radius:8px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text);font-size:13px">' + productOptions + '</select>' +
-        '<div id="pipeline-assign-product-selected" style="font-size:11px;font-weight:600;color:#3F7F5C;margin-top:6px;font-family:\'DM Mono\',monospace;padding:6px 10px;background:#DCF1D9;border:1.5px solid #3F7F5C;border-radius:6px;display:none">✓ Seleccionado: <span id="pipeline-assign-product-selected-name"></span></div>' +
+        '<div id="pipeline-assign-product-selected" style="font-size:11px;font-weight:600;color:#111111;margin-top:6px;font-family:\'DM Mono\',monospace;padding:6px 10px;background:#DCF1D9;border:1.5px solid #111111;border-radius:6px;display:none">✓ Seleccionado: <span id="pipeline-assign-product-selected-name"></span></div>' +
       '</div>' +
       '<div><label style="font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace;display:block;margin-bottom:4px">CARPETA GOOGLE DRIVE CON LOS 3 RAWS</label>' +
         '<input id="pipeline-assign-folder" placeholder="https://drive.google.com/drive/folders/..." style="width:100%;padding:9px 12px;border-radius:8px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text);font-size:13px;font-family:\'DM Mono\',monospace;box-sizing:border-box">' +
@@ -19262,7 +19262,7 @@ function pipelineRenderDashboard(){
         return '<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border)">' +
           '<div style="flex:1;font-size:11px">' + esc(r.tag.label) + '</div>' +
           '<div style="font-size:11px;color:var(--muted);font-family:\'DM Mono\',monospace">' + r.winners + '/' + r.total + '</div>' +
-          '<div style="width:50px;text-align:right;font-size:13px;font-weight:700;color:' + (rate >= 50 ? '#3F7F5C' : rate >= 25 ? '#D88A2A' : '#C0392B') + '">' + rate + '%</div>' +
+          '<div style="width:50px;text-align:right;font-size:13px;font-weight:700;color:' + (rate >= 50 ? '#111111' : rate >= 25 ? '#D88A2A' : '#C0392B') + '">' + rate + '%</div>' +
         '</div>';
       }).join('') +
     '</div>' +
@@ -19274,7 +19274,7 @@ function pipelineRenderDashboard(){
         return '<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border)">' +
           '<div style="flex:1;font-size:11px">' + esc(r.user) + '</div>' +
           '<div style="font-size:11px;color:var(--muted);font-family:\'DM Mono\',monospace">' + r.winners + ' winners / ' + r.total + ' totales</div>' +
-          '<div style="width:50px;text-align:right;font-size:13px;font-weight:700;color:' + (rate >= 50 ? '#3F7F5C' : rate >= 25 ? '#D88A2A' : '#C0392B') + '">' + rate + '%</div>' +
+          '<div style="width:50px;text-align:right;font-size:13px;font-weight:700;color:' + (rate >= 50 ? '#111111' : rate >= 25 ? '#D88A2A' : '#C0392B') + '">' + rate + '%</div>' +
         '</div>';
       }).join('') +
     '</div>' +
@@ -19594,11 +19594,11 @@ function renderTotalView(){
   // KPI gigante: ganancia neta
   const netEl = document.getElementById('total-kpi-net');
   netEl.textContent = fmt(netReal);
-  netEl.style.color = netReal >= 0 ? '#15803d' : '#dc2626';
+  netEl.style.color = netReal >= 0 ? '#111111' : '#dc2626';
   const card = netEl.parentElement;
   if (netReal >= 0) {
-    card.style.background = 'linear-gradient(135deg,#dcfce7,#bbf7d0)';
-    card.style.borderColor = '#22C55E';
+    card.style.background = 'linear-gradient(135deg,#F5F5F5,#EEEEEE)';
+    card.style.borderColor = '#111111';
   } else {
     card.style.background = 'linear-gradient(135deg,#fee2e2,#fecaca)';
     card.style.borderColor = '#dc2626';
@@ -19614,7 +19614,7 @@ function renderTotalView(){
     <div style="color:#dc2626">− COGS (estimado): ${fmt(cogsReal)}</div>
     <div style="color:#dc2626">− Envío: ${fmt(envioTotal)}</div>
     <div style="color:#dc2626">− Gasto ads: ${fmt(totalSpend)}</div>
-    <div style="border-top:1px solid var(--border);padding-top:4px;margin-top:4px;font-weight:700;color:${netReal>=0?'#22C55E':'#dc2626'}">= ${fmt(netReal)}</div>
+    <div style="border-top:1px solid var(--border);padding-top:4px;margin-top:4px;font-weight:700;color:${netReal>=0?'#111111':'#dc2626'}">= ${fmt(netReal)}</div>
   `;
   document.getElementById('total-kpi-desglose').innerHTML = desglose;
 
@@ -19648,8 +19648,8 @@ function renderTotalView(){
       <td style="text-align:right;padding:10px 10px;font-family:'DM Mono',monospace;color:var(--accent);font-weight:700">${p.orders}</td>
       <td style="text-align:right;padding:10px 10px;font-family:'DM Mono',monospace">${fmt(p.revenue)}</td>
       <td style="text-align:right;padding:10px 10px;font-family:'DM Mono',monospace;color:var(--accent);font-weight:600">${pCpaReal ? fmt(pCpaReal) : '—'}</td>
-      <td style="text-align:right;padding:10px 10px;font-family:'DM Mono',monospace;color:${pRoas>=2?'#22c55e':pRoas>=1?'#eab308':'var(--muted2)'};font-weight:700">${pRoas ? pRoas.toFixed(2)+'x' : '—'}</td>
-      <td style="text-align:right;padding:10px 10px;font-family:'DM Mono',monospace;font-weight:700;color:${pNet>=0?'#22c55e':'#dc2626'}">${fmt(pNet)}</td>
+      <td style="text-align:right;padding:10px 10px;font-family:'DM Mono',monospace;color:${pRoas>=2?'#111111':pRoas>=1?'#eab308':'var(--muted2)'};font-weight:700">${pRoas ? pRoas.toFixed(2)+'x' : '—'}</td>
+      <td style="text-align:right;padding:10px 10px;font-family:'DM Mono',monospace;font-weight:700;color:${pNet>=0?'#111111':'#dc2626'}">${fmt(pNet)}</td>
     </tr>`;
   }).join('');
   // Fila Orgánicas (sin gasto ads, COGS estimado por ratio)
@@ -19667,7 +19667,7 @@ function renderTotalView(){
       <td style="text-align:right;padding:10px 10px;font-family:'DM Mono',monospace">${fmt(orgRevenue)}</td>
       <td style="text-align:right;padding:10px 10px;font-family:'DM Mono',monospace;color:var(--muted2)">—</td>
       <td style="text-align:right;padding:10px 10px;font-family:'DM Mono',monospace;color:var(--muted2)">—</td>
-      <td style="text-align:right;padding:10px 10px;font-family:'DM Mono',monospace;font-weight:700;color:${orgNet>=0?'#22c55e':'#dc2626'}">${fmt(orgNet)}</td>
+      <td style="text-align:right;padding:10px 10px;font-family:'DM Mono',monospace;font-weight:700;color:${orgNet>=0?'#111111':'#dc2626'}">${fmt(orgNet)}</td>
     </tr>`;
   }
   tbody.innerHTML = platformRows + orgRow;
@@ -19680,7 +19680,7 @@ function renderTotalView(){
     const atribuidoPct = shopOrders > 0 ? Math.round((totalOrders / shopOrders) * 100) : 0;
     shopifyInfo.innerHTML =
       `<b>${shopOrders}</b> órdenes · <b>${fmt(shopRevenue)}</b> revenue total` +
-      ` · <span style="color:${atribuidoPct >= 50 ? '#22c55e' : '#eab308'}"><b>${atribuidoPct}%</b> atribuido a campañas</span>` +
+      ` · <span style="color:${atribuidoPct >= 50 ? '#111111' : '#eab308'}"><b>${atribuidoPct}%</b> atribuido a campañas</span>` +
       `<div style="font-size:10px;color:var(--muted);margin-top:2px">Orgánicas / sin UTM / otras fuentes: ${shopOrders - totalOrders} órd · ${fmt(shopRevenue - totalRevenue)}</div>`;
   } else {
     shopifyInfo.textContent = 'No se pudieron cargar los totales de Shopify para comparar.';
@@ -19848,8 +19848,8 @@ function renderTtxCrossView(){
       <td style="text-align:right;padding:10px 10px;font-family:'DM Mono',monospace">${r.realUnits || '—'}</td>
       <td style="text-align:right;padding:10px 10px;font-family:'DM Mono',monospace;color:var(--accent)">${r.realRevenue ? fmt(r.realRevenue) : '—'}</td>
       <td style="text-align:right;padding:10px 10px;font-family:'DM Mono',monospace;color:var(--accent);font-weight:600">${rCpaReal ? fmt(rCpaReal) : '—'}</td>
-      <td style="text-align:right;padding:10px 10px;font-family:'DM Mono',monospace;color:${rRoasReal>=2?'#22c55e':rRoasReal>=1?'#eab308':'var(--muted2)'};font-weight:700">${rRoasReal ? rRoasReal.toFixed(2)+'x' : '—'}</td>
-      <td style="text-align:right;padding:10px 10px;font-family:'DM Mono',monospace;font-weight:700;color:${rNetReal>=0?'#22c55e':'#dc2626'}">${fmt(rNetReal)}</td>
+      <td style="text-align:right;padding:10px 10px;font-family:'DM Mono',monospace;color:${rRoasReal>=2?'#111111':rRoasReal>=1?'#eab308':'var(--muted2)'};font-weight:700">${rRoasReal ? rRoasReal.toFixed(2)+'x' : '—'}</td>
+      <td style="text-align:right;padding:10px 10px;font-family:'DM Mono',monospace;font-weight:700;color:${rNetReal>=0?'#111111':'#dc2626'}">${fmt(rNetReal)}</td>
     </tr>`;
   }).join('');
   document.getElementById('ttx-camp-table').style.display = rows.length ? '' : 'none';
@@ -19897,7 +19897,7 @@ function renderTtxCrossView(){
       </td>
       <td style="text-align:right;padding:10px 10px;font-family:'DM Mono',monospace;color:var(--muted)">${p.totalCost != null ? fmt(p.totalCost) : '—'}</td>
       <td style="text-align:right;padding:10px 10px;font-family:'DM Mono',monospace;color:var(--muted)">${fmt(p.attributedSpend)}</td>
-      <td style="text-align:right;padding:10px 10px;font-family:'DM Mono',monospace;font-weight:700;color:${pNetReal>=0?'#22c55e':'#dc2626'}">${fmt(pNetReal)}</td>
+      <td style="text-align:right;padding:10px 10px;font-family:'DM Mono',monospace;font-weight:700;color:${pNetReal>=0?'#111111':'#dc2626'}">${fmt(pNetReal)}</td>
       <td style="text-align:right;padding:10px 10px;font-family:'DM Mono',monospace;color:var(--muted)">${p.marginPct != null ? p.marginPct.toFixed(0)+'%' : '—'}</td>
     </tr>`;
   }).join('') + unattributedRow;
@@ -20185,7 +20185,7 @@ function renderTikTokKpisAndTable(){
   const tbody = document.getElementById('tt-tbody');
   let rowsHtml = rows.map(r => {
     const statusBadge = r.status === 'STATUS_ENABLE'
-      ? '<span style="display:inline-block;background:rgba(34,197,94,.15);color:#22c55e;padding:2px 8px;border-radius:10px;font-size:9px;font-family:\'DM Mono\',monospace">ACTIVA</span>'
+      ? '<span style="display:inline-block;background:rgba(34,197,94,.15);color:#111111;padding:2px 8px;border-radius:10px;font-size:9px;font-family:\'DM Mono\',monospace">ACTIVA</span>'
       : '<span style="display:inline-block;background:rgba(156,163,175,.15);color:#9ca3af;padding:2px 8px;border-radius:10px;font-size:9px;font-family:\'DM Mono\',monospace">' + escapeHtmlSafe(String(r.status||'?').replace('STATUS_','')) + '</span>';
     return `
       <tr style="border-bottom:1px solid var(--border)">
@@ -20197,7 +20197,7 @@ function renderTikTokKpisAndTable(){
         <td style="text-align:right;padding:10px 10px;color:var(--accent);font-family:'DM Mono',monospace;font-weight:700">${r.realPurchases ? `<a href="#" onclick="event.preventDefault(); ttShowOrders('${r.id}', '${escapeHtmlSafe(r.name||'').replace(/'/g, "\\'")}');" style="color:var(--accent);text-decoration:underline;cursor:pointer">${r.realPurchases}</a>` : '—'}</td>
         <td style="text-align:right;padding:10px 10px;color:var(--text);font-family:'DM Mono',monospace">${r.realUnits || '—'}</td>
         <td style="text-align:right;padding:10px 10px;color:var(--accent);font-family:'DM Mono',monospace;font-weight:600">${r.cpaReal ? fmtMoney(r.cpaReal) : '—'}</td>
-        <td style="text-align:right;padding:10px 10px;color:${r.roasReal>=1?'#22c55e':'var(--muted2)'};font-family:'DM Mono',monospace;font-weight:600">${r.roasReal ? r.roasReal.toFixed(2)+'x' : '—'}</td>
+        <td style="text-align:right;padding:10px 10px;color:${r.roasReal>=1?'#111111':'var(--muted2)'};font-family:'DM Mono',monospace;font-weight:600">${r.roasReal ? r.roasReal.toFixed(2)+'x' : '—'}</td>
         <td style="text-align:right;padding:10px 10px;color:var(--muted2);font-family:'DM Mono',monospace">${r.ctr ? r.ctr.toFixed(2)+'%' : '—'}</td>
         <td style="text-align:right;padding:10px 10px;color:var(--muted2);font-family:'DM Mono',monospace">${r.cpc ? fmtMoney(r.cpc) : '—'}</td>
       </tr>`;
@@ -20354,12 +20354,12 @@ function cvTtRender() {
   tbody.innerHTML = rows.map(r => {
     const isActive = cvTtIsActive(r.status);
     const badge = isActive
-      ? '<span style="display:inline-block;background:rgba(34,197,94,.15);color:#22c55e;padding:3px 10px;border-radius:12px;font-size:10px;font-weight:700">ACTIVA</span>'
+      ? '<span style="display:inline-block;background:rgba(34,197,94,.15);color:#111111;padding:3px 10px;border-radius:12px;font-size:10px;font-weight:700">ACTIVA</span>'
       : '<span style="display:inline-block;background:rgba(156,163,175,.15);color:#9ca3af;padding:3px 10px;border-radius:12px;font-size:10px;font-weight:700">' + escapeHtml(String(r.status||'?').replace('STATUS_','')) + '</span>';
     const nameEscaped = JSON.stringify(String(r.name||'').slice(0,60)).replace(/"/g,'&quot;');
     const btnMain = isActive
       ? `<button onclick="cvTtAction('${escapeHtml(r.id)}', 'DISABLE', ${nameEscaped})" style="background:#eab308;color:#000;border:none;border-radius:6px;padding:6px 12px;font-size:11px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">⏸ Pausar</button>`
-      : `<button onclick="cvTtAction('${escapeHtml(r.id)}', 'ENABLE', ${nameEscaped})" style="background:#22c55e;color:#000;border:none;border-radius:6px;padding:6px 12px;font-size:11px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">▶ Activar</button>`;
+      : `<button onclick="cvTtAction('${escapeHtml(r.id)}', 'ENABLE', ${nameEscaped})" style="background:#111111;color:#000;border:none;border-radius:6px;padding:6px 12px;font-size:11px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">▶ Activar</button>`;
     const btnDup = `<button onclick="cvTtDuplicate('${escapeHtml(r.id)}', ${nameEscaped})" style="background:transparent;border:1.5px solid var(--accent);color:var(--accent);border-radius:6px;padding:5px 10px;font-size:11px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer" title="Duplicar campaña (queda pausada)">📋</button>`;
     const btnInspect = `<button onclick="cvTtInspect('${escapeHtml(r.id)}', ${nameEscaped})" style="background:transparent;border:1.5px solid var(--muted2);color:var(--muted2);border-radius:6px;padding:5px 10px;font-size:11px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer" title="Inspeccionar estructura (adgroups + ads + targeting)">🔍</button>`;
     const btn = `<div style="display:inline-flex;gap:6px;align-items:center">${btnMain}${btnDup}${btnInspect}</div>`;
@@ -20376,7 +20376,7 @@ function cvTtRender() {
                  : (r.cpa != null && isFinite(r.cpa) && r.cpa > 0) ? r.cpa : null;
     const cpaOrigin = (r.cpaReal != null && r.cpaReal > 0) ? 'real' : (r.cpa != null && r.cpa > 0) ? 'tt' : null;
     const cpaLabel = cpaVal == null ? '—' : fmtMoney(cpaVal) +
-      (cpaOrigin === 'real' ? ' <span style="color:#22c55e;font-size:9px" title="CPA real: spend/compras Shopify">✓</span>'
+      (cpaOrigin === 'real' ? ' <span style="color:#111111;font-size:9px" title="CPA real: spend/compras Shopify">✓</span>'
        : ' <span style="color:var(--muted2);font-size:9px" title="CPA reportado por TikTok">tt</span>');
     // Compras Shopify si hay
     const buys = r.realPurchases || 0;
@@ -20507,12 +20507,12 @@ function cvMtRender() {
   tbody.innerHTML = rows.map(r => {
     const isActive = cvMtIsActive(r);
     const badge = isActive
-      ? '<span style="display:inline-block;background:rgba(34,197,94,.15);color:#22c55e;padding:3px 10px;border-radius:12px;font-size:10px;font-weight:700">ACTIVA</span>'
+      ? '<span style="display:inline-block;background:rgba(34,197,94,.15);color:#111111;padding:3px 10px;border-radius:12px;font-size:10px;font-weight:700">ACTIVA</span>'
       : '<span style="display:inline-block;background:rgba(156,163,175,.15);color:#9ca3af;padding:3px 10px;border-radius:12px;font-size:10px;font-weight:700">' + escapeHtml(String(r.status||'?')) + '</span>';
     const nameEsc = JSON.stringify(String(r.name||'').slice(0,60)).replace(/"/g,'&quot;');
     const btnMain = isActive
       ? `<button onclick="cvMtAction('${escapeHtml(r.id)}', 'PAUSED', ${nameEsc})" style="background:#eab308;color:#000;border:none;border-radius:6px;padding:6px 12px;font-size:11px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">⏸ Pausar</button>`
-      : `<button onclick="cvMtAction('${escapeHtml(r.id)}', 'ACTIVE', ${nameEsc})" style="background:#22c55e;color:#000;border:none;border-radius:6px;padding:6px 12px;font-size:11px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">▶ Activar</button>`;
+      : `<button onclick="cvMtAction('${escapeHtml(r.id)}', 'ACTIVE', ${nameEsc})" style="background:#111111;color:#000;border:none;border-radius:6px;padding:6px 12px;font-size:11px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">▶ Activar</button>`;
     const budgetVal = (r.dailyBudget != null) ? r.dailyBudget : r.lifetimeBudget;
     const modeTag = r.dailyBudget == null && r.lifetimeBudget != null ? ' <span style="color:var(--muted2);font-size:9px">total</span>' : '';
     const budgetLabel = budgetVal != null ? fmtMoney(budgetVal) + modeTag : '<span style="color:var(--muted2)">∞</span>';
@@ -20530,7 +20530,7 @@ function cvMtRender() {
       ? ` <span style="color:var(--muted2);font-size:9px">(${buys}×${buysOrigin === 'real' ? '' : ' m'})</span>`
       : '';
     const cpaBadge = cpaOrigin === 'utm'
-      ? ' <span style="color:#22c55e;font-size:9px" title="CPA real: match perfecto por utm_campaign">✓</span>'
+      ? ' <span style="color:#111111;font-size:9px" title="CPA real: match perfecto por utm_campaign">✓</span>'
       : cpaOrigin === 'product'
       ? ' <span style="color:#3b82f6;font-size:9px" title="CPA real: match por producto (nombre campaña vs line_items Shopify)">p</span>'
       : cpaOrigin === 'meta'
@@ -20803,7 +20803,7 @@ function cvFcPickVideo(videoId, cardEl) {
   }
   // Feedback visual
   if (cardEl) {
-    cardEl.style.borderColor = '#22c55e';
+    cardEl.style.borderColor = '#111111';
     cardEl.style.background = 'rgba(34,197,94,.1)';
     setTimeout(() => {
       cardEl.style.borderColor = 'var(--border)';
@@ -20887,7 +20887,7 @@ function cvFcUpdateSummary() {
     <div style="line-height:1.7">
       ${okName} Nombre · ${okLanding} Landing · ${okBudget} Ppto: ${budgetMsg}<br>
       ${okVideos} ${videos.length} videos · ${okCopys} ${copys.length} copys<br>
-      <b style="color:${totalAds>0?'#22c55e':'var(--muted)'}">📊 Se crearán ${totalAds} ads (${videos.length}×${copys.length}) que arrancan mañana 05:30 AM Chile</b>
+      <b style="color:${totalAds>0?'#111111':'var(--muted)'}">📊 Se crearán ${totalAds} ads (${videos.length}×${copys.length}) que arrancan mañana 05:30 AM Chile</b>
     </div>`;
   document.getElementById('cv-fc-submit-btn').disabled = !canSubmit;
   document.getElementById('cv-fc-submit-btn').style.opacity = canSubmit ? '1' : '.4';
@@ -21578,7 +21578,7 @@ function ttShowAllOrders(){
       : '';
     const date = o.createdAt ? new Date(o.createdAt).toLocaleString('es-CL', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }) : '';
     const attr = o.matchedTo
-      ? `<span style="color:#22c55e;font-size:11px">✅ ${escapeHtmlSafe(o.matchedTo)}</span>`
+      ? `<span style="color:#111111;font-size:11px">✅ ${escapeHtmlSafe(o.matchedTo)}</span>`
       : `<span style="color:#eab308;font-size:11px">🟡 Sin matchear</span>`;
     return `
       <tr style="border-bottom:1px solid var(--border)">
@@ -23062,7 +23062,7 @@ function renderMetaTable(rows, currency){
     else if (status === 'ARCHIVED' || status === 'IN_PROCESS'){ badgeCls = 'meta-badge-archived'; badgeLabel = status === 'IN_PROCESS' ? 'en proceso' : 'archivada'; }
     // Color del ROAS real (priorizar real sobre el de Meta para colorización)
     const roasUsed = r.roasReal != null ? r.roasReal : r.roas;
-    const roasColor = roasUsed && roasUsed > 2 ? '#3F7F5C' : (roasUsed && roasUsed < 1.5 ? '#B14747' : 'var(--accent)');
+    const roasColor = roasUsed && roasUsed > 2 ? '#111111' : (roasUsed && roasUsed < 1.5 ? '#B14747' : 'var(--accent)');
     return `
       <tr class="meta-camp-row" data-cid="${r.id}" onclick="toggleAdsets('${r.id}')">
         <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.name)}"><span class="meta-chevron">▶</span>${esc(r.name)}</td>
@@ -23170,7 +23170,7 @@ function renderAdsetsInline(campaignId, rows){
               <td><b>${fmtMoney(r.spend, currency)}</b></td>
               <td>${fmtNum(r.purchases)}</td>
               <td style="color:var(--accent);font-weight:600">${r.cpa ? fmtMoney(r.cpa, currency) : '—'}</td>
-              <td style="color:${r.roas && r.roas > 2 ? '#3F7F5C' : (r.roas && r.roas < 1.5 ? '#B14747' : 'var(--accent)')};font-weight:600">${r.roas ? r.roas.toFixed(2) + 'x' : '—'}</td>
+              <td style="color:${r.roas && r.roas > 2 ? '#111111' : (r.roas && r.roas < 1.5 ? '#B14747' : 'var(--accent)')};font-weight:600">${r.roas ? r.roas.toFixed(2) + 'x' : '—'}</td>
               <td>${r.ctr ? r.ctr.toFixed(2) + '%' : '—'}</td>
               <td>${r.cpc ? fmtMoney(r.cpc, currency) : '—'}</td>
               <td style="color:${r.frequency > 4 ? '#A6862A' : 'var(--muted)'}">${r.frequency ? r.frequency.toFixed(2) : '—'}</td>
@@ -23290,8 +23290,8 @@ function renderAdsInline(adsetId, campaignId, rows){
           else if (st === 'PAUSED'){ blab = 'pausada'; }
           else if (st.includes('DELETED') || st.includes('DISABLED') || st === 'WITH_ISSUES'){ bcl = 'meta-badge-disabled'; }
           else if (st === 'ARCHIVED' || st === 'IN_PROCESS'){ bcl = 'meta-badge-archived'; }
-          const roasMetaColor = r.roas && r.roas > 2 ? '#3F7F5C' : (r.roas && r.roas < 1.5 ? '#B14747' : 'var(--accent)');
-          const roasRealColor = r.roasReal && r.roasReal > 2 ? '#3F7F5C' : (r.roasReal && r.roasReal < 1.5 ? '#B14747' : 'var(--accent)');
+          const roasMetaColor = r.roas && r.roas > 2 ? '#111111' : (r.roas && r.roas < 1.5 ? '#B14747' : 'var(--accent)');
+          const roasRealColor = r.roasReal && r.roasReal > 2 ? '#111111' : (r.roasReal && r.roasReal < 1.5 ? '#B14747' : 'var(--accent)');
           return `
             <tr>
               <td title="${esc(r.name)}">${esc(r.name)}</td>
@@ -24014,8 +24014,8 @@ function renderCrossByDay(data){
 
   tbody.innerHTML = days.map(d => {
     const c = computeRow(d);
-    const ganClass = c.ganancia != null ? (c.ganancia >= 0 ? 'color:#3F7F5C;font-weight:600' : 'color:#B14747;font-weight:600') : 'color:var(--muted)';
-    const roasColor = c.roas && c.roas > 2 ? '#3F7F5C' : (c.roas && c.roas < 1.5 ? '#B14747' : 'var(--accent)');
+    const ganClass = c.ganancia != null ? (c.ganancia >= 0 ? 'color:#111111;font-weight:600' : 'color:#B14747;font-weight:600') : 'color:var(--muted)';
+    const roasColor = c.roas && c.roas > 2 ? '#111111' : (c.roas && c.roas < 1.5 ? '#B14747' : 'var(--accent)');
     return `
       <tr style="border-bottom:1px solid var(--border)">
         <td style="padding:9px 14px">${fmtFecha(d.date)}</td>
@@ -24050,7 +24050,7 @@ function renderCrossByDay(data){
       <td style="text-align:right;padding:11px 10px">${fmtNum(t.units)}</td>
       <td style="text-align:right;padding:11px 10px;color:var(--accent)">${fmtMoney(t.revenue, cur)}</td>
       <td style="text-align:right;padding:11px 10px;color:var(--accent)">${tComputed.roas ? tComputed.roas.toFixed(2) + 'x' : '—'}</td>
-      <td style="text-align:right;padding:11px 10px;color:${tComputed.ganancia != null && tComputed.ganancia >= 0 ? '#3F7F5C' : '#B14747'}">${tComputed.ganancia != null ? fmtMoney(tComputed.ganancia, cur) : '—'}</td>
+      <td style="text-align:right;padding:11px 10px;color:${tComputed.ganancia != null && tComputed.ganancia >= 0 ? '#111111' : '#B14747'}">${tComputed.ganancia != null ? fmtMoney(tComputed.ganancia, cur) : '—'}</td>
     </tr>
   `;
 }
@@ -24146,7 +24146,7 @@ function renderCrossKpis(data){
     const pct = (diff / prev) * 100;
     const arrow = diff > 0 ? '▲' : (diff < 0 ? '▼' : '');
     const positive = biggerIsBetter ? diff >= 0 : diff <= 0;
-    const color = positive ? '#3F7F5C' : '#B14747';
+    const color = positive ? '#111111' : '#B14747';
     return `<span style="color:${color};font-size:10px;font-weight:600">${arrow} ${Math.abs(pct).toFixed(0)}%</span>`;
   };
 
@@ -24162,7 +24162,7 @@ function renderCrossKpis(data){
   const marginEl = document.getElementById('cross-kpi-net-margin');
   if (gananciaNeta != null) {
     netEl.innerHTML = fmtMoney(gananciaNeta, cur) + (prevAgg && prevAgg.ganancia != null ? ' ' + fmtDelta(gananciaNeta, prevAgg.ganancia, true) : '');
-    netEl.style.color = gananciaNeta >= 0 ? '#3F7F5C' : '#B14747';
+    netEl.style.color = gananciaNeta >= 0 ? '#111111' : '#B14747';
     marginEl.textContent = `margen ${margenNeto.toFixed(0)}% · envío ${fmtMoney(envioTotal, cur)}`;
   } else {
     netEl.textContent = '—';
@@ -24263,7 +24263,7 @@ function computeVeredicto(row, scope){
     }
     // Si es rentable con CPA alto pero BIDCAP, igual avisamos
     if (roas && roas >= 6) {
-      return { tipo:'mantener', label:'✅ Mantener', color:'#3F7F5C', reason:`BIDCAP con CPA alto $${Math.round(cpa).toLocaleString('es-CL')} pero ROAS ${roas.toFixed(2)}x rentable` };
+      return { tipo:'mantener', label:'✅ Mantener', color:'#111111', reason:`BIDCAP con CPA alto $${Math.round(cpa).toLocaleString('es-CL')} pero ROAS ${roas.toFixed(2)}x rentable` };
     }
   }
 
@@ -24282,12 +24282,12 @@ function computeVeredicto(row, scope){
     }
     // BIDCAP rentable: NO se escala, se deja correr mientras gane
     if (isBidcap) {
-      return { tipo:'mantener', label:'✅ Mantener', color:'#3F7F5C', reason:`BIDCAP rentable · gana $${Math.round(ganancia).toLocaleString('es-CL')} (BIDCAP no se escala)` };
+      return { tipo:'mantener', label:'✅ Mantener', color:'#111111', reason:`BIDCAP rentable · gana $${Math.round(ganancia).toLocaleString('es-CL')} (BIDCAP no se escala)` };
     }
     if (ganancia > 30000 && roas && roas >= 8 && spend >= 30000) {
       return { tipo:'escalar', label:'🟢 Escalar', color:'#2C8B5C', reason:`Gana $${Math.round(ganancia).toLocaleString('es-CL')} · ROAS ${roas.toFixed(2)}x — escalable` };
     }
-    return { tipo:'mantener', label:'✅ Mantener', color:'#3F7F5C', reason:`Gana $${Math.round(ganancia).toLocaleString('es-CL')} (post-COD, post-ads)` };
+    return { tipo:'mantener', label:'✅ Mantener', color:'#111111', reason:`Gana $${Math.round(ganancia).toLocaleString('es-CL')} (post-COD, post-ads)` };
   }
 
   // Fallback con ROAS/CPA cuando no hay costo cargado
@@ -24297,13 +24297,13 @@ function computeVeredicto(row, scope){
     }
     // BIDCAP con ROAS bueno: mantener (no escalar nunca)
     if (isBidcap && roas >= 6) {
-      return { tipo:'mantener', label:'✅ Mantener', color:'#3F7F5C', reason:`BIDCAP con ROAS ${roas.toFixed(2)}x · BIDCAP no se escala, se deja correr` };
+      return { tipo:'mantener', label:'✅ Mantener', color:'#111111', reason:`BIDCAP con ROAS ${roas.toFixed(2)}x · BIDCAP no se escala, se deja correr` };
     }
     if (roas >= 8 && spend >= 30000) {
       return { tipo:'escalar', label:'🟢 Escalar', color:'#2C8B5C', reason:`ROAS ${roas.toFixed(2)}x — duplicar presupuesto` };
     }
     if (roas >= 6) {
-      return { tipo:'mantener', label:'✅ Mantener', color:'#3F7F5C', reason:`ROAS ${roas.toFixed(2)}x estable` };
+      return { tipo:'mantener', label:'✅ Mantener', color:'#111111', reason:`ROAS ${roas.toFixed(2)}x estable` };
     }
     if (roas >= 3) {
       return { tipo:'optimizar', label:'⚠️ Optimizar', color:'#D88A2A', reason:`ROAS ${roas.toFixed(2)}x — cambiar creativo o ajustar bid` };
@@ -24323,7 +24323,7 @@ function renderVeredictoBanner(rows, scope){
   rows.forEach(r => { counts[r.veredicto?.tipo || 'esperar']++; });
   const items = [
     { tipo:'escalar',    label:'🟢 Escalar',     color:'#2C8B5C' },
-    { tipo:'mantener',   label:'✅ Mantener',    color:'#3F7F5C' },
+    { tipo:'mantener',   label:'✅ Mantener',    color:'#111111' },
     { tipo:'optimizar',  label:'⚠️ Optimizar',   color:'#D88A2A' },
     { tipo:'apagar',     label:'🔴 Apagar',      color:'#C0392B' },
     { tipo:'esperar',    label:'⏳ Esperar',     color:'#8896A6' },
@@ -24444,7 +24444,7 @@ function renderCrossCampaignsTable(data){
   }
   const cur = data.currency;
   tbody.innerHTML = rows.map((r, idx)=>{
-    const deltaClass = r.deltaPct > 0.30 ? 'color:#B14747;font-weight:600' : (r.deltaPct < -0.10 ? 'color:#3F7F5C' : 'color:var(--muted)');
+    const deltaClass = r.deltaPct > 0.30 ? 'color:#B14747;font-weight:600' : (r.deltaPct < -0.10 ? 'color:#111111' : 'color:var(--muted)');
     const products = r.attributedProducts || {};
     const productKeys = Object.keys(products);
     const hasProducts = productKeys.length > 0;
@@ -24466,7 +24466,7 @@ function renderCrossCampaignsTable(data){
         <td style="text-align:right;padding:9px 10px;color:var(--text)" title="Unidades totales (puede ser mayor por combos)">${fmtNum(r.realUnits || 0)}</td>
         <td style="text-align:right;padding:9px 10px;${deltaClass}">${r.metaPurchases || r.realPurchases ? (r.deltaPct >= 0 ? '+' : '') + (r.deltaPct * 100).toFixed(0) + '%' : '—'}</td>
         <td style="text-align:right;padding:9px 10px;color:var(--accent);font-weight:600">${r.cpaReal ? fmtMoney(r.cpaReal, cur) : '—'}</td>
-        <td style="text-align:right;padding:9px 10px;color:${r.roasReal && r.roasReal > 2 ? '#3F7F5C' : (r.roasReal && r.roasReal < 1.5 ? '#B14747' : 'var(--accent)')};font-weight:600">${r.roasReal ? r.roasReal.toFixed(2) + 'x' : '—'}</td>
+        <td style="text-align:right;padding:9px 10px;color:${r.roasReal && r.roasReal > 2 ? '#111111' : (r.roasReal && r.roasReal < 1.5 ? '#B14747' : 'var(--accent)')};font-weight:600">${r.roasReal ? r.roasReal.toFixed(2) + 'x' : '—'}</td>
         <td style="text-align:right;padding:9px 10px;color:${r.frequency > 4 ? '#A6862A' : 'var(--muted)'}">${r.frequency ? r.frequency.toFixed(2) : '—'}</td>
       </tr>
       <tr class="cross-camp-products-row" id="cross-camp-products-${idx}" style="display:none;background:var(--surface2)">
@@ -24622,7 +24622,7 @@ async function toggleCrossCamp(idx){
                 <td style="text-align:right;padding:7px 12px;font-size:11px"><b>${fmtMoney(a.spend, cur)}</b></td>
                 <td style="text-align:right;padding:7px 12px;font-size:11px">${fmtNum(a.purchases)}</td>
                 <td style="text-align:right;padding:7px 12px;font-size:11px;color:var(--accent)">${a.cpa ? fmtMoney(a.cpa, cur) : '—'}</td>
-                <td style="text-align:right;padding:7px 12px;font-size:11px;color:${a.roas && a.roas > 2 ? '#3F7F5C' : (a.roas && a.roas < 1.5 ? '#B14747' : 'var(--accent)')};font-weight:600">${a.roas ? a.roas.toFixed(2) + 'x' : '—'}</td>
+                <td style="text-align:right;padding:7px 12px;font-size:11px;color:${a.roas && a.roas > 2 ? '#111111' : (a.roas && a.roas < 1.5 ? '#B14747' : 'var(--accent)')};font-weight:600">${a.roas ? a.roas.toFixed(2) + 'x' : '—'}</td>
                 <td style="text-align:right;padding:7px 12px;font-size:11px;color:${a.frequency > 4 ? '#A6862A' : 'var(--muted)'}">${a.frequency ? a.frequency.toFixed(2) : '—'}</td>
               </tr>`;
             }).join('')}
@@ -24679,7 +24679,7 @@ function renderCrossProductsTable(data){
 
     const roasReal = r.attributedSpend > 0 && m.revenue > 0 ? m.revenue / r.attributedSpend : null;
     const ganancia = m.gananciaReal;
-    const gClass = ganancia != null ? (ganancia > 0 ? 'color:#3F7F5C;font-weight:600' : 'color:#B14747;font-weight:600') : 'color:var(--muted)';
+    const gClass = ganancia != null ? (ganancia > 0 ? 'color:#111111;font-weight:600' : 'color:#B14747;font-weight:600') : 'color:var(--muted)';
 
     // Celda de tasas COD por producto (confirmación / entrega %)
     const confVal = ratesOv && ratesOv.confirmacion != null ? ratesOv.confirmacion : '';
@@ -24702,7 +24702,7 @@ function renderCrossProductsTable(data){
         <td style="padding:9px 10px">${ratesCell}</td>
         <td style="text-align:right;padding:9px 10px;color:var(--accent);font-weight:600">${fmtMoney(m.revenue, cur)}</td>
         <td style="text-align:right;padding:9px 10px;color:var(--muted)">${fmtMoney(r.attributedSpend, cur)}</td>
-        <td style="text-align:right;padding:9px 10px;color:${roasReal && roasReal > 2 ? '#3F7F5C' : (roasReal && roasReal < 1.5 ? '#B14747' : 'var(--accent)')};font-weight:600">${roasReal ? roasReal.toFixed(2) + 'x' : '—'}</td>
+        <td style="text-align:right;padding:9px 10px;color:${roasReal && roasReal > 2 ? '#111111' : (roasReal && roasReal < 1.5 ? '#B14747' : 'var(--accent)')};font-weight:600">${roasReal ? roasReal.toFixed(2) + 'x' : '—'}</td>
         <td style="text-align:right;padding:9px 10px;${gClass}">${ganancia != null ? fmtMoney(ganancia, cur) + (m.margenReal != null ? `<div style="font-size:9px;color:var(--muted);font-weight:400">margen ${m.margenReal.toFixed(0)}%</div>` : '') : `<span style="font-size:10px;color:var(--muted);font-style:italic">falta costo</span>`}</td>
       </tr>
     `;
