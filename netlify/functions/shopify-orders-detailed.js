@@ -62,11 +62,19 @@ exports.handler = async function (event) {
   // cambia el barcode del variant despues (ej. swap de variante agotada),
   // el snapshot queda desactualizado. Siempre pisamos con el barcode live
   // del variant para que el matching con Dropi use el codigo actual.
+  //
+  // Fallback anti-huerfano: si el variant especifico no tiene barcode
+  // valido (variante vieja borrada o nunca tuvo barcode), buscamos
+  // cualquier variante del MISMO producto Shopify que si tenga barcode.
+  // El auto-swap de dropi-create-order despues elige la que tenga stock.
+  //
   // Cap 100 variants por request para no reventar rate limit Shopify.
   const variantIds = new Set();
+  const productIds = new Set();
   for (const o of allOrders) {
     for (const it of (o.items || [])) {
       if (it.variant_id) variantIds.add(it.variant_id);
+      if (it.product_id) productIds.add(it.product_id);
     }
     if (variantIds.size >= 100) break;
   }
@@ -85,11 +93,41 @@ exports.handler = async function (event) {
       }
     } catch (_) {}
   }
-  // Pisar SIEMPRE el barcode con el del variant vivo (si tiene uno).
+  // Fallback: barcode por product_id (primera variante hermana con barcode valido).
+  const productBarcodes = {};
+  const productFallbackNeeded = new Set();
+  for (const o of allOrders) {
+    for (const it of (o.items || [])) {
+      const liveBc = it.variant_id ? variantBarcodes[it.variant_id] : '';
+      if (!liveBc && it.product_id) productFallbackNeeded.add(it.product_id);
+    }
+  }
+  for (const pid of productFallbackNeeded) {
+    try {
+      const pResp = await fetch(
+        'https://' + domain + '/admin/api/2024-10/products/' + pid + '.json?fields=id,variants',
+        { headers: shopifyHeaders }
+      );
+      if (pResp.ok) {
+        const pData = await pResp.json();
+        const variants = (pData.product && pData.product.variants) || [];
+        for (const v of variants) {
+          const bc = String(v.barcode || '').trim();
+          if (bc && /^(\d+)(-\d+)?$/.test(bc)) {
+            productBarcodes[pid] = bc;
+            break;
+          }
+        }
+      }
+    } catch (_) {}
+  }
+  // Pisar barcode: primero el del variant vivo, luego el fallback por producto.
   for (const o of allOrders) {
     for (const it of (o.items || [])) {
       if (it.variant_id && variantBarcodes[it.variant_id]) {
         it.barcode = variantBarcodes[it.variant_id];
+      } else if (it.product_id && productBarcodes[it.product_id]) {
+        it.barcode = productBarcodes[it.product_id];
       }
     }
   }
@@ -174,6 +212,7 @@ function compact(o) {
     price: parseFloat(li.price || 0),
     sku: li.sku || '',
     variant_id: li.variant_id || null,
+    product_id: li.product_id || null,
     // 'barcode' de Shopify = product_id de Dropi (validado 25-jul: el user
     // pone el ID Dropi en este campo para cada producto). El endpoint
     // enriquece este campo con lookup a /variants/{id}.json si viene vacio
