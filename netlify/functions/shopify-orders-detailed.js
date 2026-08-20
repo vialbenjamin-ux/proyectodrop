@@ -57,15 +57,16 @@ exports.handler = async function (event) {
     return respond(502, { error: 'Fetch fail: ' + (err.message || 'unknown') });
   }
 
-  // Enriquecer con barcode de cada variant. Shopify NO trae li.barcode
-  // en el line_item por default - hay que hacer lookup por variant_id.
-  // Antes filtraba solo tag "Dropi Sync Error", pero usuarios usan otros tags
-  // ("NO PASO", etc.). Ahora enriquece TODAS las ordenes con items sin barcode.
+  // Enriquecer con barcode ACTUAL de cada variant (Shopify Admin API).
+  // El line_item guarda un snapshot al momento de la compra; si el usuario
+  // cambia el barcode del variant despues (ej. swap de variante agotada),
+  // el snapshot queda desactualizado. Siempre pisamos con el barcode live
+  // del variant para que el matching con Dropi use el codigo actual.
   // Cap 100 variants por request para no reventar rate limit Shopify.
   const variantIds = new Set();
   for (const o of allOrders) {
     for (const it of (o.items || [])) {
-      if (it.variant_id && !it.barcode) variantIds.add(it.variant_id);
+      if (it.variant_id) variantIds.add(it.variant_id);
     }
     if (variantIds.size >= 100) break;
   }
@@ -84,10 +85,10 @@ exports.handler = async function (event) {
       }
     } catch (_) {}
   }
-  // Aplicar barcodes
+  // Pisar SIEMPRE el barcode con el del variant vivo (si tiene uno).
   for (const o of allOrders) {
     for (const it of (o.items || [])) {
-      if (!it.barcode && it.variant_id && variantBarcodes[it.variant_id]) {
+      if (it.variant_id && variantBarcodes[it.variant_id]) {
         it.barcode = variantBarcodes[it.variant_id];
       }
     }
