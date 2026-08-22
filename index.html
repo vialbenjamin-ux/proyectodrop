@@ -16219,6 +16219,28 @@ async function fetchShopifyReport() {
   try {
     var data = await fetchReporteWithRetry('/.netlify/functions/shopify-report' + params, 2);
 
+    // Conversion GTQ -> CLP para el tenant GT. Tasa aproximada 2026: 1 GTQ = 120 CLP.
+    // Muta el data recibido para que todos los revenues queden ya en CLP y el resto
+    // del render (que usa 'es-CL') funcione sin tocar.
+    var _isGT = (typeof getCurrentTenant === 'function' && getCurrentTenant() === 'gt');
+    if (_isGT) {
+      var GTQ_TO_CLP = 120;
+      var _applyRate = function(obj) {
+        if (!obj) return;
+        if (typeof obj.totalRevenue === 'number') obj.totalRevenue = obj.totalRevenue * GTQ_TO_CLP;
+        if (obj.bySource) Object.keys(obj.bySource).forEach(function(k){
+          if (obj.bySource[k] && typeof obj.bySource[k].revenue === 'number') obj.bySource[k].revenue *= GTQ_TO_CLP;
+        });
+        if (Array.isArray(obj.products)) obj.products.forEach(function(p){
+          if (typeof p.revenue === 'number') p.revenue *= GTQ_TO_CLP;
+        });
+      };
+      _applyRate(data);
+      _applyRate(data.previousDay);
+      _applyRate(data.totals);
+      if (Array.isArray(data.days)) data.days.forEach(_applyRate);
+    }
+
     if (data.mode === 'range') {
       ['reporte-by-source-loading','reporte-detail-loading'].forEach(function(id) {
         document.getElementById(id).style.display = 'none';
@@ -19291,7 +19313,7 @@ function switchTenant(t){
   if (btnC) btnC.classList.toggle('active', t === 'chile');
   if (btnG) btnG.classList.toggle('active', t === 'gt');
   const lbl = document.getElementById('tenant-current-label');
-  if (lbl) lbl.textContent = '· ' + (t === 'gt' ? 'datos de Guatemala' : 'datos de Chile');
+  if (lbl) lbl.textContent = '· ' + (t === 'gt' ? 'datos de Guatemala (GTQ → CLP × 120)' : 'datos de Chile');
   // Invalidar cachés que dependen del tenant
   _metaAccountsLoaded = false;
   _tfAccountsLoaded = false;
@@ -19312,7 +19334,7 @@ function refreshTenantUI(){
   if (btnC) btnC.classList.toggle('active', t === 'chile');
   if (btnG) btnG.classList.toggle('active', t === 'gt');
   const lbl = document.getElementById('tenant-current-label');
-  if (lbl) lbl.textContent = '· ' + (t === 'gt' ? 'datos de Guatemala' : 'datos de Chile');
+  if (lbl) lbl.textContent = '· ' + (t === 'gt' ? 'datos de Guatemala (GTQ → CLP × 120)' : 'datos de Chile');
 }
 
 function switchReportTab(tab){

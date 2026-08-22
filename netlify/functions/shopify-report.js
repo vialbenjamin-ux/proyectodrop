@@ -12,14 +12,18 @@ exports.handler = async function (event) {
     };
   }
 
+  // Timezone por tenant: Chile usa Santiago, GT usa Guatemala City (UTC-6).
+  // Sin esto, contamos dias distintos y los totales no coinciden con Shopify admin.
+  const TZ = isGT ? 'America/Guatemala' : 'America/Santiago';
+
   function getSantiagoOffsetHours(date) {
     const utcStr = date.toLocaleString('en-US', { timeZone: 'UTC' });
-    const santiStr = date.toLocaleString('en-US', { timeZone: 'America/Santiago' });
-    return (new Date(utcStr) - new Date(santiStr)) / 3600000;
+    const localStr = date.toLocaleString('en-US', { timeZone: TZ });
+    return (new Date(utcStr) - new Date(localStr)) / 3600000;
   }
 
   function getSantiagoDate(isoString) {
-    return new Date(isoString).toLocaleDateString('en-CA', { timeZone: 'America/Santiago' });
+    return new Date(isoString).toLocaleDateString('en-CA', { timeZone: TZ });
   }
 
   function extractUtm(order) {
