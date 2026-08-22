@@ -16262,8 +16262,11 @@ async function fetchShopifyReport() {
       });
       var prodMap = {};
       (a.products||[]).concat(b.products||[]).forEach(function(p){
-        var key = (p.product||'') + '__' + (p.variant||'');
-        if (!prodMap[key]) prodMap[key] = {product:p.product, variant:p.variant, orders:0, qty:0, revenue:0, bySource:{}};
+        // En modo Total taggeamos cada producto con country ('CL'/'GT').
+        // La key incluye el country asi no se mergean entre paises y el
+        // usuario ve una fila por producto+pais con su bandera.
+        var key = (p.product||'') + '__' + (p.variant||'') + '__' + (p.country||'');
+        if (!prodMap[key]) prodMap[key] = {product:p.product, variant:p.variant, country:p.country||'', orders:0, qty:0, revenue:0, bySource:{}};
         prodMap[key].orders += p.orders || 0;
         prodMap[key].qty += p.qty || 0;
         prodMap[key].revenue += p.revenue || 0;
@@ -16291,6 +16294,17 @@ async function fetchShopifyReport() {
       var dCL = results[0];
       var dGT = results[1];
       _applyRateDeep(dGT, GTQ_TO_CLP);
+      // Taggear productos con country para que el merge no los combine
+      // entre paises y el render pueda mostrar la bandera correspondiente.
+      var _tagCountry = function(root, c) {
+        if (!root) return;
+        if (Array.isArray(root.products)) root.products.forEach(function(p){ p.country = c; });
+        if (root.previousDay) _tagCountry(root.previousDay, c);
+        if (root.totals) _tagCountry(root.totals, c);
+        if (Array.isArray(root.days)) root.days.forEach(function(d){ _tagCountry(d, c); });
+      };
+      _tagCountry(dCL, 'CL');
+      _tagCountry(dGT, 'GT');
       // Range mode: mergear dentro de data.totals + data.days
       if (dCL.mode === 'range' && dGT.mode === 'range') {
         data = { mode: 'range', dateFrom: dCL.dateFrom, dateTo: dCL.dateTo };
@@ -16419,6 +16433,10 @@ async function fetchShopifyReport() {
       document.getElementById('reporte-detail-rows').innerHTML = products.map(function(p, i) {
         var bg = i % 2 ? 'background:var(--surface2)' : '';
         var variantHtml = p.variant ? '<span style="color:var(--muted);font-size:10px;margin-left:6px">' + p.variant + '</span>' : '';
+        // Badge de pais (solo aparece en el panel Total, donde los productos vienen taggeados).
+        var countryBadge = '';
+        if (p.country === 'CL') countryBadge = '<span title="Chile" style="display:inline-block;margin-right:6px;padding:1px 6px;font-size:9px;font-family:\'DM Mono\',monospace;font-weight:700;letter-spacing:.5px;background:#EEF3F7;color:#2A5C8A;border-radius:4px;vertical-align:middle">🇨🇱 CL</span>';
+        else if (p.country === 'GT') countryBadge = '<span title="Guatemala" style="display:inline-block;margin-right:6px;padding:1px 6px;font-size:9px;font-family:\'DM Mono\',monospace;font-weight:700;letter-spacing:.5px;background:#F0E6D2;color:#8A5A2A;border-radius:4px;vertical-align:middle">🇬🇹 GT</span>';
         var colsHtml = activeSources.map(function(s) {
           var val = p.bySource[s] || 0;
           return '<td style="padding:10px 14px;font-size:12px;color:' + (sourceColors[s]||'var(--muted)') + ';text-align:right;font-weight:' + (val > 0 ? '700' : '400') + '">' + (val || '—') + '</td>';
@@ -16427,7 +16445,7 @@ async function fetchShopifyReport() {
         var isAp = !!(window._apMarks && window._apMarks[productKey]);
         var apBtn = '<button onclick="toggleApMark(' + JSON.stringify(productKey).replace(/"/g, '&quot;') + ', this)" title="Marcar como AdsPower" style="margin-left:8px;padding:1px 6px;font-size:9px;font-family:\'DM Mono\',monospace;font-weight:700;letter-spacing:.5px;border:1px solid ' + (isAp ? '#FF9800' : 'var(--border)') + ';background:' + (isAp ? '#FF9800' : 'transparent') + ';color:' + (isAp ? '#fff' : 'var(--muted)') + ';border-radius:4px;cursor:pointer;vertical-align:middle">AP</button>';
         return '<tr style="border-bottom:1px solid var(--border);' + bg + '">' +
-          '<td style="padding:10px 20px;font-size:12px;color:var(--text);font-weight:500">' + p.product + variantHtml + apBtn + '</td>' +
+          '<td style="padding:10px 20px;font-size:12px;color:var(--text);font-weight:500">' + countryBadge + p.product + variantHtml + apBtn + '</td>' +
           '<td style="padding:10px 20px;font-size:12px;color:var(--muted);text-align:right">' + p.orders + '</td>' +
           '<td style="padding:10px 16px;font-size:12px;color:var(--accent);text-align:right;font-weight:700">' + p.qty + '</td>' +
           '<td style="padding:10px 16px;font-size:12px;color:var(--text);text-align:right">$' + Math.round(p.revenue).toLocaleString('es-CL') + '</td>' +
