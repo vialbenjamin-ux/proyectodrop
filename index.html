@@ -2149,6 +2149,7 @@
         <span style="font-size:10px;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;font-family:'DM Mono',monospace">Reporte:</span>
         <button id="tenant-btn-chile" class="tenant-btn active" onclick="switchTenant('chile')">🇨🇱 Chile</button>
         <button id="tenant-btn-gt" class="tenant-btn" onclick="switchTenant('gt')">🇬🇹 Reporte GT</button>
+        <button id="tenant-btn-total" class="tenant-btn" onclick="switchTenant('total')">🌎 Total (CL + GT)</button>
         <span id="tenant-current-label" style="font-size:11px;color:var(--muted2);font-family:'DM Mono',monospace;margin-left:8px"></span>
       </div>
 
@@ -16217,28 +16218,96 @@ async function fetchShopifyReport() {
   }
 
   try {
-    var data = await fetchReporteWithRetry('/.netlify/functions/shopify-report' + params, 2);
+    var GTQ_TO_CLP = 120;
+    var _tenantNow = (typeof getCurrentTenant === 'function' ? getCurrentTenant() : 'chile');
 
-    // Conversion GTQ -> CLP para el tenant GT. Tasa aproximada 2026: 1 GTQ = 120 CLP.
-    // Muta el data recibido para que todos los revenues queden ya en CLP y el resto
-    // del render (que usa 'es-CL') funcione sin tocar.
-    var _isGT = (typeof getCurrentTenant === 'function' && getCurrentTenant() === 'gt');
-    if (_isGT) {
-      var GTQ_TO_CLP = 120;
-      var _applyRate = function(obj) {
-        if (!obj) return;
-        if (typeof obj.totalRevenue === 'number') obj.totalRevenue = obj.totalRevenue * GTQ_TO_CLP;
-        if (obj.bySource) Object.keys(obj.bySource).forEach(function(k){
-          if (obj.bySource[k] && typeof obj.bySource[k].revenue === 'number') obj.bySource[k].revenue *= GTQ_TO_CLP;
-        });
-        if (Array.isArray(obj.products)) obj.products.forEach(function(p){
-          if (typeof p.revenue === 'number') p.revenue *= GTQ_TO_CLP;
-        });
+    var _applyRate = function(obj, rate) {
+      if (!obj) return;
+      if (typeof obj.totalRevenue === 'number') obj.totalRevenue *= rate;
+      if (obj.bySource) Object.keys(obj.bySource).forEach(function(k){
+        if (obj.bySource[k] && typeof obj.bySource[k].revenue === 'number') obj.bySource[k].revenue *= rate;
+      });
+      if (Array.isArray(obj.products)) obj.products.forEach(function(p){
+        if (typeof p.revenue === 'number') p.revenue *= rate;
+      });
+    };
+    var _applyRateDeep = function(root, rate) {
+      _applyRate(root, rate);
+      _applyRate(root && root.previousDay, rate);
+      _applyRate(root && root.totals, rate);
+      if (root && Array.isArray(root.days)) root.days.forEach(function(d){ _applyRate(d, rate); });
+    };
+
+    // Combina 2 respuestas del reporte (misma fecha) sumando totales,
+    // fuentes y productos. Usado para el tenant 'total' (Chile + GT).
+    var _mergeReports = function(a, b) {
+      var merged = {
+        date: a.date || b.date,
+        offsetHours: a.offsetHours,
+        totalOrders: (a.totalOrders||0) + (b.totalOrders||0),
+        totalProducts: (a.totalProducts||0) + (b.totalProducts||0),
+        totalRevenue: (a.totalRevenue||0) + (b.totalRevenue||0),
+        bySource: {},
+        products: [],
       };
-      _applyRate(data);
-      _applyRate(data.previousDay);
-      _applyRate(data.totals);
-      if (Array.isArray(data.days)) data.days.forEach(_applyRate);
+      var keys = new Set(Object.keys(a.bySource||{}).concat(Object.keys(b.bySource||{})));
+      keys.forEach(function(k){
+        var xa = (a.bySource||{})[k] || {orders:0,products:0,revenue:0};
+        var xb = (b.bySource||{})[k] || {orders:0,products:0,revenue:0};
+        merged.bySource[k] = {
+          orders: (xa.orders||0)+(xb.orders||0),
+          products: (xa.products||0)+(xb.products||0),
+          revenue: (xa.revenue||0)+(xb.revenue||0),
+        };
+      });
+      var prodMap = {};
+      (a.products||[]).concat(b.products||[]).forEach(function(p){
+        var key = (p.product||'') + '__' + (p.variant||'');
+        if (!prodMap[key]) prodMap[key] = {product:p.product, variant:p.variant, orders:0, qty:0, revenue:0, bySource:{}};
+        prodMap[key].orders += p.orders || 0;
+        prodMap[key].qty += p.qty || 0;
+        prodMap[key].revenue += p.revenue || 0;
+        Object.keys(p.bySource||{}).forEach(function(sk){
+          prodMap[key].bySource[sk] = (prodMap[key].bySource[sk]||0) + (p.bySource[sk]||0);
+        });
+      });
+      merged.products = Object.values(prodMap).sort(function(x,y){ return (y.revenue||0)-(x.revenue||0); });
+      if (a.previousDay && b.previousDay) {
+        merged.previousDay = _mergeReports(a.previousDay, b.previousDay);
+      } else if (a.previousDay || b.previousDay) {
+        merged.previousDay = a.previousDay || b.previousDay;
+      }
+      return merged;
+    };
+
+    var data;
+    if (_tenantNow === 'total') {
+      // Fetch en paralelo CL + GT, convertir GT a CLP, combinar.
+      var baseUrl = '/.netlify/functions/shopify-report' + params.replace(/&tenant=[^&]*/i, '');
+      var results = await Promise.all([
+        fetchReporteWithRetry(baseUrl, 2),
+        fetchReporteWithRetry(baseUrl + (baseUrl.indexOf('?')>=0?'&':'?') + 'tenant=gt', 2),
+      ]);
+      var dCL = results[0];
+      var dGT = results[1];
+      _applyRateDeep(dGT, GTQ_TO_CLP);
+      // Range mode: mergear dentro de data.totals + data.days
+      if (dCL.mode === 'range' && dGT.mode === 'range') {
+        data = { mode: 'range', dateFrom: dCL.dateFrom, dateTo: dCL.dateTo };
+        data.totals = _mergeReports(dCL.totals || dCL, dGT.totals || dGT);
+        var byDate = {};
+        (dCL.days||[]).forEach(function(d){ byDate[d.date] = d; });
+        (dGT.days||[]).forEach(function(d){
+          byDate[d.date] = byDate[d.date] ? _mergeReports(byDate[d.date], d) : d;
+        });
+        data.days = Object.values(byDate).sort(function(a,b){ return a.date.localeCompare(b.date); });
+      } else {
+        data = _mergeReports(dCL, dGT);
+      }
+    } else {
+      data = await fetchReporteWithRetry('/.netlify/functions/shopify-report' + params, 2);
+      // GT: convertir revenues a CLP (tasa fija).
+      if (_tenantNow === 'gt') _applyRateDeep(data, GTQ_TO_CLP);
     }
 
     if (data.mode === 'range') {
@@ -19305,15 +19374,17 @@ function pipelineRenderDashboard(){
 // ── REPORTES — sub-tabs Shopify / Meta Ads ────────────────────────────────────
 
 function switchTenant(t){
-  if (t !== 'chile' && t !== 'gt') return;
+  if (t !== 'chile' && t !== 'gt' && t !== 'total') return;
   setCurrentTenant(t);
   // Toggle visual de los botones
   const btnC = document.getElementById('tenant-btn-chile');
   const btnG = document.getElementById('tenant-btn-gt');
+  const btnT = document.getElementById('tenant-btn-total');
   if (btnC) btnC.classList.toggle('active', t === 'chile');
   if (btnG) btnG.classList.toggle('active', t === 'gt');
+  if (btnT) btnT.classList.toggle('active', t === 'total');
   const lbl = document.getElementById('tenant-current-label');
-  if (lbl) lbl.textContent = '· ' + (t === 'gt' ? 'datos de Guatemala (GTQ → CLP × 120)' : 'datos de Chile');
+  if (lbl) lbl.textContent = '· ' + tenantLabel(t);
   // Invalidar cachés que dependen del tenant
   _metaAccountsLoaded = false;
   _tfAccountsLoaded = false;
@@ -19326,15 +19397,23 @@ function switchTenant(t){
   if (activeTab === 'topflop') initTopFlopTab();
 }
 
+function tenantLabel(t) {
+  if (t === 'gt') return 'Guatemala · CLP (× 120) · sin UTM en ads → todo cae en "directo"';
+  if (t === 'total') return 'Chile + Guatemala consolidado · todo en CLP';
+  return 'datos de Chile';
+}
+
 // Refresca el label del tenant al inicializar reportes (lee de localStorage)
 function refreshTenantUI(){
   const t = getCurrentTenant();
   const btnC = document.getElementById('tenant-btn-chile');
   const btnG = document.getElementById('tenant-btn-gt');
+  const btnT = document.getElementById('tenant-btn-total');
   if (btnC) btnC.classList.toggle('active', t === 'chile');
   if (btnG) btnG.classList.toggle('active', t === 'gt');
+  if (btnT) btnT.classList.toggle('active', t === 'total');
   const lbl = document.getElementById('tenant-current-label');
-  if (lbl) lbl.textContent = '· ' + (t === 'gt' ? 'datos de Guatemala (GTQ → CLP × 120)' : 'datos de Chile');
+  if (lbl) lbl.textContent = '· ' + tenantLabel(t);
 }
 
 function switchReportTab(tab){
