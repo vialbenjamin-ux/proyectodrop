@@ -109,12 +109,24 @@ exports.handler = async (event) => {
     };
     const fmt = n => '$' + Math.round(n).toLocaleString('es-CL');
     const fmtPerUnit = n => 'SÓLO ' + fmt(n) + ' POR UNIDAD!';
-    const dsV = d => Math.round((1 - (1 - d / 100) / nx1) * 10000);
     const unitLabel = qty => qty === 1 ? 'unidad' : 'unidades';
+
+    // ds como AMOUNT (monto fijo en pesos) en vez de percentage, para
+    // poder terminar los precios en 990 exacto. Formula:
+    //   priceReleasit = price * qty - amount
+    // Con amount = price*qty - targetPrice donde targetPrice = round990.
+    // Para el tramo 1 con nx1=1: targetPrice = price -> amount = 0.
+    // Para tramo 1 con nx1>1 (2x1, 3x1): el 'descuento base' que aplica
+    // Releasit = 0 (el 2x1 se refleja en las unidades reales, no en el precio).
 
     const p1 = price;
     const p2 = round990(price * 2 * (1 - pack2Disc / 100));
     const p3 = round990(price * 3 * (1 - pack3Disc / 100));
+
+    // Descuento en pesos para llegar exacto al precio terminado en 990.
+    const discAmount = (qty, targetPrice) => Math.max(0, Math.round(price * qty - targetPrice));
+    const dsAmount2 = discAmount(2, p2);
+    const dsAmount3 = discAmount(3, p3);
 
     // qty real que ve el cliente (con nx1 aplicado). Unidades reales.
     const uds1 = 1 * nx1;
@@ -141,19 +153,19 @@ exports.handler = async (event) => {
     const ofertas = [
       {
         pos: 1, title: '¡Llevo ' + uds1 + ' ' + unitLabel(uds1) + '! (' + OFF_BASE + '% OFF)', qty: 1,
-        ds: { t: 'percentage', v: dsV(0) },
+        ds: { t: 'amount', v: 0 },
         priceTotal: p1, perUnit: Math.round(p1 / uds1),
         plaque: plaque1, plaqueBgC: COLOR_1,
       },
       {
         pos: 2, title: '¡Llevo ' + uds2 + ' ' + unitLabel(uds2) + '! (' + combinedOff(pack2Disc) + '% OFF)', qty: 2,
-        ds: { t: 'percentage', v: dsV(pack2Disc) },
+        ds: { t: 'amount', v: dsAmount2 },
         priceTotal: p2, perUnit: Math.round(p2 / uds2),
         plaque: fmtPerUnit(p2 / uds2), plaqueBgC: COLOR_2,
       },
       {
         pos: 3, title: '¡Llevo ' + uds3 + ' ' + unitLabel(uds3) + '! · PRECIO MAYORISTA', qty: 3,
-        ds: { t: 'percentage', v: dsV(pack3Disc) },
+        ds: { t: 'amount', v: dsAmount3 },
         priceTotal: p3, perUnit: Math.round(p3 / uds3),
         plaque: fmtPerUnit(p3 / uds3), plaqueBgC: COLOR_3,
       },
