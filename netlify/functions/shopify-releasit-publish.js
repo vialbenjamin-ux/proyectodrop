@@ -42,10 +42,14 @@ exports.handler = async (event) => {
   // producto Shopify. Permite armar la oferta con un precio distinto al que
   // esta publicado en Shopify (util cuando queres testear antes de actualizar).
   const priceOverride = body.price_override != null ? Number(body.price_override) : null;
-  // upsell_index: 0 o 1, elige cual candidato usar (default 0 = mas barato).
-  const upsellIndex = Math.max(0, Math.min(1, parseInt(body.upsell_index, 10) || 0));
+  // upsell_index: 0-7, elige cual candidato usar (default 0).
+  const upsellIndex = Math.max(0, Math.min(20, parseInt(body.upsell_index, 10) || 0));
   // upsell_override_price: pisa el price del upsell elegido (CLP entero).
   const upsellOverridePrice = body.upsell_override_price != null ? Number(body.upsell_override_price) : null;
+  // upsell_manual: si viene, pisa TODO el upsell con estos datos (viene del
+  // buscador manual del modal cuando el user quiere elegir uno especifico).
+  //   { product_id, variant_id, name, imgUrl }
+  const upsellManual = body.upsell_manual && body.upsell_manual.product_id ? body.upsell_manual : null;
   const dryRun = body.dry_run !== false; // default true por seguridad
   const tenant = String(body.tenant || 'chile').toLowerCase();
 
@@ -172,12 +176,27 @@ exports.handler = async (event) => {
     ];
 
     // 3. Buscar upsell: primero drafts (regla del PDF), fallback a active.
-    // Devolvemos hasta 2 candidatos con costo y foto para que el UI muestre
-    // opciones y el user elija cual usar + edite el precio de venta.
+    // Devolvemos hasta 5 candidatos con costo y foto.
     let upsell = null;
     let upsellCandidates = [];
     let upsellReason = 'ok';
-    if (!supplier.user_id) {
+
+    // Si vino upsell_manual, saltamos la busqueda automatica y usamos ese.
+    if (upsellManual) {
+      const finalPriceCents = upsellOverridePrice && upsellOverridePrice > 0
+        ? Math.round(upsellOverridePrice * 100)
+        : 0;
+      upsell = {
+        product_id: String(upsellManual.product_id),
+        variant_id: String(upsellManual.variant_id),
+        name: upsellManual.name || '',
+        price: finalPriceCents / 100,
+        price_cents: finalPriceCents,
+        imgUrl: upsellManual.imgUrl || '',
+        isManual: true,
+      };
+      upsellReason = 'manual';
+    } else if (!supplier.user_id) {
       upsellReason = 'no-supplier';
     } else {
       let raw = await buscarUpsellCandidato(API, H, {
@@ -393,12 +412,13 @@ exports.handler = async (event) => {
 // Busca productos DRAFT del mismo supplier user_id con precio <= 40% del base.
 // Retorna sorted por precio ascendente (el mas barato primero como default).
 async function buscarUpsellCandidato(API, H, { supplierUserId, excludeProductId, basePrice, status }) {
-  const maxUpsellPrice = basePrice * 0.4;
+  // 60% del base para tener mas pool de candidatos (antes 40%). Ajuste
+  // basado en que muchos productos base tienen precio bajo (~$27.990) y
+  // el cap 40% dejaba muy pocos candidatos disponibles.
+  const maxUpsellPrice = basePrice * 0.6;
   const PAGE_SIZE = 250;
-  // 1 sola pagina para no reventar el timeout de Netlify (10s). Cada match
-  // adicional cuesta un GET /metafields por candidato.
-  const MAX_PAGES = 1;
-  const MAX_METAFIELD_LOOKUPS = 60; // techo duro para no colgar
+  const MAX_PAGES = 2; // hasta 500 productos escaneados (antes 250)
+  const MAX_METAFIELD_LOOKUPS = 120; // antes 60
   const candidatos = [];
   let lookups = 0;
   const statusFilter = (status && ['draft', 'active', 'archived', 'any'].includes(status)) ? status : 'draft';
@@ -417,6 +437,7 @@ async function buscarUpsellCandidato(API, H, { supplierUserId, excludeProductId,
       const vPrice = parseFloat(v0.price || 0);
       if (!vPrice || vPrice <= 0 || vPrice > maxUpsellPrice) continue;
       if (lookups >= MAX_METAFIELD_LOOKUPS) break;
+      // Ir a por hasta 8 candidatos (antes 5) para poblar top 5 mostrando 5 opciones.
       // Filtro por supplier: leer metafield dropi._dropi_product
       lookups++;
       const mfR = await fetch(API + '/products/' + p.id + '/metafields.json?namespace=dropi', { headers: H });
@@ -438,9 +459,9 @@ async function buscarUpsellCandidato(API, H, { supplierUserId, excludeProductId,
           });
         }
       } catch (_) {}
-      if (candidatos.length >= 5) break; // suficiente para el default
+      if (candidatos.length >= 8) break;
     }
-    if (candidatos.length >= 5 || lookups >= MAX_METAFIELD_LOOKUPS) break;
+    if (candidatos.length >= 8 || lookups >= MAX_METAFIELD_LOOKUPS) break;
     const link = r.headers.get('Link') || '';
     const nx = link.match(/<([^>]+)>;\s*rel="next"/);
     pageUrl = nx ? nx[1] : null;

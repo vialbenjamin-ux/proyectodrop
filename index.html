@@ -9898,43 +9898,64 @@ function mostrarPreviewReleasitModal(data, { disc2, disc3, nx1, priceOverride })
 
   const upsellCandidates = Array.isArray(data.upsellCandidates) ? data.upsellCandidates : [];
   const fmtCLP = n => '$' + Math.round(Number(n) || 0).toLocaleString('es-CL');
+  // Helper para armar una card de upsell (auto o manual). idx negativo indica manual.
+  window._bkUpsellRenderCard = function(c, idx){
+    const checked = idx === 0 ? 'checked' : '';
+    const imgHtml = c.imgUrl
+      ? '<img src="' + esc(c.imgUrl) + '" style="width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:8px;background:#F5F5F5">'
+      : '<div style="width:100%;aspect-ratio:1/1;background:#F5F5F5;border-radius:8px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:10px;font-family:\'DM Mono\',monospace">sin foto</div>';
+    const costoHtml = c.cost != null
+      ? '<div style="font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace">Costo Dropi: <b style="color:#8A5A2A">' + fmtCLP(c.cost) + '</b></div>'
+      : '<div style="font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace">Costo Dropi: —</div>';
+    const manualBadge = c.isManual ? '<span style="background:#EEF3F7;color:#2A5C8A;padding:1px 5px;border-radius:3px;font-size:9px;font-family:\'DM Mono\',monospace">MANUAL</span>' : '';
+    return '<label style="flex:0 0 calc(33.333% - 7px);display:flex;flex-direction:column;gap:8px;padding:10px;border:2px solid var(--border);border-radius:10px;cursor:pointer;background:var(--surface)" data-upsell-card="' + idx + '">' +
+      '<div style="display:flex;align-items:center;gap:6px">' +
+        '<input type="radio" name="bk-upsell-choice" value="' + idx + '" ' + checked + ' onchange="_bkUpsellSelect(' + idx + ')" style="cursor:pointer">' +
+        '<span style="font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace">Opción ' + (idx + 1) + '</span>' +
+        manualBadge +
+      '</div>' +
+      imgHtml +
+      '<div style="font-size:12px;color:#111;font-weight:700;line-height:1.3;min-height:32px">' + esc(c.name) + '</div>' +
+      costoHtml +
+      '<div style="display:flex;flex-direction:column;gap:2px">' +
+        '<label style="font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace">Precio venta CLP:</label>' +
+        '<input type="number" id="bk-upsell-price-' + idx + '" value="' + Math.round(c.price) + '" min="0" step="10" style="background:var(--surface2);border:1.5px solid #D4A542;color:var(--text);padding:6px 8px;border-radius:6px;font-size:12px;font-family:\'DM Mono\',monospace;font-weight:700">' +
+        '<input type="hidden" id="bk-upsell-productid-' + idx + '" value="' + esc(c.product_id) + '">' +
+        '<input type="hidden" id="bk-upsell-variantid-' + idx + '" value="' + esc(c.variant_id) + '">' +
+        '<input type="hidden" id="bk-upsell-name-' + idx + '" value="' + esc(c.name) + '">' +
+        '<input type="hidden" id="bk-upsell-imgurl-' + idx + '" value="' + esc(c.imgUrl || '') + '">' +
+      '</div>' +
+    '</label>';
+  };
+
   const upsellHtml = upsellCandidates.length
     ? (function(){
         const isDraftBadge = upsellCandidates[0].isDraft
           ? '<span style="background:#DFF2E8;color:#166534;padding:2px 6px;border-radius:3px;font-size:9px;font-family:\'DM Mono\',monospace">DRAFT</span>'
           : '<span style="background:#FDF3D0;color:#8A5A2A;padding:2px 6px;border-radius:3px;font-size:9px;font-family:\'DM Mono\',monospace">⚠ ACTIVE (puede romper precio del producto vivo)</span>';
-        const cardsHtml = upsellCandidates.map(function(c, idx){
-          const checked = idx === 0 ? 'checked' : '';
-          const imgHtml = c.imgUrl
-            ? '<img src="' + esc(c.imgUrl) + '" style="width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:8px;background:#F5F5F5">'
-            : '<div style="width:100%;aspect-ratio:1/1;background:#F5F5F5;border-radius:8px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:10px;font-family:\'DM Mono\',monospace">sin foto</div>';
-          const costoHtml = c.cost != null
-            ? '<div style="font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace">Costo Dropi: <b style="color:#8A5A2A">' + fmtCLP(c.cost) + '</b></div>'
-            : '<div style="font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace">Costo Dropi: —</div>';
-          return '<label style="flex:1;display:flex;flex-direction:column;gap:8px;padding:10px;border:2px solid var(--border);border-radius:10px;cursor:pointer;background:var(--surface)" data-upsell-card="' + idx + '">' +
-            '<div style="display:flex;align-items:center;gap:6px">' +
-              '<input type="radio" name="bk-upsell-choice" value="' + idx + '" ' + checked + ' onchange="_bkUpsellSelect(' + idx + ')" style="cursor:pointer">' +
-              '<span style="font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace">Opción ' + (idx + 1) + '</span>' +
-            '</div>' +
-            imgHtml +
-            '<div style="font-size:12px;color:#111;font-weight:700;line-height:1.3;min-height:32px">' + esc(c.name) + '</div>' +
-            costoHtml +
-            '<div style="display:flex;flex-direction:column;gap:2px">' +
-              '<label style="font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace">Precio venta CLP:</label>' +
-              '<input type="number" id="bk-upsell-price-' + idx + '" value="' + Math.round(c.price) + '" min="0" step="10" style="background:var(--surface2);border:1.5px solid #D4A542;color:var(--text);padding:6px 8px;border-radius:6px;font-size:12px;font-family:\'DM Mono\',monospace;font-weight:700">' +
-            '</div>' +
-          '</label>';
-        }).join('');
+        const cardsHtml = upsellCandidates.map((c, idx) => window._bkUpsellRenderCard(c, idx)).join('');
         return '<div style="border:1.5px solid #D4A542;border-radius:10px;padding:12px;background:#FCF2D6;display:flex;flex-direction:column;gap:10px">' +
           '<div style="display:flex;justify-content:space-between;align-items:center">' +
-            '<div style="font-size:11px;font-family:\'DM Mono\',monospace;color:#8A5A2A;font-weight:700">✅ Upsell — mismo proveedor Dropi</div>' +
+            '<div style="font-size:11px;font-family:\'DM Mono\',monospace;color:#8A5A2A;font-weight:700">✅ Upsell — mismo proveedor Dropi (' + upsellCandidates.length + ' opciones)</div>' +
             isDraftBadge +
           '</div>' +
-          '<div style="display:flex;gap:10px">' + cardsHtml + '</div>' +
+          '<div id="bk-upsell-cards-container" style="display:flex;gap:10px;flex-wrap:wrap">' + cardsHtml + '</div>' +
+          '<div style="display:flex;gap:6px;align-items:center;border-top:1px dashed #D4A542;padding-top:10px">' +
+            '<span style="font-size:10px;color:#8A5A2A;font-family:\'DM Mono\',monospace">¿Ninguna te sirve?</span>' +
+            '<input type="text" id="bk-upsell-manual-q" placeholder="Buscar producto por nombre" onkeydown="if(event.key===\'Enter\'){event.preventDefault();_bkUpsellManualBuscar()}" style="flex:1;background:var(--surface);border:1.5px solid var(--border);color:var(--text);padding:6px 10px;border-radius:6px;font-size:12px">' +
+            '<button onclick="_bkUpsellManualBuscar()" style="background:#8A5A2A;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:11px;font-family:\'DM Mono\',monospace;font-weight:700;cursor:pointer">🔍 Buscar</button>' +
+          '</div>' +
+          '<div id="bk-upsell-manual-results" style="display:none;max-height:220px;overflow-y:auto;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:6px"></div>' +
         '</div>';
       })()
-    : '<div style="border:1.5px solid #C0392B;border-radius:10px;padding:10px 12px;background:#FDECEA;font-size:11px;color:#C0392B;font-family:\'DM Mono\',monospace">' +
-        '⚠️ Sin upsell (razón: ' + esc(data.upsellReason || 'n/a') + '). Se publica solo la oferta de cantidad.' +
+    : '<div style="border:1.5px solid #C0392B;border-radius:10px;padding:10px 12px;background:#FDECEA;font-size:11px;color:#C0392B;font-family:\'DM Mono\',monospace;display:flex;flex-direction:column;gap:8px">' +
+        '<div>⚠️ Sin upsell auto (razón: ' + esc(data.upsellReason || 'n/a') + '). Podés buscar uno manualmente o publicar solo la oferta de cantidad.</div>' +
+        '<div style="display:flex;gap:6px;align-items:center">' +
+          '<input type="text" id="bk-upsell-manual-q" placeholder="Buscar producto por nombre" onkeydown="if(event.key===\'Enter\'){event.preventDefault();_bkUpsellManualBuscar()}" style="flex:1;background:var(--surface);border:1.5px solid var(--border);color:var(--text);padding:6px 10px;border-radius:6px;font-size:12px">' +
+          '<button onclick="_bkUpsellManualBuscar()" style="background:#8A5A2A;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:11px;font-family:\'DM Mono\',monospace;font-weight:700;cursor:pointer">🔍 Buscar</button>' +
+        '</div>' +
+        '<div id="bk-upsell-manual-results" style="display:none;max-height:220px;overflow-y:auto;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:6px"></div>' +
+        '<div id="bk-upsell-cards-container" style="display:flex;gap:10px;flex-wrap:wrap"></div>' +
       '</div>';
 
   const supplierHtml = data.supplier && data.supplier.user_id
@@ -9997,20 +10018,110 @@ function _bkUpsellSelect(idx){
   });
 }
 
+// Busca productos manualmente (para cuando el auto no encuentra o el usuario
+// prefiere otro upsell). Llama a shopify-products?tenant=chile.
+async function _bkUpsellManualBuscar(){
+  const q = document.getElementById('bk-upsell-manual-q')?.value?.trim();
+  const box = document.getElementById('bk-upsell-manual-results');
+  if (!box) return;
+  if (!q) { box.style.display = 'none'; return; }
+  box.style.display = 'block';
+  box.innerHTML = '<div style="font-size:10px;color:var(--muted);padding:4px">Buscando…</div>';
+  try {
+    const resp = await fetch('/.netlify/functions/shopify-products?tenant=chile&q=' + encodeURIComponent(q));
+    const data = await resp.json();
+    const products = (data.products || []).slice(0, 12);
+    if (!products.length) {
+      box.innerHTML = '<div style="font-size:10px;color:var(--muted);padding:4px">Sin resultados.</div>';
+      return;
+    }
+    box.innerHTML = products.map(function(p){
+      const img = p.image ? '<img src="' + esc(p.image) + '" style="width:36px;height:36px;object-fit:cover;border-radius:4px">' : '<div style="width:36px;height:36px;background:#F5F5F5;border-radius:4px"></div>';
+      return '<div onclick="_bkUpsellManualPick(' + p.id + ')" style="display:flex;gap:8px;align-items:center;padding:6px;border-radius:6px;cursor:pointer;font-size:11px" onmouseover="this.style.background=\'#F5F5F5\'" onmouseout="this.style.background=\'transparent\'">' +
+        img +
+        '<div style="flex:1;min-width:0"><div style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(p.title || '') + '</div><div style="color:var(--muted);font-family:\'DM Mono\',monospace;font-size:9px">' + esc(p.handle || '') + '</div></div>' +
+      '</div>';
+    }).join('');
+  } catch (err) {
+    box.innerHTML = '<div style="font-size:10px;color:#C0392B;padding:4px">Error: ' + esc(err.message || 'unknown') + '</div>';
+  }
+}
+
+// Al hacer click en un producto del buscador manual, hace fetch completo
+// (price, image, sale_price del metafield dropi) y lo agrega como nueva
+// card al modal.
+async function _bkUpsellManualPick(productId){
+  const box = document.getElementById('bk-upsell-manual-results');
+  const container = document.getElementById('bk-upsell-cards-container');
+  if (!container) return;
+  if (box) box.innerHTML = '<div style="font-size:10px;color:var(--muted);padding:4px">Cargando…</div>';
+  try {
+    const [pr, mr] = await Promise.all([
+      fetch('/.netlify/functions/shopify-products?tenant=chile&id=' + productId).then(r => r.json()),
+      fetch('/.netlify/functions/shopify-product-metafields?tenant=chile&product_id=' + productId).then(r => r.json()).catch(() => ({})),
+    ]);
+    const product = pr.product;
+    if (!product) throw new Error('Producto no encontrado');
+    const v0 = (product.variants || [])[0] || {};
+    let cost = null;
+    try {
+      const dropiMF = (mr.allMetafields || []).find(m => m.namespace === 'dropi' && m.key === '_dropi_product');
+      if (dropiMF && dropiMF.valuePreview) {
+        const d = JSON.parse(dropiMF.valuePreview);
+        if (d && d.sale_price != null) cost = Number(d.sale_price);
+      }
+    } catch (_) {}
+    const c = {
+      product_id: String(product.id),
+      variant_id: String(v0.id),
+      name: product.title,
+      price: parseFloat(v0.price || 0),
+      cost: cost,
+      imgUrl: (product.image && product.image.src) || null,
+      isManual: true,
+    };
+    const existingCards = container.querySelectorAll('[data-upsell-card]').length;
+    const newIdx = existingCards; // siguiente índice
+    container.insertAdjacentHTML('beforeend', window._bkUpsellRenderCard(c, newIdx));
+    // Marcar radio nuevo como checked
+    const newRadio = container.querySelector('input[name="bk-upsell-choice"][value="' + newIdx + '"]');
+    if (newRadio) { newRadio.checked = true; _bkUpsellSelect(newIdx); }
+    if (box) { box.style.display = 'none'; box.innerHTML = ''; }
+    const qInput = document.getElementById('bk-upsell-manual-q');
+    if (qInput) qInput.value = '';
+  } catch (err) {
+    if (box) box.innerHTML = '<div style="font-size:10px;color:#C0392B;padding:4px">Error: ' + esc(err.message || 'unknown') + '</div>';
+  }
+}
+
 // Lee la elección de upsell (radio + input de precio) desde el modal y
 // llama a confirmarPublicarReleasit con esos valores.
 function _bkPublicarConfirmClick(disc2, disc3, nx1, priceOverride, btn){
   const radio = document.querySelector('input[name="bk-upsell-choice"]:checked');
   const upsellIdx = radio ? parseInt(radio.value, 10) : 0;
   let upsellPrice = null;
+  let upsellManual = null;
   if (radio) {
     const priceEl = document.getElementById('bk-upsell-price-' + upsellIdx);
     if (priceEl && priceEl.value) upsellPrice = parseFloat(priceEl.value);
+    // Datos hidden — si vienen de un pick manual, van al backend override total.
+    const pidEl = document.getElementById('bk-upsell-productid-' + upsellIdx);
+    const vidEl = document.getElementById('bk-upsell-variantid-' + upsellIdx);
+    const nmEl  = document.getElementById('bk-upsell-name-' + upsellIdx);
+    const imgEl = document.getElementById('bk-upsell-imgurl-' + upsellIdx);
+    if (pidEl && vidEl && nmEl) {
+      upsellManual = {
+        product_id: pidEl.value,
+        variant_id: vidEl.value,
+        name: nmEl.value,
+        imgUrl: imgEl ? imgEl.value : '',
+      };
+    }
   }
-  confirmarPublicarReleasit(disc2, disc3, nx1, priceOverride, upsellIdx, upsellPrice, btn);
+  confirmarPublicarReleasit(disc2, disc3, nx1, priceOverride, upsellIdx, upsellPrice, upsellManual, btn);
 }
 
-async function confirmarPublicarReleasit(disc2, disc3, nx1, priceOverride, upsellIdx, upsellPrice, btn){
+async function confirmarPublicarReleasit(disc2, disc3, nx1, priceOverride, upsellIdx, upsellPrice, upsellManual, btn){
   if (!_preciosSelectedProduct || !_preciosSelectedProduct.id) return;
   const status = document.getElementById('bk-releasit-publish-status');
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Publicando…'; btn.style.opacity = '0.6'; }
@@ -10027,6 +10138,7 @@ async function confirmarPublicarReleasit(disc2, disc3, nx1, priceOverride, upsel
         price_override: priceOverride || null,
         upsell_index: upsellIdx || 0,
         upsell_override_price: upsellPrice || null,
+        upsell_manual: upsellManual || null,
         dry_run: false,
         tenant: 'chile',
       }),
