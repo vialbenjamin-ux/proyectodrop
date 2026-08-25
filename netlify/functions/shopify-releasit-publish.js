@@ -115,22 +115,30 @@ exports.handler = async (event) => {
     const fmtPerUnit = n => 'SÓLO ' + fmt(n) + ' POR UNIDAD!';
     const unitLabel = qty => qty === 1 ? 'unidad' : 'unidades';
 
-    // ds como AMOUNT (monto fijo en pesos) en vez de percentage, para
-    // poder terminar los precios en 990 exacto. Formula:
-    //   priceReleasit = price * qty - amount
-    // Con amount = price*qty - targetPrice donde targetPrice = round990.
-    // Para el tramo 1 con nx1=1: targetPrice = price -> amount = 0.
-    // Para tramo 1 con nx1>1 (2x1, 3x1): el 'descuento base' que aplica
-    // Releasit = 0 (el 2x1 se refleja en las unidades reales, no en el precio).
+    // Releasit SOLO soporta ds.t='percentage' o 'none' (confirmado leyendo
+    // los items manuales de la tienda). El intento con 'amount' fallo:
+    // Releasit lo ignoro y aplico descuento 0. Volvemos a 'percentage'.
+    //
+    // Formula del % que Releasit necesita para llegar al precio target,
+    // con nx1 aplicado:
+    //   dsV(qty, target) = round((1 - target / (price * qty)) * 10000)
+    // El precio final que muestra Releasit sera:
+    //   price * qty * (1 - dsV/10000)
+    // No siempre termina en .990 exacto porque ds.v es entero, pero
+    // usamos round990 como target y el resultado queda muy cerca.
 
     const p1 = price;
     const p2 = round990(price * 2 * (1 - pack2Disc / 100));
     const p3 = round990(price * 3 * (1 - pack3Disc / 100));
 
-    // Descuento en pesos para llegar exacto al precio terminado en 990.
-    const discAmount = (qty, targetPrice) => Math.max(0, Math.round(price * qty - targetPrice));
-    const dsAmount2 = discAmount(2, p2);
-    const dsAmount3 = discAmount(3, p3);
+    // Calcula ds.v (formato Releasit: pct * 100) para llegar cerca del target.
+    const dsVForTarget = (qty, target) => {
+      if (!target || !price || qty <= 0) return 0;
+      const raw = (1 - target / (price * qty)) * 10000;
+      return Math.max(0, Math.round(raw));
+    };
+    const dsV2 = dsVForTarget(2, p2);
+    const dsV3 = dsVForTarget(3, p3);
 
     // qty real que ve el cliente (con nx1 aplicado). Unidades reales.
     const uds1 = 1 * nx1;
@@ -154,24 +162,31 @@ exports.handler = async (event) => {
     const OFF_BASE = 35;
     const combinedOff = pack => Math.round((1 - (1 - OFF_BASE / 100) * (1 - pack / 100)) * 100);
 
+    // Recalculamos el precio REAL que Releasit va a mostrar (con ds.v entero)
+    // y basamos el plaque en ESO, no en el target. Asi el "SÓLO $X POR UNIDAD"
+    // coincide con el precio total que se ve en la landing.
+    const realPriceReleasit = (qty, dsV) => Math.round(price * qty * (1 - dsV / 10000));
+    const p2Real = realPriceReleasit(2, dsV2);
+    const p3Real = realPriceReleasit(3, dsV3);
+
     const ofertas = [
       {
         pos: 1, title: '¡Llevo ' + uds1 + ' ' + unitLabel(uds1) + '! (' + OFF_BASE + '% OFF)', qty: 1,
-        ds: { t: 'amount', v: 0 },
+        ds: { t: 'percentage', v: 0 },
         priceTotal: p1, perUnit: Math.round(p1 / uds1),
         plaque: plaque1, plaqueBgC: COLOR_1,
       },
       {
         pos: 2, title: '¡Llevo ' + uds2 + ' ' + unitLabel(uds2) + '! (' + combinedOff(pack2Disc) + '% OFF)', qty: 2,
-        ds: { t: 'amount', v: dsAmount2 },
-        priceTotal: p2, perUnit: Math.round(p2 / uds2),
-        plaque: fmtPerUnit(p2 / uds2), plaqueBgC: COLOR_2,
+        ds: { t: 'percentage', v: dsV2 },
+        priceTotal: p2Real, perUnit: Math.round(p2Real / uds2),
+        plaque: fmtPerUnit(p2Real / uds2), plaqueBgC: COLOR_2,
       },
       {
         pos: 3, title: '¡Llevo ' + uds3 + ' ' + unitLabel(uds3) + '! · PRECIO MAYORISTA', qty: 3,
-        ds: { t: 'amount', v: dsAmount3 },
-        priceTotal: p3, perUnit: Math.round(p3 / uds3),
-        plaque: fmtPerUnit(p3 / uds3), plaqueBgC: COLOR_3,
+        ds: { t: 'percentage', v: dsV3 },
+        priceTotal: p3Real, perUnit: Math.round(p3Real / uds3),
+        plaque: fmtPerUnit(p3Real / uds3), plaqueBgC: COLOR_3,
       },
     ];
 
