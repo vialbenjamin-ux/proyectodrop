@@ -9790,6 +9790,11 @@ function recomputarPreciosReleasit(){
     '<div style="background:var(--surface2);border:1.5px solid #D4A542;border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:8px">' +
       '<div style="font-size:11px;letter-spacing:.5px;text-transform:uppercase;color:#D4A542;font-weight:700;font-family:\'DM Mono\',monospace">🚀 Publicar oferta en Releasit (auto)</div>' +
       '<div style="font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace">Escribe los 2 metafields de Releasit (ofertas de cantidad + upsell del mismo proveedor Dropi). Preview antes de aplicar.</div>' +
+      '<div style="display:flex;gap:6px;align-items:center">' +
+        '<label style="font-size:11px;color:var(--muted);font-family:\'DM Mono\',monospace;flex-shrink:0">Precio a publicar:</label>' +
+        '<input type="number" id="bk-precios-override" value="' + p1 + '" min="0" step="10" style="flex:1;background:var(--surface);border:1.5px solid var(--border);color:var(--text);padding:8px 12px;border-radius:6px;font-size:13px;font-family:\'DM Mono\',monospace;font-weight:700">' +
+        '<span style="font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace">CLP (base para calcular ofertas)</span>' +
+      '</div>' +
       '<button onclick="publicarReleasitPreview()" style="background:#D4A542;color:#fff;border:none;border-radius:8px;padding:11px;font-size:12px;font-family:\'DM Mono\',monospace;cursor:pointer;font-weight:700;letter-spacing:.5px">🚀 Publicar oferta en Releasit</button>' +
       '<div id="bk-releasit-publish-status" style="font-size:11px;color:var(--muted);font-family:\'DM Mono\',monospace;min-height:14px"></div>' +
     '</div>' +
@@ -9842,6 +9847,8 @@ async function publicarReleasitPreview(){
   const disc2 = parseFloat(document.getElementById('bk-precios-disc-2')?.value) || 15;
   const disc3 = parseFloat(document.getElementById('bk-precios-disc-3')?.value) || 20;
   const nx1 = _detectarNx1FromCost();
+  const overrideEl = document.getElementById('bk-precios-override');
+  const priceOverride = overrideEl && overrideEl.value ? parseFloat(overrideEl.value) : null;
   const status = document.getElementById('bk-releasit-publish-status');
   if (status) status.textContent = '⏳ Preview…';
 
@@ -9854,6 +9861,7 @@ async function publicarReleasitPreview(){
         pack2_disc: disc2,
         pack3_disc: disc3,
         nx1: nx1,
+        price_override: priceOverride,
         dry_run: true,
         tenant: 'chile',
       }),
@@ -9861,13 +9869,13 @@ async function publicarReleasitPreview(){
     const data = await resp.json();
     if (!resp.ok) throw new Error(data.error || ('HTTP ' + resp.status));
     if (status) status.textContent = '';
-    mostrarPreviewReleasitModal(data, { disc2, disc3, nx1 });
+    mostrarPreviewReleasitModal(data, { disc2, disc3, nx1, priceOverride });
   } catch (err) {
     if (status) status.textContent = '❌ ' + (err.message || 'error');
   }
 }
 
-function mostrarPreviewReleasitModal(data, { disc2, disc3, nx1 }){
+function mostrarPreviewReleasitModal(data, { disc2, disc3, nx1, priceOverride }){
   // Elimina cualquier modal previo
   const existing = document.getElementById('bk-releasit-modal');
   if (existing) existing.remove();
@@ -9934,14 +9942,14 @@ function mostrarPreviewReleasitModal(data, { disc2, disc3, nx1 }){
 
       '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px">' +
         '<button onclick="document.getElementById(\'bk-releasit-modal\').remove()" style="background:var(--surface2);color:var(--text);border:1.5px solid var(--border);border-radius:8px;padding:10px 16px;font-size:12px;font-family:\'DM Mono\',monospace;cursor:pointer;font-weight:600">Cancelar</button>' +
-        '<button onclick="confirmarPublicarReleasit(' + disc2 + ',' + disc3 + ',' + nx1 + ', this)" style="background:#D4A542;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:12px;font-family:\'DM Mono\',monospace;cursor:pointer;font-weight:700;letter-spacing:.5px">🚀 Confirmar y publicar</button>' +
+        '<button onclick="confirmarPublicarReleasit(' + disc2 + ',' + disc3 + ',' + nx1 + ',' + (priceOverride || 'null') + ', this)" style="background:#D4A542;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:12px;font-family:\'DM Mono\',monospace;cursor:pointer;font-weight:700;letter-spacing:.5px">🚀 Confirmar y publicar</button>' +
       '</div>' +
     '</div>';
 
   document.body.appendChild(modal);
 }
 
-async function confirmarPublicarReleasit(disc2, disc3, nx1, btn){
+async function confirmarPublicarReleasit(disc2, disc3, nx1, priceOverride, btn){
   if (!_preciosSelectedProduct || !_preciosSelectedProduct.id) return;
   const status = document.getElementById('bk-releasit-publish-status');
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Publicando…'; btn.style.opacity = '0.6'; }
@@ -9955,6 +9963,7 @@ async function confirmarPublicarReleasit(disc2, disc3, nx1, btn){
         pack2_disc: disc2,
         pack3_disc: disc3,
         nx1: nx1 || 1,
+        price_override: priceOverride || null,
         dry_run: false,
         tenant: 'chile',
       }),

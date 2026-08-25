@@ -37,9 +37,11 @@ exports.handler = async (event) => {
   const pack2Disc = Number(body.pack2_disc);
   const pack3Disc = Number(body.pack3_disc);
   // nx1 = unidades por 'pack' del producto base (1 normal, 2 si es 2x1, 3 si 3x1).
-  // Afecta ds.v (mas descuento porque ya viene con 2 o 3 unidades por precio) y
-  // el precio-por-unidad del plaque (divide entre nx1 * qty).
   const nx1 = Math.max(1, Math.min(6, parseInt(body.nx1, 10) || 1));
+  // price_override: si viene, se usa como precio base en vez del price del
+  // producto Shopify. Permite armar la oferta con un precio distinto al que
+  // esta publicado en Shopify (util cuando queres testear antes de actualizar).
+  const priceOverride = body.price_override != null ? Number(body.price_override) : null;
   const dryRun = body.dry_run !== false; // default true por seguridad
   const tenant = String(body.tenant || 'chile').toLowerCase();
 
@@ -71,8 +73,10 @@ exports.handler = async (event) => {
     if (!product) return respond(404, { error: 'Producto no encontrado' });
 
     const variant0 = (product.variants || [])[0] || {};
-    const price = parseFloat(variant0.price || 0);
-    if (!price || price <= 0) return respond(400, { error: 'Producto sin precio en variante 0' });
+    const shopifyPrice = parseFloat(variant0.price || 0);
+    // Usar price_override si viene; sino el precio actual del producto Shopify.
+    const price = (priceOverride && priceOverride > 0) ? priceOverride : shopifyPrice;
+    if (!price || price <= 0) return respond(400, { error: 'Producto sin precio en variante y sin price_override' });
 
     // Extraer supplier del metafield dropi._dropi_product
     let supplier = { user_id: null, user_name: null };
@@ -123,15 +127,22 @@ exports.handler = async (event) => {
     //  - Si nx1 > 1 → "SÓLO $X POR UNIDAD!" (dividimos el precio entre nx1)
     const plaque1 = (nx1 === 1) ? 'PRECIO OFERTA HOY!' : fmtPerUnit(p1 / uds1);
 
+    // % OFF combinado: (1 - (1 - offBase) * (1 - pack)) * 100
+    //   offBase = 35% del compare_at_price al price (descuento base del hero)
+    //   pack    = descuento extra al llevar 2 o 3 unidades
+    // Ej: base 35% + pack 15% → 45% OFF (no 50), multiplicativo.
+    const OFF_BASE = 35;
+    const combinedOff = pack => Math.round((1 - (1 - OFF_BASE / 100) * (1 - pack / 100)) * 100);
+
     const ofertas = [
       {
-        pos: 1, title: '¡Llevo ' + uds1 + ' ' + unitLabel(uds1) + '! (35% OFF)', qty: 1,
+        pos: 1, title: '¡Llevo ' + uds1 + ' ' + unitLabel(uds1) + '! (' + OFF_BASE + '% OFF)', qty: 1,
         ds: { t: 'percentage', v: dsV(0) },
         priceTotal: p1, perUnit: Math.round(p1 / uds1),
         plaque: plaque1, plaqueBgC: COLOR_1,
       },
       {
-        pos: 2, title: '¡Llevo ' + uds2 + ' ' + unitLabel(uds2) + '! (' + Math.round(35 + pack2Disc) + '% OFF)', qty: 2,
+        pos: 2, title: '¡Llevo ' + uds2 + ' ' + unitLabel(uds2) + '! (' + combinedOff(pack2Disc) + '% OFF)', qty: 2,
         ds: { t: 'percentage', v: dsV(pack2Disc) },
         priceTotal: p2, perUnit: Math.round(p2 / uds2),
         plaque: fmtPerUnit(p2 / uds2), plaqueBgC: COLOR_2,
@@ -144,24 +155,37 @@ exports.handler = async (event) => {
       },
     ];
 
-    // 3. Buscar upsell: producto draft del mismo user.id, precio <= 40% del base
+    // 3. Buscar upsell: primero drafts (regla del PDF), fallback a active.
     let upsell = null;
     let upsellReason = 'ok';
+    let upsellIsDraft = null;
     if (!supplier.user_id) {
       upsellReason = 'no-supplier';
     } else {
-      const candidatos = await buscarUpsellCandidato(API, H, {
+      // Intento 1: solo drafts (respeta la regla del PDF: no rompe precio de productos vivos).
+      let candidatos = await buscarUpsellCandidato(API, H, {
         supplierUserId: supplier.user_id,
         excludeProductId: productId,
         basePrice: price,
+        status: 'draft',
       });
+      // Intento 2: si no hay drafts, buscar entre active (con warning).
+      if (!candidatos.length) {
+        candidatos = await buscarUpsellCandidato(API, H, {
+          supplierUserId: supplier.user_id,
+          excludeProductId: productId,
+          basePrice: price,
+          status: 'active',
+        });
+        if (candidatos.length) upsellIsDraft = false;
+      } else {
+        upsellIsDraft = true;
+      }
       if (!candidatos.length) {
         upsellReason = 'no-candidates';
       } else {
-        // Primer candidato disponible (ya vienen ordenados por precio ascendente)
         const c = candidatos[0];
         // CLP no usa centavos: price = valor entero CLP directamente.
-        // (En tiendas USD/EUR habria que multiplicar * 100).
         upsell = {
           product_id: String(c.id),
           variant_id: String(c.variantId),
@@ -169,7 +193,9 @@ exports.handler = async (event) => {
           price_cents: Math.round(parseFloat(c.variantPrice)),
           price: parseFloat(c.variantPrice),
           imgUrl: c.image || '',
+          isDraft: upsellIsDraft,
         };
+        if (upsellIsDraft === false) upsellReason = 'ok-active-warning';
       }
     }
 
@@ -200,6 +226,10 @@ exports.handler = async (event) => {
         ds: o.ds,
         plaque: o.plaque,
         plaqueBgC: o.plaqueBgC,
+        // Colores per-offer experimentales: por si Releasit los respeta.
+        // Si no, prevalecen los del grupo (selBC/selBgC abajo).
+        selBC: o.plaqueBgC,
+        selBgC: 'rgba(255,255,255,1)',
         imgUrl: '',
         bestDealBadge: {
           badgeContent: '🔥 Mejor Oferta',
@@ -211,8 +241,10 @@ exports.handler = async (event) => {
           show: i === ofertas.length - 1, // solo ultimo tramo
         },
       })),
-      selBC: 'rgba(0,116,191,1)',
-      selBgC: 'rgba(217,235,246,1)',
+      // Fallback del grupo si Releasit ignora los colores per-offer.
+      // Uso el color del primer tramo (verde) para el border seleccionado.
+      selBC: COLOR_1,
+      selBgC: 'rgba(255,255,255,1)',
       prSize: 14,
       hideImg: false,
       hideVN: false,
@@ -298,17 +330,17 @@ exports.handler = async (event) => {
 
 // Busca productos DRAFT del mismo supplier user_id con precio <= 40% del base.
 // Retorna sorted por precio ascendente (el mas barato primero como default).
-async function buscarUpsellCandidato(API, H, { supplierUserId, excludeProductId, basePrice }) {
+async function buscarUpsellCandidato(API, H, { supplierUserId, excludeProductId, basePrice, status }) {
   const maxUpsellPrice = basePrice * 0.4;
   const PAGE_SIZE = 250;
   // 1 sola pagina para no reventar el timeout de Netlify (10s). Cada match
-  // adicional cuesta un GET /metafields por candidato. Si se necesita mas
-  // profundidad, activar paginacion aca.
+  // adicional cuesta un GET /metafields por candidato.
   const MAX_PAGES = 1;
   const MAX_METAFIELD_LOOKUPS = 60; // techo duro para no colgar
   const candidatos = [];
   let lookups = 0;
-  let pageUrl = API + '/products.json?limit=' + PAGE_SIZE + '&status=draft&fields=id,title,status,variants,image';
+  const statusFilter = (status && ['draft', 'active', 'archived', 'any'].includes(status)) ? status : 'draft';
+  let pageUrl = API + '/products.json?limit=' + PAGE_SIZE + '&status=' + statusFilter + '&fields=id,title,status,variants,image';
   let pages = 0;
 
   while (pageUrl && pages < MAX_PAGES) {
