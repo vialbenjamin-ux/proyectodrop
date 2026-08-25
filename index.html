@@ -9771,10 +9771,19 @@ function recomputarPreciosReleasit(){
     // Sección 1: push automático a Shopify (price, compare, cost, inventory)
     '<div style="background:var(--surface2);border:1.5px solid var(--accent);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:8px">' +
       '<div style="font-size:11px;letter-spacing:.5px;text-transform:uppercase;color:var(--accent);font-weight:700;font-family:\'DM Mono\',monospace">⚡ Auto-actualizar Shopify</div>' +
-      '<div style="display:flex;gap:14px;flex-wrap:wrap;font-size:13px;font-family:\'DM Mono\',monospace">' +
-        '<div><span style="color:var(--muted)">price:</span> <b style="color:var(--accent)">' + fmt(p1) + '</b></div>' +
-        '<div><span style="color:var(--muted)">compare:</span> <b>' + fmt(compareAtPrice) + '</b></div>' +
-        '<div><span style="color:var(--muted)">cost (CLP):</span> <b>' + fmt(cost) + '</b></div>' +
+      '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;font-size:12px;font-family:\'DM Mono\',monospace">' +
+        '<div style="display:flex;flex-direction:column;gap:3px">' +
+          '<label style="font-size:9px;color:var(--muted);letter-spacing:.5px">PRICE CLP</label>' +
+          '<input type="number" id="bk-shopify-price" value="' + p1 + '" min="0" step="10" style="background:var(--surface);border:1.5px solid var(--accent);color:var(--accent);padding:6px 8px;border-radius:6px;font-size:13px;font-family:\'DM Mono\',monospace;font-weight:700">' +
+        '</div>' +
+        '<div style="display:flex;flex-direction:column;gap:3px">' +
+          '<label style="font-size:9px;color:var(--muted);letter-spacing:.5px">COMPARE CLP</label>' +
+          '<input type="number" id="bk-shopify-compare" value="' + compareAtPrice + '" min="0" step="10" style="background:var(--surface);border:1.5px solid var(--border);color:var(--text);padding:6px 8px;border-radius:6px;font-size:13px;font-family:\'DM Mono\',monospace;font-weight:700">' +
+        '</div>' +
+        '<div style="display:flex;flex-direction:column;gap:3px">' +
+          '<label style="font-size:9px;color:var(--muted);letter-spacing:.5px">COST CLP</label>' +
+          '<input type="number" id="bk-shopify-cost" value="' + cost + '" min="0" step="10" style="background:var(--surface);border:1.5px solid var(--border);color:var(--text);padding:6px 8px;border-radius:6px;font-size:13px;font-family:\'DM Mono\',monospace;font-weight:700">' +
+        '</div>' +
       '</div>' +
       '<div style="display:flex;flex-direction:column;gap:6px;font-size:11px;color:var(--muted);font-family:\'DM Mono\',monospace">' +
         '<label style="display:flex;align-items:center;gap:6px;cursor:pointer">' +
@@ -9784,7 +9793,7 @@ function recomputarPreciosReleasit(){
           '<input type="checkbox" id="bk-precios-all-locations" checked> Conectar inventario a TODAS las sucursales activas' +
         '</label>' +
       '</div>' +
-      '<button class="bk-shopify-confirm-btn" onclick="aplicarPreciosShopify(' + p1 + ',' + compareAtPrice + ',' + cost + ')" id="bk-precios-push-btn">⚡ Actualizar Shopify (precio + costo + inventario)</button>' +
+      '<button class="bk-shopify-confirm-btn" onclick="aplicarPreciosShopifyEditable()" id="bk-precios-push-btn">⚡ Actualizar Shopify (precio + costo + inventario)</button>' +
     '</div>' +
     // Sección 2: PUBLICAR AUTOMÁTICO en Releasit (usa metafields)
     '<div style="background:var(--surface2);border:1.5px solid #D4A542;border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:8px">' +
@@ -10033,6 +10042,16 @@ async function confirmarPublicarReleasit(disc2, disc3, nx1, priceOverride, upsel
     if (status) status.textContent = '❌ ' + (err.message || 'error');
     alert('❌ Error al publicar: ' + (err.message || 'error'));
   }
+}
+
+// Wrapper que lee los inputs editables antes de llamar a aplicarPreciosShopify.
+function aplicarPreciosShopifyEditable(){
+  const p  = parseFloat(document.getElementById('bk-shopify-price')?.value);
+  const c  = parseFloat(document.getElementById('bk-shopify-compare')?.value);
+  const co = parseFloat(document.getElementById('bk-shopify-cost')?.value);
+  if (!p || p <= 0) { alert('Precio invalido'); return; }
+  if (!co || co <= 0) { alert('Costo invalido'); return; }
+  aplicarPreciosShopify(p, c || 0, co);
 }
 
 async function aplicarPreciosShopify(price, comparePrice, cost){
