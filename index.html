@@ -9821,6 +9821,19 @@ function preciosReleasitChunk(label, text){
 
 // ─── PUBLICAR OFERTA EN RELEASIT (auto, via metafields) ─────────────────────
 // Flujo: dry-run → mostrar preview modal con tramos + upsell → confirmar → PUT real.
+// Detecta nx1 (unidades por 'pack' del producto base) a partir del cost.
+// getPrecio1u devuelve offer='2x1' cuando cost <= 2000, '3x1' cuando cost <= 1000.
+function _detectarNx1FromCost(){
+  const cost = parseFloat(document.getElementById('bk-precios-cost')?.value);
+  if (!cost || cost <= 0) return 1;
+  try {
+    const { offer } = getPrecio1u(cost);
+    if (offer === '3x1') return 3;
+    if (offer === '2x1') return 2;
+  } catch (_) {}
+  return 1;
+}
+
 async function publicarReleasitPreview(){
   if (!_preciosSelectedProduct || !_preciosSelectedProduct.id) {
     showToast('Selecciona primero un producto', '⚠️', 'warn');
@@ -9828,6 +9841,7 @@ async function publicarReleasitPreview(){
   }
   const disc2 = parseFloat(document.getElementById('bk-precios-disc-2')?.value) || 15;
   const disc3 = parseFloat(document.getElementById('bk-precios-disc-3')?.value) || 20;
+  const nx1 = _detectarNx1FromCost();
   const status = document.getElementById('bk-releasit-publish-status');
   if (status) status.textContent = '⏳ Preview…';
 
@@ -9839,6 +9853,7 @@ async function publicarReleasitPreview(){
         product_id: String(_preciosSelectedProduct.id),
         pack2_disc: disc2,
         pack3_disc: disc3,
+        nx1: nx1,
         dry_run: true,
         tenant: 'chile',
       }),
@@ -9846,7 +9861,7 @@ async function publicarReleasitPreview(){
     const data = await resp.json();
     if (!resp.ok) throw new Error(data.error || ('HTTP ' + resp.status));
     if (status) status.textContent = '';
-    mostrarPreviewReleasitModal(data, { disc2, disc3 });
+    mostrarPreviewReleasitModal(data, { disc2, disc3, nx1 });
   } catch (err) {
     if (status) status.textContent = '❌ ' + (err.message || 'error');
   }
@@ -9919,14 +9934,14 @@ function mostrarPreviewReleasitModal(data, { disc2, disc3 }){
 
       '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px">' +
         '<button onclick="document.getElementById(\'bk-releasit-modal\').remove()" style="background:var(--surface2);color:var(--text);border:1.5px solid var(--border);border-radius:8px;padding:10px 16px;font-size:12px;font-family:\'DM Mono\',monospace;cursor:pointer;font-weight:600">Cancelar</button>' +
-        '<button onclick="confirmarPublicarReleasit(' + disc2 + ',' + disc3 + ', this)" style="background:#D4A542;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:12px;font-family:\'DM Mono\',monospace;cursor:pointer;font-weight:700;letter-spacing:.5px">🚀 Confirmar y publicar</button>' +
+        '<button onclick="confirmarPublicarReleasit(' + disc2 + ',' + disc3 + ',' + nx1 + ', this)" style="background:#D4A542;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:12px;font-family:\'DM Mono\',monospace;cursor:pointer;font-weight:700;letter-spacing:.5px">🚀 Confirmar y publicar</button>' +
       '</div>' +
     '</div>';
 
   document.body.appendChild(modal);
 }
 
-async function confirmarPublicarReleasit(disc2, disc3, btn){
+async function confirmarPublicarReleasit(disc2, disc3, nx1, btn){
   if (!_preciosSelectedProduct || !_preciosSelectedProduct.id) return;
   const status = document.getElementById('bk-releasit-publish-status');
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Publicando…'; btn.style.opacity = '0.6'; }
@@ -9939,6 +9954,7 @@ async function confirmarPublicarReleasit(disc2, disc3, btn){
         product_id: String(_preciosSelectedProduct.id),
         pack2_disc: disc2,
         pack3_disc: disc3,
+        nx1: nx1 || 1,
         dry_run: false,
         tenant: 'chile',
       }),

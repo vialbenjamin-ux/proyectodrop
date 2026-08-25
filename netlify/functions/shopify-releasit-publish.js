@@ -36,6 +36,10 @@ exports.handler = async (event) => {
   const productId = String(body.product_id || '').trim();
   const pack2Disc = Number(body.pack2_disc);
   const pack3Disc = Number(body.pack3_disc);
+  // nx1 = unidades por 'pack' del producto base (1 normal, 2 si es 2x1, 3 si 3x1).
+  // Afecta ds.v (mas descuento porque ya viene con 2 o 3 unidades por precio) y
+  // el precio-por-unidad del plaque (divide entre nx1 * qty).
+  const nx1 = Math.max(1, Math.min(6, parseInt(body.nx1, 10) || 1));
   const dryRun = body.dry_run !== false; // default true por seguridad
   const tenant = String(body.tenant || 'chile').toLowerCase();
 
@@ -87,37 +91,56 @@ exports.handler = async (event) => {
     }
 
     // 2. Calcular los 3 tramos.
-    //    nx1 = 1 (oferta base es 1 unidad). Formula del PDF:
+    //    Formula del PDF:
     //    ds.v = round((1 - (1 - d/100)/nx1) * 100 * 100)
-    //    Con nx1=1 se simplifica a: ds.v = round(d * 100)
+    //    qty final = nx1 * k (k = 1, 2, 3)
+    //    Precio por unidad = precioTotal / (nx1 * k)  (unidades reales que recibe)
     const round990 = n => {
       const r = Math.round(n / 1000) * 1000 - 10;
       return r > 0 ? r : Math.max(0, Math.round(n));
     };
     const fmt = n => '$' + Math.round(n).toLocaleString('es-CL');
-    const fmtPerUnit = n => 'Solo ' + '$' + Math.round(n).toLocaleString('es-CL') + ' c/u';
+    const fmtPerUnit = n => 'SÓLO ' + fmt(n) + ' POR UNIDAD!';
+    const dsV = d => Math.round((1 - (1 - d / 100) / nx1) * 10000);
+    const unitLabel = qty => qty === 1 ? 'unidad' : 'unidades';
 
     const p1 = price;
     const p2 = round990(price * 2 * (1 - pack2Disc / 100));
     const p3 = round990(price * 3 * (1 - pack3Disc / 100));
 
+    // qty real que ve el cliente (con nx1 aplicado). Unidades reales.
+    const uds1 = 1 * nx1;
+    const uds2 = 2 * nx1;
+    const uds3 = 3 * nx1;
+
+    // Colores del plaque por tramo (verde/azul/morado).
+    const COLOR_1 = 'rgba(34, 197, 94, 1)';    // verde
+    const COLOR_2 = 'rgba(0, 116, 191, 1)';    // azul
+    const COLOR_3 = 'rgba(139, 92, 246, 1)';   // morado
+
+    // Plaque del tramo 1:
+    //  - Si nx1 = 1  → "PRECIO OFERTA HOY!" (el precio SIN dividir; es solo la unidad base)
+    //  - Si nx1 > 1 → "SÓLO $X POR UNIDAD!" (dividimos el precio entre nx1)
+    const plaque1 = (nx1 === 1) ? 'PRECIO OFERTA HOY!' : fmtPerUnit(p1 / uds1);
+
     const ofertas = [
       {
-        pos: 1, title: '¡Llevo 1 unidad! (35% OFF)', qty: 1,
-        ds: { t: 'percentage', v: 0 },
-        priceTotal: p1, perUnit: p1, plaque: '',
+        pos: 1, title: '¡Llevo ' + uds1 + ' ' + unitLabel(uds1) + '! (35% OFF)', qty: 1,
+        ds: { t: 'percentage', v: dsV(0) },
+        priceTotal: p1, perUnit: Math.round(p1 / uds1),
+        plaque: plaque1, plaqueBgC: COLOR_1,
       },
       {
-        pos: 2, title: '¡Llevo 2 unidades! (' + Math.round(35 + pack2Disc) + '% OFF)', qty: 2,
-        ds: { t: 'percentage', v: Math.round(pack2Disc * 100) },
-        priceTotal: p2, perUnit: Math.round(p2 / 2),
-        plaque: fmtPerUnit(p2 / 2),
+        pos: 2, title: '¡Llevo ' + uds2 + ' ' + unitLabel(uds2) + '! (' + Math.round(35 + pack2Disc) + '% OFF)', qty: 2,
+        ds: { t: 'percentage', v: dsV(pack2Disc) },
+        priceTotal: p2, perUnit: Math.round(p2 / uds2),
+        plaque: fmtPerUnit(p2 / uds2), plaqueBgC: COLOR_2,
       },
       {
-        pos: 3, title: '¡Llevo 3 unidades! · PRECIO MAYORISTA', qty: 3,
-        ds: { t: 'percentage', v: Math.round(pack3Disc * 100) },
-        priceTotal: p3, perUnit: Math.round(p3 / 3),
-        plaque: fmtPerUnit(p3 / 3),
+        pos: 3, title: '¡Llevo ' + uds3 + ' ' + unitLabel(uds3) + '! · PRECIO MAYORISTA', qty: 3,
+        ds: { t: 'percentage', v: dsV(pack3Disc) },
+        priceTotal: p3, perUnit: Math.round(p3 / uds3),
+        plaque: fmtPerUnit(p3 / uds3), plaqueBgC: COLOR_3,
       },
     ];
 
@@ -176,7 +199,7 @@ exports.handler = async (event) => {
         qty: o.qty,
         ds: o.ds,
         plaque: o.plaque,
-        plaqueBgC: 'rgba(0,116,191,1)',
+        plaqueBgC: o.plaqueBgC,
         imgUrl: '',
         bestDealBadge: {
           badgeContent: '🔥 Mejor Oferta',
