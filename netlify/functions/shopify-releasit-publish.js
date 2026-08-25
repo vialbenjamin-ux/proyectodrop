@@ -42,6 +42,10 @@ exports.handler = async (event) => {
   // producto Shopify. Permite armar la oferta con un precio distinto al que
   // esta publicado en Shopify (util cuando queres testear antes de actualizar).
   const priceOverride = body.price_override != null ? Number(body.price_override) : null;
+  // upsell_index: 0 o 1, elige cual candidato usar (default 0 = mas barato).
+  const upsellIndex = Math.max(0, Math.min(1, parseInt(body.upsell_index, 10) || 0));
+  // upsell_override_price: pisa el price del upsell elegido (CLP entero).
+  const upsellOverridePrice = body.upsell_override_price != null ? Number(body.upsell_override_price) : null;
   const dryRun = body.dry_run !== false; // default true por seguridad
   const tenant = String(body.tenant || 'chile').toLowerCase();
 
@@ -156,46 +160,57 @@ exports.handler = async (event) => {
     ];
 
     // 3. Buscar upsell: primero drafts (regla del PDF), fallback a active.
+    // Devolvemos hasta 2 candidatos con costo y foto para que el UI muestre
+    // opciones y el user elija cual usar + edite el precio de venta.
     let upsell = null;
+    let upsellCandidates = [];
     let upsellReason = 'ok';
-    let upsellIsDraft = null;
     if (!supplier.user_id) {
       upsellReason = 'no-supplier';
     } else {
-      // Intento 1: solo drafts (respeta la regla del PDF: no rompe precio de productos vivos).
-      let candidatos = await buscarUpsellCandidato(API, H, {
+      let raw = await buscarUpsellCandidato(API, H, {
         supplierUserId: supplier.user_id,
         excludeProductId: productId,
         basePrice: price,
         status: 'draft',
       });
-      // Intento 2: si no hay drafts, buscar entre active (con warning).
-      if (!candidatos.length) {
-        candidatos = await buscarUpsellCandidato(API, H, {
+      let isDraft = true;
+      if (!raw.length) {
+        raw = await buscarUpsellCandidato(API, H, {
           supplierUserId: supplier.user_id,
           excludeProductId: productId,
           basePrice: price,
           status: 'active',
         });
-        if (candidatos.length) upsellIsDraft = false;
-      } else {
-        upsellIsDraft = true;
+        isDraft = false;
       }
-      if (!candidatos.length) {
+      if (!raw.length) {
         upsellReason = 'no-candidates';
       } else {
-        const c = candidatos[0];
-        // CLP no usa centavos: price = valor entero CLP directamente.
-        upsell = {
+        // Top 2 candidatos con costo (sale_price del metafield dropi).
+        upsellCandidates = raw.slice(0, 2).map(c => ({
           product_id: String(c.id),
           variant_id: String(c.variantId),
           name: c.title,
-          price_cents: Math.round(parseFloat(c.variantPrice)),
           price: parseFloat(c.variantPrice),
+          price_cents: Math.round(parseFloat(c.variantPrice)),
+          cost: c.costDropi != null ? Number(c.costDropi) : null,
           imgUrl: c.image || '',
-          isDraft: upsellIsDraft,
+          isDraft: isDraft,
+        }));
+        // El upsell efectivo = el candidato elegido (default index 0),
+        // con precio pisado si vino upsellOverridePrice.
+        const chosenIdx = Math.min(upsellIndex, upsellCandidates.length - 1);
+        const chosen = upsellCandidates[chosenIdx];
+        const finalPriceCents = upsellOverridePrice && upsellOverridePrice > 0
+          ? Math.round(upsellOverridePrice)
+          : chosen.price_cents;
+        upsell = {
+          ...chosen,
+          price: finalPriceCents,
+          price_cents: finalPriceCents,
         };
-        if (upsellIsDraft === false) upsellReason = 'ok-active-warning';
+        if (!isDraft) upsellReason = 'ok-active-warning';
       }
     }
 
@@ -311,10 +326,11 @@ exports.handler = async (event) => {
 
     return respond(200, {
       ok: writeErrors.length === 0,
-      product: { id: String(product.id), title: product.title, price: price, handle: product.handle, image: (product.image && product.image.src) || null },
+      product: { id: String(product.id), title: product.title, price: price, shopifyPrice: shopifyPrice, handle: product.handle, image: (product.image && product.image.src) || null },
       supplier,
       ofertas: ofertas.map(o => ({ ...o, priceLabel: fmt(o.priceTotal), perUnitLabel: fmt(o.perUnit) })),
       upsell,
+      upsellCandidates,
       upsellReason,
       metafieldsBefore: { quantity_offers_count: listaQO.length, tick_upsells_count: listaUP.length },
       metafieldsAfter: { quantity_offers_count: listaQOLimpia.length, tick_upsells_count: listaUPLimpia.length },
@@ -371,6 +387,8 @@ async function buscarUpsellCandidato(API, H, { supplierUserId, excludeProductId,
             variantId: v0.id,
             variantPrice: v0.price,
             image: (p.image && p.image.src) || null,
+            // Costo Dropi (sale_price) para mostrar en el UI.
+            costDropi: dropiData.sale_price != null ? Number(dropiData.sale_price) : null,
           });
         }
       } catch (_) {}
