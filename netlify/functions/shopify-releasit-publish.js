@@ -268,7 +268,11 @@ exports.handler = async (event) => {
       useComparePrice: false,
     };
 
-    // 6. Armar entrada de upsell (si hay)
+    // 6. Armar entrada de upsell (si hay).
+    //    Duplicamos la URL de la imagen en varios aliases posibles (imgUrl,
+    //    image, imageUrl, pImg) para maximizar la chance de que Releasit
+    //    la renderice: el schema del PDF menciona imgUrl pero la app
+    //    puede leer otro alias segun version.
     const upsellNuevo = upsell ? {
       id: Date.now() + 1,
       name: 'UPSELL: ' + upsell.name,
@@ -280,7 +284,12 @@ exports.handler = async (event) => {
       connDisc: 0,
       text: 'Agrega {title} por solo {price}',
       desc: '',
-      imgUrl: upsell.imgUrl,
+      imgUrl: upsell.imgUrl || '',
+      image: upsell.imgUrl || '',
+      imageUrl: upsell.imgUrl || '',
+      pImg: upsell.imgUrl || '',
+      showImg: true,
+      hideImg: false,
       ticked: false,
       isActive: true,
     } : null;
