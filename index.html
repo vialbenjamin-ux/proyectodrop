@@ -9888,6 +9888,13 @@ async function publicarReleasitPreview(){
 }
 
 function mostrarPreviewReleasitModal(data, { disc2, disc3, nx1, priceOverride }){
+  // Guardamos supplier_id y product_id base a nivel global para que el buscador
+  // manual del modal filtre por el mismo proveedor Dropi.
+  window._bkReleasitContext = {
+    supplierId: data.supplier && data.supplier.user_id ? String(data.supplier.user_id) : null,
+    supplierName: data.supplier && data.supplier.user_name ? String(data.supplier.user_name) : null,
+    baseProductId: data.product && data.product.id ? String(data.product.id) : null,
+  };
   // Elimina cualquier modal previo
   const existing = document.getElementById('bk-releasit-modal');
   if (existing) existing.remove();
@@ -9940,10 +9947,15 @@ function mostrarPreviewReleasitModal(data, { disc2, disc3, nx1, priceOverride })
             isDraftBadge +
           '</div>' +
           '<div id="bk-upsell-cards-container" style="display:flex;gap:10px;flex-wrap:wrap">' + cardsHtml + '</div>' +
-          '<div style="display:flex;gap:6px;align-items:center;border-top:1px dashed #D4A542;padding-top:10px">' +
-            '<span style="font-size:10px;color:#8A5A2A;font-family:\'DM Mono\',monospace">¿Ninguna te sirve?</span>' +
-            '<input type="text" id="bk-upsell-manual-q" placeholder="Buscar producto por nombre" onkeydown="if(event.key===\'Enter\'){event.preventDefault();_bkUpsellManualBuscar()}" style="flex:1;background:var(--surface);border:1.5px solid var(--border);color:var(--text);padding:6px 10px;border-radius:6px;font-size:12px">' +
-            '<button onclick="_bkUpsellManualBuscar()" style="background:#8A5A2A;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:11px;font-family:\'DM Mono\',monospace;font-weight:700;cursor:pointer">🔍 Buscar</button>' +
+          '<div style="display:flex;flex-direction:column;gap:6px;border-top:1px dashed #D4A542;padding-top:10px">' +
+            '<div style="font-size:10px;color:#8A5A2A;font-family:\'DM Mono\',monospace">🔍 Buscar más upsells del mismo proveedor Dropi:</div>' +
+            '<div style="display:flex;gap:6px;align-items:center">' +
+              '<input type="text" id="bk-upsell-manual-q" placeholder="Nombre del producto (o vacío para ver todos)" onkeydown="if(event.key===\'Enter\'){event.preventDefault();_bkUpsellManualBuscar()}" style="flex:1;background:var(--surface);border:1.5px solid var(--border);color:var(--text);padding:6px 10px;border-radius:6px;font-size:12px">' +
+              '<label style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace;white-space:nowrap;cursor:pointer">' +
+                '<input type="checkbox" id="bk-upsell-manual-same-supplier" checked> Solo mismo proveedor' +
+              '</label>' +
+              '<button onclick="_bkUpsellManualBuscar()" style="background:#8A5A2A;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:11px;font-family:\'DM Mono\',monospace;font-weight:700;cursor:pointer">🔍 Buscar</button>' +
+            '</div>' +
           '</div>' +
           '<div id="bk-upsell-manual-results" style="display:none;max-height:220px;overflow-y:auto;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:6px"></div>' +
         '</div>';
@@ -10018,28 +10030,64 @@ function _bkUpsellSelect(idx){
   });
 }
 
-// Busca productos manualmente (para cuando el auto no encuentra o el usuario
-// prefiere otro upsell). Llama a shopify-products?tenant=chile.
+// Busca upsells manualmente. Por default, SOLO del mismo proveedor Dropi
+// (usa dropi-supplier-shopify-products que filtra por metafield dropi.user.id).
+// Si el checkbox esta OFF, cae al buscador Shopify global (todos los proveedores).
 async function _bkUpsellManualBuscar(){
-  const q = document.getElementById('bk-upsell-manual-q')?.value?.trim();
+  const q = document.getElementById('bk-upsell-manual-q')?.value?.trim() || '';
   const box = document.getElementById('bk-upsell-manual-results');
   if (!box) return;
-  if (!q) { box.style.display = 'none'; return; }
+  const sameSupplierEl = document.getElementById('bk-upsell-manual-same-supplier');
+  const sameSupplier = sameSupplierEl ? sameSupplierEl.checked : true;
+  const ctx = window._bkReleasitContext || {};
+
   box.style.display = 'block';
   box.innerHTML = '<div style="font-size:10px;color:var(--muted);padding:4px">Buscando…</div>';
+
   try {
-    const resp = await fetch('/.netlify/functions/shopify-products?tenant=chile&q=' + encodeURIComponent(q));
-    const data = await resp.json();
-    const products = (data.products || []).slice(0, 12);
+    let products = [];
+    let sourceLabel = '';
+    if (sameSupplier && ctx.supplierId) {
+      // Filtrado por proveedor Dropi (el correcto para no romper fulfillment).
+      const url = '/.netlify/functions/dropi-supplier-shopify-products'
+        + '?supplier_id=' + encodeURIComponent(ctx.supplierId)
+        + (ctx.baseProductId ? '&exclude_product_id=' + encodeURIComponent(ctx.baseProductId) : '')
+        + (q ? '&q=' + encodeURIComponent(q) : '')
+        + '&limit=30';
+      const resp = await fetch(url);
+      const data = await resp.json();
+      products = (data.products || []).map(p => ({
+        id: p.id, title: p.title, handle: p.handle, image: p.image,
+        price: p.price, cost: p.cost, variantId: p.variantId,
+      }));
+      sourceLabel = 'Proveedor ' + (ctx.supplierName || ctx.supplierId) + ' (' + products.length + ' matches de ' + (data.scanned || 0) + ' escaneados)';
+    } else {
+      // Buscador Shopify global (sin filtro de proveedor).
+      if (!q) { box.innerHTML = '<div style="font-size:10px;color:var(--muted);padding:4px">Escribí algo para buscar en toda la tienda.</div>'; return; }
+      const resp = await fetch('/.netlify/functions/shopify-products?tenant=chile&q=' + encodeURIComponent(q));
+      const data = await resp.json();
+      products = (data.products || []).slice(0, 20).map(p => ({
+        id: p.id, title: p.title, handle: p.handle, image: p.image,
+      }));
+      sourceLabel = 'Toda la tienda (' + products.length + ' matches)';
+    }
+
     if (!products.length) {
-      box.innerHTML = '<div style="font-size:10px;color:var(--muted);padding:4px">Sin resultados.</div>';
+      box.innerHTML = '<div style="font-size:10px;color:var(--muted);padding:4px">Sin resultados. ' + esc(sourceLabel) + '</div>';
       return;
     }
-    box.innerHTML = products.map(function(p){
+
+    const header = '<div style="font-size:9px;color:var(--muted);font-family:\'DM Mono\',monospace;padding:2px 4px;border-bottom:1px solid var(--border);margin-bottom:4px">' + esc(sourceLabel) + '</div>';
+    box.innerHTML = header + products.map(function(p){
       const img = p.image ? '<img src="' + esc(p.image) + '" style="width:36px;height:36px;object-fit:cover;border-radius:4px">' : '<div style="width:36px;height:36px;background:#F5F5F5;border-radius:4px"></div>';
+      const priceHtml = p.price != null ? '<span style="color:#8A5A2A;font-weight:700">$' + Math.round(p.price).toLocaleString('es-CL') + '</span>' : '';
+      const costHtml = p.cost != null ? '<span style="color:var(--muted);margin-left:4px">costo $' + Math.round(p.cost).toLocaleString('es-CL') + '</span>' : '';
       return '<div onclick="_bkUpsellManualPick(' + p.id + ')" style="display:flex;gap:8px;align-items:center;padding:6px;border-radius:6px;cursor:pointer;font-size:11px" onmouseover="this.style.background=\'#F5F5F5\'" onmouseout="this.style.background=\'transparent\'">' +
         img +
-        '<div style="flex:1;min-width:0"><div style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(p.title || '') + '</div><div style="color:var(--muted);font-family:\'DM Mono\',monospace;font-size:9px">' + esc(p.handle || '') + '</div></div>' +
+        '<div style="flex:1;min-width:0">' +
+          '<div style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(p.title || '') + '</div>' +
+          '<div style="color:var(--muted);font-family:\'DM Mono\',monospace;font-size:9px">' + priceHtml + costHtml + ' · ' + esc(p.handle || '') + '</div>' +
+        '</div>' +
       '</div>';
     }).join('');
   } catch (err) {
