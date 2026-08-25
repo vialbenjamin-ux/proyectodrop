@@ -281,10 +281,11 @@ exports.handler = async (event) => {
     };
 
     // 6. Armar entrada de upsell (si hay).
-    //    Duplicamos la URL de la imagen en varios aliases posibles (imgUrl,
-    //    image, imageUrl, pImg) para maximizar la chance de que Releasit
-    //    la renderice: el schema del PDF menciona imgUrl pero la app
-    //    puede leer otro alias segun version.
+    //    Reverse-engineered de items manuales que SI muestran foto: el
+    //    campo clave es imgUrl (los aliases image/imageUrl/pImg no se
+    //    usan). Ademas se requieren campos de STYLE (bgC/c/bW/bC/bR/bSty/
+    //    tC/plT/descC) para que el widget renderice el "modo tarjeta" con
+    //    foto. Sin esos, muestra el modo minimalista sin foto.
     const upsellNuevo = upsell ? {
       id: Date.now() + 1,
       name: 'UPSELL: ' + upsell.name,
@@ -296,12 +297,17 @@ exports.handler = async (event) => {
       connDisc: 0,
       text: 'Agrega {title} por solo {price}',
       desc: '',
+      descC: 'rgba(89,89,89,1)',
       imgUrl: upsell.imgUrl || '',
-      image: upsell.imgUrl || '',
-      imageUrl: upsell.imgUrl || '',
-      pImg: upsell.imgUrl || '',
-      showImg: true,
-      hideImg: false,
+      // Estilo visual del checkbox (copiado de items manuales que si muestran foto):
+      bgC: 'rgba(255,255,255,1)',       // fondo blanco
+      c: 'rgba(0,0,0,1)',               // color texto principal
+      bW: 2,                            // border width 2px
+      bC: 'rgba(29, 158, 6, 1)',        // border color verde
+      bR: 8,                            // border radius 8px
+      bSty: 'dashed-animated',          // estilo borde animado punteado (como el ejemplo)
+      tC: 'rgba(2,117,255,1)',          // color titulo azul
+      plT: '',                          // plaque title vacio
       ticked: false,
       isActive: true,
     } : null;
