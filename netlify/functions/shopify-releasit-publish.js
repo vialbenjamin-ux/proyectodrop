@@ -199,28 +199,47 @@ exports.handler = async (event) => {
       if (!raw.length) {
         upsellReason = 'no-candidates';
       } else {
-        // Top 2 candidatos con costo (sale_price del metafield dropi).
-        upsellCandidates = raw.slice(0, 2).map(c => ({
+        // Scoring por relacion semantica: palabras clave del producto base
+        // presentes en el nombre del candidato. Los que matcheen mas van
+        // primero. Ties se rompen por precio ascendente.
+        const STOP = new Set(['de','la','el','y','o','en','a','con','por','para','del','al','un','una','los','las','sin','pack','set','x1','x2','x3','2x1','3x1','oferta','nuevo','pro','plus','max','mini','mega']);
+        const kws = String(product.title || '').toLowerCase()
+          .normalize('NFD').replace(/[̀-ͯ]/g, '')
+          .split(/[^a-z0-9]+/).filter(w => w.length >= 4 && !STOP.has(w));
+        const score = (c) => {
+          const t = String(c.title || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+          return kws.reduce((n, k) => n + (t.includes(k) ? 1 : 0), 0);
+        };
+        raw.sort((a, b) => {
+          const sd = score(b) - score(a);
+          return sd !== 0 ? sd : (parseFloat(a.variantPrice) - parseFloat(b.variantPrice));
+        });
+
+        // Top 5 candidatos con costo (sale_price del metafield dropi).
+        upsellCandidates = raw.slice(0, 5).map(c => ({
           product_id: String(c.id),
           variant_id: String(c.variantId),
           name: c.title,
           price: parseFloat(c.variantPrice),
-          price_cents: Math.round(parseFloat(c.variantPrice)),
+          // Releasit espera price en CENTAVOS siempre (aunque CLP no los use).
+          // Sin *100, muestra $100 en vez de $9.990.
+          price_cents: Math.round(parseFloat(c.variantPrice) * 100),
           cost: c.costDropi != null ? Number(c.costDropi) : null,
           imgUrl: c.image || '',
           isDraft: isDraft,
+          matchScore: score(c),
         }));
         // El upsell efectivo = el candidato elegido (default index 0),
-        // con precio pisado si vino upsellOverridePrice.
+        // con precio pisado si vino upsellOverridePrice (en pesos → *100).
         const chosenIdx = Math.min(upsellIndex, upsellCandidates.length - 1);
         const chosen = upsellCandidates[chosenIdx];
         const finalPriceCents = upsellOverridePrice && upsellOverridePrice > 0
-          ? Math.round(upsellOverridePrice)
+          ? Math.round(upsellOverridePrice * 100)
           : chosen.price_cents;
         upsell = {
           ...chosen,
-          price: finalPriceCents,
-          price_cents: finalPriceCents,
+          price: finalPriceCents / 100, // display en pesos
+          price_cents: finalPriceCents,  // lo que va al metafield
         };
         if (!isDraft) upsellReason = 'ok-active-warning';
       }
