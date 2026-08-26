@@ -10110,6 +10110,16 @@ function recomputarPreciosReleasit(){
         '<input type="number" id="bk-precios-override" value="' + p1 + '" min="0" step="10" style="flex:1;background:var(--surface);border:1.5px solid var(--border);color:var(--text);padding:8px 12px;border-radius:6px;font-size:13px;font-family:\'DM Mono\',monospace;font-weight:700">' +
         '<span style="font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace">CLP (base para calcular ofertas)</span>' +
       '</div>' +
+      '<div style="display:flex;flex-direction:column;gap:4px">' +
+        '<label style="font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace">Tipo de pack (afecta cómo se muestran las unidades en Releasit):</label>' +
+        '<div style="display:flex;gap:4px;flex-wrap:wrap">' +
+          '<button type="button" data-nx1="1" onclick="_bkReleasitPickNx1(1)" class="bk-nx1-btn" style="flex:1;min-width:70px;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:6px;border-radius:6px;font-size:11px;font-family:\'DM Mono\',monospace;font-weight:700;cursor:pointer">1u (normal)</button>' +
+          '<button type="button" data-nx1="2" onclick="_bkReleasitPickNx1(2)" class="bk-nx1-btn" style="flex:1;min-width:70px;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:6px;border-radius:6px;font-size:11px;font-family:\'DM Mono\',monospace;font-weight:700;cursor:pointer">2x1</button>' +
+          '<button type="button" data-nx1="3" onclick="_bkReleasitPickNx1(3)" class="bk-nx1-btn" style="flex:1;min-width:70px;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:6px;border-radius:6px;font-size:11px;font-family:\'DM Mono\',monospace;font-weight:700;cursor:pointer">3x1</button>' +
+          '<button type="button" data-nx1="4" onclick="_bkReleasitPickNx1(4)" class="bk-nx1-btn" style="flex:1;min-width:70px;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:6px;border-radius:6px;font-size:11px;font-family:\'DM Mono\',monospace;font-weight:700;cursor:pointer">4x1</button>' +
+        '</div>' +
+        '<div style="font-size:9px;color:var(--muted);font-family:\'DM Mono\',monospace">Si es 2x1: cliente ve "Llevo 2u" en tramo 1, "Llevo 4u" en tramo 2, "Llevo 6u" en tramo 3.</div>' +
+      '</div>' +
       '<button onclick="publicarReleasitPreview()" style="background:#D4A542;color:#fff;border:none;border-radius:8px;padding:11px;font-size:12px;font-family:\'DM Mono\',monospace;cursor:pointer;font-weight:700;letter-spacing:.5px">🚀 Publicar oferta en Releasit</button>' +
       '<div id="bk-releasit-publish-status" style="font-size:11px;color:var(--muted);font-family:\'DM Mono\',monospace;min-height:14px"></div>' +
     '</div>' +
@@ -10148,9 +10158,24 @@ function preciosReleasitChunk(label, text){
 
 // ─── PUBLICAR OFERTA EN RELEASIT (auto, via metafields) ─────────────────────
 // Flujo: dry-run → mostrar preview modal con tramos + upsell → confirmar → PUT real.
-// Detecta nx1 (unidades por 'pack' del producto base) a partir del cost.
-// getPrecio1u devuelve offer='2x1' cuando cost <= 2000, '3x1' cuando cost <= 1000.
+// Override manual del tipo de pack (1/2/3/4). Se guarda global cuando el user
+// clickea uno de los 4 botones. null = usar auto-deteccion por costo.
+window._bkReleasitNx1Manual = null;
+function _bkReleasitPickNx1(n){
+  const v = parseInt(n, 10);
+  window._bkReleasitNx1Manual = (window._bkReleasitNx1Manual === v) ? null : v;
+  document.querySelectorAll('.bk-nx1-btn').forEach(function(b){
+    const on = parseInt(b.getAttribute('data-nx1'), 10) === window._bkReleasitNx1Manual;
+    b.style.background = on ? '#8A5A2A' : 'var(--surface2)';
+    b.style.color = on ? '#fff' : 'var(--text)';
+    b.style.borderColor = on ? '#8A5A2A' : 'var(--border)';
+  });
+}
+
+// Detecta nx1 (unidades por 'pack' del producto base).
+// Prioridad: 1) override manual del user (botones), 2) auto por costo.
 function _detectarNx1FromCost(){
+  if (window._bkReleasitNx1Manual != null) return window._bkReleasitNx1Manual;
   const cost = parseFloat(document.getElementById('bk-precios-cost')?.value);
   if (!cost || cost <= 0) return 1;
   try {
