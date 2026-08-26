@@ -17,61 +17,58 @@ exports.handler = async (event) => {
   const H = { 'X-Shopify-Access-Token': token, 'Accept': 'application/json' };
   const API = 'https://' + domain + '/admin/api/2024-10';
 
-  const PAGE_SIZE = 250;
-  const MAX_PAGES = 3;
-  const MAX_LOOKUPS = 250;
+  // GraphQL bulk: 1 request trae 250 productos + metafield dropi. Sin
+  // GraphQL harian 250 requests REST -> timeout de Netlify (10s).
   const byId = new Map();
-  let lookups = 0;
-  // status=any no es valido en Shopify; los validos son active|draft|archived.
-  // Sin ningun parametro devuelve solo active. Para incluir todos usamos comas.
-  let pageUrl = API + '/products.json?limit=' + PAGE_SIZE + '&fields=id,title&status=active,draft,archived';
-  let pages = 0;
-  const dbg = { pagesFetched: 0, firstPageStatus: null, totalProductsSeen: 0, lastError: null };
+  const dbg = { pagesFetched: 0, totalProductsSeen: 0, lastError: null, withDropi: 0 };
+  const GQL_URL = 'https://' + domain + '/admin/api/2024-10/graphql.json';
+  const GQL_H = { ...H, 'Content-Type': 'application/json' };
+  let cursor = null;
+  const MAX_PAGES = 3;
 
   try {
-    while (pageUrl && pages < MAX_PAGES && lookups < MAX_LOOKUPS) {
-      const r = await fetch(pageUrl, { headers: H });
-      if (pages === 0) dbg.firstPageStatus = r.status;
-      if (!r.ok) { dbg.lastError = 'products.json ' + r.status; break; }
+    for (let pg = 0; pg < MAX_PAGES; pg++) {
+      const query = 'query($cursor: String){ products(first: 250, after: $cursor) { edges { cursor node { id title metafield(namespace: "dropi", key: "_dropi_product") { value } } } pageInfo { hasNextPage endCursor } } }';
+      const r = await fetch(GQL_URL, { method: 'POST', headers: GQL_H, body: JSON.stringify({ query, variables: { cursor } }) });
+      if (!r.ok) { dbg.lastError = 'graphql ' + r.status; break; }
       const j = await r.json();
+      if (j.errors) { dbg.lastError = 'graphql errors: ' + JSON.stringify(j.errors).slice(0, 200); break; }
+      const edges = (j.data && j.data.products && j.data.products.edges) || [];
       dbg.pagesFetched++;
-      dbg.totalProductsSeen += (j.products || []).length;
-      for (const p of (j.products || [])) {
-        if (lookups >= MAX_LOOKUPS) break;
-        lookups++;
-        const mR = await fetch(API + '/products/' + p.id + '/metafields.json?namespace=dropi', { headers: H });
-        if (!mR.ok) continue;
-        const mJ = await mR.json();
-        const mfDropi = (mJ.metafields || []).find(m => m.namespace === 'dropi' && m.key === '_dropi_product');
-        if (!mfDropi) continue;
+      dbg.totalProductsSeen += edges.length;
+      for (const e of edges) {
+        const node = e.node;
+        const gid = node.id; // gid://shopify/Product/12345
+        const pid = String(gid).split('/').pop();
+        const mf = node.metafield;
+        if (!mf || !mf.value) continue;
+        dbg.withDropi++;
         try {
-          const d = JSON.parse(mfDropi.value);
+          const d = JSON.parse(mf.value);
           if (d && d.user && d.user.id != null) {
             const uid = String(d.user.id);
             const uname = String(d.user.name || '').trim();
-            const cur = byId.get(uid) || { id: uid, name: uname, productCount: 0, sampleProductId: String(p.id), sampleHasTokens: !!d.tokens };
+            const cur = byId.get(uid) || { id: uid, name: uname, productCount: 0, sampleProductId: pid, sampleHasTokens: !!d.tokens };
             cur.productCount++;
             if (!cur.name && uname) cur.name = uname;
-            // Guardar sampleProductId con tokens si aparece uno.
             if (!cur.sampleHasTokens && d.tokens) {
-              cur.sampleProductId = String(p.id);
+              cur.sampleProductId = pid;
               cur.sampleHasTokens = true;
             }
             byId.set(uid, cur);
           }
         } catch (_) {}
       }
-      const link = r.headers.get('Link') || '';
-      const nx = link.match(/<([^>]+)>;\s*rel="next"/);
-      pageUrl = nx ? nx[1] : null;
-      pages++;
+      const pi = j.data.products.pageInfo;
+      if (!pi || !pi.hasNextPage) break;
+      cursor = pi.endCursor;
     }
   } catch (err) {
     return respond(502, { error: err.message || 'unknown' });
   }
 
   const suppliers = Array.from(byId.values()).sort((a, b) => b.productCount - a.productCount);
-  return respond(200, { suppliers, scannedProducts: lookups, debug: dbg });
+  return respond(200, { suppliers, scannedProducts: dbg.totalProductsSeen, debug: dbg });
 };
 
 function cors() {
