@@ -21,17 +21,21 @@
 // 1. Crear/actualizar el asset assets/bk-releasit-colors.css con el CSS.
 // 2. Modificar theme.liquid para incluir el <link> si no está.
 
-const CSS_CONTENT = `/* BKDROP — colores de precios Releasit por tramo. NO editar a mano. */
-._rsi-quantity-offers-offer[data-offer-pos="0"] ._rsi-quantity-offers-new-price {
+// El CSS solo aplica cuando el <html> tiene data-bk-releasit-colors="on".
+// Ese data-attr solo se setea (por Liquid en theme.liquid) si el producto
+// tiene el tag 'bk-releasit-colors'. Asi los productos viejos (sin tag) NO
+// se ven afectados — solo los que publiquemos de aca en adelante.
+const CSS_CONTENT = `/* BKDROP — colores de precios Releasit por tramo. Solo aplica a productos con tag 'bk-releasit-colors'. NO editar a mano. */
+[data-bk-releasit-colors="on"] ._rsi-quantity-offers-offer[data-offer-pos="0"] ._rsi-quantity-offers-new-price {
   color: rgba(34, 197, 94, 1) !important;
 }
-._rsi-quantity-offers-offer[data-offer-pos="1"] ._rsi-quantity-offers-new-price {
+[data-bk-releasit-colors="on"] ._rsi-quantity-offers-offer[data-offer-pos="1"] ._rsi-quantity-offers-new-price {
   color: rgba(0, 116, 191, 1) !important;
 }
-._rsi-quantity-offers-offer[data-offer-pos="2"] ._rsi-quantity-offers-new-price {
+[data-bk-releasit-colors="on"] ._rsi-quantity-offers-offer[data-offer-pos="2"] ._rsi-quantity-offers-new-price {
   color: rgba(139, 92, 246, 1) !important;
 }
-._rsi-quantity-offers-offer[data-offer-pos="3"] ._rsi-quantity-offers-new-price {
+[data-bk-releasit-colors="on"] ._rsi-quantity-offers-offer[data-offer-pos="3"] ._rsi-quantity-offers-new-price {
   color: rgba(230, 138, 46, 1) !important;
 }
 `;
@@ -39,7 +43,16 @@ const CSS_CONTENT = `/* BKDROP — colores de precios Releasit por tramo. NO edi
 const ASSET_KEY = 'assets/bk-releasit-colors.css';
 const INCLUDE_MARKER_START = '<!-- BK_RELEASIT_COLORS_START -->';
 const INCLUDE_MARKER_END = '<!-- BK_RELEASIT_COLORS_END -->';
-const INCLUDE_TAG = INCLUDE_MARKER_START + '\n<link rel="stylesheet" href="{{ \'bk-releasit-colors.css\' | asset_url }}">\n' + INCLUDE_MARKER_END;
+// Insertamos:
+//  1) <link> al CSS
+//  2) Un <script> Liquid condicional que setea data-bk-releasit-colors="on"
+//     en <html> SOLO si el producto tiene el tag 'bk-releasit-colors'.
+const INCLUDE_TAG = INCLUDE_MARKER_START + '\n' +
+  '<link rel="stylesheet" href="{{ \'bk-releasit-colors.css\' | asset_url }}">\n' +
+  '{% if template contains "product" and product.tags contains "bk-releasit-colors" %}\n' +
+  '<script>document.documentElement.setAttribute("data-bk-releasit-colors","on");</script>\n' +
+  '{% endif %}\n' +
+  INCLUDE_MARKER_END;
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: cors(), body: '' };

@@ -379,6 +379,28 @@ exports.handler = async (event) => {
     const listaUPLimpia = listaUP.filter(u => !((u.prods || []).map(String).includes(String(productId))));
     if (upsellNuevo) listaUPLimpia.push(upsellNuevo);
 
+    // 7.5. Si NO es dry_run, agregar tag 'bk-releasit-colors' al producto Shopify
+    //      para que el CSS inyectado en el theme pinte los precios de este tramo
+    //      con el color del badge (verde/azul/morado). Solo se agrega a partir
+    //      de este publish (los productos viejos con oferta anterior no lo
+    //      tienen, no se ven afectados).
+    let tagAdded = false;
+    if (!dryRun) {
+      try {
+        const currentTags = String(product.tags || '').split(',').map(t => t.trim()).filter(Boolean);
+        if (!currentTags.includes('bk-releasit-colors')) {
+          currentTags.push('bk-releasit-colors');
+          const tagR = await fetch(API + '/products/' + productId + '.json', {
+            method: 'PUT', headers: H,
+            body: JSON.stringify({ product: { id: parseInt(productId, 10), tags: currentTags.join(', ') } }),
+          });
+          if (tagR.ok) tagAdded = true;
+        } else {
+          tagAdded = true; // ya lo tenia
+        }
+      } catch (_) {}
+    }
+
     // 8. Escribir metafields (a menos que dry_run)
     let applied = false;
     let writeErrors = [];
@@ -416,6 +438,7 @@ exports.handler = async (event) => {
       metafieldsAfter: { quantity_offers_count: listaQOLimpia.length, tick_upsells_count: listaUPLimpia.length },
       dryRun,
       applied,
+      tagAdded,
       writeErrors: writeErrors.length ? writeErrors : undefined,
     });
 
