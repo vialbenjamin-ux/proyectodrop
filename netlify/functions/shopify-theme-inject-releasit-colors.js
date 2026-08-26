@@ -1,0 +1,118 @@
+// Inyecta CSS en el theme Shopify Chile para pintar los precios grandes
+// de las quantity offers de Releasit COD Form del mismo color que el badge
+// (verde/azul/morado por tramo).
+//
+// Selectores reverse-engineered de un widget renderizado (2026-08):
+//   ._rsi-quantity-offers-offer[data-offer-pos="0"] → tramo 1 (Llevo 1)
+//   ._rsi-quantity-offers-offer[data-offer-pos="1"] → tramo 2 (Llevo 2)
+//   ._rsi-quantity-offers-offer[data-offer-pos="2"] → tramo 3 (Llevo 3)
+//   ._rsi-quantity-offers-new-price → el precio grande de ese tramo
+//
+// Colores (match con COLOR_1/2/3 de shopify-releasit-publish.js):
+//   verde  rgba(34, 197, 94, 1)
+//   azul   rgba(0, 116, 191, 1)
+//   morado rgba(139, 92, 246, 1)
+//
+// POST /.netlify/functions/shopify-theme-inject-releasit-colors
+//   Body opcional: { tenant: 'chile' } — solo chile por ahora.
+// Response: { ok, action: 'created'|'updated'|'already-in-place', assetKey }
+//
+// Estrategia:
+// 1. Crear/actualizar el asset assets/bk-releasit-colors.css con el CSS.
+// 2. Modificar theme.liquid para incluir el <link> si no está.
+
+const CSS_CONTENT = `/* BKDROP — colores de precios Releasit por tramo. NO editar a mano. */
+._rsi-quantity-offers-offer[data-offer-pos="0"] ._rsi-quantity-offers-new-price {
+  color: rgba(34, 197, 94, 1) !important;
+}
+._rsi-quantity-offers-offer[data-offer-pos="1"] ._rsi-quantity-offers-new-price {
+  color: rgba(0, 116, 191, 1) !important;
+}
+._rsi-quantity-offers-offer[data-offer-pos="2"] ._rsi-quantity-offers-new-price {
+  color: rgba(139, 92, 246, 1) !important;
+}
+._rsi-quantity-offers-offer[data-offer-pos="3"] ._rsi-quantity-offers-new-price {
+  color: rgba(230, 138, 46, 1) !important;
+}
+`;
+
+const ASSET_KEY = 'assets/bk-releasit-colors.css';
+const INCLUDE_MARKER_START = '<!-- BK_RELEASIT_COLORS_START -->';
+const INCLUDE_MARKER_END = '<!-- BK_RELEASIT_COLORS_END -->';
+const INCLUDE_TAG = INCLUDE_MARKER_START + '\n<link rel="stylesheet" href="{{ \'bk-releasit-colors.css\' | asset_url }}">\n' + INCLUDE_MARKER_END;
+
+exports.handler = async (event) => {
+  if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: cors(), body: '' };
+  if (event.httpMethod !== 'POST') return respond(405, { error: 'Method not allowed' });
+
+  const token = process.env.SHOPIFY_TOKEN;
+  const domain = process.env.SHOPIFY_DOMAIN;
+  if (!token || !domain) return respond(500, { error: 'Faltan credenciales Shopify' });
+  const H = { 'X-Shopify-Access-Token': token, 'Content-Type': 'application/json', 'Accept': 'application/json' };
+  const API = 'https://' + domain + '/admin/api/2024-10';
+
+  try {
+    // 1. Encontrar el theme main.
+    const themesR = await fetch(API + '/themes.json', { headers: H });
+    if (!themesR.ok) return respond(502, { error: 'Fetch themes: ' + themesR.status });
+    const themesJ = await themesR.json();
+    const mainTheme = (themesJ.themes || []).find(t => t.role === 'main');
+    if (!mainTheme) return respond(400, { error: 'No hay theme main en la tienda' });
+
+    // 2. Subir el asset CSS (crea si no existe, updatea si sí).
+    const assetR = await fetch(API + '/themes/' + mainTheme.id + '/assets.json', {
+      method: 'PUT', headers: H,
+      body: JSON.stringify({ asset: { key: ASSET_KEY, value: CSS_CONTENT } }),
+    });
+    const assetJ = await assetR.json();
+    if (!assetR.ok) return respond(502, { error: 'PUT asset ' + assetR.status + ': ' + JSON.stringify(assetJ).slice(0, 300) });
+
+    // 3. Leer theme.liquid.
+    const layoutR = await fetch(API + '/themes/' + mainTheme.id + '/assets.json?asset[key]=layout/theme.liquid', { headers: H });
+    if (!layoutR.ok) return respond(502, { error: 'Fetch theme.liquid: ' + layoutR.status });
+    const layoutJ = await layoutR.json();
+    const themeLiquid = (layoutJ.asset && layoutJ.asset.value) || '';
+    if (!themeLiquid) return respond(400, { error: 'theme.liquid vacio o no encontrado' });
+
+    // 4. Verificar si ya está el include.
+    if (themeLiquid.includes(INCLUDE_MARKER_START)) {
+      return respond(200, {
+        ok: true,
+        action: 'already-in-place',
+        assetKey: ASSET_KEY,
+        themeId: mainTheme.id,
+        themeName: mainTheme.name,
+      });
+    }
+
+    // 5. Insertar el include justo antes de </head>.
+    if (!themeLiquid.includes('</head>')) {
+      return respond(400, { error: 'theme.liquid no tiene </head>, no se puede inyectar' });
+    }
+    const newLiquid = themeLiquid.replace('</head>', INCLUDE_TAG + '\n</head>');
+
+    const writeR = await fetch(API + '/themes/' + mainTheme.id + '/assets.json', {
+      method: 'PUT', headers: H,
+      body: JSON.stringify({ asset: { key: 'layout/theme.liquid', value: newLiquid } }),
+    });
+    const writeJ = await writeR.json();
+    if (!writeR.ok) return respond(502, { error: 'PUT theme.liquid: ' + writeR.status + ' ' + JSON.stringify(writeJ).slice(0, 300) });
+
+    return respond(200, {
+      ok: true,
+      action: 'created',
+      assetKey: ASSET_KEY,
+      themeId: mainTheme.id,
+      themeName: mainTheme.name,
+    });
+  } catch (err) {
+    return respond(502, { error: err.message || 'unknown' });
+  }
+};
+
+function cors() {
+  return { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type' };
+}
+function respond(statusCode, payload) {
+  return { statusCode, headers: { 'Content-Type': 'application/json', ...cors() }, body: JSON.stringify(payload) };
+}

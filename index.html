@@ -2052,7 +2052,9 @@
         <button class="bk-step-btn" id="bk-btn-edit-section" onclick="abrirEditarSeccion()" style="background:#0EA5E9;color:#fff">🔧 Editar sección</button>
         <button class="bk-step-btn" id="bk-btn-replicar-gt" onclick="abrirReplicarGT()" style="background:#111111;color:#fff">🔄 Replicar a GT</button>
         <button class="bk-step-btn" id="bk-btn-template-inspect" onclick="inspeccionarTemplate()" style="background:#E89A4A;color:#fff">🔍 Inspector</button>
+        <button class="bk-step-btn" id="bk-btn-install-releasit-colors" onclick="_bkInstalarColoresReleasit(this)" style="background:#8B5CF6;color:#fff">🎨 Instalar colores Releasit</button>
       </div>
+      <div id="bk-install-colors-status" style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;padding:0 4px"></div>
 
       <!-- OTROS PROMPTS (sistema de temáticas) -->
       <div class="bk-prompts-sub">Otros prompts</div>
@@ -9929,6 +9931,31 @@ function _bkContinuarAMaster(btn){
       try { ejecutarMaster(); } catch (_) {}
     }
   }, 600);
+}
+
+// Instala el CSS de colores de precio Releasit en el theme Shopify Chile.
+// Se ejecuta 1 sola vez — despues todos los productos con quantity_offers
+// muestran el precio grande del mismo color que el badge (verde/azul/morado).
+async function _bkInstalarColoresReleasit(btn){
+  const status = document.getElementById('bk-install-colors-status');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Instalando…'; btn.style.opacity = '0.6'; }
+  if (status) status.textContent = '⏳ Modificando theme.liquid + creando asset CSS…';
+  try {
+    const resp = await fetch('/.netlify/functions/shopify-theme-inject-releasit-colors', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}),
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || ('HTTP ' + resp.status));
+    if (btn) { btn.textContent = '✅ Colores instalados'; btn.style.background = '#16A34A'; }
+    const msg = data.action === 'already-in-place'
+      ? '✅ Colores ya estaban instalados en el theme "' + (data.themeName || '') + '". No hice nada.'
+      : '✅ Colores instalados en el theme "' + (data.themeName || '') + '" · Verificá en cualquier producto con oferta.';
+    if (status) status.textContent = msg;
+    showToast('Colores Releasit instalados', '🎨', 'ok');
+  } catch (err) {
+    if (btn) { btn.disabled = false; btn.textContent = '🎨 Instalar colores Releasit'; btn.style.opacity = '1'; }
+    if (status) status.textContent = '❌ ' + (err.message || 'error');
+  }
 }
 
 // Activa el producto seleccionado en el panel Precios+Releasit (draft -> active).
