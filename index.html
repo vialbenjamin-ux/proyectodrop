@@ -1767,7 +1767,7 @@
               </div>
               <div style="display:flex;flex-direction:column;gap:3px">
                 <label style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">Proveedor <span style="color:#C0392B">*</span></label>
-                <input type="text" id="bk-dropi-imp-username" list="bk-dropi-supplier-list" placeholder="Escribí nombre — sugerencias de tus proveedores" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px 10px;border-radius:6px;font-size:13px">
+                <input type="text" id="bk-dropi-imp-username" list="bk-dropi-supplier-list" placeholder="Escribí el nombre (podés inventarlo si es nuevo)" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px 10px;border-radius:6px;font-size:13px">
                 <datalist id="bk-dropi-supplier-list"></datalist>
                 <div id="bk-dropi-supplier-hint" style="font-size:9px;color:var(--muted);font-family:'DM Mono',monospace"></div>
               </div>
@@ -1793,20 +1793,9 @@
                 </div>
                 <div style="font-size:9px;color:var(--muted);font-family:'DM Mono',monospace">Si no elegís, el prompt pedirá 4 variantes a ChatGPT (una por cada tipo). Se agrega automáticamente el tag <code>envio-gratis</code>.</div>
               </div>
-              <div style="display:flex;flex-direction:column;gap:3px;grid-column:1/-1">
-                <label style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">URL imagen principal <span style="color:#C0392B">*</span></label>
-                <div style="display:flex;gap:6px">
-                  <input type="url" id="bk-dropi-imp-img" placeholder="https://cdn.dropi.cl/... o generá con IA →" oninput="_bkDropiRenderImgPreview()" style="flex:1;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px 10px;border-radius:6px;font-size:12px;font-family:'DM Mono',monospace">
-                  <button type="button" onclick="_bkDropiGenerarImgIA()" style="background:#10a37f;color:#fff;border:none;border-radius:6px;padding:8px 14px;font-size:11px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer;white-space:nowrap">🎨 Generar con ChatGPT</button>
-                </div>
-                <div style="font-size:9px;color:var(--muted);font-family:'DM Mono',monospace">Copia el prompt al clipboard + abre ChatGPT. Pegá el prompt ahí, subí las fotos de referencia (galería adicional abajo), generá, y pegá la URL final acá.</div>
-              </div>
-              <div style="display:flex;flex-direction:column;gap:3px;grid-column:1/-1">
-                <label style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">Imágenes adicionales <span style="text-transform:none">(una URL por línea — se agregan al carrusel del producto)</span></label>
-                <textarea id="bk-dropi-imp-gallery" placeholder="https://cdn.dropi.cl/foto1.jpg&#10;https://cdn.dropi.cl/foto2.jpg&#10;https://cdn.dropi.cl/foto3.jpg" oninput="_bkDropiRenderImgPreview()" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px 10px;border-radius:6px;font-size:11px;font-family:'DM Mono',monospace;min-height:70px;resize:vertical"></textarea>
-                <div style="font-size:9px;color:var(--muted);font-family:'DM Mono',monospace">Tip: en Dropi web, click derecho sobre cada foto de la galería → 'Copiar dirección de imagen' y pegá abajo. Máximo 8 imágenes adicionales.</div>
-                <div id="bk-dropi-imp-img-preview" style="display:none;grid-template-columns:repeat(auto-fill,minmax(70px,1fr));gap:6px;margin-top:4px"></div>
-              </div>
+              <!-- Las imágenes del producto van en el paso 2 (Auto-generar plantilla Shrine) -->
+              <input type="hidden" id="bk-dropi-imp-img" value="">
+              <input type="hidden" id="bk-dropi-imp-gallery" value="">
               <div style="display:flex;flex-direction:column;gap:3px">
                 <label style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">Costo Dropi CLP <span style="color:#C0392B">*</span></label>
                 <input type="number" id="bk-dropi-imp-cost" placeholder="1500" min="1" oninput="_bkDropiCalcPrecio()" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px 10px;border-radius:6px;font-size:13px;font-family:'DM Mono',monospace">
@@ -1816,15 +1805,9 @@
                 <input type="number" id="bk-dropi-imp-price" placeholder="auto" min="1" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px 10px;border-radius:6px;font-size:13px;font-family:'DM Mono',monospace">
                 <div id="bk-dropi-imp-price-hint" style="font-size:9px;color:var(--muted);font-family:'DM Mono',monospace"></div>
               </div>
-              <details style="grid-column:1/-1;font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">
-                <summary style="cursor:pointer">🆕 Proveedor nuevo (no en la lista) — ver instrucciones</summary>
-                <div style="margin-top:6px;padding:8px;background:var(--surface2);border-radius:6px;line-height:1.6">
-                  Si es un proveedor que nunca importaste, hacé PRIMERO 1 importación normal desde Dropi web (el producto queda con user_id en Shopify).<br>
-                  Después BKDROP ya lo conoce y aparece en el autocomplete de acá para futuros productos.<br>
-                  Alternativa: sabés el <code>user_id</code> exacto? pegalo abajo:
-                  <input type="number" id="bk-dropi-imp-userid" placeholder="user_id manual (ej 1001)" style="background:var(--surface);border:1.5px solid var(--border);color:var(--text);padding:6px 8px;border-radius:4px;font-size:11px;font-family:'DM Mono',monospace;margin-top:4px;width:100%">
-                </div>
-              </details>
+              <!-- user_id oculto: BKDROP intenta auto-detectarlo por nombre.
+                   Si el proveedor no existe se importa igual (marca 'proveedor-nuevo'). -->
+              <input type="hidden" id="bk-dropi-imp-userid" value="">
             </div>
             <button onclick="ejecutarDropiImport()" style="background:#8A5A2A;color:#fff;border:none;border-radius:8px;padding:11px;font-size:12px;font-family:'DM Mono',monospace;cursor:pointer;font-weight:700;letter-spacing:.5px">📥 Importar a Shopify (draft)</button>
             <div class="bk-shopify-status" id="bk-dropi-import-status"></div>
@@ -9824,7 +9807,6 @@ async function ejecutarDropiImport(){
 
   if (!dropiId) { status.textContent = '❌ Falta ID Dropi'; return; }
   if (!name)    { status.textContent = '❌ Falta nombre'; return; }
-  if (!imgUrl)  { status.textContent = '❌ Falta URL imagen'; return; }
   if (!cost || cost <= 0) { status.textContent = '❌ Costo invalido'; return; }
   if (!userName && !userIdManual) { status.textContent = '❌ Falta proveedor (nombre o user_id)'; return; }
 
@@ -9861,6 +9843,9 @@ async function ejecutarDropiImport(){
     const tokensMsg = data.tokens_source
       ? '<div style="font-size:10px;color:var(--muted);margin-top:4px">tokens Dropi heredados de: <code>' + esc(data.tokens_source.title || data.tokens_source.product_id) + '</code></div>'
       : '';
+    const supplierWarning = data.supplier_is_new
+      ? '<div style="font-size:11px;color:#8A5A2A;background:#FCF2D6;padding:6px 10px;border-radius:6px;margin-top:4px">⚠️ Proveedor <b>' + esc(data.supplier_name || '?') + '</b> es NUEVO en tu Shopify. El producto quedó con tag <code>proveedor-nuevo</code>. Cuando importes cualquier producto de este proveedor desde Dropi web, avisame para asignarle el user_id real al metafield.</div>'
+      : '';
     // Guardamos nombre + desc + ref para el botón 'Continuar → Master'.
     const desc = document.getElementById('bk-dropi-imp-desc')?.value?.trim() || '';
     const ref  = document.getElementById('bk-dropi-imp-ref')?.value?.trim() || '';
@@ -9876,6 +9861,7 @@ async function ejecutarDropiImport(){
         '</div>' +
         '<div style="font-size:11px;color:var(--muted);font-family:\'DM Mono\',monospace">product_id: ' + esc(data.product_id) + ' · variant_id: ' + esc(data.variant_id || '?') + '</div>' +
         tokensMsg +
+        supplierWarning +
       '</div>';
     // Limpiar el form (menos desc/ref que quedan usables para el Master)
     ['bk-dropi-imp-id','bk-dropi-imp-userid','bk-dropi-imp-name','bk-dropi-imp-img','bk-dropi-imp-cost','bk-dropi-imp-username','bk-dropi-imp-gallery']

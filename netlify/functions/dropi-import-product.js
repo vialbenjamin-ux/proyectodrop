@@ -35,6 +35,10 @@ exports.handler = async (event) => {
   const cost = Number(body.cost);
   let userId = String(body.user_id || '').trim();
   const userName = String(body.user_name || '').trim();
+  // Si viene true, permitir crear el producto aunque el proveedor no exista en
+  // Shopify (proveedor nuevo). El metafield queda con user.id = null y user.name
+  // = userName. El fulfillment Dropi requerira reasignacion despues.
+  const allowUnknownSupplier = body.allow_unknown_supplier === true;
   const price = Number(body.price) > 0 ? Number(body.price) : 999;
   const description = String(body.description || '').trim();
   const extraGallery = Array.isArray(body.gallery_urls) ? body.gallery_urls.filter(u => typeof u === 'string' && u).slice(0, 8) : [];
@@ -102,18 +106,14 @@ exports.handler = async (event) => {
         return n === targetName;
       }) || null;
     }
-    if (!chosen && wantResolveUserId) {
-      // Devolver lista para que el UI ayude.
-      return respond(400, {
-        error: 'No encontré ningún producto de un proveedor llamado "' + userName + '". Verificá el nombre exacto (case-insensitive), elegí uno de los conocidos, o usá un user_id manual.',
-        suppliersFound: suppliers.map(s => ({ id: s.id, name: s.name })),
-      });
-    }
-    // Si vino user_id manual pero no matchea con proveedor conocido,
-    // seguimos igual (permitimos user_id nuevo). En ese caso tenemos que
-    // leer los tokens de CUALQUIER producto existente (todos comparten los mismos).
-    if (!chosen && userId) {
-      // Elegir el primer proveedor conocido con sample+tokens para heredar los tokens.
+    // Si no matchea (proveedor nuevo) NO bloqueamos: creamos el producto igual.
+    // Elegimos cualquier proveedor con sample+tokens para heredar los tokens Dropi
+    // de la tienda (son por-tienda, no por-proveedor). El user.id del metafield
+    // queda null (o el userId manual si vino), el user.name queda como escribió
+    // el usuario.
+    let supplierIsNew = false;
+    if (!chosen) {
+      supplierIsNew = true;
       chosen = suppliers.find(s => s.sampleHasTokens && s.sampleProductId) || suppliers[0];
     }
 
@@ -168,8 +168,13 @@ exports.handler = async (event) => {
       });
     }
 
-    // userId final resuelto (por matching del proveedor o el manual).
-    if (!userId) userId = chosen.id;
+    // userId final resuelto:
+    // - Si vino manual, usarlo tal cual.
+    // - Si matcheo con proveedor conocido, usar su id.
+    // - Si es proveedor nuevo, dejamos null (Dropi lo puede asignar despues).
+    if (!userId && !supplierIsNew) userId = chosen.id;
+    // Nombre del proveedor: prioridad userName -> chosen.name.
+    const supplierName = userName || (chosen ? chosen.name : null);
 
     // 3. Armar el JSON del metafield dropi._dropi_product.
     const galleryList = [];
@@ -184,8 +189,8 @@ exports.handler = async (event) => {
       sale_price: cost,
       gallery: galleryList,
       user: {
-        id: parseInt(userId, 10),
-        name: userName || null,
+        id: userId ? parseInt(userId, 10) : null,
+        name: supplierName,
       },
       tokens: dropiTokens,
       shop_name: dropiShopName,
@@ -196,12 +201,14 @@ exports.handler = async (event) => {
     //       oferta-{tipo} si vino offer_type.
     const tags = ['bk-dropi-imported', 'envio-gratis'];
     if (offerType) tags.push('oferta-' + offerType);
+    // Tag adicional si es proveedor nuevo (para poder listar despues).
+    if (supplierIsNew) tags.push('proveedor-nuevo');
     const productPayload = {
       product: {
         title: name,
         body_html: description || '',
         status: 'draft',
-        vendor: userName || 'Dropi',
+        vendor: supplierName || 'Dropi',
         tags: tags.join(', '),
         variants: [{
           price: String(price),
@@ -262,6 +269,9 @@ exports.handler = async (event) => {
       metafield_ok: metafieldOk,
       metafield_error: metafieldError,
       tokens_source: tokensSource,
+      supplier_is_new: supplierIsNew,
+      supplier_name: supplierName,
+      supplier_id: userId || null,
     });
 
   } catch (err) {
