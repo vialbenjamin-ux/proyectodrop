@@ -1926,8 +1926,14 @@
               <input id="bkv-beneficio" placeholder="Duerme sin dolor toda la noche" oninput="saveBkVars()">
             </div>
             <div class="bk-var-field full">
-              <label>Descuento (%) <span style="color:var(--muted2);font-size:9px;letter-spacing:.3px;text-transform:none">— manual, no viene del Master</span></label>
-              <input id="bkv-descuento" type="number" min="0" max="99" placeholder="45" oninput="saveBkVars()">
+              <label>Oferta destacada <span style="color:var(--muted2);font-size:9px;letter-spacing:.3px;text-transform:none">— aparece en la esquina superior derecha del prompt de imagen</span></label>
+              <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px">
+                <button type="button" onclick="_bkPickOferta('45% OFF')" class="bk-oferta-pick" style="flex:1;min-width:70px;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:6px;border-radius:6px;font-size:11px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">45% OFF</button>
+                <button type="button" onclick="_bkPickOferta('2X1')" class="bk-oferta-pick" style="flex:1;min-width:70px;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:6px;border-radius:6px;font-size:11px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">2X1</button>
+                <button type="button" onclick="_bkPickOferta('3X1')" class="bk-oferta-pick" style="flex:1;min-width:70px;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:6px;border-radius:6px;font-size:11px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">3X1</button>
+                <button type="button" onclick="_bkPickOferta('4X1')" class="bk-oferta-pick" style="flex:1;min-width:70px;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:6px;border-radius:6px;font-size:11px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">4X1</button>
+              </div>
+              <input id="bkv-descuento" type="text" placeholder="Escribí libre o click un botón (ej: 45% OFF, 2X1)" oninput="saveBkVars()">
             </div>
           </div>
         </div>
@@ -7702,7 +7708,8 @@ Formato: Fotografía publicitaria, calidad premium 8K, formato cuadrado 1:1, opt
 Primer plano: Producto perfectamente enfocado, iluminación de estudio con sombras suaves y reflejos realistas. Materiales reales respetados (plástico, metal, tela, etc.).
 Fondo: Escena aspiracional ligeramente desenfocada con persona del público objetivo (35-60 años) usando o interactuando con el producto. Expresión de satisfacción, alivio o confianza. Atmósfera hogareña, cálida y creíble — nunca exagerada.
 Textos gráficos sobre la imagen:
-🔥 [DESCUENTO]% OFF — esquina superior derecha
+🔥 [DESCUENTO] — badge grande en esquina superior derecha, sticker circular con colores vivos (rojo/blanco o amarillo/negro), texto bold legible
+🚚 ENVÍO GRATIS — etiqueta rectangular en esquina inferior derecha, fondo verde vivo con texto blanco en mayúsculas, estilo sticker de despacho
 Título bold máximo 5 palabras: "[PROBLEMA DEL CLIENTE EN PREGUNTA]"
 Subtítulo máximo 6 palabras debajo: "[BENEFICIO PRINCIPAL. Directo y poderoso.]"
 Cinta central: ¡OFERTA ESPECIAL!
@@ -7712,7 +7719,8 @@ REGLAS FIJAS:
 Sin lista lateral de beneficios con ✔
 Título máximo 5 palabras
 Subtítulo máximo 6 palabras
-🔥 descuento SIEMPRE en esquina superior derecha
+🔥 badge de oferta SIEMPRE en esquina superior derecha
+🚚 etiqueta ENVÍO GRATIS SIEMPRE en esquina inferior derecha
 Escena natural y creíble, nunca exagerada
 Persona del público objetivo alineada al ángulo de venta
 Responder SOLO con el prompt, nada más`,
@@ -8179,12 +8187,29 @@ function clearBkVars(){
   });
 }
 
+// Rellena el input de oferta al clickear uno de los botones (45%, 2X1, etc.)
+function _bkPickOferta(val){
+  const el = document.getElementById('bkv-descuento');
+  if (!el) return;
+  el.value = val;
+  if (typeof saveBkVars === 'function') try { saveBkVars(); } catch (_) {}
+  // Highlight visual: el boton clickeado queda destacado.
+  document.querySelectorAll('.bk-oferta-pick').forEach(function(b){
+    const on = b.textContent.trim() === val;
+    b.style.background = on ? '#8A5A2A' : 'var(--surface2)';
+    b.style.color = on ? '#fff' : 'var(--text)';
+    b.style.borderColor = on ? '#8A5A2A' : 'var(--border)';
+  });
+}
+
 function fillBkPrompt(key){
   const v = getBkVars();
   let text = BK_PROMPTS[key] || '';
 
   if(key === 'imagenes'){
-    if(v.descuento)  text = text.replace('[DESCUENTO]', v.descuento);
+    // Default 45% OFF si el user no puso nada.
+    const oferta = (v.descuento || '').trim() || '45% OFF';
+    text = text.replace('[DESCUENTO]', oferta);
     if(v.problema)   text = text.replace('[PROBLEMA DEL CLIENTE EN PREGUNTA]', v.problema);
     if(v.beneficio)  text = text.replace('[BENEFICIO PRINCIPAL. Directo y poderoso.]', v.beneficio);
     const extras = [];
