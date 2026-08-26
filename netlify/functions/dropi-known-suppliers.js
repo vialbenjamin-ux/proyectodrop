@@ -22,7 +22,9 @@ exports.handler = async (event) => {
   const MAX_LOOKUPS = 250;
   const byId = new Map();
   let lookups = 0;
-  let pageUrl = API + '/products.json?limit=' + PAGE_SIZE + '&fields=id,title&status=any';
+  // status=any no es valido en Shopify; los validos son active|draft|archived.
+  // Sin ningun parametro devuelve solo active. Para incluir todos usamos comas.
+  let pageUrl = API + '/products.json?limit=' + PAGE_SIZE + '&fields=id,title&status=active,draft,archived';
   let pages = 0;
   const dbg = { pagesFetched: 0, firstPageStatus: null, totalProductsSeen: 0, lastError: null };
 
