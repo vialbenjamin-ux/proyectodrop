@@ -1758,8 +1758,10 @@
                 <input type="number" id="bk-dropi-imp-id" placeholder="121791" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px 10px;border-radius:6px;font-size:13px;font-family:'DM Mono',monospace">
               </div>
               <div style="display:flex;flex-direction:column;gap:3px">
-                <label style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">user_id proveedor <span style="color:#C0392B">*</span></label>
-                <input type="number" id="bk-dropi-imp-userid" placeholder="1001" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px 10px;border-radius:6px;font-size:13px;font-family:'DM Mono',monospace">
+                <label style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">Proveedor <span style="color:#C0392B">*</span></label>
+                <input type="text" id="bk-dropi-imp-username" list="bk-dropi-supplier-list" placeholder="Escribí nombre — sugerencias de tus proveedores" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px 10px;border-radius:6px;font-size:13px">
+                <datalist id="bk-dropi-supplier-list"></datalist>
+                <div id="bk-dropi-supplier-hint" style="font-size:9px;color:var(--muted);font-family:'DM Mono',monospace"></div>
               </div>
               <div style="display:flex;flex-direction:column;gap:3px;grid-column:1/-1">
                 <label style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">Nombre del producto <span style="color:#C0392B">*</span></label>
@@ -1777,10 +1779,15 @@
                 <label style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">Precio Shopify inicial CLP</label>
                 <input type="number" id="bk-dropi-imp-price" placeholder="999" min="1" value="999" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px 10px;border-radius:6px;font-size:13px;font-family:'DM Mono',monospace">
               </div>
-              <div style="display:flex;flex-direction:column;gap:3px;grid-column:1/-1">
-                <label style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">Nombre del proveedor (opcional)</label>
-                <input type="text" id="bk-dropi-imp-username" placeholder="DANIEL" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px 10px;border-radius:6px;font-size:12px">
-              </div>
+              <details style="grid-column:1/-1;font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">
+                <summary style="cursor:pointer">🆕 Proveedor nuevo (no en la lista) — ver instrucciones</summary>
+                <div style="margin-top:6px;padding:8px;background:var(--surface2);border-radius:6px;line-height:1.6">
+                  Si es un proveedor que nunca importaste, hacé PRIMERO 1 importación normal desde Dropi web (el producto queda con user_id en Shopify).<br>
+                  Después BKDROP ya lo conoce y aparece en el autocomplete de acá para futuros productos.<br>
+                  Alternativa: sabés el <code>user_id</code> exacto? pegalo abajo:
+                  <input type="number" id="bk-dropi-imp-userid" placeholder="user_id manual (ej 1001)" style="background:var(--surface);border:1.5px solid var(--border);color:var(--text);padding:6px 8px;border-radius:4px;font-size:11px;font-family:'DM Mono',monospace;margin-top:4px;width:100%">
+                </div>
+              </details>
             </div>
             <button onclick="ejecutarDropiImport()" style="background:#8A5A2A;color:#fff;border:none;border-radius:8px;padding:11px;font-size:12px;font-family:'DM Mono',monospace;cursor:pointer;font-weight:700;letter-spacing:.5px">📥 Importar a Shopify (draft)</button>
             <div class="bk-shopify-status" id="bk-dropi-import-status"></div>
@@ -9715,17 +9722,38 @@ async function eliminarLandingUI(id){
 let _preciosSelectedProduct = null;
 
 // ─── IMPORTAR PRODUCTO DROPI POR ID ────────────────────────────────────────
-function abrirDropiImport(){
+async function abrirDropiImport(){
   const panel = document.getElementById('bk-dropi-import');
   if (!panel) return;
   const isVisible = (panel.style.display !== 'none');
   panel.style.display = isVisible ? 'none' : 'flex';
-  if (!isVisible) panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  if (!isVisible) {
+    panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    _bkDropiCargarProveedores();
+  }
+}
+
+// Carga los proveedores conocidos en el datalist del autocomplete.
+async function _bkDropiCargarProveedores(){
+  const dl = document.getElementById('bk-dropi-supplier-list');
+  const hint = document.getElementById('bk-dropi-supplier-hint');
+  if (!dl) return;
+  try {
+    const resp = await fetch('/.netlify/functions/dropi-known-suppliers');
+    const data = await resp.json();
+    const suppliers = data.suppliers || [];
+    dl.innerHTML = suppliers.map(s =>
+      '<option data-userid="' + esc(s.id) + '" value="' + esc(s.name) + '">' + esc(s.name) + ' (id ' + esc(s.id) + ', ' + s.productCount + ' productos)</option>'
+    ).join('');
+    if (hint) hint.textContent = suppliers.length + ' proveedores conocidos · escribí para filtrar';
+  } catch (err) {
+    if (hint) hint.textContent = '⚠️ error cargando proveedores: ' + (err.message || 'unknown');
+  }
 }
 
 async function ejecutarDropiImport(){
   const dropiId  = document.getElementById('bk-dropi-imp-id')?.value?.trim();
-  const userId   = document.getElementById('bk-dropi-imp-userid')?.value?.trim();
+  const userIdManual = document.getElementById('bk-dropi-imp-userid')?.value?.trim();
   const name     = document.getElementById('bk-dropi-imp-name')?.value?.trim();
   const imgUrl   = document.getElementById('bk-dropi-imp-img')?.value?.trim();
   const cost     = parseFloat(document.getElementById('bk-dropi-imp-cost')?.value);
@@ -9734,10 +9762,12 @@ async function ejecutarDropiImport(){
   const status = document.getElementById('bk-dropi-import-status');
 
   if (!dropiId) { status.textContent = '❌ Falta ID Dropi'; return; }
-  if (!userId)  { status.textContent = '❌ Falta user_id proveedor'; return; }
   if (!name)    { status.textContent = '❌ Falta nombre'; return; }
   if (!imgUrl)  { status.textContent = '❌ Falta URL imagen'; return; }
   if (!cost || cost <= 0) { status.textContent = '❌ Costo invalido'; return; }
+  if (!userName && !userIdManual) { status.textContent = '❌ Falta proveedor (nombre o user_id)'; return; }
+
+  const userId = userIdManual || null;
 
   status.textContent = '⏳ Importando…';
   try {
@@ -9755,7 +9785,15 @@ async function ejecutarDropiImport(){
       }),
     });
     const data = await resp.json();
-    if (!resp.ok || !data.ok) throw new Error(data.error || ('HTTP ' + resp.status));
+    if (!resp.ok || !data.ok) {
+      // Si el backend devolvio proveedores encontrados, los mostramos para ayudar.
+      if (Array.isArray(data.suppliersFound) && data.suppliersFound.length) {
+        const list = data.suppliersFound.map(s => '<div style="padding:2px 0"><b>' + esc(s.name || '?') + '</b> · id <code>' + esc(s.id) + '</code></div>').join('');
+        status.innerHTML = '<div style="color:#C0392B;font-size:11px;font-family:\'DM Mono\',monospace">❌ ' + esc(data.error) + '</div><div style="margin-top:8px;padding:8px;background:var(--surface2);border-radius:6px;font-size:11px"><div style="font-weight:700;margin-bottom:4px">Proveedores conocidos:</div>' + list + '</div>';
+        return;
+      }
+      throw new Error(data.error || ('HTTP ' + resp.status));
+    }
 
     const tokensMsg = data.tokens_source
       ? '<div style="font-size:10px;color:var(--muted);margin-top:4px">tokens Dropi heredados de: <code>' + esc(data.tokens_source.title || data.tokens_source.product_id) + '</code></div>'

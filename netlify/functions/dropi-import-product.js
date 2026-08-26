@@ -33,7 +33,7 @@ exports.handler = async (event) => {
   const name = String(body.name || '').trim();
   const imageUrl = String(body.image_url || '').trim();
   const cost = Number(body.cost);
-  const userId = String(body.user_id || '').trim();
+  let userId = String(body.user_id || '').trim();
   const userName = String(body.user_name || '').trim();
   const price = Number(body.price) > 0 ? Number(body.price) : 999;
   const description = String(body.description || '').trim();
@@ -42,7 +42,11 @@ exports.handler = async (event) => {
   if (!dropiId || !/^\d+$/.test(dropiId)) return respond(400, { error: 'dropi_id invalido (debe ser numerico)' });
   if (!name) return respond(400, { error: 'Falta name' });
   if (!cost || cost <= 0) return respond(400, { error: 'Falta cost (>0)' });
-  if (!userId || !/^\d+$/.test(userId)) return respond(400, { error: 'user_id invalido (debe ser numerico)' });
+  // user_id obligatorio SOLO si tampoco viene user_name. Si viene name, lo
+  // resolvemos automatico escaneando productos Dropi existentes.
+  if ((!userId || !/^\d+$/.test(userId)) && !userName) {
+    return respond(400, { error: 'Falta user_id o user_name del proveedor' });
+  }
 
   const token = process.env.SHOPIFY_TOKEN;
   const domain = process.env.SHOPIFY_DOMAIN;
@@ -59,39 +63,69 @@ exports.handler = async (event) => {
     const searchR = await fetch(API + '/variants.json?fields=id,product_id,barcode', { headers: H });
     // Skip check si es muy costoso; el user vera error si el barcode ya existe.
 
-    // 2. Buscar 'tokens' y 'shop_name' en OTRO producto ya importado.
-    //    Recorremos los metafields de tienda? No, esos son otros. Leemos
-    //    metafields de PRODUCTO buscando namespace 'dropi' en el primer
-    //    producto que encontremos.
+    // 2. Escaneo de productos Dropi existentes:
+    //    - Buscar 'tokens' y 'shop_name' (por tienda, se hereda).
+    //    - Si no vino user_id: resolverlo por user_name (match case-insensitive
+    //      contra dropi_data.user.name).
     let dropiTokens = null;
     let dropiShopName = null;
     let tokensSource = null;
-    try {
-      const listR = await fetch(API + '/products.json?limit=30&fields=id,title', { headers: H });
-      if (listR.ok) {
-        const listJ = await listR.json();
-        for (const p of (listJ.products || [])) {
-          const mR = await fetch(API + '/products/' + p.id + '/metafields.json?namespace=dropi', { headers: H });
-          if (!mR.ok) continue;
-          const mJ = await mR.json();
-          const mfDropi = (mJ.metafields || []).find(m => m.namespace === 'dropi' && m.key === '_dropi_product');
-          if (!mfDropi) continue;
-          try {
-            const d = JSON.parse(mfDropi.value);
-            if (d && d.tokens) {
-              dropiTokens = d.tokens;
-              dropiShopName = d.shop_name || null;
-              tokensSource = { product_id: p.id, title: p.title };
-              break;
+    let resolvedUserName = null;
+    const wantResolveUserId = !userId || !/^\d+$/.test(userId);
+    const targetName = userName.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+    const suppliersSeen = new Map(); // Map<name_lower, {id, name}>
+    const PAGE_SIZE = 250;
+    const MAX_PAGES = 3;
+    let pageUrl = API + '/products.json?limit=' + PAGE_SIZE + '&fields=id,title&status=any';
+    let pages = 0;
+
+    while (pageUrl && pages < MAX_PAGES && (!dropiTokens || wantResolveUserId)) {
+      const listR = await fetch(pageUrl, { headers: H });
+      if (!listR.ok) break;
+      const listJ = await listR.json();
+      for (const p of (listJ.products || [])) {
+        const mR = await fetch(API + '/products/' + p.id + '/metafields.json?namespace=dropi', { headers: H });
+        if (!mR.ok) continue;
+        const mJ = await mR.json();
+        const mfDropi = (mJ.metafields || []).find(m => m.namespace === 'dropi' && m.key === '_dropi_product');
+        if (!mfDropi) continue;
+        try {
+          const d = JSON.parse(mfDropi.value);
+          if (!dropiTokens && d && d.tokens) {
+            dropiTokens = d.tokens;
+            dropiShopName = d.shop_name || null;
+            tokensSource = { product_id: p.id, title: p.title };
+          }
+          if (d && d.user && d.user.id != null) {
+            const uid = String(d.user.id);
+            const uname = String(d.user.name || '').trim();
+            const unameNorm = uname.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+            if (unameNorm && !suppliersSeen.has(unameNorm)) suppliersSeen.set(unameNorm, { id: uid, name: uname });
+            if (wantResolveUserId && targetName && unameNorm === targetName && !userId) {
+              userId = uid;
+              resolvedUserName = uname;
             }
-          } catch (_) {}
-        }
+          }
+        } catch (_) {}
+        if (dropiTokens && (!wantResolveUserId || userId)) break;
       }
-    } catch (_) {}
+      if (dropiTokens && (!wantResolveUserId || userId)) break;
+      const link = listR.headers.get('Link') || '';
+      const nx = link.match(/<([^>]+)>;\s*rel="next"/);
+      pageUrl = nx ? nx[1] : null;
+      pages++;
+    }
 
     if (!dropiTokens) {
       return respond(400, {
         error: 'No pude hallar tokens Dropi en ningun producto existente. Importá al menos 1 producto desde Dropi web primero (para que se emita el token de la tienda), después reintenta.',
+      });
+    }
+    if (wantResolveUserId && !userId) {
+      const suppliersList = Array.from(suppliersSeen.values()).sort((a, b) => a.name.localeCompare(b.name));
+      return respond(400, {
+        error: 'No encontré ningún producto de un proveedor llamado "' + userName + '". Verificá el nombre exacto o probá con user_id.',
+        suppliersFound: suppliersList,
       });
     }
 
