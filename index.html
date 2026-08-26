@@ -1783,7 +1783,23 @@
               </div>
               <div style="display:flex;flex-direction:column;gap:3px;grid-column:1/-1">
                 <label style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">URL imagen principal <span style="color:#C0392B">*</span></label>
-                <input type="url" id="bk-dropi-imp-img" placeholder="https://cdn.dropi.cl/..." style="background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px 10px;border-radius:6px;font-size:12px;font-family:'DM Mono',monospace">
+                <input type="url" id="bk-dropi-imp-img" placeholder="https://cdn.dropi.cl/..." oninput="_bkDropiRenderImgPreview()" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px 10px;border-radius:6px;font-size:12px;font-family:'DM Mono',monospace">
+              </div>
+              <div style="display:flex;flex-direction:column;gap:6px;grid-column:1/-1">
+                <label style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">Tipo de oferta destacada <span style="text-transform:none">(se agrega como tag Shopify + queda disponible para el prompt de imágenes)</span></label>
+                <div style="display:flex;gap:6px;flex-wrap:wrap" id="bk-dropi-imp-offer-picker">
+                  <button type="button" data-offer="2x1"  onclick="_bkDropiPickOffer('2x1')"  class="bk-dropi-offer-btn"  style="flex:1;min-width:80px;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px;border-radius:6px;font-size:12px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">2x1</button>
+                  <button type="button" data-offer="3x1"  onclick="_bkDropiPickOffer('3x1')"  class="bk-dropi-offer-btn"  style="flex:1;min-width:80px;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px;border-radius:6px;font-size:12px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">3x1</button>
+                  <button type="button" data-offer="4x1"  onclick="_bkDropiPickOffer('4x1')"  class="bk-dropi-offer-btn"  style="flex:1;min-width:80px;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px;border-radius:6px;font-size:12px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">4x1</button>
+                  <button type="button" data-offer="45off" onclick="_bkDropiPickOffer('45off')" class="bk-dropi-offer-btn" style="flex:1;min-width:80px;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px;border-radius:6px;font-size:12px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">45% OFF</button>
+                </div>
+                <div style="font-size:9px;color:var(--muted);font-family:'DM Mono',monospace">Se agrega automáticamente el tag <code>envio-gratis</code>.</div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:3px;grid-column:1/-1">
+                <label style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">Imágenes adicionales <span style="text-transform:none">(una URL por línea — se agregan al carrusel del producto)</span></label>
+                <textarea id="bk-dropi-imp-gallery" placeholder="https://cdn.dropi.cl/foto1.jpg&#10;https://cdn.dropi.cl/foto2.jpg&#10;https://cdn.dropi.cl/foto3.jpg" oninput="_bkDropiRenderImgPreview()" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px 10px;border-radius:6px;font-size:11px;font-family:'DM Mono',monospace;min-height:70px;resize:vertical"></textarea>
+                <div style="font-size:9px;color:var(--muted);font-family:'DM Mono',monospace">Tip: en Dropi web, click derecho sobre cada foto de la galería → 'Copiar dirección de imagen' y pegá abajo. Máximo 8 imágenes adicionales.</div>
+                <div id="bk-dropi-imp-img-preview" style="display:none;grid-template-columns:repeat(auto-fill,minmax(70px,1fr));gap:6px;margin-top:4px"></div>
               </div>
               <div style="display:flex;flex-direction:column;gap:3px">
                 <label style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">Costo Dropi CLP <span style="color:#C0392B">*</span></label>
@@ -9748,6 +9764,39 @@ async function abrirDropiImport(){
   }
 }
 
+// Estado global del tipo de oferta elegido en el importador ('2x1'/'3x1'/'4x1'/'45off' o null).
+window._bkDropiOfferPick = null;
+function _bkDropiPickOffer(v){
+  window._bkDropiOfferPick = (window._bkDropiOfferPick === v) ? null : v;
+  document.querySelectorAll('.bk-dropi-offer-btn').forEach(function(btn){
+    const on = btn.getAttribute('data-offer') === window._bkDropiOfferPick;
+    btn.style.background = on ? '#8A5A2A' : 'var(--surface2)';
+    btn.style.color      = on ? '#fff' : 'var(--text)';
+    btn.style.borderColor = on ? '#8A5A2A' : 'var(--border)';
+  });
+}
+
+// Preview visual de las imagenes del importador: thumbnails de la URL principal
+// + las URLs del textarea de galeria. Para que veas antes de importar.
+function _bkDropiRenderImgPreview(){
+  const box = document.getElementById('bk-dropi-imp-img-preview');
+  if (!box) return;
+  const main = document.getElementById('bk-dropi-imp-img')?.value?.trim();
+  const extra = (document.getElementById('bk-dropi-imp-gallery')?.value || '')
+    .split(/\r?\n/).map(l => l.trim()).filter(l => /^https?:\/\//i.test(l)).slice(0, 8);
+  const all = [];
+  if (main && /^https?:\/\//i.test(main)) all.push({ url: main, main: true });
+  for (const u of extra) all.push({ url: u, main: false });
+  if (!all.length) { box.style.display = 'none'; box.innerHTML = ''; return; }
+  box.style.display = 'grid';
+  box.innerHTML = all.map((it, i) =>
+    '<div style="position:relative;aspect-ratio:1/1;border:1.5px solid ' + (it.main ? '#8A5A2A' : 'var(--border)') + ';border-radius:6px;overflow:hidden;background:#F5F5F5">' +
+      '<img src="' + esc(it.url) + '" style="width:100%;height:100%;object-fit:cover" onerror="this.parentElement.style.background=\'#FDECEA\';this.style.display=\'none\'">' +
+      (it.main ? '<span style="position:absolute;top:2px;left:2px;background:#8A5A2A;color:#fff;font-size:8px;padding:1px 4px;border-radius:3px;font-family:\'DM Mono\',monospace;font-weight:700">MAIN</span>' : '<span style="position:absolute;top:2px;left:2px;background:var(--muted);color:#fff;font-size:8px;padding:1px 4px;border-radius:3px;font-family:\'DM Mono\',monospace;font-weight:700">' + (i) + '</span>') +
+    '</div>'
+  ).join('');
+}
+
 // Auto-calcula el precio Shopify inicial a partir del costo Dropi
 // usando getPrecio1u (la misma logica de la calculadora BKDROP).
 function _bkDropiCalcPrecio(){
@@ -9796,6 +9845,8 @@ async function ejecutarDropiImport(){
   const userIdManual = document.getElementById('bk-dropi-imp-userid')?.value?.trim();
   const name     = document.getElementById('bk-dropi-imp-name')?.value?.trim();
   const imgUrl   = document.getElementById('bk-dropi-imp-img')?.value?.trim();
+  const galleryTxt = document.getElementById('bk-dropi-imp-gallery')?.value || '';
+  const gallery  = galleryTxt.split(/\r?\n/).map(s => s.trim()).filter(s => /^https?:\/\//i.test(s)).slice(0, 8);
   const cost     = parseFloat(document.getElementById('bk-dropi-imp-cost')?.value);
   const price    = parseFloat(document.getElementById('bk-dropi-imp-price')?.value) || 999;
   const userName = document.getElementById('bk-dropi-imp-username')?.value?.trim() || '';
@@ -9820,8 +9871,10 @@ async function ejecutarDropiImport(){
         user_name: userName,
         name: name,
         image_url: imgUrl,
+        gallery_urls: gallery,
         cost: cost,
         price: price,
+        offer_type: window._bkDropiOfferPick || null,
       }),
     });
     const data = await resp.json();

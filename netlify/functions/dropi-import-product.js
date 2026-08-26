@@ -38,6 +38,9 @@ exports.handler = async (event) => {
   const price = Number(body.price) > 0 ? Number(body.price) : 999;
   const description = String(body.description || '').trim();
   const extraGallery = Array.isArray(body.gallery_urls) ? body.gallery_urls.filter(u => typeof u === 'string' && u).slice(0, 8) : [];
+  // Tipo de oferta destacada ('2x1'|'3x1'|'4x1'|'45off'|null). Se agrega como
+  // tag para poder filtrar en el prompt de imagenes y en Releasit.
+  const offerType = ['2x1','3x1','4x1','45off'].includes(String(body.offer_type)) ? String(body.offer_type) : null;
 
   if (!dropiId || !/^\d+$/.test(dropiId)) return respond(400, { error: 'dropi_id invalido (debe ser numerico)' });
   if (!name) return respond(400, { error: 'Falta name' });
@@ -189,13 +192,17 @@ exports.handler = async (event) => {
     };
 
     // 4. Crear el producto Shopify.
+    // Tags: bk-dropi-imported (siempre), envio-gratis (siempre, pedido del user),
+    //       oferta-{tipo} si vino offer_type.
+    const tags = ['bk-dropi-imported', 'envio-gratis'];
+    if (offerType) tags.push('oferta-' + offerType);
     const productPayload = {
       product: {
         title: name,
         body_html: description || '',
         status: 'draft',
         vendor: userName || 'Dropi',
-        tags: 'bk-dropi-imported',
+        tags: tags.join(', '),
         variants: [{
           price: String(price),
           barcode: dropiId,
