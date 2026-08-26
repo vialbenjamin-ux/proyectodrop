@@ -1782,6 +1782,14 @@
                 <input type="text" id="bk-dropi-imp-name" placeholder="Cepillo lavatraste automático" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px 10px;border-radius:6px;font-size:13px">
               </div>
               <div style="display:flex;flex-direction:column;gap:3px;grid-column:1/-1">
+                <label style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">Descripción / beneficios <span style="text-transform:none">(opcional — para el prompt del Master IA)</span></label>
+                <textarea id="bk-dropi-imp-desc" placeholder="Ej: quita el óxido en 3 minutos, apto para todo tipo de superficies, incluye 5 recambios..." style="background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px 10px;border-radius:6px;font-size:11px;min-height:60px;resize:vertical"></textarea>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:3px;grid-column:1/-1">
+                <label style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">Página de referencia <span style="text-transform:none">(opcional — landing exitosa de la competencia o del proveedor)</span></label>
+                <input type="url" id="bk-dropi-imp-ref" placeholder="https://ejemplo.com/producto-que-vende-bien" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px 10px;border-radius:6px;font-size:11px;font-family:'DM Mono',monospace">
+              </div>
+              <div style="display:flex;flex-direction:column;gap:3px;grid-column:1/-1">
                 <label style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">URL imagen principal <span style="color:#C0392B">*</span></label>
                 <div style="display:flex;gap:6px">
                   <input type="url" id="bk-dropi-imp-img" placeholder="https://cdn.dropi.cl/... o generá con IA →" oninput="_bkDropiRenderImgPreview()" style="flex:1;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px 10px;border-radius:6px;font-size:12px;font-family:'DM Mono',monospace">
@@ -9944,24 +9952,64 @@ async function ejecutarDropiImport(){
     const tokensMsg = data.tokens_source
       ? '<div style="font-size:10px;color:var(--muted);margin-top:4px">tokens Dropi heredados de: <code>' + esc(data.tokens_source.title || data.tokens_source.product_id) + '</code></div>'
       : '';
+    // Guardamos nombre + desc + ref para el botón 'Continuar → Master'.
+    const desc = document.getElementById('bk-dropi-imp-desc')?.value?.trim() || '';
+    const ref  = document.getElementById('bk-dropi-imp-ref')?.value?.trim() || '';
+    // Serializamos los 3 valores en data attributes en el botón para no depender del estado del form (que se limpia).
+    const btnContinuarAttr = 'data-name="' + esc(name) + '" data-desc="' + esc(desc) + '" data-ref="' + esc(ref) + '"';
     status.innerHTML =
       '<div style="background:#F0F7EE;border:1.5px solid #16A34A;border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:8px">' +
-        '<div style="font-size:12px;color:#166534;font-weight:700">✅ Producto creado en Shopify (draft)</div>' +
+        '<div style="font-size:12px;color:#166534;font-weight:700">✅ Producto creado en Shopify (draft) — listo para armar la landing</div>' +
         '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
+          '<button onclick="_bkContinuarAMaster(this)" ' + btnContinuarAttr + ' style="background:#dc2626;color:#fff;border:none;border-radius:6px;padding:8px 14px;font-size:12px;font-family:\'DM Mono\',monospace;font-weight:700;cursor:pointer">▶ Continuar → Master + Auto-generar plantilla</button>' +
           '<a href="' + esc(data.admin_url) + '" target="_blank" style="background:#166534;color:#fff;padding:6px 12px;border-radius:6px;font-size:11px;font-family:\'DM Mono\',monospace;text-decoration:none;font-weight:700">🔗 Ver en Shopify admin</a>' +
           '<button onclick="activarProductoDropi(\'' + data.product_id + '\', this)" style="background:#D4A542;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:11px;font-family:\'DM Mono\',monospace;font-weight:700;cursor:pointer">🚀 Activar landing (cuando esté listo)</button>' +
         '</div>' +
         '<div style="font-size:11px;color:var(--muted);font-family:\'DM Mono\',monospace">product_id: ' + esc(data.product_id) + ' · variant_id: ' + esc(data.variant_id || '?') + '</div>' +
         tokensMsg +
       '</div>';
-    // Limpiar el form
-    ['bk-dropi-imp-id','bk-dropi-imp-userid','bk-dropi-imp-name','bk-dropi-imp-img','bk-dropi-imp-cost','bk-dropi-imp-username']
+    // Limpiar el form (menos desc/ref que quedan usables para el Master)
+    ['bk-dropi-imp-id','bk-dropi-imp-userid','bk-dropi-imp-name','bk-dropi-imp-img','bk-dropi-imp-cost','bk-dropi-imp-username','bk-dropi-imp-gallery']
       .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
     const priceEl = document.getElementById('bk-dropi-imp-price');
-    if (priceEl) priceEl.value = '999';
+    if (priceEl) priceEl.value = '';
+    window._bkDropiOfferPick = null;
+    document.querySelectorAll('.bk-dropi-offer-btn').forEach(b => { b.style.background = 'var(--surface2)'; b.style.color = 'var(--text)'; b.style.borderColor = 'var(--border)'; });
+    _bkDropiRenderImgPreview();
   } catch (err) {
     status.textContent = '❌ ' + (err.message || 'error');
   }
+}
+
+// Puente entre paso 1 (importar Dropi) y paso 2 (Master + Auto-generar plantilla).
+// Toma el nombre + descripción + página de referencia guardadas en el botón,
+// arma un bloque de texto y lo pega en bkv-producto (el input del Master).
+// Después scrollea al bloque MASTER y ejecuta.
+function _bkContinuarAMaster(btn){
+  const productName = btn.dataset.name || '';
+  const productDesc = btn.dataset.desc || '';
+  const refUrl = btn.dataset.ref || '';
+  const master = document.getElementById('bkv-producto');
+  if (!master) { alert('No encontré el input del Master'); return; }
+  // Armar el brief que se pega al Master.
+  let brief = '';
+  if (productName) brief += 'Producto: ' + productName + '\n\n';
+  if (productDesc) brief += 'Descripción / beneficios:\n' + productDesc + '\n\n';
+  if (refUrl) brief += 'Página de referencia (competencia o landing que vende bien):\n' + refUrl + '\n';
+  master.value = brief.trim();
+  if (typeof saveBkVars === 'function') try { saveBkVars(); } catch (_) {}
+  // Cerrar el panel del importador y scrollear al Master.
+  const imp = document.getElementById('bk-dropi-import');
+  if (imp) imp.style.display = 'none';
+  master.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  master.focus();
+  // Ejecutar el Master automáticamente después de un pequeño delay para que
+  // el scroll termine.
+  setTimeout(() => {
+    if (typeof ejecutarMaster === 'function') {
+      try { ejecutarMaster(); } catch (_) {}
+    }
+  }, 600);
 }
 
 // Cambia el status del producto a 'active' (activar landing).
