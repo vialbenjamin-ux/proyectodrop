@@ -171,6 +171,7 @@ async function updateProduct(domain, headers, body) {
   if (typeof body.body_html === 'string')       update.body_html       = body.body_html;
   if (typeof body.title === 'string')           update.title           = body.title;
   if (typeof body.template_suffix === 'string') update.template_suffix = body.template_suffix;
+  if (typeof body.status === 'string' && ['active','draft','archived'].includes(body.status)) update.status = body.status;
   if (Array.isArray(body.tags))           update.tags      = body.tags.join(', ');
   if (typeof body.tags === 'string')      update.tags      = body.tags;
 

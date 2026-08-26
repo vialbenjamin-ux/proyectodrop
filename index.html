@@ -1654,6 +1654,7 @@
             <button class="bk-step-btn" id="bk-btn-extraer" onclick="extraerDatosMaster()">📥 Extraer datos</button>
             <button class="bk-step-btn" id="bk-btn-auto-shrine" onclick="abrirAutoShrine()" style="background:#dc2626;color:#fff;font-weight:700">🚀 Auto-generar plantilla Shrine</button>
             <button class="bk-step-btn" id="bk-btn-precios-releasit" onclick="abrirPreciosReleasit()" style="background:#D9A82E;color:#fff">💰 Precios + Releasit</button>
+            <button class="bk-step-btn" id="bk-btn-dropi-import" onclick="abrirDropiImport()" style="background:#8A5A2A;color:#fff">📥 Importar Dropi por ID</button>
             <button class="bk-step-btn" id="bk-btn-shopify-push" onclick="abrirShopifyPush()" style="background:#10a37f;color:#fff">📤 Pegar en producto</button>
             <button class="bk-step-btn" id="bk-btn-shrine-paste" onclick="abrirShrinePaste()" style="background:#7B5BB5;color:#fff">📋 Copy-paste manual</button>
             <button class="bk-step-btn" id="bk-btn-mis-landings" onclick="abrirMisLandings()" style="background:#5B7CBF;color:#fff">📚 Mis landings</button>
@@ -1743,6 +1744,46 @@
             </div>
 
             <div class="bk-shopify-status" id="bk-precios-status"></div>
+          </div>
+
+          <!-- IMPORTAR PRODUCTO DROPI POR ID (form manual, crea producto Shopify draft) -->
+          <div class="bk-shopify-push" id="bk-dropi-import" style="display:none;border-color:#8A5A2A">
+            <div class="bk-shopify-push-title" style="color:#8A5A2A">📥 Importar producto Dropi a Shopify</div>
+            <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;line-height:1.5">
+              Copiá los datos del panel Dropi web y BKDROP crea el producto en Shopify (draft, oculto) con barcode + metafield dropi._dropi_product + imagen. Listo para usar como upsell.
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+              <div style="display:flex;flex-direction:column;gap:3px">
+                <label style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">ID Dropi <span style="color:#C0392B">*</span></label>
+                <input type="number" id="bk-dropi-imp-id" placeholder="121791" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px 10px;border-radius:6px;font-size:13px;font-family:'DM Mono',monospace">
+              </div>
+              <div style="display:flex;flex-direction:column;gap:3px">
+                <label style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">user_id proveedor <span style="color:#C0392B">*</span></label>
+                <input type="number" id="bk-dropi-imp-userid" placeholder="1001" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px 10px;border-radius:6px;font-size:13px;font-family:'DM Mono',monospace">
+              </div>
+              <div style="display:flex;flex-direction:column;gap:3px;grid-column:1/-1">
+                <label style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">Nombre del producto <span style="color:#C0392B">*</span></label>
+                <input type="text" id="bk-dropi-imp-name" placeholder="Cepillo lavatraste automático" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px 10px;border-radius:6px;font-size:13px">
+              </div>
+              <div style="display:flex;flex-direction:column;gap:3px;grid-column:1/-1">
+                <label style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">URL imagen principal <span style="color:#C0392B">*</span></label>
+                <input type="url" id="bk-dropi-imp-img" placeholder="https://cdn.dropi.cl/..." style="background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px 10px;border-radius:6px;font-size:12px;font-family:'DM Mono',monospace">
+              </div>
+              <div style="display:flex;flex-direction:column;gap:3px">
+                <label style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">Costo Dropi CLP <span style="color:#C0392B">*</span></label>
+                <input type="number" id="bk-dropi-imp-cost" placeholder="1500" min="1" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px 10px;border-radius:6px;font-size:13px;font-family:'DM Mono',monospace">
+              </div>
+              <div style="display:flex;flex-direction:column;gap:3px">
+                <label style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">Precio Shopify inicial CLP</label>
+                <input type="number" id="bk-dropi-imp-price" placeholder="999" min="1" value="999" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px 10px;border-radius:6px;font-size:13px;font-family:'DM Mono',monospace">
+              </div>
+              <div style="display:flex;flex-direction:column;gap:3px;grid-column:1/-1">
+                <label style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">Nombre del proveedor (opcional)</label>
+                <input type="text" id="bk-dropi-imp-username" placeholder="DANIEL" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px 10px;border-radius:6px;font-size:12px">
+              </div>
+            </div>
+            <button onclick="ejecutarDropiImport()" style="background:#8A5A2A;color:#fff;border:none;border-radius:8px;padding:11px;font-size:12px;font-family:'DM Mono',monospace;cursor:pointer;font-weight:700;letter-spacing:.5px">📥 Importar a Shopify (draft)</button>
+            <div class="bk-shopify-status" id="bk-dropi-import-status"></div>
           </div>
 
           <div class="bk-shopify-push" id="bk-edit-section" style="display:none;border-color:#0EA5E9">
@@ -9672,6 +9713,91 @@ async function eliminarLandingUI(id){
 
 // ── Precios + Releasit: push price/compare_at_price + copy texts ──────
 let _preciosSelectedProduct = null;
+
+// ─── IMPORTAR PRODUCTO DROPI POR ID ────────────────────────────────────────
+function abrirDropiImport(){
+  const panel = document.getElementById('bk-dropi-import');
+  if (!panel) return;
+  const isVisible = (panel.style.display !== 'none');
+  panel.style.display = isVisible ? 'none' : 'flex';
+  if (!isVisible) panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+async function ejecutarDropiImport(){
+  const dropiId  = document.getElementById('bk-dropi-imp-id')?.value?.trim();
+  const userId   = document.getElementById('bk-dropi-imp-userid')?.value?.trim();
+  const name     = document.getElementById('bk-dropi-imp-name')?.value?.trim();
+  const imgUrl   = document.getElementById('bk-dropi-imp-img')?.value?.trim();
+  const cost     = parseFloat(document.getElementById('bk-dropi-imp-cost')?.value);
+  const price    = parseFloat(document.getElementById('bk-dropi-imp-price')?.value) || 999;
+  const userName = document.getElementById('bk-dropi-imp-username')?.value?.trim() || '';
+  const status = document.getElementById('bk-dropi-import-status');
+
+  if (!dropiId) { status.textContent = '❌ Falta ID Dropi'; return; }
+  if (!userId)  { status.textContent = '❌ Falta user_id proveedor'; return; }
+  if (!name)    { status.textContent = '❌ Falta nombre'; return; }
+  if (!imgUrl)  { status.textContent = '❌ Falta URL imagen'; return; }
+  if (!cost || cost <= 0) { status.textContent = '❌ Costo invalido'; return; }
+
+  status.textContent = '⏳ Importando…';
+  try {
+    const resp = await fetch('/.netlify/functions/dropi-import-product', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        dropi_id: dropiId,
+        user_id: userId,
+        user_name: userName,
+        name: name,
+        image_url: imgUrl,
+        cost: cost,
+        price: price,
+      }),
+    });
+    const data = await resp.json();
+    if (!resp.ok || !data.ok) throw new Error(data.error || ('HTTP ' + resp.status));
+
+    const tokensMsg = data.tokens_source
+      ? '<div style="font-size:10px;color:var(--muted);margin-top:4px">tokens Dropi heredados de: <code>' + esc(data.tokens_source.title || data.tokens_source.product_id) + '</code></div>'
+      : '';
+    status.innerHTML =
+      '<div style="background:#F0F7EE;border:1.5px solid #16A34A;border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:8px">' +
+        '<div style="font-size:12px;color:#166534;font-weight:700">✅ Producto creado en Shopify (draft)</div>' +
+        '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
+          '<a href="' + esc(data.admin_url) + '" target="_blank" style="background:#166534;color:#fff;padding:6px 12px;border-radius:6px;font-size:11px;font-family:\'DM Mono\',monospace;text-decoration:none;font-weight:700">🔗 Ver en Shopify admin</a>' +
+          '<button onclick="activarProductoDropi(\'' + data.product_id + '\', this)" style="background:#D4A542;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:11px;font-family:\'DM Mono\',monospace;font-weight:700;cursor:pointer">🚀 Activar landing (cuando esté listo)</button>' +
+        '</div>' +
+        '<div style="font-size:11px;color:var(--muted);font-family:\'DM Mono\',monospace">product_id: ' + esc(data.product_id) + ' · variant_id: ' + esc(data.variant_id || '?') + '</div>' +
+        tokensMsg +
+      '</div>';
+    // Limpiar el form
+    ['bk-dropi-imp-id','bk-dropi-imp-userid','bk-dropi-imp-name','bk-dropi-imp-img','bk-dropi-imp-cost','bk-dropi-imp-username']
+      .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    const priceEl = document.getElementById('bk-dropi-imp-price');
+    if (priceEl) priceEl.value = '999';
+  } catch (err) {
+    status.textContent = '❌ ' + (err.message || 'error');
+  }
+}
+
+// Cambia el status del producto a 'active' (activar landing).
+async function activarProductoDropi(productId, btn){
+  if (!productId) return;
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Activando…'; btn.style.opacity = '0.6'; }
+  try {
+    const resp = await fetch('/.netlify/functions/shopify-products?tenant=chile', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: productId, status: 'active' }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || ('HTTP ' + resp.status));
+    if (btn) { btn.textContent = '✅ Activado'; btn.style.background = '#166534'; }
+  } catch (err) {
+    if (btn) { btn.disabled = false; btn.textContent = '🚀 Activar landing'; btn.style.opacity = '1'; }
+    alert('❌ Error al activar: ' + (err.message || 'error'));
+  }
+}
 
 function abrirPreciosReleasit(){
   const panel = document.getElementById('bk-precios-releasit');
