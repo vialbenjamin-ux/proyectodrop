@@ -9879,6 +9879,27 @@ async function ejecutarDropiImport(){
   }
 }
 
+// Puente entre paso 2 (Auto-generar plantilla) y paso 3 (Precios + Releasit).
+// Preselecciona el producto en el panel de Precios+Releasit y scrollea alla.
+function _bkContinuarAPreciosReleasit(productId, title, handle){
+  if (!productId) return;
+  // Preseleccionar producto (mismo mecanismo que usa el buscador del panel).
+  window._preciosSelectedProduct = { id: productId, title: title || '', handle: handle || '' };
+  // Abrir el panel si esta cerrado.
+  const panel = document.getElementById('bk-precios-releasit');
+  if (panel) panel.style.display = 'flex';
+  const status = document.getElementById('bk-precios-status');
+  if (status) status.textContent = '✓ Producto heredado del auto-generador: ' + (title || productId);
+  const config = document.getElementById('bk-precios-config');
+  if (config) config.style.display = 'flex';
+  // Scroll a la card + focus en el input de costo.
+  if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  setTimeout(() => {
+    const costEl = document.getElementById('bk-precios-cost');
+    if (costEl) costEl.focus();
+  }, 800);
+}
+
 // Puente entre paso 1 (importar Dropi) y paso 2 (Master + Auto-generar plantilla).
 // Toma el nombre + descripción + página de referencia guardadas en el botón,
 // arma un bloque de texto y lo pega en bkv-producto (el input del Master).
@@ -9908,6 +9929,32 @@ function _bkContinuarAMaster(btn){
       try { ejecutarMaster(); } catch (_) {}
     }
   }, 600);
+}
+
+// Activa el producto seleccionado en el panel Precios+Releasit (draft -> active).
+async function _bkActivarDesdePreciosPanel(btn){
+  const p = window._preciosSelectedProduct;
+  const status = document.getElementById('bk-activar-status');
+  if (!p || !p.id) { if (status) status.textContent = '⚠️ Seleccioná un producto primero'; return; }
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Activando…'; btn.style.opacity = '0.6'; }
+  try {
+    const resp = await fetch('/.netlify/functions/shopify-products?tenant=chile', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: p.id, status: 'active' }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || ('HTTP ' + resp.status));
+    if (btn) { btn.textContent = '✅ Activo en tu tienda'; btn.style.background = '#DFF2E8'; btn.style.color = '#166534'; }
+    if (status) {
+      const url = 'https://benkotienda.com/products/' + (p.handle || '');
+      status.innerHTML = '✅ Producto activo. <a href="' + esc(url) + '" target="_blank" style="color:#fff;text-decoration:underline;font-weight:700">Ver en la tienda</a>';
+    }
+    showToast('Producto activo en la tienda', '🚀', 'ok');
+  } catch (err) {
+    if (btn) { btn.disabled = false; btn.textContent = '🚀 Activar producto (pasar a active)'; btn.style.opacity = '1'; }
+    if (status) status.textContent = '❌ ' + (err.message || 'error');
+  }
 }
 
 // Cambia el status del producto a 'active' (activar landing).
@@ -10065,6 +10112,13 @@ function recomputarPreciosReleasit(){
       '</div>' +
       '<button onclick="publicarReleasitPreview()" style="background:#D4A542;color:#fff;border:none;border-radius:8px;padding:11px;font-size:12px;font-family:\'DM Mono\',monospace;cursor:pointer;font-weight:700;letter-spacing:.5px">🚀 Publicar oferta en Releasit</button>' +
       '<div id="bk-releasit-publish-status" style="font-size:11px;color:var(--muted);font-family:\'DM Mono\',monospace;min-height:14px"></div>' +
+    '</div>' +
+    // Sección: activar producto en tienda (draft -> active)
+    '<div style="background:linear-gradient(135deg,#16A34A 0%,#166534 100%);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:8px;color:#fff">' +
+      '<div style="font-size:11px;letter-spacing:.5px;text-transform:uppercase;font-weight:700;font-family:\'DM Mono\',monospace">✅ Activar producto en la tienda</div>' +
+      '<div style="font-size:11px;opacity:0.9;font-family:\'DM Mono\',monospace">Cuando todo esté listo (imágenes, plantilla, precios, Releasit), publicá el producto para que aparezca en tu tienda online.</div>' +
+      '<button onclick="_bkActivarDesdePreciosPanel(this)" style="background:#fff;color:#166534;border:none;border-radius:8px;padding:11px;font-size:12px;font-family:\'DM Mono\',monospace;cursor:pointer;font-weight:700;letter-spacing:.5px">🚀 Activar producto (pasar a active)</button>' +
+      '<div id="bk-activar-status" style="font-size:11px;font-family:\'DM Mono\',monospace;min-height:14px"></div>' +
     '</div>' +
     // Sección 3: copy buttons manuales (fallback)
     '<details style="background:var(--surface2);border:1.5px solid #D9A82E;border-radius:10px;padding:10px 12px">' +
@@ -10844,12 +10898,21 @@ async function ejecutarAutoShrine(){
     if (status) status.innerHTML = '✅ Plantilla "<b>' + esc(newSuffix) + '</b>" creada y asignada · ' +
       '<a href="' + productUrl + '" target="_blank" style="color:#dc2626;font-weight:700">Ver tienda</a> · ' +
       '<a href="' + adminUrl + '" target="_blank" style="color:var(--accent);font-weight:600">Admin</a>' +
-      '<div style="margin-top:12px;padding:10px 12px;background:linear-gradient(135deg,#4ECDC4 0%,#111111 100%);border-radius:8px;color:#fff">' +
+      '<div style="margin-top:12px;padding:10px 12px;background:linear-gradient(135deg,#D9A82E 0%,#8A5A2A 100%);border-radius:8px;color:#fff">' +
+      '<div style="font-size:12px;font-weight:700;margin-bottom:6px">➡️ Siguiente paso: Precios + Releasit</div>' +
+      '<button onclick="_bkContinuarAPreciosReleasit(\'' + esc(_autoShrineProduct.id) + '\', \'' + esc(_autoShrineProduct.title) + '\', \'' + esc(_autoShrineProduct.handle) + '\')" style="background:#fff;color:#8A5A2A;border:none;border-radius:6px;padding:9px 16px;font-size:12px;font-family:\'DM Mono\',monospace;cursor:pointer;font-weight:700">💰 Continuar → Precios + Releasit</button>' +
+      '</div>' +
+      '<div style="margin-top:8px;padding:10px 12px;background:linear-gradient(135deg,#4ECDC4 0%,#111111 100%);border-radius:8px;color:#fff">' +
       '<button onclick="replicarTemplateAGT()" id="bk-replicar-gt-btn" style="background:#fff;color:#111111;border:none;border-radius:6px;padding:8px 14px;font-size:12px;font-family:\'DM Mono\',monospace;cursor:pointer;font-weight:700">🔄 Replicar este landing a Shopify GT</button>' +
       '<div style="font-size:10px;margin-top:6px;opacity:0.9;line-height:1.4">El producto debe existir en GT con el mismo handle: <b>' + esc(_autoShrineProduct.handle) + '</b>. Las imágenes deberás reasignarlas desde el editor de Shopify GT.</div>' +
       '<div id="bk-replicar-gt-status" style="font-size:11px;margin-top:8px;font-family:\'DM Mono\',monospace"></div>' +
       '</div>';
     showToast('🚀 Plantilla generada y aplicada', '✨', 'success');
+
+    // Auto-navegar a Precios+Releasit despues de 800ms (deja que el status se vea).
+    setTimeout(() => {
+      _bkContinuarAPreciosReleasit(_autoShrineProduct.id, _autoShrineProduct.title, _autoShrineProduct.handle);
+    }, 1200);
 
     // Crear (idempotente) las 3 carpetas de Drive para el workflow de videos.
     // En background — no rompe el flow principal si falla. El usuario ve el
