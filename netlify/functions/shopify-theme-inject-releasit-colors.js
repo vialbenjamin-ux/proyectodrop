@@ -47,10 +47,47 @@ const INCLUDE_MARKER_END = '<!-- BK_RELEASIT_COLORS_END -->';
 //  1) <link> al CSS
 //  2) Un <script> Liquid condicional que setea data-bk-releasit-colors="on"
 //     en <html> SOLO si el producto tiene el tag 'bk-releasit-colors'.
+// El script JS es la solucion mas robusta: pinta los precios directamente
+// con style.setProperty('color', X, 'important'), lo que gana sobre el
+// inline color: rgba(...) que setea el widget de Releasit sin !important.
+// El CSS + data-attr no funciono por race condition de timing con el widget.
+const PAINT_SCRIPT = '<script>\n' +
+  '(function(){\n' +
+  '  if(!document.body || !window.location.pathname.includes("/products/")) return;\n' +
+  '  var COLORS = ["rgba(34,197,94,1)","rgba(0,116,191,1)","rgba(139,92,246,1)","rgba(230,138,46,1)"];\n' +
+  '  function paint(){\n' +
+  '    var offers = document.querySelectorAll("._rsi-quantity-offers-offer");\n' +
+  '    if(!offers.length) return false;\n' +
+  '    offers.forEach(function(o){\n' +
+  '      var pos = parseInt(o.getAttribute("data-offer-pos"),10);\n' +
+  '      if(isNaN(pos) || pos < 0 || pos >= COLORS.length) return;\n' +
+  '      o.querySelectorAll("._rsi-quantity-offers-new-price").forEach(function(el){\n' +
+  '        el.style.setProperty("color", COLORS[pos], "important");\n' +
+  '      });\n' +
+  '    });\n' +
+  '    return true;\n' +
+  '  }\n' +
+  '  // Reintentar hasta 20s (widget puede tardar en renderizar) + observer\n' +
+  '  var tries = 0;\n' +
+  '  var iv = setInterval(function(){\n' +
+  '    tries++;\n' +
+  '    var ok = paint();\n' +
+  '    if(ok || tries > 80) clearInterval(iv);\n' +
+  '  }, 250);\n' +
+  '  // MutationObserver: re-pintar cuando el widget muta (ej user clickea otro tramo)\n' +
+  '  try{\n' +
+  '    var obs = new MutationObserver(function(){ paint(); });\n' +
+  '    var target = document.body;\n' +
+  '    if(target) obs.observe(target, {childList:true, subtree:true, attributes:true, attributeFilter:["class","style"]});\n' +
+  '  }catch(e){}\n' +
+  '})();\n' +
+  '</script>';
+
 const INCLUDE_TAG = INCLUDE_MARKER_START + '\n' +
   '<link rel="stylesheet" href="{{ \'bk-releasit-colors.css\' | asset_url }}">\n' +
   '{% if template contains "product" and product.tags contains "bk-releasit-colors" %}\n' +
   '<script>document.documentElement.setAttribute("data-bk-releasit-colors","on");</script>\n' +
+  PAINT_SCRIPT + '\n' +
   '{% endif %}\n' +
   INCLUDE_MARKER_END;
 
@@ -87,22 +124,22 @@ exports.handler = async (event) => {
     const themeLiquid = (layoutJ.asset && layoutJ.asset.value) || '';
     if (!themeLiquid) return respond(400, { error: 'theme.liquid vacio o no encontrado' });
 
-    // 4. Verificar si ya está el include.
-    if (themeLiquid.includes(INCLUDE_MARKER_START)) {
-      return respond(200, {
-        ok: true,
-        action: 'already-in-place',
-        assetKey: ASSET_KEY,
-        themeId: mainTheme.id,
-        themeName: mainTheme.name,
-      });
+    // 4. Si ya está el include, REEMPLAZAR el bloque (para re-instalar con
+    //    scripts/CSS actualizados). Sino, insertarlo antes de </head>.
+    let newLiquid;
+    let action;
+    if (themeLiquid.includes(INCLUDE_MARKER_START) && themeLiquid.includes(INCLUDE_MARKER_END)) {
+      // Reemplazar el bloque completo entre markers (incluyendolos).
+      const re = new RegExp(escapeRegex(INCLUDE_MARKER_START) + '[\\s\\S]*?' + escapeRegex(INCLUDE_MARKER_END), 'g');
+      newLiquid = themeLiquid.replace(re, INCLUDE_TAG);
+      action = 'updated';
+    } else {
+      if (!themeLiquid.includes('</head>')) {
+        return respond(400, { error: 'theme.liquid no tiene </head>, no se puede inyectar' });
+      }
+      newLiquid = themeLiquid.replace('</head>', INCLUDE_TAG + '\n</head>');
+      action = 'created';
     }
-
-    // 5. Insertar el include justo antes de </head>.
-    if (!themeLiquid.includes('</head>')) {
-      return respond(400, { error: 'theme.liquid no tiene </head>, no se puede inyectar' });
-    }
-    const newLiquid = themeLiquid.replace('</head>', INCLUDE_TAG + '\n</head>');
 
     const writeR = await fetch(API + '/themes/' + mainTheme.id + '/assets.json', {
       method: 'PUT', headers: H,
@@ -113,7 +150,7 @@ exports.handler = async (event) => {
 
     return respond(200, {
       ok: true,
-      action: 'created',
+      action,
       assetKey: ASSET_KEY,
       themeId: mainTheme.id,
       themeName: mainTheme.name,
@@ -122,6 +159,8 @@ exports.handler = async (event) => {
     return respond(502, { error: err.message || 'unknown' });
   }
 };
+
+function escapeRegex(s){ return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
 
 function cors() {
   return { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type' };

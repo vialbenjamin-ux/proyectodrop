@@ -428,7 +428,7 @@ exports.handler = async (event) => {
 
     return respond(200, {
       ok: writeErrors.length === 0,
-      product: { id: String(product.id), title: product.title, price: price, shopifyPrice: shopifyPrice, handle: product.handle, image: (product.image && product.image.src) || null },
+      product: { id: String(product.id), title: product.title, price: price, shopifyPrice: shopifyPrice, handle: product.handle, image: (product.image && product.image.src) || null, vendor: product.vendor || null },
       supplier,
       ofertas: ofertas.map(o => ({ ...o, priceLabel: fmt(o.priceTotal), perUnitLabel: fmt(o.perUnit) })),
       upsell,
