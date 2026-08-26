@@ -63,7 +63,7 @@ exports.handler = async (event) => {
         variantsCount: (product.variants || []).length,
         variants: (product.variants || []).map(v => ({ id: v.id, title: v.title, price: v.price, sku: v.sku, barcode: v.barcode })),
       } : null,
-      allMetafields: all.map(m => ({ id: m.id, namespace: m.namespace, key: m.key, type: m.type, valuePreview: (typeof m.value === 'string' ? m.value.slice(0, 2000) : m.value) })),
+      allMetafields: all.map(m => ({ id: m.id, namespace: m.namespace, key: m.key, type: m.type, valuePreview: (typeof m.value === 'string' ? m.value.slice(0, params.full === '1' ? 40000 : 2000) : m.value) })),
       releasitMetafields: releasit,
       namespacesFound: Object.keys(byNamespace),
       byNamespace,
