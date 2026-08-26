@@ -24,12 +24,16 @@ exports.handler = async (event) => {
   let lookups = 0;
   let pageUrl = API + '/products.json?limit=' + PAGE_SIZE + '&fields=id,title&status=any';
   let pages = 0;
+  const dbg = { pagesFetched: 0, firstPageStatus: null, totalProductsSeen: 0, lastError: null };
 
   try {
     while (pageUrl && pages < MAX_PAGES && lookups < MAX_LOOKUPS) {
       const r = await fetch(pageUrl, { headers: H });
-      if (!r.ok) break;
+      if (pages === 0) dbg.firstPageStatus = r.status;
+      if (!r.ok) { dbg.lastError = 'products.json ' + r.status; break; }
       const j = await r.json();
+      dbg.pagesFetched++;
+      dbg.totalProductsSeen += (j.products || []).length;
       for (const p of (j.products || [])) {
         if (lookups >= MAX_LOOKUPS) break;
         lookups++;
@@ -65,7 +69,7 @@ exports.handler = async (event) => {
   }
 
   const suppliers = Array.from(byId.values()).sort((a, b) => b.productCount - a.productCount);
-  return respond(200, { suppliers, scannedProducts: lookups });
+  return respond(200, { suppliers, scannedProducts: lookups, debug: dbg });
 };
 
 function cors() {

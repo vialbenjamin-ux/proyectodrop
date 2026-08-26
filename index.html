@@ -1489,7 +1489,7 @@
         🎬 Tutorial BK
       </button>
       <button class="tab-btn ng-item" data-section="prompts" onclick="switchSection('prompts')">
-        ✨ Prompts
+        ✨ Creador de landing
       </button>
     </div>
   </div>
@@ -1616,8 +1616,8 @@
     <div style="max-width:980px">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:10px">
         <div>
-          <div style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:22px;color:var(--text);margin-bottom:3px">Prompts BK DROP</div>
-          <div style="font-size:11px;color:var(--muted)">Los prompts que usas a diario, listos para copiar y pegar en Gemini o ChatGPT</div>
+          <div style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:22px;color:var(--text);margin-bottom:3px">Creador de landing</div>
+          <div style="font-size:11px;color:var(--muted)">Los 3 pasos clave para armar tu landing en Shopify + Releasit</div>
         </div>
       </div>
 
@@ -1787,11 +1787,12 @@
               </div>
               <div style="display:flex;flex-direction:column;gap:3px">
                 <label style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">Costo Dropi CLP <span style="color:#C0392B">*</span></label>
-                <input type="number" id="bk-dropi-imp-cost" placeholder="1500" min="1" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px 10px;border-radius:6px;font-size:13px;font-family:'DM Mono',monospace">
+                <input type="number" id="bk-dropi-imp-cost" placeholder="1500" min="1" oninput="_bkDropiCalcPrecio()" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px 10px;border-radius:6px;font-size:13px;font-family:'DM Mono',monospace">
               </div>
               <div style="display:flex;flex-direction:column;gap:3px">
-                <label style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">Precio Shopify inicial CLP</label>
-                <input type="number" id="bk-dropi-imp-price" placeholder="999" min="1" value="999" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px 10px;border-radius:6px;font-size:13px;font-family:'DM Mono',monospace">
+                <label style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">Precio Shopify inicial CLP <span style="color:var(--muted);text-transform:none">(auto)</span></label>
+                <input type="number" id="bk-dropi-imp-price" placeholder="auto" min="1" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px 10px;border-radius:6px;font-size:13px;font-family:'DM Mono',monospace">
+                <div id="bk-dropi-imp-price-hint" style="font-size:9px;color:var(--muted);font-family:'DM Mono',monospace"></div>
               </div>
               <details style="grid-column:1/-1;font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">
                 <summary style="cursor:pointer">🆕 Proveedor nuevo (no en la lista) — ver instrucciones</summary>
@@ -9744,6 +9745,31 @@ async function abrirDropiImport(){
   if (!isVisible) {
     panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
     _bkDropiCargarProveedores();
+  }
+}
+
+// Auto-calcula el precio Shopify inicial a partir del costo Dropi
+// usando getPrecio1u (la misma logica de la calculadora BKDROP).
+function _bkDropiCalcPrecio(){
+  const cost = parseFloat(document.getElementById('bk-dropi-imp-cost')?.value);
+  const priceEl = document.getElementById('bk-dropi-imp-price');
+  const hint = document.getElementById('bk-dropi-imp-price-hint');
+  if (!priceEl) return;
+  if (!cost || cost <= 0) { priceEl.value = ''; if (hint) hint.textContent = ''; return; }
+  try {
+    const { price1u, offer } = getPrecio1u(cost);
+    const p1 = applyFloor(price1u);
+    priceEl.value = p1;
+    if (hint) {
+      const label = offer === '3x1' ? '🔥 3x1 (costo ≤ $1.000)'
+        : offer === '2x1' ? '🎁 2x1 (costo ≤ $2.000)'
+        : offer === 'normal_extrap' ? '⚠️ extrapolado'
+        : '💼 normal';
+      hint.textContent = label + ' · editable si querés otro';
+    }
+  } catch (err) {
+    priceEl.value = '';
+    if (hint) hint.textContent = '';
   }
 }
 
