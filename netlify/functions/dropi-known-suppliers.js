@@ -43,9 +43,14 @@ exports.handler = async (event) => {
           if (d && d.user && d.user.id != null) {
             const uid = String(d.user.id);
             const uname = String(d.user.name || '').trim();
-            const cur = byId.get(uid) || { id: uid, name: uname, productCount: 0 };
+            const cur = byId.get(uid) || { id: uid, name: uname, productCount: 0, sampleProductId: String(p.id), sampleHasTokens: !!d.tokens };
             cur.productCount++;
             if (!cur.name && uname) cur.name = uname;
+            // Guardar sampleProductId con tokens si aparece uno.
+            if (!cur.sampleHasTokens && d.tokens) {
+              cur.sampleProductId = String(p.id);
+              cur.sampleHasTokens = true;
+            }
             byId.set(uid, cur);
           }
         } catch (_) {}

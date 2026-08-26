@@ -63,71 +63,110 @@ exports.handler = async (event) => {
     const searchR = await fetch(API + '/variants.json?fields=id,product_id,barcode', { headers: H });
     // Skip check si es muy costoso; el user vera error si el barcode ya existe.
 
-    // 2. Escaneo de productos Dropi existentes:
-    //    - Buscar 'tokens' y 'shop_name' (por tienda, se hereda).
-    //    - Si no vino user_id: resolverlo por user_name (match case-insensitive
-    //      contra dropi_data.user.name).
+    // 2. Cargar proveedores conocidos y sample con tokens.
+    //    Un solo call que escanea 250-500 productos y devuelve la lista
+    //    de proveedores + un sample product_id (con tokens) por proveedor.
+    //    Mucho mas eficiente que hacer 580 requests en este endpoint
+    //    (que timeout Netlify a los 10s).
+    const wantResolveUserId = !userId || !/^\d+$/.test(userId);
+    const targetName = userName.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+
+    let suppliers = [];
+    try {
+      const proto = event.headers['x-forwarded-proto'] || 'https';
+      const host = event.headers.host || 'bkdrop.netlify.app';
+      const suppR = await fetch(proto + '://' + host + '/.netlify/functions/dropi-known-suppliers');
+      if (suppR.ok) {
+        const suppJ = await suppR.json();
+        suppliers = suppJ.suppliers || [];
+      }
+    } catch (_) {}
+
+    if (!suppliers.length) {
+      return respond(400, {
+        error: 'No pude cargar proveedores. Importá al menos 1 producto desde Dropi web primero (para que quede el metafield en la tienda), después reintenta.',
+      });
+    }
+
+    // Match del proveedor por user_id (si vino manual) o por nombre.
+    let chosen = null;
+    if (userId) {
+      chosen = suppliers.find(s => String(s.id) === userId) || null;
+    }
+    if (!chosen && targetName) {
+      chosen = suppliers.find(s => {
+        const n = String(s.name || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+        return n === targetName;
+      }) || null;
+    }
+    if (!chosen && wantResolveUserId) {
+      // Devolver lista para que el UI ayude.
+      return respond(400, {
+        error: 'No encontré ningún producto de un proveedor llamado "' + userName + '". Verificá el nombre exacto (case-insensitive), elegí uno de los conocidos, o usá un user_id manual.',
+        suppliersFound: suppliers.map(s => ({ id: s.id, name: s.name })),
+      });
+    }
+    // Si vino user_id manual pero no matchea con proveedor conocido,
+    // seguimos igual (permitimos user_id nuevo). En ese caso tenemos que
+    // leer los tokens de CUALQUIER producto existente (todos comparten los mismos).
+    if (!chosen && userId) {
+      // Elegir el primer proveedor conocido con sample+tokens para heredar los tokens.
+      chosen = suppliers.find(s => s.sampleHasTokens && s.sampleProductId) || suppliers[0];
+    }
+
+    // Leer tokens y shop_name del producto sample del proveedor elegido
+    // (o de cualquier producto con tokens si el sample no tiene).
+    const sampleId = chosen && chosen.sampleProductId;
     let dropiTokens = null;
     let dropiShopName = null;
     let tokensSource = null;
-    let resolvedUserName = null;
-    const wantResolveUserId = !userId || !/^\d+$/.test(userId);
-    const targetName = userName.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-    const suppliersSeen = new Map(); // Map<name_lower, {id, name}>
-    const PAGE_SIZE = 250;
-    const MAX_PAGES = 3;
-    let pageUrl = API + '/products.json?limit=' + PAGE_SIZE + '&fields=id,title&status=any';
-    let pages = 0;
-
-    while (pageUrl && pages < MAX_PAGES && (!dropiTokens || wantResolveUserId)) {
-      const listR = await fetch(pageUrl, { headers: H });
-      if (!listR.ok) break;
-      const listJ = await listR.json();
-      for (const p of (listJ.products || [])) {
-        const mR = await fetch(API + '/products/' + p.id + '/metafields.json?namespace=dropi', { headers: H });
-        if (!mR.ok) continue;
-        const mJ = await mR.json();
-        const mfDropi = (mJ.metafields || []).find(m => m.namespace === 'dropi' && m.key === '_dropi_product');
-        if (!mfDropi) continue;
-        try {
-          const d = JSON.parse(mfDropi.value);
-          if (!dropiTokens && d && d.tokens) {
-            dropiTokens = d.tokens;
-            dropiShopName = d.shop_name || null;
-            tokensSource = { product_id: p.id, title: p.title };
-          }
-          if (d && d.user && d.user.id != null) {
-            const uid = String(d.user.id);
-            const uname = String(d.user.name || '').trim();
-            const unameNorm = uname.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-            if (unameNorm && !suppliersSeen.has(unameNorm)) suppliersSeen.set(unameNorm, { id: uid, name: uname });
-            if (wantResolveUserId && targetName && unameNorm === targetName && !userId) {
-              userId = uid;
-              resolvedUserName = uname;
+    if (sampleId) {
+      try {
+        const mfR = await fetch(API + '/products/' + sampleId + '/metafields.json?namespace=dropi', { headers: H });
+        if (mfR.ok) {
+          const mfJ = await mfR.json();
+          const mfDropi = (mfJ.metafields || []).find(m => m.namespace === 'dropi' && m.key === '_dropi_product');
+          if (mfDropi) {
+            const d = JSON.parse(mfDropi.value);
+            if (d.tokens) {
+              dropiTokens = d.tokens;
+              dropiShopName = d.shop_name || null;
+              tokensSource = { product_id: sampleId, title: chosen.name };
             }
           }
-        } catch (_) {}
-        if (dropiTokens && (!wantResolveUserId || userId)) break;
-      }
-      if (dropiTokens && (!wantResolveUserId || userId)) break;
-      const link = listR.headers.get('Link') || '';
-      const nx = link.match(/<([^>]+)>;\s*rel="next"/);
-      pageUrl = nx ? nx[1] : null;
-      pages++;
+        }
+      } catch (_) {}
     }
-
+    // Fallback: si el sample del proveedor elegido NO tenia tokens, probar
+    // con samples de otros proveedores hasta encontrar uno con tokens.
+    if (!dropiTokens) {
+      for (const s of suppliers) {
+        if (!s.sampleHasTokens || !s.sampleProductId) continue;
+        if (String(s.sampleProductId) === String(sampleId)) continue;
+        try {
+          const mfR = await fetch(API + '/products/' + s.sampleProductId + '/metafields.json?namespace=dropi', { headers: H });
+          if (!mfR.ok) continue;
+          const mfJ = await mfR.json();
+          const mfDropi = (mfJ.metafields || []).find(m => m.namespace === 'dropi' && m.key === '_dropi_product');
+          if (!mfDropi) continue;
+          const d = JSON.parse(mfDropi.value);
+          if (d.tokens) {
+            dropiTokens = d.tokens;
+            dropiShopName = d.shop_name || null;
+            tokensSource = { product_id: s.sampleProductId, title: s.name };
+            break;
+          }
+        } catch (_) {}
+      }
+    }
     if (!dropiTokens) {
       return respond(400, {
-        error: 'No pude hallar tokens Dropi en ningun producto existente. Importá al menos 1 producto desde Dropi web primero (para que se emita el token de la tienda), después reintenta.',
+        error: 'No pude leer tokens Dropi de ningun producto existente. Reintentá; si persiste, avisá.',
       });
     }
-    if (wantResolveUserId && !userId) {
-      const suppliersList = Array.from(suppliersSeen.values()).sort((a, b) => a.name.localeCompare(b.name));
-      return respond(400, {
-        error: 'No encontré ningún producto de un proveedor llamado "' + userName + '". Verificá el nombre exacto o probá con user_id.',
-        suppliersFound: suppliersList,
-      });
-    }
+
+    // userId final resuelto (por matching del proveedor o el manual).
+    if (!userId) userId = chosen.id;
 
     // 3. Armar el JSON del metafield dropi._dropi_product.
     const galleryList = [];
