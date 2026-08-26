@@ -1783,7 +1783,11 @@
               </div>
               <div style="display:flex;flex-direction:column;gap:3px;grid-column:1/-1">
                 <label style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">URL imagen principal <span style="color:#C0392B">*</span></label>
-                <input type="url" id="bk-dropi-imp-img" placeholder="https://cdn.dropi.cl/..." oninput="_bkDropiRenderImgPreview()" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px 10px;border-radius:6px;font-size:12px;font-family:'DM Mono',monospace">
+                <div style="display:flex;gap:6px">
+                  <input type="url" id="bk-dropi-imp-img" placeholder="https://cdn.dropi.cl/... o generá con IA →" oninput="_bkDropiRenderImgPreview()" style="flex:1;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px 10px;border-radius:6px;font-size:12px;font-family:'DM Mono',monospace">
+                  <button type="button" onclick="_bkDropiGenerarImgIA()" style="background:#10a37f;color:#fff;border:none;border-radius:6px;padding:8px 14px;font-size:11px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer;white-space:nowrap">🎨 Generar con ChatGPT</button>
+                </div>
+                <div style="font-size:9px;color:var(--muted);font-family:'DM Mono',monospace">Copia el prompt al clipboard + abre ChatGPT. Pegá el prompt ahí, subí las fotos de referencia (galería adicional abajo), generá, y pegá la URL final acá.</div>
               </div>
               <div style="display:flex;flex-direction:column;gap:6px;grid-column:1/-1">
                 <label style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">Tipo de oferta destacada <span style="text-transform:none">(se agrega como tag Shopify + queda disponible para el prompt de imágenes)</span></label>
@@ -9762,6 +9766,55 @@ async function abrirDropiImport(){
     panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
     _bkDropiCargarProveedores();
   }
+}
+
+// Arma prompt para generar imagen principal del producto y abre ChatGPT.
+// Toma nombre + tipo de oferta + galería adicional (como referencia visual).
+async function _bkDropiGenerarImgIA(){
+  const name = document.getElementById('bk-dropi-imp-name')?.value?.trim() || '(nombre del producto)';
+  const offer = window._bkDropiOfferPick;
+  const galleryTxt = document.getElementById('bk-dropi-imp-gallery')?.value || '';
+  const gallery = galleryTxt.split(/\r?\n/).map(s => s.trim()).filter(s => /^https?:\/\//i.test(s));
+  const mainImg = document.getElementById('bk-dropi-imp-img')?.value?.trim();
+
+  const offerLabels = {
+    '2x1': '2x1 (llevá 2, pagá 1)',
+    '3x1': '3x1 (llevá 3, pagá 1)',
+    '4x1': '4x1 (llevá 4, pagá 1)',
+    '45off': '45% OFF',
+  };
+  const badgeText = offer ? offerLabels[offer] : null;
+  const badgeInst = badgeText
+    ? '- BADGE DE OFERTA en esquina superior izquierda: sticker circular grande, colores vivos (rojo con blanco o amarillo con negro), con el texto "' + badgeText + '" bien grande y legible. Estilo etiqueta de descuento tipo supermercado.'
+    : '- (Sin badge de oferta configurado — omití este elemento si no aplica.)';
+
+  const refUrls = [mainImg, ...gallery].filter(Boolean).slice(0, 4);
+  const refBlock = refUrls.length
+    ? '\nREFERENCIAS VISUALES DEL PRODUCTO (pegá estas URLs o subilas como imágenes al chat):\n' + refUrls.map((u, i) => (i + 1) + '. ' + u).join('\n') + '\n'
+    : '';
+
+  const prompt =
+    'Actuá como diseñador gráfico publicitario. Necesito una imagen tipo E-commerce Chile / Aliexpress para vender por Meta Ads y TikTok.\n\n' +
+    'PRODUCTO: ' + name + refBlock + '\n' +
+    'REQUISITOS DE LA IMAGEN:\n' +
+    '- Formato cuadrado 1:1 (1080×1080 aprox)\n' +
+    '- Fondo blanco puro o gradiente suave neutro\n' +
+    '- Producto centrado, iluminación tipo estudio, realista, con sombra sutil\n' +
+    '- Sin marcas ni logos externos, sin texto extra en el producto\n\n' +
+    'ELEMENTOS PUBLICITARIOS SOBREPUESTOS:\n' +
+    badgeInst + '\n' +
+    '- ETIQUETA "ENVÍO GRATIS" en esquina inferior derecha: rectángulo con esquinas redondeadas, fondo verde vivo con texto blanco en mayúsculas, tipografía sans-serif bold. Como sticker de despacho.\n\n' +
+    'ESTILO GENERAL: Impactante, alta calidad, look publicitario chileno de e-commerce, listo para Meta/TikTok. Nada de arte digital ni ilustración — realismo fotográfico.\n\n' +
+    'Devolveme la imagen generada.';
+
+  try {
+    await navigator.clipboard.writeText(prompt);
+    showToast('Prompt copiado. Abriendo ChatGPT…', '🎨', 'ok');
+  } catch (_) {
+    // Fallback si falla el clipboard: mostrar el prompt en un modal
+    alert('No pude copiar automáticamente. Copiá el prompt manual:\n\n' + prompt.slice(0, 500) + '…');
+  }
+  window.open('https://chatgpt.com/', '_blank');
 }
 
 // Estado global del tipo de oferta elegido en el importador ('2x1'/'3x1'/'4x1'/'45off' o null).
