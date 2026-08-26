@@ -1979,67 +1979,9 @@
 
       </div>
 
-      <!-- IMAGEN PUBLICITARIA -->
-      <div class="bk-prompts-sub">🖼️ Imagen publicitaria de video</div>
+      <!-- GIF + FOTOS CLIENTES -->
+      <div class="bk-prompts-sub">🎬 GIF + fotos clientes</div>
       <div class="bk-prompts-hero">
-        <div class="bk-prompt-card tone-imgad">
-          <div class="bk-prompt-card-head">
-            <div class="bk-prompt-card-icon">🖼️</div>
-            <div>
-              <div class="bk-prompt-card-tag">Imagen estática</div>
-              <div class="bk-prompt-card-title">Imagen Publicitaria</div>
-            </div>
-          </div>
-          <div class="bk-prompt-card-desc">Sube un winner ad. La AI elige el mejor frame y genera 3 imágenes publicitarias (cuadrado, story, feed) con hook + descuento + envío gratis editables.</div>
-          <input type="file" accept="video/*" id="imgad-file" class="bk-video-input" onchange="updateImgAdLabel('file')">
-          <label for="imgad-file" class="bk-video-label" id="imgad-file-label">📁 Video MP4 (winner ad)</label>
-          <input type="file" accept="image/*" id="imgad-ref" class="bk-video-input" onchange="updateImgAdLabel('ref')">
-          <label for="imgad-ref" class="bk-video-label" id="imgad-ref-label" style="margin-top:6px">📷 Imagen de referencia (opcional)</label>
-          <div style="display:flex;gap:6px;margin-top:8px">
-            <input type="text" id="imgad-descuento" value="30% OFF" placeholder="Descuento" style="flex:1;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px 10px;border-radius:8px;font-size:11px;font-family:'DM Mono',monospace">
-            <input type="text" id="imgad-envio" value="🚚 ENVÍO GRATIS" placeholder="Envío" style="flex:1.3;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px 10px;border-radius:8px;font-size:11px;font-family:'DM Mono',monospace">
-          </div>
-          <label style="display:flex;align-items:center;gap:6px;margin-top:8px;font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;cursor:pointer">
-            <input type="checkbox" id="imgad-auto-ai" style="margin:0;cursor:pointer">
-            🎨 Mejorar fondo con AI automáticamente (10-20s extra · requiere Imagen API habilitada)
-          </label>
-          <div class="bk-prompt-card-actions" style="margin-top:10px">
-            <button class="bk-prompt-copy-big" id="bk-imgad-btn" onclick="ejecutarImagenPublicitaria()">▶ Generar imágenes</button>
-          </div>
-          <div class="bk-prompt-output" id="bk-imgad-output">
-            <div class="bk-prompt-output-head">
-              <span class="bk-prompt-output-label" id="bk-imgad-label">Imágenes generadas</span>
-              <button class="bk-prompt-output-close" onclick="document.getElementById('bk-imgad-output').classList.remove('open')" title="Cerrar">✕</button>
-            </div>
-            <div class="bk-prompt-output-body">
-              <div style="font-size:10px;color:var(--muted);letter-spacing:.5px;text-transform:uppercase;margin-bottom:4px;font-weight:600">Hook (editable)</div>
-              <input type="text" id="imgad-hook" oninput="renderImgAdAll()" style="width:100%;background:var(--surface2);border:1.5px solid var(--accent);color:var(--text);padding:9px 12px;border-radius:8px;font-size:13px;font-family:'Montserrat',sans-serif;font-weight:700;outline:none;margin-bottom:10px">
-              <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
-                <button id="bk-imgad-ai-btn" onclick="mejorarFrameConAI()" style="background:#7B5BB5;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer;display:flex;align-items:center;gap:6px">🎨 Mejorar fondo con AI</button>
-                <button onclick="restaurarFrameOriginal()" style="background:var(--surface);color:var(--muted);border:1.5px solid var(--border);border-radius:8px;padding:7px 12px;font-size:10px;font-family:'DM Mono',monospace;cursor:pointer">↺ Frame original</button>
-                <span id="imgad-ai-status" style="font-size:10px;color:var(--muted2);font-family:'DM Mono',monospace"></span>
-              </div>
-              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px">
-                <div>
-                  <div style="font-size:9px;letter-spacing:1px;color:var(--muted);text-align:center;margin-bottom:4px;font-family:'DM Mono',monospace">CUADRADO 1080×1080</div>
-                  <canvas id="imgad-canvas-square" width="1080" height="1080" style="width:100%;border:1px solid var(--border);border-radius:6px;background:#eee"></canvas>
-                  <button onclick="downloadImgAd('square')" style="width:100%;margin-top:6px;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:8px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer">⬇ Descargar JPG</button>
-                </div>
-                <div>
-                  <div style="font-size:9px;letter-spacing:1px;color:var(--muted);text-align:center;margin-bottom:4px;font-family:'DM Mono',monospace">STORY 1080×1920</div>
-                  <canvas id="imgad-canvas-story" width="1080" height="1920" style="width:100%;border:1px solid var(--border);border-radius:6px;background:#eee"></canvas>
-                  <button onclick="downloadImgAd('story')" style="width:100%;margin-top:6px;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:8px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer">⬇ Descargar JPG</button>
-                </div>
-                <div>
-                  <div style="font-size:9px;letter-spacing:1px;color:var(--muted);text-align:center;margin-bottom:4px;font-family:'DM Mono',monospace">HORIZONTAL 1200×628</div>
-                  <canvas id="imgad-canvas-feed" width="1200" height="628" style="width:100%;border:1px solid var(--border);border-radius:6px;background:#eee"></canvas>
-                  <button onclick="downloadImgAd('feed')" style="width:100%;margin-top:6px;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:8px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer">⬇ Descargar JPG</button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
         <div class="bk-prompt-card tone-webp">
           <div class="bk-prompt-card-head">
             <div class="bk-prompt-card-icon">🎬</div>
