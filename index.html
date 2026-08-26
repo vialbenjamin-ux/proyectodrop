@@ -1634,27 +1634,41 @@
           <button class="bk-ia-btn" data-ia="chatgpt" onclick="setBkIa('chatgpt')">ChatGPT</button>
         </div>
 
-        <!-- PASO 1 -->
+        <!-- PASO 1 CLAVE: Importar Dropi -->
+        <div class="bk-step" style="border-left:3px solid #8A5A2A;padding-left:12px">
+          <div class="bk-step-label"><span class="bk-step-num" style="background:#8A5A2A">1</span> Importar producto de Dropi <span class="bk-optional">(si el producto aún no está en Shopify)</span></div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
+            <button class="bk-step-btn" id="bk-btn-dropi-import-top" onclick="abrirDropiImport()" style="background:#8A5A2A;color:#fff;font-weight:700">📥 (1) Importar Dropi por ID</button>
+          </div>
+          <div class="bk-step-hint">Copiás los datos de Dropi web y BKDROP crea el producto Shopify como draft. Después seguís al paso 2 (Master + Auto-generar plantilla).</div>
+        </div>
+
+        <!-- MASTER (paso previo a la plantilla) -->
         <div class="bk-step">
-          <div class="bk-step-label"><span class="bk-step-num">1</span> Pega el link o descripción del producto</div>
+          <div class="bk-step-label"><span class="bk-step-num" style="background:var(--muted);font-size:8px">MASTER</span> Pega el link o descripción del producto</div>
           <textarea id="bkv-producto" class="bk-step-input" placeholder="https://ejemplo.com/producto  ·  o una descripción corta" oninput="saveBkVars()"></textarea>
           <button class="bk-step-btn primary" id="bk-btn-ejecutar" onclick="ejecutarMaster()">▶ Ejecutar Master</button>
           <div class="bk-step-hint">Con Gemini: te muestra los 5 ángulos primero, eliges uno y ahí desarrollamos el master completo focalizado en ese ángulo. Con Claude/ChatGPT: copia el master, pegas ahí y vuelves con la respuesta.</div>
         </div>
 
-        <!-- PASO 2 -->
+        <!-- MASTER — respuesta -->
         <div class="bk-step">
-          <div class="bk-step-label"><span class="bk-step-num">2</span> Pega la respuesta del Master <span class="bk-optional">(la salida completa que te dio la IA · arrastra la esquina ↘ para agrandar)</span></div>
+          <div class="bk-step-label"><span class="bk-step-num" style="background:var(--muted);font-size:8px">MASTER</span> Pega la respuesta del Master <span class="bk-optional">(la salida completa que te dio la IA · arrastra la esquina ↘ para agrandar)</span></div>
           <textarea id="bkv-respuesta" class="bk-step-input" placeholder="Pega acá toda la respuesta: la tabla de ángulos, los beneficios, los testimonios, etc."></textarea>
           <div class="bk-resp-actions">
             <button type="button" class="bk-resp-action-btn" id="bk-resp-expand-btn" onclick="toggleRespExpand()">⛶ Expandir</button>
             <button type="button" class="bk-resp-action-btn" onclick="copyRespMaster()">📋 Copiar todo</button>
           </div>
-          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
+          <!-- Fila principal: 3 pasos clave para armar landing -->
+          <div style="font-size:10px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;font-family:'DM Mono',monospace;margin-top:10px">🎯 Pasos clave para armar landing</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">
+            <button class="bk-step-btn" id="bk-btn-auto-shrine" onclick="abrirAutoShrine()" style="background:#dc2626;color:#fff;font-weight:700">🚀 (2) Auto-generar plantilla Shrine</button>
+            <button class="bk-step-btn" id="bk-btn-precios-releasit" onclick="abrirPreciosReleasit()" style="background:#D9A82E;color:#fff;font-weight:700">💰 (3) Precios + Releasit</button>
+          </div>
+          <!-- Fila secundaria: acciones extras -->
+          <div style="font-size:10px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;font-family:'DM Mono',monospace;margin-top:10px">Extras</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">
             <button class="bk-step-btn" id="bk-btn-extraer" onclick="extraerDatosMaster()">📥 Extraer datos</button>
-            <button class="bk-step-btn" id="bk-btn-auto-shrine" onclick="abrirAutoShrine()" style="background:#dc2626;color:#fff;font-weight:700">🚀 Auto-generar plantilla Shrine</button>
-            <button class="bk-step-btn" id="bk-btn-precios-releasit" onclick="abrirPreciosReleasit()" style="background:#D9A82E;color:#fff">💰 Precios + Releasit</button>
-            <button class="bk-step-btn" id="bk-btn-dropi-import" onclick="abrirDropiImport()" style="background:#8A5A2A;color:#fff">📥 Importar Dropi por ID</button>
             <button class="bk-step-btn" id="bk-btn-shopify-push" onclick="abrirShopifyPush()" style="background:#10a37f;color:#fff">📤 Pegar en producto</button>
             <button class="bk-step-btn" id="bk-btn-shrine-paste" onclick="abrirShrinePaste()" style="background:#7B5BB5;color:#fff">📋 Copy-paste manual</button>
             <button class="bk-step-btn" id="bk-btn-mis-landings" onclick="abrirMisLandings()" style="background:#5B7CBF;color:#fff">📚 Mis landings</button>
