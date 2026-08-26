@@ -1665,17 +1665,6 @@
             <button class="bk-step-btn" id="bk-btn-auto-shrine" onclick="abrirAutoShrine()" style="background:#dc2626;color:#fff;font-weight:700">🚀 (2) Auto-generar plantilla Shrine</button>
             <button class="bk-step-btn" id="bk-btn-precios-releasit" onclick="abrirPreciosReleasit()" style="background:#D9A82E;color:#fff;font-weight:700">💰 (3) Precios + Releasit</button>
           </div>
-          <!-- Fila secundaria: acciones extras -->
-          <div style="font-size:10px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;font-family:'DM Mono',monospace;margin-top:10px">Extras</div>
-          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">
-            <button class="bk-step-btn" id="bk-btn-extraer" onclick="extraerDatosMaster()">📥 Extraer datos</button>
-            <button class="bk-step-btn" id="bk-btn-shopify-push" onclick="abrirShopifyPush()" style="background:#10a37f;color:#fff">📤 Pegar en producto</button>
-            <button class="bk-step-btn" id="bk-btn-shrine-paste" onclick="abrirShrinePaste()" style="background:#7B5BB5;color:#fff">📋 Copy-paste manual</button>
-            <button class="bk-step-btn" id="bk-btn-mis-landings" onclick="abrirMisLandings()" style="background:#5B7CBF;color:#fff">📚 Mis landings</button>
-            <button class="bk-step-btn" id="bk-btn-edit-section" onclick="abrirEditarSeccion()" style="background:#0EA5E9;color:#fff">🔧 Editar sección</button>
-            <button class="bk-step-btn" id="bk-btn-replicar-gt" onclick="abrirReplicarGT()" style="background:#111111;color:#fff">🔄 Replicar a GT</button>
-            <button class="bk-step-btn" id="bk-btn-template-inspect" onclick="inspeccionarTemplate()" style="background:#E89A4A;color:#fff">🔍 Inspector</button>
-          </div>
           <div id="bk-extract-result" class="bk-step-hint"></div>
 
           <div class="bk-shrine-paste" id="bk-shrine-paste" style="display:none">
@@ -1698,15 +1687,20 @@
             <div class="bk-shopify-results" id="bk-auto-shrine-results"></div>
 
             <div id="bk-auto-shrine-files" style="display:none;flex-direction:column;gap:8px;border-top:1px dashed var(--border);padding-top:10px">
-              <div class="bk-shopify-push-title" style="color:var(--muted)">📁 Adjuntar 3 GIFs (image-with-text) + 3 fotos (testimonios)</div>
-              <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px">
+              <div class="bk-shopify-push-title" style="color:var(--muted)">📁 Adjuntar imágenes principales (carrusel Shopify) + 3 GIFs + 3 fotos testimonios</div>
+              <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
                 <div>
-                  <label style="display:block;font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;margin-bottom:4px">3 GIFs · galería del producto + image-with-text</label>
+                  <label style="display:block;font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;margin-bottom:4px">Imágenes principales · carrusel del producto Shopify</label>
+                  <input type="file" id="bk-auto-mainimgs" accept="image/jpeg,image/jpg,image/png,image/webp,image/*" multiple onchange="onAutoFileChange('mainimg')" style="display:none">
+                  <label for="bk-auto-mainimgs" id="bk-auto-mainimgs-label" style="cursor:pointer;display:block;background:var(--surface2);border:1.5px dashed var(--border);color:var(--text);padding:10px;border-radius:8px;font-size:11px;font-family:'DM Mono',monospace;text-align:center">📁 Click — selecciona las principales</label>
+                </div>
+                <div>
+                  <label style="display:block;font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;margin-bottom:4px">3 GIFs · galería + image-with-text</label>
                   <input type="file" id="bk-auto-gifs" accept="image/webp,image/gif,image/*" multiple onchange="onAutoFileChange('gif')" style="display:none">
                   <label for="bk-auto-gifs" id="bk-auto-gifs-label" style="cursor:pointer;display:block;background:var(--surface2);border:1.5px dashed var(--border);color:var(--text);padding:10px;border-radius:8px;font-size:11px;font-family:'DM Mono',monospace;text-align:center">📁 Click — selecciona 3 GIFs</label>
                 </div>
                 <div>
-                  <label style="display:block;font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;margin-bottom:4px">3 fotos testimonios · sección Testimonials</label>
+                  <label style="display:block;font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;margin-bottom:4px">3 fotos testimonios</label>
                   <input type="file" id="bk-auto-fotos" accept="image/jpeg,image/jpg,image/png,image/*" multiple onchange="onAutoFileChange('foto')" style="display:none">
                   <label for="bk-auto-fotos" id="bk-auto-fotos-label" style="cursor:pointer;display:block;background:var(--surface2);border:1.5px dashed var(--border);color:var(--text);padding:10px;border-radius:8px;font-size:11px;font-family:'DM Mono',monospace;text-align:center">📁 Click — selecciona 3 fotos</label>
                 </div>
@@ -1789,6 +1783,16 @@
                 <label style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">Página de referencia <span style="text-transform:none">(opcional — landing exitosa de la competencia o del proveedor)</span></label>
                 <input type="url" id="bk-dropi-imp-ref" placeholder="https://ejemplo.com/producto-que-vende-bien" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px 10px;border-radius:6px;font-size:11px;font-family:'DM Mono',monospace">
               </div>
+              <div style="display:flex;flex-direction:column;gap:6px;grid-column:1/-1">
+                <label style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">Tipo de oferta destacada <span style="text-transform:none">(elegí antes de generar la imagen para que el prompt lo incluya)</span></label>
+                <div style="display:flex;gap:6px;flex-wrap:wrap" id="bk-dropi-imp-offer-picker">
+                  <button type="button" data-offer="2x1"  onclick="_bkDropiPickOffer('2x1')"  class="bk-dropi-offer-btn"  style="flex:1;min-width:80px;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px;border-radius:6px;font-size:12px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">2x1</button>
+                  <button type="button" data-offer="3x1"  onclick="_bkDropiPickOffer('3x1')"  class="bk-dropi-offer-btn"  style="flex:1;min-width:80px;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px;border-radius:6px;font-size:12px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">3x1</button>
+                  <button type="button" data-offer="4x1"  onclick="_bkDropiPickOffer('4x1')"  class="bk-dropi-offer-btn"  style="flex:1;min-width:80px;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px;border-radius:6px;font-size:12px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">4x1</button>
+                  <button type="button" data-offer="45off" onclick="_bkDropiPickOffer('45off')" class="bk-dropi-offer-btn" style="flex:1;min-width:80px;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px;border-radius:6px;font-size:12px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">45% OFF</button>
+                </div>
+                <div style="font-size:9px;color:var(--muted);font-family:'DM Mono',monospace">Si no elegís, el prompt pedirá 4 variantes a ChatGPT (una por cada tipo). Se agrega automáticamente el tag <code>envio-gratis</code>.</div>
+              </div>
               <div style="display:flex;flex-direction:column;gap:3px;grid-column:1/-1">
                 <label style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">URL imagen principal <span style="color:#C0392B">*</span></label>
                 <div style="display:flex;gap:6px">
@@ -1796,16 +1800,6 @@
                   <button type="button" onclick="_bkDropiGenerarImgIA()" style="background:#10a37f;color:#fff;border:none;border-radius:6px;padding:8px 14px;font-size:11px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer;white-space:nowrap">🎨 Generar con ChatGPT</button>
                 </div>
                 <div style="font-size:9px;color:var(--muted);font-family:'DM Mono',monospace">Copia el prompt al clipboard + abre ChatGPT. Pegá el prompt ahí, subí las fotos de referencia (galería adicional abajo), generá, y pegá la URL final acá.</div>
-              </div>
-              <div style="display:flex;flex-direction:column;gap:6px;grid-column:1/-1">
-                <label style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">Tipo de oferta destacada <span style="text-transform:none">(se agrega como tag Shopify + queda disponible para el prompt de imágenes)</span></label>
-                <div style="display:flex;gap:6px;flex-wrap:wrap" id="bk-dropi-imp-offer-picker">
-                  <button type="button" data-offer="2x1"  onclick="_bkDropiPickOffer('2x1')"  class="bk-dropi-offer-btn"  style="flex:1;min-width:80px;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px;border-radius:6px;font-size:12px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">2x1</button>
-                  <button type="button" data-offer="3x1"  onclick="_bkDropiPickOffer('3x1')"  class="bk-dropi-offer-btn"  style="flex:1;min-width:80px;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px;border-radius:6px;font-size:12px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">3x1</button>
-                  <button type="button" data-offer="4x1"  onclick="_bkDropiPickOffer('4x1')"  class="bk-dropi-offer-btn"  style="flex:1;min-width:80px;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px;border-radius:6px;font-size:12px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">4x1</button>
-                  <button type="button" data-offer="45off" onclick="_bkDropiPickOffer('45off')" class="bk-dropi-offer-btn" style="flex:1;min-width:80px;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px;border-radius:6px;font-size:12px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">45% OFF</button>
-                </div>
-                <div style="font-size:9px;color:var(--muted);font-family:'DM Mono',monospace">Se agrega automáticamente el tag <code>envio-gratis</code>.</div>
               </div>
               <div style="display:flex;flex-direction:column;gap:3px;grid-column:1/-1">
                 <label style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">Imágenes adicionales <span style="text-transform:none">(una URL por línea — se agregan al carrusel del producto)</span></label>
@@ -1983,72 +1977,6 @@
           </div>
         </div>
 
-        <div class="bk-prompt-card tone-imagenes5">
-          <div class="bk-prompt-card-head">
-            <div class="bk-prompt-card-icon">🎯</div>
-            <div>
-              <div class="bk-prompt-card-tag">5 ángulos en 1</div>
-              <div class="bk-prompt-card-title">Imágenes x5 Pro</div>
-            </div>
-          </div>
-          <div class="bk-prompt-card-desc">Pegas el link o descripción del producto y recibes 5 prompts de imagen listos — uno por ángulo de venta — sin pasos intermedios.</div>
-          <div class="bk-prompt-card-actions">
-            <button class="bk-prompt-copy-big" id="bk-copy-imagenes5" onclick="ejecutarBkPrompt('imagenes5')">▶ Ejecutar</button>
-            <button class="bk-prompt-view-btn" onclick="copyBkPrompt('imagenes5')" title="Solo copiar sin abrir">📋</button>
-            <button class="bk-prompt-view-btn" onclick="toggleBkPrompt('imagenes5')">Ver</button>
-          </div>
-          <div class="bk-prompt-full" id="bk-full-imagenes5"></div>
-          <div class="bk-prompt-output" id="bk-output-imagenes5">
-            <div class="bk-prompt-output-head">
-              <span class="bk-prompt-output-label" id="bk-output-label-imagenes5">Respuesta de Gemini</span>
-              <button class="bk-prompt-output-copy" id="bk-output-copy-imagenes5" onclick="copyBkOutput('imagenes5')">📋 Copiar</button>
-              <button class="bk-prompt-output-close" onclick="closeBkOutput('imagenes5')" title="Cerrar">✕</button>
-            </div>
-            <div class="bk-prompt-output-body" id="bk-output-body-imagenes5"></div>
-          </div>
-        </div>
-
-        <div class="bk-prompt-card tone-master">
-          <div class="bk-prompt-card-head">
-            <div class="bk-prompt-card-icon">📦</div>
-            <div>
-              <div class="bk-prompt-card-tag">Landing completa</div>
-              <div class="bk-prompt-card-title">Master Prompt</div>
-            </div>
-          </div>
-          <div class="bk-prompt-card-desc">Estructura completa para landing de alta conversión: ángulos, nombres, beneficios, testimonios, bullets y FAQ.</div>
-          <div class="bk-prompt-card-actions">
-            <button class="bk-prompt-copy-big" id="bk-copy-master" onclick="copyBkPrompt('master')">📋 Copiar prompt</button>
-            <button class="bk-prompt-view-btn" onclick="toggleBkPrompt('master')">Ver</button>
-          </div>
-          <div class="bk-prompt-full" id="bk-full-master"></div>
-        </div>
-
-        <div class="bk-prompt-card tone-copys">
-          <div class="bk-prompt-card-head">
-            <div class="bk-prompt-card-icon">✍️</div>
-            <div>
-              <div class="bk-prompt-card-tag">Ads Meta / TikTok</div>
-              <div class="bk-prompt-card-title">Copys Ads</div>
-            </div>
-          </div>
-          <div class="bk-prompt-card-desc">3 textos PAS, 3 títulos, 3 descripciones y 5 textos TikTok. Con emojis, urgencia y framework de conversión.</div>
-          <div class="bk-prompt-card-actions">
-            <button class="bk-prompt-copy-big" id="bk-copy-copys" onclick="ejecutarBkPrompt('copys')">▶ Ejecutar</button>
-            <button class="bk-prompt-view-btn" onclick="copyBkPrompt('copys')" title="Solo copiar sin abrir">📋</button>
-            <button class="bk-prompt-view-btn" onclick="toggleBkPrompt('copys')">Ver</button>
-          </div>
-          <div class="bk-prompt-full" id="bk-full-copys"></div>
-          <div class="bk-prompt-output" id="bk-output-copys">
-            <div class="bk-prompt-output-head">
-              <span class="bk-prompt-output-label" id="bk-output-label-copys">Respuesta de Gemini</span>
-              <button class="bk-prompt-output-copy" id="bk-output-copy-copys" onclick="copyBkOutput('copys')">📋 Copiar</button>
-              <button class="bk-prompt-output-close" onclick="toggleBkOutputExpand('copys')" title="Expandir/contraer" style="font-size:13px">⛶</button>
-              <button class="bk-prompt-output-close" onclick="closeBkOutput('copys')" title="Cerrar">✕</button>
-            </div>
-            <div class="bk-prompt-output-body" id="bk-output-body-copys"></div>
-          </div>
-        </div>
       </div>
 
       <!-- IMAGEN PUBLICITARIA -->
@@ -2181,6 +2109,18 @@
             <button id="photoHd-download" onclick="downloadFotoHd()" style="width:100%;margin-top:6px;background:#D85B95;color:#fff;border:none;border-radius:8px;padding:9px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer">⬇ Descargar JPG HD (≤1.5 MB)</button>
           </div>
         </div>
+      </div>
+
+      <!-- HERRAMIENTAS ADICIONALES · botones sueltos al final del flujo -->
+      <div class="bk-prompts-sub">🛠️ Herramientas adicionales</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;padding:12px 0">
+        <button class="bk-step-btn" id="bk-btn-extraer" onclick="extraerDatosMaster()">📥 Extraer datos</button>
+        <button class="bk-step-btn" id="bk-btn-shopify-push" onclick="abrirShopifyPush()" style="background:#10a37f;color:#fff">📤 Pegar en producto</button>
+        <button class="bk-step-btn" id="bk-btn-shrine-paste" onclick="abrirShrinePaste()" style="background:#7B5BB5;color:#fff">📋 Copy-paste manual</button>
+        <button class="bk-step-btn" id="bk-btn-mis-landings" onclick="abrirMisLandings()" style="background:#5B7CBF;color:#fff">📚 Mis landings</button>
+        <button class="bk-step-btn" id="bk-btn-edit-section" onclick="abrirEditarSeccion()" style="background:#0EA5E9;color:#fff">🔧 Editar sección</button>
+        <button class="bk-step-btn" id="bk-btn-replicar-gt" onclick="abrirReplicarGT()" style="background:#111111;color:#fff">🔄 Replicar a GT</button>
+        <button class="bk-step-btn" id="bk-btn-template-inspect" onclick="inspeccionarTemplate()" style="background:#E89A4A;color:#fff">🔍 Inspector</button>
       </div>
 
       <!-- OTROS PROMPTS (sistema de temáticas) -->
@@ -9792,9 +9732,11 @@ async function _bkDropiGenerarImgIA(){
     '45off': '45% OFF',
   };
   const badgeText = offer ? offerLabels[offer] : null;
+  // Si el user eligió una oferta: 1 imagen con ese badge.
+  // Si no eligió: pedimos 4 variantes (2x1, 3x1, 4x1, 45% OFF) para que decida.
   const badgeInst = badgeText
     ? '- BADGE DE OFERTA en esquina superior izquierda: sticker circular grande, colores vivos (rojo con blanco o amarillo con negro), con el texto "' + badgeText + '" bien grande y legible. Estilo etiqueta de descuento tipo supermercado.'
-    : '- (Sin badge de oferta configurado — omití este elemento si no aplica.)';
+    : '- BADGE DE OFERTA en esquina superior izquierda: generá 4 VARIANTES de la misma imagen, cada una con un badge circular grande diferente:\n  * Variante 1: "2x1"\n  * Variante 2: "3x1"\n  * Variante 3: "4x1"\n  * Variante 4: "45% OFF"\n  Todos con colores vivos (rojo/blanco o amarillo/negro), tamaño grande y legible, estilo etiqueta de descuento tipo supermercado. Mostrámelas para que elija.';
 
   const refUrls = [mainImg, ...gallery].filter(Boolean).slice(0, 4);
   const refBlock = refUrls.length
@@ -10632,6 +10574,7 @@ async function aplicarPreciosShopify(price, comparePrice, cost){
 let _autoShrineProduct = null;
 let _autoShrineGifs = [];
 let _autoShrineFotos = [];
+let _autoShrineMainImgs = [];
 
 function abrirAutoShrine(){
   const ta = document.getElementById('bkv-respuesta');
@@ -10695,14 +10638,24 @@ function seleccionarProductoAutoShrine(id, title, handle){
 }
 
 function onAutoFileChange(role){
-  const inp = document.getElementById(role === 'gif' ? 'bk-auto-gifs' : 'bk-auto-fotos');
-  const label = document.getElementById(role === 'gif' ? 'bk-auto-gifs-label' : 'bk-auto-fotos-label');
-  const files = Array.from(inp.files || []).slice(0, 3); // máximo 3
+  const inputId = role === 'gif' ? 'bk-auto-gifs' : role === 'foto' ? 'bk-auto-fotos' : 'bk-auto-mainimgs';
+  const labelId = role === 'gif' ? 'bk-auto-gifs-label' : role === 'foto' ? 'bk-auto-fotos-label' : 'bk-auto-mainimgs-label';
+  const inp = document.getElementById(inputId);
+  const label = document.getElementById(labelId);
+  // Máximo 3 para gifs y fotos, hasta 10 para mainimgs (carrusel Shopify).
+  const cap = role === 'mainimg' ? 10 : 3;
+  const files = Array.from(inp.files || []).slice(0, cap);
   if (role === 'gif') _autoShrineGifs = files;
-  else _autoShrineFotos = files;
+  else if (role === 'foto') _autoShrineFotos = files;
+  else _autoShrineMainImgs = files;
   if (label) {
-    if (!files.length) label.textContent = role === 'gif' ? '📁 Click — selecciona 3 GIFs' : '📁 Click — selecciona 3 fotos';
-    else label.textContent = '✓ ' + files.length + ' archivo(s)';
+    if (!files.length) {
+      label.textContent = role === 'gif' ? '📁 Click — selecciona 3 GIFs'
+        : role === 'foto' ? '📁 Click — selecciona 3 fotos'
+        : '📁 Click — selecciona las principales';
+    } else {
+      label.textContent = '✓ ' + files.length + ' archivo(s)';
+    }
   }
   refreshAutoFilesPreview();
 }
@@ -10711,12 +10664,13 @@ function refreshAutoFilesPreview(){
   const preview = document.getElementById('bk-auto-files-preview');
   const goBtn = document.getElementById('bk-auto-shrine-go');
   if (!preview || !goBtn) return;
-  const all = [..._autoShrineGifs.map((f,i) => ({f,role:'gif',idx:i})),
+  const all = [..._autoShrineMainImgs.map((f,i) => ({f,role:'main',idx:i})),
+               ..._autoShrineGifs.map((f,i) => ({f,role:'gif',idx:i})),
                ..._autoShrineFotos.map((f,i) => ({f,role:'foto',idx:i}))];
   preview.innerHTML = all.map(item => {
     const url = URL.createObjectURL(item.f);
-    const tag = item.role === 'gif' ? 'GIF' : 'FOTO';
-    const color = item.role === 'gif' ? '#4F65D8' : '#D85B95';
+    const tag = item.role === 'main' ? 'MAIN' : item.role === 'gif' ? 'GIF' : 'FOTO';
+    const color = item.role === 'main' ? '#8A5A2A' : item.role === 'gif' ? '#4F65D8' : '#D85B95';
     return '<div draggable="true" data-role="' + item.role + '" data-idx="' + item.idx + '" '+
       'ondragstart="autoFilesDragStart(event)" '+
       'ondragover="autoFilesDragOver(event)" '+
@@ -10768,7 +10722,7 @@ function autoFilesDrop(e){
   const dstRole = t.dataset.role, dstIdx = parseInt(t.dataset.idx, 10);
   if (srcRole !== dstRole) { showToast('Solo se reordena dentro del mismo tipo (GIFs ↔ GIFs, fotos ↔ fotos)', '⚠️', 'info'); return; }
   if (srcIdx === dstIdx) return;
-  const arr = srcRole === 'gif' ? _autoShrineGifs : _autoShrineFotos;
+  const arr = srcRole === 'main' ? _autoShrineMainImgs : srcRole === 'gif' ? _autoShrineGifs : _autoShrineFotos;
   // Insertar el arrastrado en la posición destino (NO swap — mueve y empuja).
   const item = arr.splice(srcIdx, 1)[0];
   arr.splice(dstIdx, 0, item);
@@ -10786,7 +10740,37 @@ async function ejecutarAutoShrine(){
   const setStatus = (m) => { if(status) status.textContent = m; };
 
   try {
-    // 1. Subir las 6 imágenes a Files
+    // 0. Subir imagenes principales al CARRUSEL del producto Shopify.
+    //    Van al /products/{id}/images.json como attachment base64.
+    //    (Distinto de Shopify Files: son las que se ven en la pagina del producto.)
+    for (let i = 0; i < _autoShrineMainImgs.length; i++) {
+      setStatus('⏳ Subiendo imagen principal ' + (i+1) + '/' + _autoShrineMainImgs.length + ' al carrusel…');
+      const f = _autoShrineMainImgs[i];
+      const base64 = await new Promise((resolve, reject) => {
+        const rd = new FileReader();
+        rd.onload = () => resolve(String(rd.result).split(',').pop());
+        rd.onerror = () => reject(new Error('read fail'));
+        rd.readAsDataURL(f);
+      });
+      const ext = (f.name.match(/\.([a-z0-9]+)$/i) || [,'jpg'])[1];
+      const upR = await fetch('/.netlify/functions/shopify-products?_=1' + tenantParam(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: _autoShrineProduct.id,
+          image: {
+            attachment: base64,
+            filename: 'main-' + (i+1) + '-' + Date.now() + '.' + ext,
+            alt: (_autoShrineProduct.title || 'product') + ' — imagen ' + (i+1),
+            position: i + 1,
+          },
+        }),
+      });
+      const upJ = await upR.json().catch(() => ({}));
+      if (!upR.ok) throw new Error('Fallo subiendo imagen principal ' + (i+1) + ': ' + (upJ.error || 'HTTP ' + upR.status));
+    }
+
+    // 1. Subir las 6 imágenes a Files (GIFs + fotos testimonios)
     const gifsRefs = [];
     for (let i = 0; i < _autoShrineGifs.length; i++) {
       setStatus('⏳ Subiendo GIF ' + (i+1) + '/3…');
