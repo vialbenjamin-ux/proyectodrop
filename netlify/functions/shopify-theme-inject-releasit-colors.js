@@ -110,9 +110,16 @@ exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: cors(), body: '' };
   if (event.httpMethod !== 'POST') return respond(405, { error: 'Method not allowed' });
 
-  const token = process.env.SHOPIFY_TOKEN;
-  const domain = process.env.SHOPIFY_DOMAIN;
-  if (!token || !domain) return respond(500, { error: 'Faltan credenciales Shopify' });
+  // Tenant chile o gt (default chile).
+  let tenant = 'chile';
+  try {
+    const b = JSON.parse(event.body || '{}');
+    if (b && (b.tenant === 'gt' || b.tenant === 'chile')) tenant = b.tenant;
+  } catch (_) {}
+  const isGT = tenant === 'gt';
+  const token = isGT ? process.env.SHOPIFY_TOKEN_GT : process.env.SHOPIFY_TOKEN;
+  const domain = isGT ? process.env.SHOPIFY_DOMAIN_GT : process.env.SHOPIFY_DOMAIN;
+  if (!token || !domain) return respond(500, { error: 'Faltan credenciales Shopify' + (isGT ? ' GT' : '') });
   const H = { 'X-Shopify-Access-Token': token, 'Content-Type': 'application/json', 'Accept': 'application/json' };
   const API = 'https://' + domain + '/admin/api/2024-10';
 

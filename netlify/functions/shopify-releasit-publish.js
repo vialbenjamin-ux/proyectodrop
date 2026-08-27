@@ -60,11 +60,12 @@ exports.handler = async (event) => {
   if (!Number.isFinite(pack3Disc) || pack3Disc < 0 || pack3Disc > 90) {
     return respond(400, { error: 'pack3_disc debe ser 0-90' });
   }
-  if (tenant !== 'chile') return respond(400, { error: 'Solo tenant chile por ahora' });
+  if (tenant !== 'chile' && tenant !== 'gt') return respond(400, { error: 'Tenant invalido (solo chile o gt)' });
 
-  const token = process.env.SHOPIFY_TOKEN;
-  const domain = process.env.SHOPIFY_DOMAIN;
-  if (!token || !domain) return respond(500, { error: 'Faltan credenciales Shopify' });
+  const isGT = tenant === 'gt';
+  const token = isGT ? process.env.SHOPIFY_TOKEN_GT : process.env.SHOPIFY_TOKEN;
+  const domain = isGT ? process.env.SHOPIFY_DOMAIN_GT : process.env.SHOPIFY_DOMAIN;
+  if (!token || !domain) return respond(500, { error: 'Faltan credenciales Shopify' + (isGT ? ' GT' : '') });
 
   const H = { 'X-Shopify-Access-Token': token, 'Content-Type': 'application/json', 'Accept': 'application/json' };
   const API = 'https://' + domain + '/admin/api/2024-10';
@@ -107,11 +108,18 @@ exports.handler = async (event) => {
     //    ds.v = round((1 - (1 - d/100)/nx1) * 100 * 100)
     //    qty final = nx1 * k (k = 1, 2, 3)
     //    Precio por unidad = precioTotal / (nx1 * k)  (unidades reales que recibe)
+    // Redondeo por tenant:
+    // - Chile: precios terminan en .990 (convención CLP: $27.990, $47.990, etc.)
+    // - GT: enteros GTQ (Q233, Q396, etc.). El user ingresa el precio manual
+    //   y los tramos 2/3 se calculan sin regla especial.
     const round990 = n => {
+      if (isGT) return Math.max(0, Math.round(n));
       const r = Math.round(n / 1000) * 1000 - 10;
       return r > 0 ? r : Math.max(0, Math.round(n));
     };
-    const fmt = n => '$' + Math.round(n).toLocaleString('es-CL');
+    const currencySymbol = isGT ? 'Q' : '$';
+    const currencyLocale = isGT ? 'es-GT' : 'es-CL';
+    const fmt = n => currencySymbol + Math.round(n).toLocaleString(currencyLocale);
     const fmtPerUnit = n => 'SÓLO ' + fmt(n) + ' POR UNIDAD!';
     const unitLabel = qty => qty === 1 ? 'unidad' : 'unidades';
 

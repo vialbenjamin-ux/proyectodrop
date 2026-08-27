@@ -9152,7 +9152,31 @@ async function ejecutarReplicacionGT(){
     }
 
     if(status){
-      status.innerHTML = '✅ Plantilla "<b>' + esc(newSuffix) + '</b>" + imágenes replicadas al producto de GT.' + esc(imgCopyMsg);
+      status.innerHTML =
+        '<div style="color:var(--accent);margin-bottom:8px">✅ Plantilla "<b>' + esc(newSuffix) + '</b>" + imágenes replicadas al producto de GT.' + esc(imgCopyMsg) + '</div>' +
+        '<div style="background:linear-gradient(135deg,#D9A82E 0%,#8A5A2A 100%);border-radius:10px;padding:12px;color:#fff;display:flex;flex-direction:column;gap:10px">' +
+          '<div style="font-size:12px;font-weight:700;letter-spacing:.5px">💰 Publicar Precios + Releasit en Guatemala</div>' +
+          '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">' +
+            '<label style="font-size:11px;font-family:\'DM Mono\',monospace;color:#fff">Precio GTQ:</label>' +
+            '<input type="number" id="bk-releasit-gt-price" placeholder="233" min="1" step="1" style="flex:1;min-width:100px;background:#fff;border:none;color:#111;padding:8px 10px;border-radius:6px;font-size:13px;font-family:\'DM Mono\',monospace;font-weight:700">' +
+            '<label style="font-size:10px;color:#fff;font-family:\'DM Mono\',monospace">%2u:</label>' +
+            '<input type="number" id="bk-releasit-gt-d2" value="15" min="0" max="90" style="width:52px;background:#fff;border:none;color:#111;padding:7px;border-radius:6px;font-size:11px;font-family:\'DM Mono\',monospace">' +
+            '<label style="font-size:10px;color:#fff;font-family:\'DM Mono\',monospace">%3u:</label>' +
+            '<input type="number" id="bk-releasit-gt-d3" value="20" min="0" max="90" style="width:52px;background:#fff;border:none;color:#111;padding:7px;border-radius:6px;font-size:11px;font-family:\'DM Mono\',monospace">' +
+          '</div>' +
+          '<div style="display:flex;gap:4px;flex-wrap:wrap">' +
+            '<button type="button" onclick="_bkReleasitGtNx1(1)" class="bk-gt-nx1-btn" data-nx1="1" style="flex:1;min-width:60px;background:#fff;color:#111;border:none;padding:6px;border-radius:6px;font-size:11px;font-family:\'DM Mono\',monospace;font-weight:700;cursor:pointer">1u</button>' +
+            '<button type="button" onclick="_bkReleasitGtNx1(2)" class="bk-gt-nx1-btn" data-nx1="2" style="flex:1;min-width:60px;background:#fff;color:#111;border:none;padding:6px;border-radius:6px;font-size:11px;font-family:\'DM Mono\',monospace;font-weight:700;cursor:pointer">2x1</button>' +
+            '<button type="button" onclick="_bkReleasitGtNx1(3)" class="bk-gt-nx1-btn" data-nx1="3" style="flex:1;min-width:60px;background:#fff;color:#111;border:none;padding:6px;border-radius:6px;font-size:11px;font-family:\'DM Mono\',monospace;font-weight:700;cursor:pointer">3x1</button>' +
+            '<button type="button" onclick="_bkReleasitGtNx1(4)" class="bk-gt-nx1-btn" data-nx1="4" style="flex:1;min-width:60px;background:#fff;color:#111;border:none;padding:6px;border-radius:6px;font-size:11px;font-family:\'DM Mono\',monospace;font-weight:700;cursor:pointer">4x1</button>' +
+          '</div>' +
+          '<div style="display:flex;gap:6px;flex-wrap:wrap">' +
+            '<button onclick="_bkPublicarReleasitGT(\'' + esc(p.gtId) + '\', \'' + esc(p.handle) + '\', \'' + esc(p.title) + '\', this)" style="flex:1;background:#fff;color:#8A5A2A;border:none;border-radius:6px;padding:9px 14px;font-size:12px;font-family:\'DM Mono\',monospace;font-weight:700;cursor:pointer">🚀 Publicar Releasit GT</button>' +
+            '<button onclick="_bkInstalarColoresGT(this)" style="background:#8B5CF6;color:#fff;border:none;border-radius:6px;padding:9px 12px;font-size:11px;font-family:\'DM Mono\',monospace;font-weight:700;cursor:pointer">🎨 Colores GT</button>' +
+            '<button onclick="_bkActivarProductoGT(\'' + esc(p.gtId) + '\', \'' + esc(p.handle) + '\', this)" style="background:#16A34A;color:#fff;border:none;border-radius:6px;padding:9px 12px;font-size:11px;font-family:\'DM Mono\',monospace;font-weight:700;cursor:pointer">✅ Activar GT</button>' +
+          '</div>' +
+          '<div id="bk-releasit-gt-status" style="font-size:11px;font-family:\'DM Mono\',monospace;min-height:14px"></div>' +
+        '</div>';
       status.style.color = 'var(--accent)';
     }
     showToast('🔄 Landing + imágenes replicados a GT', '✨', 'success');
@@ -9931,6 +9955,92 @@ function _bkContinuarAMaster(btn){
       try { ejecutarMaster(); } catch (_) {}
     }
   }, 600);
+}
+
+// Estado nx1 para GT (paralelo al _bkReleasitNx1Manual de Chile).
+window._bkReleasitGtNx1Manual = 1;
+function _bkReleasitGtNx1(n){
+  window._bkReleasitGtNx1Manual = parseInt(n, 10) || 1;
+  document.querySelectorAll('.bk-gt-nx1-btn').forEach(function(b){
+    var on = parseInt(b.getAttribute('data-nx1'), 10) === window._bkReleasitGtNx1Manual;
+    b.style.background = on ? '#8A5A2A' : '#fff';
+    b.style.color = on ? '#fff' : '#111';
+  });
+}
+
+// Publica la oferta Releasit en la tienda GT (post-replicar landing).
+async function _bkPublicarReleasitGT(productId, handle, title, btn){
+  const status = document.getElementById('bk-releasit-gt-status');
+  const price = parseFloat(document.getElementById('bk-releasit-gt-price')?.value);
+  const disc2 = parseFloat(document.getElementById('bk-releasit-gt-d2')?.value) || 15;
+  const disc3 = parseFloat(document.getElementById('bk-releasit-gt-d3')?.value) || 20;
+  const nx1 = window._bkReleasitGtNx1Manual || 1;
+  if (!price || price <= 0) { if (status) status.textContent = '⚠️ Ingresá el precio GTQ primero'; return; }
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Publicando…'; btn.style.opacity = '0.6'; }
+  if (status) status.textContent = '⏳ Publicando oferta Releasit en GT…';
+  try {
+    const resp = await fetch('/.netlify/functions/shopify-releasit-publish', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        product_id: String(productId),
+        pack2_disc: disc2,
+        pack3_disc: disc3,
+        nx1: nx1,
+        price_override: price,
+        dry_run: false,
+        tenant: 'gt',
+      }),
+    });
+    const data = await resp.json();
+    if (!resp.ok || !data.applied) throw new Error(data.error || 'error publicando');
+    if (btn) { btn.textContent = '✅ Publicado'; btn.style.background = '#DFF2E8'; btn.style.color = '#166534'; }
+    if (status) status.innerHTML = '✅ Oferta publicada en Releasit GT. Verificá en la <a href="https://benkogt.com/products/' + esc(handle) + '" target="_blank" style="color:#fff;text-decoration:underline;font-weight:700">landing GT</a>.';
+    showToast('Oferta publicada en Releasit GT', '🚀', 'ok');
+  } catch (err) {
+    if (btn) { btn.disabled = false; btn.textContent = '🚀 Publicar Releasit GT'; btn.style.opacity = '1'; }
+    if (status) status.textContent = '❌ ' + (err.message || 'error');
+  }
+}
+
+// Instala los colores en el theme de GT (1 sola vez, idempotente).
+async function _bkInstalarColoresGT(btn){
+  const status = document.getElementById('bk-releasit-gt-status');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Instalando…'; btn.style.opacity = '0.6'; }
+  try {
+    const resp = await fetch('/.netlify/functions/shopify-theme-inject-releasit-colors', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tenant: 'gt' }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'error');
+    if (btn) { btn.textContent = '✅ Colores GT'; btn.style.background = '#DFF2E8'; btn.style.color = '#166534'; btn.disabled = false; }
+    if (status) status.textContent = '✅ Colores instalados en theme GT "' + (data.themeName || '') + '"';
+    showToast('Colores GT instalados', '🎨', 'ok');
+  } catch (err) {
+    if (btn) { btn.disabled = false; btn.textContent = '🎨 Colores GT'; btn.style.opacity = '1'; }
+    if (status) status.textContent = '❌ ' + (err.message || 'error');
+  }
+}
+
+// Activa el producto en la tienda GT (draft -> active).
+async function _bkActivarProductoGT(productId, handle, btn){
+  const status = document.getElementById('bk-releasit-gt-status');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Activando…'; btn.style.opacity = '0.6'; }
+  try {
+    const resp = await fetch('/.netlify/functions/shopify-products?tenant=gt', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: productId, status: 'active' }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'error');
+    if (btn) { btn.textContent = '✅ Activo GT'; btn.style.background = '#DFF2E8'; btn.style.color = '#166534'; }
+    if (status) status.innerHTML = '✅ Producto activo en GT. <a href="https://benkogt.com/products/' + esc(handle) + '" target="_blank" style="color:#fff;text-decoration:underline;font-weight:700">Ver landing GT</a>';
+    showToast('Producto activo en GT', '🚀', 'ok');
+  } catch (err) {
+    if (btn) { btn.disabled = false; btn.textContent = '✅ Activar GT'; btn.style.opacity = '1'; }
+    if (status) status.textContent = '❌ ' + (err.message || 'error');
+  }
 }
 
 // Instala el CSS de colores de precio Releasit en el theme Shopify Chile.
