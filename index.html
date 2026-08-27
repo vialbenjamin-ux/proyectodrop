@@ -3338,6 +3338,79 @@
         <button onclick="initVideosProd(true).then(()=>renderAdsQueue())" title="Vuelve a cargar desde Firestore" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--text);border-radius:8px;padding:7px 14px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer">🔄 Recargar</button>
       </div>
       <div id="ads-queue-list"></div>
+
+      <!-- Prompt separado: Generador de copys Meta Ads + TikTok Ads -->
+      <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:18px 20px;margin-top:22px;display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <div style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:14px;color:var(--text)">✍️ Generador de copys Meta Ads + TikTok Ads</div>
+          <span style="font-size:9px;background:var(--accent-soft);color:var(--accent);padding:2px 8px;border-radius:4px;font-family:'DM Mono',monospace;font-weight:700;letter-spacing:.5px">PROMPT</span>
+        </div>
+        <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;line-height:1.5">Copia el prompt al clipboard y abre ChatGPT. Pegás el prompt + el URL o descripción del producto y devuelve 3 textos PAS + 3 títulos + 3 descripciones + 5 hooks TikTok. Regionalizado CL / GT.</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <button onclick="_bkAbrirPromptCopysAds(this)" style="background:#10a37f;color:#fff;border:none;border-radius:8px;padding:10px 16px;font-size:12px;font-family:'DM Mono',monospace;cursor:pointer;font-weight:700;letter-spacing:.5px">▶ Ejecutar en ChatGPT</button>
+          <button onclick="_bkCopiarPromptCopysAds(this)" style="background:var(--surface2);color:var(--text);border:1.5px solid var(--border);border-radius:8px;padding:10px 14px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer;font-weight:600">📋 Solo copiar</button>
+          <button onclick="_bkTogglePromptCopysAds()" style="background:transparent;color:var(--muted);border:1.5px solid var(--border);border-radius:8px;padding:10px 14px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer">Ver / editar</button>
+        </div>
+        <textarea id="bk-prompt-copys-ads" style="display:none;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);border-radius:8px;padding:12px;font-size:11px;font-family:'DM Mono',monospace;min-height:280px;resize:vertical;line-height:1.55">Eres un experto en Meta Ads y TikTok Ads con más de 10 años de experiencia en e-commerce y dropshipping. Cada vez que te comparta la URL o el contenido de un producto, analízalo automáticamente y genera los siguientes copys:
+
+3 TEXTOS PRINCIPALES
+- Máximo 65 caracteres cada uno
+- Framework PAS: Texto 1 = Problema, Texto 2 = Solución, Texto 3 = Resultado/Urgencia
+- Emoji obligatorio al inicio
+
+3 TÍTULOS
+- Máximo 40 caracteres cada uno
+- Formato: acción + beneficio concreto
+- Emoji obligatorio al inicio
+
+3 DESCRIPCIONES
+- Máximo 30 caracteres cada uno
+- Solo características del producto (NO mencionar envío gratis, paga al recibir ni montos de ahorro)
+- Emoji obligatorio al inicio
+
+5 TEXTOS CORTOS PARA TIKTOK ADS
+- Máximo 6-7 palabras cada uno
+- Hooks disruptivos que paren el scroll
+- Emoji obligatorio al inicio
+
+REGLAS OBLIGATORIAS:
+- NUNCA mencionar el nombre del producto directamente
+- NUNCA mencionar envío gratis, paga al recibir ni descuentos en las descripciones
+- Emoji obligatorio al inicio de cada línea
+- Framework PAS en textos principales
+- Siempre incluir disparador de urgencia o escasez
+- Tono persuasivo y directo
+- Evitar palabras genéricas como "calidad" o "increíble"
+- Terminar con: "¿Seguimos con otro? 🚀"
+
+ADAPTACIONES GEOGRÁFICAS:
+- Chile (benkotienda.com): español neutro, referencias locales permitidas (gasfíter, feria, etc.)
+- Guatemala (benkogt.com): voseo obligatorio (usás, llevás, pagás), referencias locales (carro en vez de auto, chamaco, listo pues, chapín, etc.)
+- Si no se indica país: español latino neutro sin regionalismos
+
+ÁNGULOS DE ALTO RENDIMIENTO A USAR:
+- Anti-profesional (anti-gasfíter, anti-taller, anti-kine)
+- Adultos mayores con independencia
+- Mamás con poco tiempo
+- Trabajadores de escritorio con dolor
+- Mascotas y su dueño
+- Regalo emotivo
+- Arrendatarios sin taladro
+
+FORMATO DE RESPUESTA:
+Usar exactamente esta estructura con emojis de sección:
+📝 TEXTOS PRINCIPALES
+✍️ TÍTULOS
+📣 DESCRIPCIONES
+🎵 TEXTOS CORTOS PARA TIKTOK ADS
+
+La respuesta debe ser expandible para que la persona pueda copiar y pegar.
+
+---
+PRODUCTO A ANALIZAR:
+[Pega acá el URL o descripción del producto]</textarea>
+        <div id="bk-prompt-copys-status" style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;min-height:14px"></div>
+      </div>
     </div>
   </div>
 
@@ -19241,6 +19314,30 @@ async function setVideoUploadedToAds(fileId, uploaded, handle, fileName){
   } catch (err) {
     showToast('Error: ' + (err.message || '?'), '⚠️', 'error');
   }
+}
+
+// ─── Prompt Copys Meta+TikTok Ads (sección MANAGER) ────────────────────────
+async function _bkCopiarPromptCopysAds(btn){
+  const el = document.getElementById('bk-prompt-copys-ads');
+  const status = document.getElementById('bk-prompt-copys-status');
+  if (!el) return;
+  try {
+    await navigator.clipboard.writeText(el.value);
+    if (status) status.textContent = '✅ Prompt copiado al clipboard';
+    if (btn) { const t = btn.textContent; btn.textContent = '✅ Copiado'; setTimeout(()=>{ btn.textContent = t; }, 1500); }
+    if (typeof showToast === 'function') showToast('Prompt copiado', '📋', 'ok');
+  } catch (err) {
+    if (status) status.textContent = '❌ ' + (err.message || 'no se pudo copiar');
+  }
+}
+async function _bkAbrirPromptCopysAds(btn){
+  await _bkCopiarPromptCopysAds(btn);
+  window.open('https://chatgpt.com/', '_blank');
+}
+function _bkTogglePromptCopysAds(){
+  const el = document.getElementById('bk-prompt-copys-ads');
+  if (!el) return;
+  el.style.display = (el.style.display === 'none' || !el.style.display) ? 'block' : 'none';
 }
 
 // Render de la cola de pendientes en sección MANAGER. Agrupa por producto los
