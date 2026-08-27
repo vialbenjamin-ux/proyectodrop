@@ -3339,18 +3339,28 @@
       </div>
       <div id="ads-queue-list"></div>
 
-      <!-- Prompt separado: Generador de copys Meta Ads + TikTok Ads -->
-      <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:18px 20px;margin-top:22px;display:flex;flex-direction:column;gap:10px">
+      <!-- Prompt separado: Generador de copys Meta Ads + TikTok Ads (in-app con Gemini) -->
+      <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:18px 20px;margin-top:22px;display:flex;flex-direction:column;gap:12px">
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
           <div style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:14px;color:var(--text)">✍️ Generador de copys Meta Ads + TikTok Ads</div>
-          <span style="font-size:9px;background:var(--accent-soft);color:var(--accent);padding:2px 8px;border-radius:4px;font-family:'DM Mono',monospace;font-weight:700;letter-spacing:.5px">PROMPT</span>
+          <span style="font-size:9px;background:var(--accent-soft);color:var(--accent);padding:2px 8px;border-radius:4px;font-family:'DM Mono',monospace;font-weight:700;letter-spacing:.5px">GEMINI IN-APP</span>
         </div>
-        <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;line-height:1.5">Copia el prompt al clipboard y abre ChatGPT. Pegás el prompt + el URL o descripción del producto y devuelve 3 textos PAS + 3 títulos + 3 descripciones + 5 hooks TikTok. Regionalizado CL / GT.</div>
+        <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;line-height:1.5">Pegá el link o descripción del producto → BKDROP consulta Gemini y devuelve 3 textos PAS + 3 títulos + 3 descripciones + 5 hooks TikTok con emoji al inicio, adaptado a la región elegida.</div>
+
+        <textarea id="bk-copys-ads-producto" placeholder="URL de la landing (ej https://benkotienda.com/products/...) o descripción del producto" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:10px 12px;border-radius:8px;font-size:12px;font-family:'DM Mono',monospace;min-height:80px;resize:vertical;line-height:1.5"></textarea>
+
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+          <span style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;letter-spacing:.5px">REGIÓN:</span>
+          <button type="button" onclick="_bkCopysAdsPickRegion('chile')" data-region="chile" class="bk-copys-ads-region-btn" style="background:#8A5A2A;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:11px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">🇨🇱 Chile</button>
+          <button type="button" onclick="_bkCopysAdsPickRegion('gt')" data-region="gt" class="bk-copys-ads-region-btn" style="background:var(--surface2);color:var(--text);border:1.5px solid var(--border);border-radius:6px;padding:6px 12px;font-size:11px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">🇬🇹 Guatemala</button>
+          <button type="button" onclick="_bkCopysAdsPickRegion('neutro')" data-region="neutro" class="bk-copys-ads-region-btn" style="background:var(--surface2);color:var(--text);border:1.5px solid var(--border);border-radius:6px;padding:6px 12px;font-size:11px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">🌎 Neutro</button>
+        </div>
+
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-          <button onclick="_bkAbrirPromptCopysAds(this)" style="background:#10a37f;color:#fff;border:none;border-radius:8px;padding:10px 16px;font-size:12px;font-family:'DM Mono',monospace;cursor:pointer;font-weight:700;letter-spacing:.5px">▶ Ejecutar en ChatGPT</button>
-          <button onclick="_bkCopiarPromptCopysAds(this)" style="background:var(--surface2);color:var(--text);border:1.5px solid var(--border);border-radius:8px;padding:10px 14px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer;font-weight:600">📋 Solo copiar</button>
-          <button onclick="_bkTogglePromptCopysAds()" style="background:transparent;color:var(--muted);border:1.5px solid var(--border);border-radius:8px;padding:10px 14px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer">Ver / editar</button>
+          <button id="bk-copys-ads-btn" onclick="_bkEjecutarCopysAds()" style="background:#8A5A2A;color:#fff;border:none;border-radius:8px;padding:11px 18px;font-size:12px;font-family:'DM Mono',monospace;cursor:pointer;font-weight:700;letter-spacing:.5px">▶ Generar copys</button>
+          <button onclick="_bkTogglePromptCopysAds()" style="background:transparent;color:var(--muted);border:1.5px solid var(--border);border-radius:8px;padding:10px 14px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer">Ver / editar prompt base</button>
         </div>
+
         <textarea id="bk-prompt-copys-ads" style="display:none;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);border-radius:8px;padding:12px;font-size:11px;font-family:'DM Mono',monospace;min-height:280px;resize:vertical;line-height:1.55">Eres un experto en Meta Ads y TikTok Ads con más de 10 años de experiencia en e-commerce y dropshipping. Cada vez que te comparta la URL o el contenido de un producto, analízalo automáticamente y genera los siguientes copys:
 
 3 TEXTOS PRINCIPALES
@@ -3402,14 +3412,20 @@ Usar exactamente esta estructura con emojis de sección:
 📝 TEXTOS PRINCIPALES
 ✍️ TÍTULOS
 📣 DESCRIPCIONES
-🎵 TEXTOS CORTOS PARA TIKTOK ADS
+🎵 TEXTOS CORTOS PARA TIKTOK ADS</textarea>
 
-La respuesta debe ser expandible para que la persona pueda copiar y pegar.
-
----
-PRODUCTO A ANALIZAR:
-[Pega acá el URL o descripción del producto]</textarea>
-        <div id="bk-prompt-copys-status" style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;min-height:14px"></div>
+        <!-- Output box: aparece cuando ejecutamos -->
+        <div id="bk-copys-ads-output" style="display:none;background:var(--surface2);border:1.5px solid #8A5A2A;border-radius:10px;padding:12px;flex-direction:column;gap:8px">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+            <div style="font-size:11px;color:#8A5A2A;font-weight:700;letter-spacing:.5px;text-transform:uppercase;font-family:'DM Mono',monospace">Respuesta de Gemini</div>
+            <div style="display:flex;gap:6px">
+              <button onclick="_bkCopiarCopysAdsOutput(this)" style="background:#8A5A2A;color:#fff;border:none;border-radius:6px;padding:5px 10px;font-size:10px;font-family:'DM Mono',monospace;cursor:pointer;font-weight:700">📋 Copiar</button>
+              <button onclick="document.getElementById('bk-copys-ads-output').style.display='none'" style="background:transparent;color:var(--muted);border:1.5px solid var(--border);border-radius:6px;padding:5px 10px;font-size:10px;font-family:'DM Mono',monospace;cursor:pointer">✕</button>
+            </div>
+          </div>
+          <div id="bk-copys-ads-body" style="font-size:12px;color:var(--text);font-family:'DM Mono',monospace;white-space:pre-wrap;line-height:1.6;max-height:60vh;overflow-y:auto"></div>
+        </div>
+        <div id="bk-copys-ads-status" style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;min-height:14px"></div>
       </div>
     </div>
   </div>
@@ -19316,28 +19332,105 @@ async function setVideoUploadedToAds(fileId, uploaded, handle, fileName){
   }
 }
 
-// ─── Prompt Copys Meta+TikTok Ads (sección MANAGER) ────────────────────────
-async function _bkCopiarPromptCopysAds(btn){
-  const el = document.getElementById('bk-prompt-copys-ads');
-  const status = document.getElementById('bk-prompt-copys-status');
-  if (!el) return;
-  try {
-    await navigator.clipboard.writeText(el.value);
-    if (status) status.textContent = '✅ Prompt copiado al clipboard';
-    if (btn) { const t = btn.textContent; btn.textContent = '✅ Copiado'; setTimeout(()=>{ btn.textContent = t; }, 1500); }
-    if (typeof showToast === 'function') showToast('Prompt copiado', '📋', 'ok');
-  } catch (err) {
-    if (status) status.textContent = '❌ ' + (err.message || 'no se pudo copiar');
-  }
+// ─── Prompt Copys Meta+TikTok Ads (sección MANAGER, in-app con Gemini) ─────
+// Región seleccionada por el usuario. Se persiste en localStorage para que
+// no tenga que reelegir cada vez que entra a MANAGER.
+let _bkCopysAdsRegion = (function(){
+  try { return localStorage.getItem('bk_copys_ads_region') || 'chile'; }
+  catch(_) { return 'chile'; }
+})();
+
+function _bkCopysAdsPickRegion(reg){
+  _bkCopysAdsRegion = reg;
+  try { localStorage.setItem('bk_copys_ads_region', reg); } catch(_) {}
+  // Repintar botones (el activo queda con fondo dorado, resto plano).
+  document.querySelectorAll('.bk-copys-ads-region-btn').forEach(function(b){
+    const active = b.getAttribute('data-region') === reg;
+    if (active) {
+      b.style.background = '#8A5A2A';
+      b.style.color = '#fff';
+      b.style.border = 'none';
+    } else {
+      b.style.background = 'var(--surface2)';
+      b.style.color = 'var(--text)';
+      b.style.border = '1.5px solid var(--border)';
+    }
+  });
 }
-async function _bkAbrirPromptCopysAds(btn){
-  await _bkCopiarPromptCopysAds(btn);
-  window.open('https://chatgpt.com/', '_blank');
-}
+// Repintar al cargar (por si volvieron a la app con la region ya guardada).
+setTimeout(()=>{ try { _bkCopysAdsPickRegion(_bkCopysAdsRegion); } catch(_) {} }, 300);
+
 function _bkTogglePromptCopysAds(){
   const el = document.getElementById('bk-prompt-copys-ads');
   if (!el) return;
   el.style.display = (el.style.display === 'none' || !el.style.display) ? 'block' : 'none';
+}
+
+async function _bkCopiarCopysAdsOutput(btn){
+  const body = document.getElementById('bk-copys-ads-body');
+  if (!body) return;
+  try {
+    await navigator.clipboard.writeText(body.textContent || '');
+    if (btn) { const t = btn.textContent; btn.textContent = '✅ Copiado'; setTimeout(()=>{ btn.textContent = t; }, 1500); }
+    if (typeof showToast === 'function') showToast('Copys copiados', '📋', 'ok');
+  } catch(_) {}
+}
+
+// Ejecuta el prompt de copys ads llamando a Gemini directamente (streaming).
+// Mismo patrón que ejecutarBkPromptApi: pinta la respuesta en vivo en el
+// bk-copys-ads-body y bloquea el botón mientras genera.
+async function _bkEjecutarCopysAds(){
+  const producto = (document.getElementById('bk-copys-ads-producto').value || '').trim();
+  const status = document.getElementById('bk-copys-ads-status');
+  const btn = document.getElementById('bk-copys-ads-btn');
+  const outBox = document.getElementById('bk-copys-ads-output');
+  const body = document.getElementById('bk-copys-ads-body');
+  const promptBase = (document.getElementById('bk-prompt-copys-ads').value || '').trim();
+
+  if (!producto) {
+    if (status) status.textContent = '⚠️ Falta el URL o descripción del producto';
+    return;
+  }
+  if (!promptBase) {
+    if (status) status.textContent = '⚠️ El prompt base está vacío';
+    return;
+  }
+
+  const regionNote = _bkCopysAdsRegion === 'chile'
+    ? '\n\nPAÍS OBJETIVO: Chile (benkotienda.com). Español neutro, referencias locales permitidas.'
+    : _bkCopysAdsRegion === 'gt'
+      ? '\n\nPAÍS OBJETIVO: Guatemala (benkogt.com). Voseo obligatorio (usás, llevás, pagás), referencias chapinas.'
+      : '\n\nPAÍS OBJETIVO: Español latino neutro, sin regionalismos.';
+
+  const fullPrompt = promptBase + regionNote + '\n\n---\nPRODUCTO A ANALIZAR:\n' + producto;
+
+  if (status) status.textContent = 'Consultando Gemini…';
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="bk-spinner"></span>Generando…'; }
+  if (outBox) { outBox.style.display = 'flex'; }
+  if (body) { body.textContent = 'Esperando respuesta de Gemini…'; }
+
+  try {
+    let firstChunk = true;
+    const text = await callGeminiProxy(fullPrompt, (partial)=>{
+      if (body) {
+        if (firstChunk) { body.textContent = ''; firstChunk = false; }
+        body.textContent = partial;
+      }
+    });
+    if (body && !text) body.textContent = '(respuesta vacía)';
+    if (status) status.textContent = '✅ Copys generados';
+    if (outBox) outBox.scrollIntoView({behavior:'smooth', block:'center'});
+    if (btn) { btn.textContent = '✓ Generado'; }
+  } catch (err) {
+    if (body) body.textContent = '⚠️ ' + (err.message || 'error');
+    if (status) status.textContent = '❌ ' + (err.message || 'error');
+    if (btn) btn.textContent = '⚠️ Error';
+  } finally {
+    setTimeout(()=>{
+      const b = document.getElementById('bk-copys-ads-btn');
+      if (b) { b.disabled = false; b.textContent = '▶ Generar copys'; }
+    }, 3000);
+  }
 }
 
 // Render de la cola de pendientes en sección MANAGER. Agrupa por producto los
