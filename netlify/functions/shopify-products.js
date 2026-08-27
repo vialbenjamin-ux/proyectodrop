@@ -1,7 +1,8 @@
 // Endpoint multi-uso para productos Shopify (multi-tenant chile/gt).
 // - GET  ?q=texto      → busca productos por título (devuelve {id,title,handle,image})
 // - GET  ?id=123       → trae 1 producto completo
-// - PUT  body { id, body_html, title?, tags? } → actualiza producto
+// - PUT  body { id, body_html, title?, tags?, status? } → actualiza producto
+//        status:'active' publica ademas en el canal "Tienda online"
 // - POST body { id, image:{filename,attachment(base64),alt?,position?} } → sube imagen
 //
 // Requiere scope read_products + write_products en el SHOPIFY_TOKEN.
@@ -172,6 +173,13 @@ async function updateProduct(domain, headers, body) {
   if (typeof body.title === 'string')           update.title           = body.title;
   if (typeof body.template_suffix === 'string') update.template_suffix = body.template_suffix;
   if (typeof body.status === 'string' && ['active','draft','archived'].includes(body.status)) update.status = body.status;
+
+  // Activar un producto NO lo publica en el canal "Tienda online": en Shopify
+  // son dos cosas distintas. Un producto creado por API puede quedar `active`
+  // con el canal desmarcado (y por lo tanto invisible en la tienda).
+  // `published:true` lo publica en el Online Store en el mismo PUT.
+  const wantsPublish = (update.status === 'active') || body.published === true;
+  if (wantsPublish) update.published = true;
   if (Array.isArray(body.tags))           update.tags      = body.tags.join(', ');
   if (typeof body.tags === 'string')      update.tags      = body.tags;
 
@@ -221,7 +229,7 @@ async function updateProduct(domain, headers, body) {
   const data = await resp.json();
 
   // Side effects extra (después del main PUT):
-  const sideResults = { cost_updated: 0, locations_connected: 0, errors: [] };
+  const sideResults = { cost_updated: 0, locations_connected: 0, online_store_published: null, errors: [] };
 
   // 1. Costo del producto (inventory_item.cost) — requiere PUT a otro endpoint
   if (body.cost !== undefined && variants.length) {
@@ -276,7 +284,59 @@ async function updateProduct(domain, headers, body) {
     } catch (e) { sideResults.errors.push('locations network: ' + (e.message || '?')); }
   }
 
+  // 3. Publicacion en el canal "Tienda online".
+  // El `published:true` del PUT cubre el caso normal. Si aun asi el producto
+  // vuelve con published_at:null (pasa cuando nunca tuvo publicaciones),
+  // caemos a GraphQL publishablePublish contra el canal Online Store.
+  if (wantsPublish) {
+    if (data.product && data.product.published_at) {
+      sideResults.online_store_published = true;
+    } else {
+      const pub = await publishToOnlineStore(domain, headers, body.id);
+      sideResults.online_store_published = pub.ok;
+      if (!pub.ok) sideResults.errors.push('tienda online: ' + pub.error);
+    }
+  }
+
   return respond(200, { product: data.product, ok: true, sideResults });
+}
+
+// Publica el producto en el canal "Tienda online" via GraphQL.
+// Fallback para cuando el `published:true` del REST no alcanza.
+// Requiere scopes read_publications + write_publications.
+async function publishToOnlineStore(domain, headers, productId) {
+  const gqlUrl = `https://${domain}/admin/api/2024-10/graphql.json`;
+  try {
+    const listResp = await fetch(gqlUrl, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ query: '{ publications(first: 25) { edges { node { id name } } } }' }),
+    });
+    const listJson = await listResp.json();
+    if (listJson.errors) return { ok: false, error: JSON.stringify(listJson.errors).slice(0, 140) };
+    const edges = (listJson.data && listJson.data.publications && listJson.data.publications.edges) || [];
+    const online = edges.find(e => /online store|tienda online/i.test((e.node && e.node.name) || ''));
+    if (!online) return { ok: false, error: 'no encontre el canal Online Store' };
+
+    const mutResp = await fetch(gqlUrl, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        query: 'mutation P($id: ID!, $input: [PublicationInput!]!) { publishablePublish(id: $id, input: $input) { userErrors { field message } } }',
+        variables: {
+          id: 'gid://shopify/Product/' + productId,
+          input: [{ publicationId: online.node.id }],
+        },
+      }),
+    });
+    const mutJson = await mutResp.json();
+    if (mutJson.errors) return { ok: false, error: JSON.stringify(mutJson.errors).slice(0, 140) };
+    const ue = (mutJson.data && mutJson.data.publishablePublish && mutJson.data.publishablePublish.userErrors) || [];
+    if (ue.length) return { ok: false, error: ue.map(u => u.message).join('; ').slice(0, 140) };
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'network' };
+  }
 }
 
 function cors() {

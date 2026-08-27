@@ -10075,7 +10075,9 @@ async function _bkActivarProductoGT(productId, handle, btn){
     const data = await resp.json();
     if (!resp.ok) throw new Error(data.error || 'error');
     if (btn) { btn.textContent = '✅ Activo GT'; btn.style.background = '#DFF2E8'; btn.style.color = '#166534'; }
-    if (status) status.innerHTML = '✅ Producto activo en GT. <a href="https://benkogt.com/products/' + esc(handle) + '" target="_blank" style="color:#fff;text-decoration:underline;font-weight:700">Ver landing GT</a>';
+    const canalOkGT = !(data.sideResults && data.sideResults.online_store_published === false);
+    if (status) status.innerHTML = '✅ Producto activo en GT. <a href="https://benkogt.com/products/' + esc(handle) + '" target="_blank" style="color:#fff;text-decoration:underline;font-weight:700">Ver landing GT</a>'
+      + (canalOkGT ? '' : '<br>⚠️ No pude marcar el canal <strong>Tienda online</strong> — marcalo a mano en Shopify GT.');
     showToast('Producto activo en GT', '🚀', 'ok');
   } catch (err) {
     if (btn) { btn.disabled = false; btn.textContent = '✅ Activar GT'; btn.style.opacity = '1'; }
@@ -10123,9 +10125,13 @@ async function _bkActivarDesdePreciosPanel(btn){
     const data = await resp.json();
     if (!resp.ok) throw new Error(data.error || ('HTTP ' + resp.status));
     if (btn) { btn.textContent = '✅ Activo en tu tienda'; btn.style.background = '#DFF2E8'; btn.style.color = '#166534'; }
+    // El backend publica en el canal "Tienda online" junto con el status.
+    // Si no lo logró, avisamos para que se marque a mano en Shopify.
+    const canalOk = !(data.sideResults && data.sideResults.online_store_published === false);
     if (status) {
       const url = 'https://benkotienda.com/products/' + (p.handle || '');
-      status.innerHTML = '✅ Producto activo. <a href="' + esc(url) + '" target="_blank" style="color:#fff;text-decoration:underline;font-weight:700">Ver en la tienda</a>';
+      status.innerHTML = '✅ Producto activo. <a href="' + esc(url) + '" target="_blank" style="color:#fff;text-decoration:underline;font-weight:700">Ver en la tienda</a>'
+        + (canalOk ? '' : '<br>⚠️ No pude marcar el canal <strong>Tienda online</strong> — marcalo a mano en Shopify.');
     }
     showToast('Producto activo en la tienda', '🚀', 'ok');
   } catch (err) {
@@ -10147,6 +10153,9 @@ async function activarProductoDropi(productId, btn){
     const data = await resp.json();
     if (!resp.ok) throw new Error(data.error || ('HTTP ' + resp.status));
     if (btn) { btn.textContent = '✅ Activado'; btn.style.background = '#166534'; }
+    if (data.sideResults && data.sideResults.online_store_published === false) {
+      alert('⚠️ El producto quedó activo pero no pude marcar el canal "Tienda online". Marcalo a mano en Shopify.');
+    }
   } catch (err) {
     if (btn) { btn.disabled = false; btn.textContent = '🚀 Activar landing'; btn.style.opacity = '1'; }
     alert('❌ Error al activar: ' + (err.message || 'error'));
