@@ -9191,7 +9191,7 @@ async function buscarProductoEditarSeccion(){
   results.innerHTML = '<div style="font-size:11px;color:var(--muted);padding:8px">Buscando…</div>';
   if (status) status.textContent = '';
   try {
-    const url = '/.netlify/functions/shopify-products?_=1' + (q ? '&q=' + encodeURIComponent(q) : '') + tenantParam();
+    const url = '/.netlify/functions/shopify-products?_=1&tenant=chile' + (q ? '&q=' + encodeURIComponent(q) : '');
     const resp = await fetch(url);
     const data = await resp.json();
     if (!resp.ok) throw new Error(data.error || ('HTTP ' + resp.status));
@@ -9219,7 +9219,7 @@ async function seleccionarProductoEditarSeccion(id, title){
 
   try {
     // 1. Fetch del producto para obtener su template_suffix
-    const pResp = await fetch('/.netlify/functions/shopify-products?_=1&id=' + id + tenantParam());
+    const pResp = await fetch('/.netlify/functions/shopify-products?_=1&tenant=chile&id=' + id);
     const pData = await pResp.json();
     if (!pResp.ok) throw new Error(pData.error || ('HTTP ' + pResp.status));
     const tsuffix = pData.product?.template_suffix;
@@ -10601,7 +10601,10 @@ async function aplicarPreciosShopify(price, comparePrice, cost){
     if (sellNoStock)  body.inventory_policy   = 'continue';
     if (allLocations) body.mark_all_locations = true;
 
-    const resp = await fetch('/.netlify/functions/shopify-products?_=1' + tenantParam(), {
+    // Forzar tenant=chile: Precios+Releasit es solo Chile por diseño.
+    // Sin esto, si el usuario navegó al panel GT antes, tenantParam() devuelve
+    // '&tenant=gt' y el PUT va a la tienda GT donde el producto no existe -> 404.
+    const resp = await fetch('/.netlify/functions/shopify-products?_=1&tenant=chile', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -10662,7 +10665,7 @@ async function buscarProductosAutoShrine(){
   results.innerHTML = '<div style="font-size:11px;color:var(--muted);padding:8px">Buscando…</div>';
   if (status) status.textContent = '';
   try {
-    const url = '/.netlify/functions/shopify-products?_=1' + (q ? '&q=' + encodeURIComponent(q) : '') + tenantParam();
+    const url = '/.netlify/functions/shopify-products?_=1&tenant=chile' + (q ? '&q=' + encodeURIComponent(q) : '');
     const resp = await fetch(url);
     const data = await resp.json();
     if (!resp.ok) throw new Error(data.error || ('HTTP ' + resp.status));
@@ -10815,7 +10818,7 @@ async function ejecutarAutoShrine(){
         rd.readAsDataURL(f);
       });
       const ext = (f.name.match(/\.([a-z0-9]+)$/i) || [,'jpg'])[1];
-      const upR = await fetch('/.netlify/functions/shopify-products?_=1' + tenantParam(), {
+      const upR = await fetch('/.netlify/functions/shopify-products?_=1&tenant=chile', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -10928,7 +10931,7 @@ async function ejecutarAutoShrine(){
     if (chunksForTitle.nombres && chunksForTitle.nombres[0]) {
       updateBody.title = chunksForTitle.nombres[0];
     }
-    const updResp = await fetch('/.netlify/functions/shopify-products?_=1' + tenantParam(), {
+    const updResp = await fetch('/.netlify/functions/shopify-products?_=1&tenant=chile', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updateBody),
