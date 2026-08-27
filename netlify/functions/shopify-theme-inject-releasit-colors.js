@@ -51,35 +51,44 @@ const INCLUDE_MARKER_END = '<!-- BK_RELEASIT_COLORS_END -->';
 // con style.setProperty('color', X, 'important'), lo que gana sobre el
 // inline color: rgba(...) que setea el widget de Releasit sin !important.
 // El CSS + data-attr no funciono por race condition de timing con el widget.
+// Nota: este <script> se inyecta DENTRO del <head> (antes de </head>).
+// En ese momento document.body todavia no existe. Por eso el bootstrap
+// espera 'DOMContentLoaded' o el body listo antes de arrancar el paint.
 const PAINT_SCRIPT = '<script>\n' +
   '(function(){\n' +
-  '  if(!document.body || !window.location.pathname.includes("/products/")) return;\n' +
   '  var COLORS = ["rgba(34,197,94,1)","rgba(0,116,191,1)","rgba(139,92,246,1)","rgba(230,138,46,1)"];\n' +
   '  function paint(){\n' +
   '    var offers = document.querySelectorAll("._rsi-quantity-offers-offer");\n' +
   '    if(!offers.length) return false;\n' +
+  '    var didAny = false;\n' +
   '    offers.forEach(function(o){\n' +
   '      var pos = parseInt(o.getAttribute("data-offer-pos"),10);\n' +
   '      if(isNaN(pos) || pos < 0 || pos >= COLORS.length) return;\n' +
   '      o.querySelectorAll("._rsi-quantity-offers-new-price").forEach(function(el){\n' +
   '        el.style.setProperty("color", COLORS[pos], "important");\n' +
+  '        didAny = true;\n' +
   '      });\n' +
   '    });\n' +
-  '    return true;\n' +
+  '    return didAny;\n' +
   '  }\n' +
-  '  // Reintentar hasta 20s (widget puede tardar en renderizar) + observer\n' +
-  '  var tries = 0;\n' +
-  '  var iv = setInterval(function(){\n' +
-  '    tries++;\n' +
-  '    var ok = paint();\n' +
-  '    if(ok || tries > 80) clearInterval(iv);\n' +
-  '  }, 250);\n' +
-  '  // MutationObserver: re-pintar cuando el widget muta (ej user clickea otro tramo)\n' +
-  '  try{\n' +
-  '    var obs = new MutationObserver(function(){ paint(); });\n' +
-  '    var target = document.body;\n' +
-  '    if(target) obs.observe(target, {childList:true, subtree:true, attributes:true, attributeFilter:["class","style"]});\n' +
-  '  }catch(e){}\n' +
+  '  function start(){\n' +
+  '    if(window.location && window.location.pathname && window.location.pathname.indexOf("/products/") === -1) return;\n' +
+  '    var tries = 0;\n' +
+  '    var iv = setInterval(function(){\n' +
+  '      tries++;\n' +
+  '      paint();\n' +
+  '      if(tries > 120) clearInterval(iv);\n' +  // 30s total (120 x 250ms)
+  '    }, 250);\n' +
+  '    try{\n' +
+  '      var obs = new MutationObserver(function(){ paint(); });\n' +
+  '      obs.observe(document.body, {childList:true, subtree:true, attributes:true, attributeFilter:["class","style"]});\n' +
+  '    }catch(e){}\n' +
+  '  }\n' +
+  '  if(document.readyState === "loading"){\n' +
+  '    document.addEventListener("DOMContentLoaded", start);\n' +
+  '  } else {\n' +
+  '    start();\n' +
+  '  }\n' +
   '})();\n' +
   '</script>';
 
