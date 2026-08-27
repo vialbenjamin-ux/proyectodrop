@@ -64,10 +64,14 @@ const PAINT_SCRIPT = '<script>\n' +
   '    if(!offers.length) return false;\n' +
   '    var didAny = false;\n' +
   '    offers.forEach(function(o){\n' +
-  '      var pos = parseInt(o.getAttribute("data-offer-pos"),10);\n' +
-  '      if(isNaN(pos) || pos < 0 || pos >= COLORS.length) return;\n' +
+  '      var raw = parseInt(o.getAttribute("data-offer-pos"),10);\n' +
+  '      if(isNaN(raw)) return;\n' +
+  '      // Releasit indexa los tramos desde 1 (pos=1,2,3). Restamos para\n' +
+  '      // matchear con el array COLORS base 0.\n' +
+  '      var idx = raw - 1;\n' +
+  '      if(idx < 0 || idx >= COLORS.length) return;\n' +
   '      o.querySelectorAll("._rsi-quantity-offers-new-price").forEach(function(el){\n' +
-  '        el.style.setProperty("color", COLORS[pos], "important");\n' +
+  '        el.style.setProperty("color", COLORS[idx], "important");\n' +
   '        didAny = true;\n' +
   '      });\n' +
   '    });\n' +
