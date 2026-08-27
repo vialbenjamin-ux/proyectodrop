@@ -293,12 +293,17 @@ exports.handler = async (event) => {
     const mfShopJ = await mfShopR.json();
     const mfQO = (mfShopJ.metafields || []).find(m => m.namespace === '_rsi_cod_form_sf' && m.key === 'quantity_offers_json');
     const mfUP = (mfShopJ.metafields || []).find(m => m.namespace === '_rsi_cod_form_sf' && m.key === 'tick_upsells_json');
-    if (!mfQO || !mfUP) {
+    // quantity_offers es OBLIGATORIO — sin ese no podemos publicar ofertas.
+    if (!mfQO) {
       return respond(400, {
-        error: 'Faltan metafields Releasit en la tienda. Guarda UNA oferta a mano en la app Releasit para que se creen, despues reintenta.',
-        hint: 'quantity_offers_json exists=' + !!mfQO + ', tick_upsells_json exists=' + !!mfUP,
+        error: 'Falta metafield Releasit quantity_offers_json en la tienda. Guarda UNA oferta por cantidad a mano en la app Releasit para que se cree, despues reintenta.',
+        hint: 'quantity_offers_json exists=false',
       });
     }
+    // tick_upsells es opcional — si no existe, solo publicamos quantity_offers y
+    // saltamos la escritura del upsell (aunque haya candidato, sin metafield no
+    // hay donde escribirlo).
+    const hasUpsellMetafield = !!mfUP;
 
     // 5. Armar el nuevo grupo de quantity_offers
     const grupoNuevo = {
@@ -377,9 +382,11 @@ exports.handler = async (event) => {
     let listaQO;
     try { listaQO = JSON.parse(mfQO.value); if (!Array.isArray(listaQO)) listaQO = []; }
     catch { listaQO = []; }
-    let listaUP;
-    try { listaUP = JSON.parse(mfUP.value); if (!Array.isArray(listaUP)) listaUP = []; }
-    catch { listaUP = []; }
+    let listaUP = [];
+    if (hasUpsellMetafield) {
+      try { listaUP = JSON.parse(mfUP.value); if (!Array.isArray(listaUP)) listaUP = []; }
+      catch { listaUP = []; }
+    }
 
     const listaQOLimpia = listaQO.filter(g => !((g.pIds || []).map(String).includes(String(productId))));
     listaQOLimpia.push(grupoNuevo);
@@ -422,14 +429,17 @@ exports.handler = async (event) => {
         const t = await wQO.text();
         writeErrors.push({ metafield: 'quantity_offers_json', status: wQO.status, error: t.slice(0, 300) });
       }
-      // Escribir tick_upsells (siempre, aunque no haya upsell, para reflejar el filtrado)
-      const wUP = await fetch(API + '/metafields/' + mfUP.id + '.json', {
-        method: 'PUT', headers: H,
-        body: JSON.stringify({ metafield: { id: mfUP.id, value: JSON.stringify(listaUPLimpia), type: 'json' } }),
-      });
-      if (!wUP.ok) {
-        const t = await wUP.text();
-        writeErrors.push({ metafield: 'tick_upsells_json', status: wUP.status, error: t.slice(0, 300) });
+      // Escribir tick_upsells solo si el metafield existe. Si no, skip
+      // (la tienda GT/CL puede no haber guardado nunca un upsell manual).
+      if (hasUpsellMetafield) {
+        const wUP = await fetch(API + '/metafields/' + mfUP.id + '.json', {
+          method: 'PUT', headers: H,
+          body: JSON.stringify({ metafield: { id: mfUP.id, value: JSON.stringify(listaUPLimpia), type: 'json' } }),
+        });
+        if (!wUP.ok) {
+          const t = await wUP.text();
+          writeErrors.push({ metafield: 'tick_upsells_json', status: wUP.status, error: t.slice(0, 300) });
+        }
       }
       applied = writeErrors.length === 0;
     }
