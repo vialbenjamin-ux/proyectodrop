@@ -1,6 +1,7 @@
 // Endpoint multi-uso para productos Shopify (multi-tenant chile/gt).
 // - GET  ?q=texto      → busca productos por título (devuelve {id,title,handle,image})
 // - GET  ?id=123       → trae 1 producto completo
+// - GET  ?scopes=1     → diagnostico: lista los scopes del token (no expone el token)
 // - PUT  body { id, body_html, title?, tags?, status? } → actualiza producto
 //        status:'active' publica ademas en el canal "Tienda online"
 // - POST body { id, image:{filename,attachment(base64),alt?,position?} } → sube imagen
@@ -30,6 +31,9 @@ exports.handler = async function (event) {
 
   try {
     if (event.httpMethod === 'GET') {
+      if (qs.scopes) {
+        return await getAccessScopes(domain, headers);
+      }
       if (qs.id) {
         return await getProduct(domain, headers, qs.id);
       }
@@ -70,6 +74,38 @@ function normalizeForSearch(s) {
     .replace(/ñ/gi, 'n')               // ñ → n
     .toLowerCase()
     .trim();
+}
+
+// Diagnostico read-only: devuelve los scopes que trae el token cargado en
+// Netlify. NO expone el token. Sirve para confirmar si un permiso agregado en
+// la config de la app llego efectivamente al token (los scopes se congelan al
+// emitirlo: si no se reinstalo la app, el token sigue con la lista vieja).
+// Uso: GET /.netlify/functions/shopify-products?scopes=1&tenant=chile
+async function getAccessScopes(domain, headers) {
+  // Este endpoint NO lleva version de API.
+  const resp = await fetch(`https://${domain}/admin/oauth/access_scopes.json`, { headers });
+  if (!resp.ok) {
+    const txt = await resp.text();
+    return respond(resp.status, { error: 'Shopify ' + resp.status + ': ' + txt.slice(0, 200) });
+  }
+  const data = await resp.json();
+  const granted = (data.access_scopes || []).map(x => x.handle).filter(Boolean).sort();
+  const needed = [
+    'read_products', 'write_products',
+    'read_publications', 'write_publications',
+    'read_inventory', 'write_inventory',
+  ];
+  const missing = needed.filter(n => !granted.includes(n));
+  return respond(200, {
+    domain,
+    granted,
+    needed,
+    missing,
+    ok: missing.length === 0,
+    nota: missing.length
+      ? 'Faltan scopes en el TOKEN. Si ya los aprobaste en la app, hay que reinstalarla / regenerar el token y actualizarlo en Netlify.'
+      : 'El token trae todos los scopes necesarios.',
+  });
 }
 
 async function searchProducts(domain, headers, q) {
