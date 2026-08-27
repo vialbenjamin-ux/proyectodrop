@@ -719,6 +719,10 @@
   .bk-prompt-card.tone-photo::before{background:#D85B95}
   .bk-prompt-card.tone-photo .bk-prompt-card-icon{background:#FAE3F0;border-color:#D85B95;color:#9E3666}
   .bk-prompt-card.tone-photo .bk-prompt-copy-big{background:#D85B95;color:#fff}
+  .bk-prompt-card.tone-search{border-color:#B8E1E3}
+  .bk-prompt-card.tone-search::before{background:#26A69A}
+  .bk-prompt-card.tone-search .bk-prompt-card-icon{background:#DFF3F3;border-color:#26A69A;color:#0C6960}
+  .bk-prompt-card.tone-search .bk-prompt-copy-big{background:#26A69A;color:#fff}
   .bk-prompt-card.tone-analisis{border-color:#C5E5D2}
   .bk-prompt-card.tone-analisis::before{background:#111111}
   .bk-prompt-card.tone-analisis .bk-prompt-card-icon{background:var(--green-soft);border-color:#111111;color:#111111}
@@ -2035,6 +2039,36 @@
               <button id="photoHd-restore-btn" onclick="restaurarFotoHdOriginal()" style="background:var(--surface);color:var(--muted);border:1.5px solid var(--border);border-radius:8px;padding:9px 12px;font-size:10px;font-family:'DM Mono',monospace;cursor:pointer;display:none">↺ Original</button>
             </div>
             <button id="photoHd-download" onclick="downloadFotoHd()" style="width:100%;margin-top:6px;background:#D85B95;color:#fff;border:none;border-radius:8px;padding:9px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer">⬇ Descargar JPG HD (≤1.5 MB)</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- BÚSQUEDA DE CREATIVOS · traducciones EN para Meta/TikTok Library -->
+      <div class="bk-prompts-sub">🔎 Búsqueda de creativos</div>
+      <div class="bk-prompts-hero">
+        <div class="bk-prompt-card tone-search" style="grid-column:1 / -1">
+          <div class="bk-prompt-card-head">
+            <div class="bk-prompt-card-icon">🌐</div>
+            <div>
+              <div class="bk-prompt-card-tag">Traducciones EN</div>
+              <div class="bk-prompt-card-title">5 traducciones al inglés para buscar en Meta / TikTok</div>
+            </div>
+          </div>
+          <div class="bk-prompt-card-desc">Escribí el nombre del producto en español y Gemini te devuelve 5 variantes en inglés (nombre técnico, coloquial, buyer intent, TikTok-style, keyword de Amazon) para buscar creativos en Meta Ad Library y TikTok Creative Center.</div>
+          <input id="bk-tradproducto-input" placeholder="Ej: Ratón inalámbrico ergonómico" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:10px 12px;border-radius:8px;font-size:12px;font-family:'DM Mono',monospace">
+          <div class="bk-prompt-card-actions" style="margin-top:2px">
+            <button class="bk-prompt-copy-big" id="bk-tradproducto-btn" onclick="_bkTraduccionesProducto()">▶ Traducir para búsqueda</button>
+          </div>
+          <div id="bk-tradproducto-status" style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;min-height:14px"></div>
+          <div id="bk-tradproducto-output" style="display:none;background:var(--surface2);border:1.5px solid #26A69A;border-radius:10px;padding:12px;flex-direction:column;gap:8px;margin-top:6px">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+              <div style="font-size:11px;color:#0C6960;font-weight:700;letter-spacing:.5px;text-transform:uppercase;font-family:'DM Mono',monospace">Traducciones sugeridas</div>
+              <div style="display:flex;gap:6px">
+                <button onclick="_bkCopiarTraduccionesProducto(this)" style="background:#26A69A;color:#fff;border:none;border-radius:6px;padding:5px 10px;font-size:10px;font-family:'DM Mono',monospace;cursor:pointer;font-weight:700">📋 Copiar</button>
+                <button onclick="document.getElementById('bk-tradproducto-output').style.display='none'" style="background:transparent;color:var(--muted);border:1.5px solid var(--border);border-radius:6px;padding:5px 10px;font-size:10px;font-family:'DM Mono',monospace;cursor:pointer">✕</button>
+              </div>
+            </div>
+            <div id="bk-tradproducto-body" style="font-size:12px;color:var(--text);font-family:'DM Mono',monospace;white-space:pre-wrap;line-height:1.6;max-height:60vh;overflow-y:auto"></div>
           </div>
         </div>
       </div>
@@ -19364,6 +19398,83 @@ function _bkTogglePromptCopysAds(){
   const el = document.getElementById('bk-prompt-copys-ads');
   if (!el) return;
   el.style.display = (el.style.display === 'none' || !el.style.display) ? 'block' : 'none';
+}
+
+// ─── Traducciones EN de nombre de producto (Meta Ad Library / TikTok CC) ───
+// Recibe el nombre en español y llama a Gemini para devolver 5 variantes en
+// ingles: nombre tecnico, coloquial, buyer intent, TikTok-style, keyword
+// tipo Amazon. Sirve para buscar creativos existentes en Meta Ad Library
+// (facebook.com/ads/library) y TikTok Creative Center.
+async function _bkTraduccionesProducto(){
+  const input = document.getElementById('bk-tradproducto-input');
+  const status = document.getElementById('bk-tradproducto-status');
+  const btn = document.getElementById('bk-tradproducto-btn');
+  const outBox = document.getElementById('bk-tradproducto-output');
+  const body = document.getElementById('bk-tradproducto-body');
+  const nombre = (input && input.value || '').trim();
+
+  if (!nombre) {
+    if (status) status.textContent = '⚠️ Escribí el nombre del producto en español';
+    if (input) input.focus();
+    return;
+  }
+
+  const prompt = 'Eres un experto en dropshipping y research de creativos en Meta Ads y TikTok Ads. Recibes el nombre en español de un producto y devuelves 5 traducciones/variaciones al inglés pensadas para encontrar creativos existentes en Meta Ad Library (facebook.com/ads/library) y TikTok Creative Center.\n\n' +
+    'Los 5 términos deben cubrir distintos ángulos de búsqueda:\n' +
+    '1. Nombre técnico (el que usaría un fabricante/AliExpress)\n' +
+    '2. Nombre coloquial (el que usa la gente en redes)\n' +
+    '3. Buyer intent (formato "best X for Y")\n' +
+    '4. TikTok-style / viral (2-4 palabras, punchy, con adjetivo emocional)\n' +
+    '5. Keyword tipo Amazon (frase larga con specs, ej: "wireless ergonomic mouse for laptop")\n\n' +
+    'REGLAS:\n' +
+    '- Solo en inglés (US), sin español, sin acentos.\n' +
+    '- Nada de emojis.\n' +
+    '- Frases cortas y concretas. No agregues explicaciones ni introducciones.\n' +
+    '- Devolvé EXACTAMENTE este formato, sin nada más:\n\n' +
+    '1. TÉCNICO: <término>\n' +
+    '2. COLOQUIAL: <término>\n' +
+    '3. BUYER INTENT: <término>\n' +
+    '4. TIKTOK-STYLE: <término>\n' +
+    '5. AMAZON KW: <término>\n\n' +
+    'PRODUCTO EN ESPAÑOL: ' + nombre;
+
+  if (status) status.textContent = 'Consultando Gemini…';
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="bk-spinner"></span>Traduciendo…'; }
+  if (outBox) { outBox.style.display = 'flex'; }
+  if (body) { body.textContent = 'Esperando respuesta de Gemini…'; }
+
+  try {
+    let firstChunk = true;
+    const text = await callGeminiProxy(prompt, (partial)=>{
+      if (body) {
+        if (firstChunk) { body.textContent = ''; firstChunk = false; }
+        body.textContent = partial;
+      }
+    });
+    if (body && !text) body.textContent = '(respuesta vacía)';
+    if (status) status.textContent = '✅ Listo — copiá y buscá en Meta Ad Library / TikTok CC';
+    if (outBox) outBox.scrollIntoView({behavior:'smooth', block:'center'});
+    if (btn) btn.textContent = '✓ Traducido';
+  } catch (err) {
+    if (body) body.textContent = '⚠️ ' + (err.message || 'error');
+    if (status) status.textContent = '❌ ' + (err.message || 'error');
+    if (btn) btn.textContent = '⚠️ Error';
+  } finally {
+    setTimeout(()=>{
+      const b = document.getElementById('bk-tradproducto-btn');
+      if (b) { b.disabled = false; b.textContent = '▶ Traducir para búsqueda'; }
+    }, 3000);
+  }
+}
+
+async function _bkCopiarTraduccionesProducto(btn){
+  const body = document.getElementById('bk-tradproducto-body');
+  if (!body) return;
+  try {
+    await navigator.clipboard.writeText(body.textContent || '');
+    if (btn) { const t = btn.textContent; btn.textContent = '✅ Copiado'; setTimeout(()=>{ btn.textContent = t; }, 1500); }
+    if (typeof showToast === 'function') showToast('Traducciones copiadas', '📋', 'ok');
+  } catch(_) {}
 }
 
 async function _bkCopiarCopysAdsOutput(btn){
