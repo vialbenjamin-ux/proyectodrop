@@ -58,7 +58,9 @@ const PAINT_SCRIPT = '<script>\n' +
   '(function(){\n' +
   '  var COLORS = ["rgba(34,197,94,1)","rgba(0,116,191,1)","rgba(139,92,246,1)","rgba(230,138,46,1)"];\n' +
   '  function paint(){\n' +
-  '    var offers = document.querySelectorAll("._rsi-quantity-offers-offer");\n' +
+  '    // El elemento con data-offer-pos es _rsi-quantity-offers-offer-container.\n' +
+  '    // Usamos [data-offer-pos] para ser robustos ante renombres de clase.\n' +
+  '    var offers = document.querySelectorAll("[data-offer-pos]");\n' +
   '    if(!offers.length) return false;\n' +
   '    var didAny = false;\n' +
   '    offers.forEach(function(o){\n' +
