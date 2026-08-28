@@ -18335,6 +18335,8 @@ async function _bkTraduccionesProducto(){
   if (body) { body.textContent = 'Esperando respuesta de Gemini…'; }
   const linksBox = document.getElementById('bk-tradproducto-links');
   if (linksBox) { linksBox.innerHTML = ''; linksBox.style.display = 'none'; }
+  window._bkTraduccionTexto = '';
+  if (!window._bkTraduccionPais) window._bkTraduccionPais = 'ALL';
 
   try {
     let firstChunk = true;
@@ -18393,15 +18395,39 @@ function _bkTikTokSearchUrl(keyword){
   return 'https://www.tiktok.com/search/video?q=' + encodeURIComponent(keyword);
 }
 
+// Paises para buscar creativos. CHILE ESTA EXCLUIDO A PROPOSITO: la idea es
+// encontrar ads que todavia NO corren en Chile para traerlos. Meta Ad Library
+// no permite excluir un pais (el param country toma uno solo o ALL), asi que
+// el default es global y el selector sirve para acotar a un mercado fuente.
+const _BK_PAISES_BUSQUEDA = [
+  ['ALL', 'Todos los paises'],
+  ['US',  'Estados Unidos'],
+  ['ES',  'Espana'],
+  ['MX',  'Mexico'],
+  ['CO',  'Colombia'],
+  ['AR',  'Argentina'],
+  ['PE',  'Peru'],
+  ['BR',  'Brasil'],
+  ['GT',  'Guatemala'],
+];
+
+function _bkSetTraduccionPais(v){
+  window._bkTraduccionPais = v || 'ALL';
+  _bkRenderTraduccionLinks();
+}
+
 // Parsea la respuesta de Gemini ("1. TECNICO: term") y pinta una fila por
-// termino con sus dos botones de busqueda.
+// termino con sus dos botones de busqueda. Sin argumento re-renderiza con el
+// ultimo texto guardado (lo usa el selector de pais).
 function _bkRenderTraduccionLinks(text){
   const box = document.getElementById('bk-tradproducto-links');
   if (!box) return;
-  const country = (typeof getCurrentTenant === 'function' && getCurrentTenant() === 'gt') ? 'GT' : 'CL';
+  if (typeof text === 'string') window._bkTraduccionTexto = text;
+  const fuente  = window._bkTraduccionTexto || '';
+  const country = window._bkTraduccionPais || 'ALL';
 
   const items = [];
-  String(text || '').split('\n').forEach(line => {
+  String(fuente).split('\n').forEach(line => {
     const m = line.match(/^\s*\d+\s*[.)]\s*(.+?)\s*:\s*(.+?)\s*$/);
     if (!m) return;
     const label = m[1].replace(/[*`_]/g, '').trim();
@@ -18417,9 +18443,20 @@ function _bkRenderTraduccionLinks(text){
   const tagCss = "font-size:9px;color:#0C6960;background:#DFF3F3;border:1px solid #26A69A;"
     + "border-radius:10px;padding:1px 7px;font-family:'DM Mono',monospace;font-weight:700;white-space:nowrap";
   const termCss = "flex:1;min-width:130px;font-size:12px;color:var(--text);font-family:'DM Mono',monospace";
+  const selCss = "background:var(--surface);border:1px solid var(--border);color:var(--text);"
+    + "border-radius:6px;padding:3px 6px;font-size:10px;font-family:'DM Mono',monospace;cursor:pointer";
 
-  const head = '<div style="font-size:10px;color:var(--muted);font-family:' + "'DM Mono',monospace"
-    + ';letter-spacing:.5px;text-transform:uppercase">Buscar creativos (' + country + ')</div>';
+  const opciones = _BK_PAISES_BUSQUEDA.map(function(pa){
+    return '<option value="' + pa[0] + '"' + (pa[0] === country ? ' selected' : '') + '>' + esc(pa[1]) + '</option>';
+  }).join('');
+
+  const head = '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:2px">'
+    + '<span style="font-size:10px;color:var(--muted);font-family:' + "'DM Mono',monospace"
+    + ';letter-spacing:.5px;text-transform:uppercase">Buscar creativos en</span>'
+    + '<select onchange="_bkSetTraduccionPais(this.value)" style="' + selCss + '">' + opciones + '</select>'
+    + '<span style="font-size:9px;color:var(--muted2);font-family:' + "'DM Mono',monospace"
+    + '">Chile queda fuera a proposito</span>'
+    + '</div>';
 
   box.innerHTML = head + items.map(function(it){
     const meta = _bkMetaAdLibraryUrl(it.term, country);
