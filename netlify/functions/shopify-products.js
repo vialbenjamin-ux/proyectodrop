@@ -102,8 +102,10 @@ async function getAccessScopes(domain, headers) {
   const granted = (data.access_scopes || []).map(x => x.handle).filter(Boolean).sort();
   const needed = [
     'read_products', 'write_products',
-    'read_publications', 'write_publications',
-    'read_inventory', 'write_inventory',
+    'read_publications', 'write_publications',   // publicar en el canal Tienda online
+    'read_inventory', 'write_inventory',         // costo del producto
+    'read_locations',                            // conectar inventario a las sucursales
+    'read_themes', 'write_themes',               // plantillas de landing
   ];
   const missing = needed.filter(n => !granted.includes(n));
   return respond(200, {
