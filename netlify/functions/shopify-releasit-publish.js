@@ -152,13 +152,21 @@ exports.handler = async (event) => {
       const raw = (1 - target / (price * qty)) * 10000;
       return Math.max(0, Math.round(raw * 10000) / 10000);
     };
-    const dsV2 = dsVForTarget(2, p2);
-    const dsV3 = dsVForTarget(3, p3);
-
-    // qty real que ve el cliente (con nx1 aplicado). Unidades reales.
+    // qty REAL que va al carrito de Shopify (con nx1 aplicado), segun la
+    // formula del PDF: qty final = nx1 * k. Antes se mandaba qty 1/2/3 fijo
+    // mientras el titulo decia "Llevo 2/4/6 unidades": la orden entraba con
+    // menos unidades de las compradas y se despachaba de menos.
     const uds1 = 1 * nx1;
     const uds2 = 2 * nx1;
     const uds3 = 3 * nx1;
+
+    // Los dsV se calculan contra price * unidades REALES, no contra el tramo.
+    // Con nx1=2 el tramo 1 pasa a ser 2 unidades a precio de 1 → 50% off.
+    // Con nx1=1 los uds son 1/2/3 y dsV1 da 0: identico al comportamiento
+    // anterior para productos normales.
+    const dsV1 = dsVForTarget(uds1, p1);
+    const dsV2 = dsVForTarget(uds2, p2);
+    const dsV3 = dsVForTarget(uds3, p3);
 
     // Colores del plaque por tramo (verde/azul/morado).
     const COLOR_1 = 'rgba(34, 197, 94, 1)';    // verde
@@ -168,7 +176,7 @@ exports.handler = async (event) => {
     // Plaque del tramo 1:
     //  - Si nx1 = 1  → "PRECIO OFERTA HOY!" (el precio SIN dividir; es solo la unidad base)
     //  - Si nx1 > 1 → "SÓLO $X POR UNIDAD!" (dividimos el precio entre nx1)
-    const plaque1 = (nx1 === 1) ? 'PRECIO OFERTA HOY!' : fmtPerUnit(p1 / uds1);
+    const plaque1 = (nx1 === 1) ? 'PRECIO OFERTA HOY!' : fmtPerUnit(p1Real / uds1);
 
     // % OFF combinado: (1 - (1 - offBase) * (1 - pack)) * 100
     //   offBase = 35% del compare_at_price al price (descuento base del hero)
@@ -182,24 +190,25 @@ exports.handler = async (event) => {
     // Releasit llegara a truncar los decimales el plaque sigue derivando del
     // mismo calculo, asi que no se desincroniza solo.
     const realPriceReleasit = (qty, dsV) => Math.round(price * qty * (1 - dsV / 10000));
-    const p2Real = realPriceReleasit(2, dsV2);
-    const p3Real = realPriceReleasit(3, dsV3);
+    const p1Real = realPriceReleasit(uds1, dsV1);
+    const p2Real = realPriceReleasit(uds2, dsV2);
+    const p3Real = realPriceReleasit(uds3, dsV3);
 
     const ofertas = [
       {
-        pos: 1, title: '¡Llevo ' + uds1 + ' ' + unitLabel(uds1) + '! (' + OFF_BASE + '% OFF)', qty: 1,
-        ds: { t: 'percentage', v: 0 },
-        priceTotal: p1, perUnit: Math.round(p1 / uds1),
+        pos: 1, title: '¡Llevo ' + uds1 + ' ' + unitLabel(uds1) + '! (' + OFF_BASE + '% OFF)', qty: uds1,
+        ds: { t: 'percentage', v: dsV1 },
+        priceTotal: p1Real, perUnit: Math.round(p1Real / uds1),
         plaque: plaque1, plaqueBgC: COLOR_1,
       },
       {
-        pos: 2, title: '¡Llevo ' + uds2 + ' ' + unitLabel(uds2) + '! (' + combinedOff(pack2Disc) + '% OFF)', qty: 2,
+        pos: 2, title: '¡Llevo ' + uds2 + ' ' + unitLabel(uds2) + '! (' + combinedOff(pack2Disc) + '% OFF)', qty: uds2,
         ds: { t: 'percentage', v: dsV2 },
         priceTotal: p2Real, perUnit: Math.round(p2Real / uds2),
         plaque: fmtPerUnit(p2Real / uds2), plaqueBgC: COLOR_2,
       },
       {
-        pos: 3, title: '¡Llevo ' + uds3 + ' ' + unitLabel(uds3) + '! · PRECIO MAYORISTA', qty: 3,
+        pos: 3, title: '¡Llevo ' + uds3 + ' ' + unitLabel(uds3) + '! · PRECIO MAYORISTA', qty: uds3,
         ds: { t: 'percentage', v: dsV3 },
         priceTotal: p3Real, perUnit: Math.round(p3Real / uds3),
         plaque: fmtPerUnit(p3Real / uds3), plaqueBgC: COLOR_3,
