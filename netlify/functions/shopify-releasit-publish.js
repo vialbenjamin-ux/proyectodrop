@@ -173,11 +173,6 @@ exports.handler = async (event) => {
     const COLOR_2 = 'rgba(0, 116, 191, 1)';    // azul
     const COLOR_3 = 'rgba(139, 92, 246, 1)';   // morado
 
-    // Plaque del tramo 1:
-    //  - Si nx1 = 1  → "PRECIO OFERTA HOY!" (el precio SIN dividir; es solo la unidad base)
-    //  - Si nx1 > 1 → "SÓLO $X POR UNIDAD!" (dividimos el precio entre nx1)
-    const plaque1 = (nx1 === 1) ? 'PRECIO OFERTA HOY!' : fmtPerUnit(p1Real / uds1);
-
     // % OFF combinado: (1 - (1 - offBase) * (1 - pack)) * 100
     //   offBase = 35% del compare_at_price al price (descuento base del hero)
     //   pack    = descuento extra al llevar 2 o 3 unidades
@@ -193,6 +188,11 @@ exports.handler = async (event) => {
     const p1Real = realPriceReleasit(uds1, dsV1);
     const p2Real = realPriceReleasit(uds2, dsV2);
     const p3Real = realPriceReleasit(uds3, dsV3);
+
+    // Plaque del tramo 1 (va DESPUES de p1Real: depende de el).
+    //  - Si nx1 = 1  → "PRECIO OFERTA HOY!" (el precio SIN dividir; es solo la unidad base)
+    //  - Si nx1 > 1 → "SÓLO $X POR UNIDAD!" (dividimos el precio entre las unidades reales)
+    const plaque1 = (nx1 === 1) ? 'PRECIO OFERTA HOY!' : fmtPerUnit(p1Real / uds1);
 
     const ofertas = [
       {
