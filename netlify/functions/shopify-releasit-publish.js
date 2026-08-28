@@ -132,18 +132,25 @@ exports.handler = async (event) => {
     //   dsV(qty, target) = round((1 - target / (price * qty)) * 10000)
     // El precio final que muestra Releasit sera:
     //   price * qty * (1 - dsV/10000)
-    // No siempre termina en .990 exacto porque ds.v es entero, pero
-    // usamos round990 como target y el resultado queda muy cerca.
+    // ds.v se manda CON DECIMALES a proposito. Con v entero el paso minimo
+    // es price*qty/10000 (5 a 13 pesos segun el tramo) y el precio final casi
+    // nunca cae justo en .990: medido sobre la tabla de precios, 0 de 20
+    // combinaciones terminaban en 990 (salia 41.988, 59.991, 43.991...).
+    // Buscar un v ENTERO que si diera .990 desviaba el precio hasta $11.000
+    // del target, o sea inservible. Con 4 decimales el error de v es ~5e-5,
+    // que sobre el precio es sub-peso: 20 de 20 caen exacto en el .990.
+    // El precio manda; el % del titulo puede quedar corrido y esta bien.
 
     const p1 = price;
     const p2 = round990(price * 2 * (1 - pack2Disc / 100));
     const p3 = round990(price * 3 * (1 - pack3Disc / 100));
 
-    // Calcula ds.v (formato Releasit: pct * 100) para llegar cerca del target.
+    // Calcula ds.v (formato Releasit: pct * 100) para caer EXACTO en el target.
+    // 4 decimales: suficiente para precision sub-peso sin inflar el JSON.
     const dsVForTarget = (qty, target) => {
       if (!target || !price || qty <= 0) return 0;
       const raw = (1 - target / (price * qty)) * 10000;
-      return Math.max(0, Math.round(raw));
+      return Math.max(0, Math.round(raw * 10000) / 10000);
     };
     const dsV2 = dsVForTarget(2, p2);
     const dsV3 = dsVForTarget(3, p3);
@@ -170,9 +177,10 @@ exports.handler = async (event) => {
     const OFF_BASE = 35;
     const combinedOff = pack => Math.round((1 - (1 - OFF_BASE / 100) * (1 - pack / 100)) * 100);
 
-    // Recalculamos el precio REAL que Releasit va a mostrar (con ds.v entero)
-    // y basamos el plaque en ESO, no en el target. Asi el "SÓLO $X POR UNIDAD"
-    // coincide con el precio total que se ve en la landing.
+    // Recalculamos el precio REAL que Releasit va a mostrar y basamos el plaque
+    // en ESO, no en el target. Con ds.v decimal ambos coinciden, pero si
+    // Releasit llegara a truncar los decimales el plaque sigue derivando del
+    // mismo calculo, asi que no se desincroniza solo.
     const realPriceReleasit = (qty, dsV) => Math.round(price * qty * (1 - dsV / 10000));
     const p2Real = realPriceReleasit(2, dsV2);
     const p3Real = realPriceReleasit(3, dsV3);
