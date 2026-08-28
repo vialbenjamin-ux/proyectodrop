@@ -5,6 +5,7 @@
 // - PUT  body { id, body_html, title?, tags?, status? } → actualiza producto
 //        status:'active' publica ademas en el canal "Tienda online"
 // - POST body { id, image:{filename,attachment(base64),alt?,position?} } → sube imagen
+// - DELETE body { id, image_id } → borra UNA imagen del producto (por id explicito)
 //
 // Requiere scope read_products + write_products en el SHOPIFY_TOKEN.
 
@@ -57,6 +58,15 @@ exports.handler = async function (event) {
         return respond(400, { error: 'Falta image.attachment (base64) o image.src (URL)' });
       }
       return await addProductImage(domain, headers, body);
+    }
+
+    if (event.httpMethod === 'DELETE') {
+      let body;
+      try { body = JSON.parse(event.body || '{}'); }
+      catch { return respond(400, { error: 'JSON inválido' }); }
+      if (!body.id) return respond(400, { error: 'Falta id del producto' });
+      if (!body.image_id) return respond(400, { error: 'Falta image_id' });
+      return await deleteProductImage(domain, headers, body.id, body.image_id);
     }
 
     return respond(405, { error: 'Método no permitido' });
@@ -375,10 +385,23 @@ async function publishToOnlineStore(domain, headers, productId) {
   }
 }
 
+// Borra UNA imagen del producto, por id explicito. A proposito NO acepta
+// patrones ni un "borrar todas": el cliente decide cuales y las manda de a
+// una, asi no hay forma de vaciar un producto por accidente.
+async function deleteProductImage(domain, headers, productId, imageId) {
+  const url = `https://${domain}/admin/api/2024-10/products/${encodeURIComponent(productId)}/images/${encodeURIComponent(imageId)}.json`;
+  const resp = await fetch(url, { method: 'DELETE', headers });
+  if (!resp.ok) {
+    const txt = await resp.text();
+    return respond(resp.status, { error: 'Shopify ' + resp.status + ': ' + txt.slice(0, 200) });
+  }
+  return respond(200, { ok: true, deleted: String(imageId) });
+}
+
 function cors() {
   return {
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, PUT, POST, OPTIONS',
+    'Access-Control-Allow-Methods': 'GET, PUT, POST, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
   };
 }

@@ -10213,9 +10213,9 @@ function recomputarPreciosReleasit(){
         '<label style="display:flex;align-items:center;gap:6px;cursor:pointer">' +
           '<input type="checkbox" id="bk-precios-sell-no-stock" checked> Permitir vender sin existencias (inventory_policy = continue)' +
         '</label>' +
-        '<label style="display:flex;align-items:center;gap:6px;cursor:pointer">' +
-          '<input type="checkbox" id="bk-precios-all-locations" checked> Conectar inventario a TODAS las sucursales activas' +
-        '</label>' +
+        '<div style="display:flex;align-items:center;gap:6px;opacity:.75">' +
+          '<span>✅</span> Conecta el inventario a TODAS las sucursales activas (siempre)' +
+        '</div>' +
       '</div>' +
       '<button class="bk-shopify-confirm-btn" onclick="aplicarPreciosShopifyEditable()" id="bk-precios-push-btn">⚡ Actualizar Shopify (precio + costo + inventario)</button>' +
     '</div>' +
@@ -10678,7 +10678,8 @@ async function aplicarPreciosShopify(price, comparePrice, cost){
   const status = document.getElementById('bk-precios-status');
   const btn = document.getElementById('bk-precios-push-btn');
   const sellNoStock = document.getElementById('bk-precios-sell-no-stock')?.checked;
-  const allLocations = document.getElementById('bk-precios-all-locations')?.checked;
+  // Siempre todas las sucursales: ya no es opcional.
+  const allLocations = true;
 
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Actualizando…'; }
   if (status) status.textContent = '⏳ Actualizando Shopify (price + cost + inventario)…';
@@ -10899,6 +10900,44 @@ async function ejecutarAutoShrine(){
     // 0. Subir imagenes principales al CARRUSEL del producto Shopify.
     //    Van al /products/{id}/images.json como attachment base64.
     //    (Distinto de Shopify Files: son las que se ven en la pagina del producto.)
+
+    // 0a. El nombre de subida lleva timestamp (main-N-<Date.now()>), asi que
+    //     nunca colisiona: sin este chequeo cada corrida agregaba 4 imagenes
+    //     mas y el producto quedaba con el carrusel duplicado.
+    let _borrarPrevias = [];
+    if (_autoShrineMainImgs.length) {
+      setStatus('⏳ Revisando imágenes ya subidas…');
+      const previas = await _bkImagenesPreviasDeLaApp(_autoShrineProduct.id);
+      if (previas.length) {
+        const elec = await _bkAskChoice({
+          title: '⚠️ Este producto ya tiene imágenes de BKDROP',
+          html: 'Encontré <b>' + previas.length + '</b> imagen(es) que subió la app en una corrida anterior.<br><br>'
+              + 'Vas a subir <b>' + _autoShrineMainImgs.length + '</b> nueva(s).<br><br>'
+              + 'Las que hayas subido a mano en Shopify no se tocan en ninguna opción.',
+          options: [
+            { label: '🔄 Reemplazar — borra las ' + previas.length + ' anteriores', value: 'replace', primary: true },
+            { label: '➕ Agregar igual — quedan las viejas y las nuevas', value: 'append' },
+            { label: '✕ Cancelar', value: null },
+          ],
+        });
+        if (!elec) { setStatus('Cancelado — no se subió nada.'); return; }
+        if (elec === 'replace') _borrarPrevias = previas;
+      }
+    }
+
+    for (let i = 0; i < _borrarPrevias.length; i++) {
+      setStatus('⏳ Borrando imagen anterior ' + (i+1) + '/' + _borrarPrevias.length + '…');
+      const delR = await fetch('/.netlify/functions/shopify-products?tenant=chile', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: _autoShrineProduct.id, image_id: _borrarPrevias[i].id }),
+      });
+      if (!delR.ok) {
+        const dj = await delR.json().catch(function(){ return {}; });
+        throw new Error('No pude borrar la imagen anterior: ' + (dj.error || 'HTTP ' + delR.status));
+      }
+    }
+
     for (let i = 0; i < _autoShrineMainImgs.length; i++) {
       setStatus('⏳ Subiendo imagen principal ' + (i+1) + '/' + _autoShrineMainImgs.length + ' al carrusel…');
       const f = _autoShrineMainImgs[i];
@@ -18504,6 +18543,57 @@ function _bkRenderTraduccionLinks(text){
       + '</div>';
   }).join('');
   box.style.display = 'flex';
+}
+
+// Modal generico de eleccion. Devuelve el value de la opcion elegida, o null
+// si se cancela. NO reusa #modal-overlay a proposito: ese tiene un handler
+// global de Enter que dispara saveModal().
+function _bkAskChoice(opts){
+  return new Promise(function(resolve){
+    const ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:600;display:flex;align-items:center;justify-content:center;padding:20px';
+    const box = document.createElement('div');
+    box.style.cssText = 'background:var(--surface);border:1.5px solid var(--border);border-radius:16px;max-width:470px;width:100%;padding:20px;box-shadow:0 20px 60px rgba(0,0,0,.25)';
+    box.innerHTML = '<div style="font-family:\'Montserrat\',sans-serif;font-weight:800;font-size:15px;color:var(--text);margin-bottom:8px">' + opts.title + '</div>'
+      + '<div style="font-size:12px;color:var(--muted);font-family:\'DM Mono\',monospace;line-height:1.6;margin-bottom:16px">' + opts.html + '</div>';
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;flex-direction:column;gap:8px';
+    function done(v){
+      try { document.body.removeChild(ov); } catch(_){}
+      document.removeEventListener('keydown', onKey, true);
+      resolve(v);
+    }
+    (opts.options || []).forEach(function(o){
+      const b = document.createElement('button');
+      b.textContent = o.label;
+      b.style.cssText = 'border:1.5px solid ' + (o.primary ? 'var(--accent)' : 'var(--border)')
+        + ';background:' + (o.primary ? 'var(--accent)' : 'transparent')
+        + ';color:' + (o.primary ? '#fff' : 'var(--text)')
+        + ";border-radius:10px;padding:10px 14px;font-size:12px;font-family:'DM Mono',monospace;cursor:pointer;font-weight:700;text-align:left";
+      b.onclick = function(){ done(o.value); };
+      row.appendChild(b);
+    });
+    box.appendChild(row);
+    ov.appendChild(box);
+    ov.addEventListener('click', function(e){ if (e.target === ov) done(null); });
+    function onKey(e){ if (e.key === 'Escape') { e.stopPropagation(); done(null); } }
+    document.addEventListener('keydown', onKey, true);
+    document.body.appendChild(ov);
+  });
+}
+
+// Imagenes del carrusel que subio la app en corridas anteriores. Se reconocen
+// por el nombre que usa el uploader: main-<N>-<timestamp>.<ext>. Las que
+// subiste a mano en Shopify no matchean y quedan afuera.
+async function _bkImagenesPreviasDeLaApp(productId){
+  try {
+    const r = await fetch('/.netlify/functions/shopify-products?tenant=chile&id=' + encodeURIComponent(productId));
+    const d = await r.json();
+    if (!r.ok) return [];
+    return ((d.product && d.product.images) || []).filter(function(im){
+      return /\/main-\d+-\d{10,}\.[a-z0-9]+(\?|$)/i.test(String(im.src || ''));
+    });
+  } catch(_) { return []; }
 }
 
 async function _bkCopiarTraduccionesProducto(btn){
