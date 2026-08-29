@@ -9000,6 +9000,7 @@ async function seleccionarProductoReplicarGT(id, title, handle){
       return;
     }
     let gtMatch = (gtData.products || []).find(p => p.handle === handle);
+    let gtCancelado = false;
 
     // Fallback: si no hay match exacto por handle, buscar por título completo
     if(!gtMatch && title){
@@ -9011,13 +9012,40 @@ async function seleccionarProductoReplicarGT(id, title, handle){
         if (titleMatches.length === 1) {
           gtMatch = titleMatches[0];
         } else if (titleMatches.length > 1) {
-          // Si hay varios, tomar el de handle más parecido al CL como heurística
-          gtMatch = titleMatches.find(p => p.handle && p.handle.includes(handle.split('-')[0])) || titleMatches[0];
+          // Varios productos en GT con el mismo titulo. Antes se elegia uno en
+          // silencio con una heuristica de handle, y cuando ninguno matcheaba
+          // caia en titleMatches[0] — o sea, podia replicar sobre el producto
+          // equivocado sin avisar. Ahora decide el usuario.
+          if(checkEl){
+            checkEl.innerHTML = '⚠ Hay ' + titleMatches.length + ' productos en GT con ese título — elegí cuál.';
+            checkEl.style.color = 'var(--muted)';
+          }
+          const elegido = await _bkAskChoice({
+            title: '¿A cuál de los ' + titleMatches.length + ' productos de GT?',
+            html: 'En GT hay varios productos con el título <b>' + esc(title) + '</b>.<br><br>'
+                + 'El landing se aplica <b>solo</b> al que elijas.',
+            options: titleMatches.map(function(gp){
+              return {
+                label: gp.handle + '   ·   ' + (gp.status || '?') + '   ·   ID ' + gp.id,
+                value: String(gp.id),
+              };
+            }).concat([{ label: '✕ Cancelar', value: null }]),
+          });
+          if (elegido) {
+            gtMatch = titleMatches.find(function(gp){ return String(gp.id) === elegido; }) || null;
+          } else {
+            gtCancelado = true;
+          }
         }
       }
     }
 
     if(!gtMatch){
+      if(checkEl && gtCancelado){
+        checkEl.innerHTML = '✕ Cancelado — no se eligió ningún producto de GT.';
+        checkEl.style.color = 'var(--muted)';
+        return;
+      }
       if(checkEl){
         checkEl.innerHTML = '❌ <strong>No existe</strong> el producto en Shopify GT.<br>' +
           '<span style="font-size:10px">CL handle: <code>' + esc(handle) + '</code></span><br>' +
