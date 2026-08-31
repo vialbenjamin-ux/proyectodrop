@@ -6571,8 +6571,7 @@ function renderRanking(){
   const totalBonos = bonusList.length * BONO_POR_PRODUCTO
                    + releasitList.length * BONO_RELEASIT
                    + Object.values(metaBonus).reduce((s,v)=>s+v,0)
-                   + Object.values(monthlyBonusByOwner).reduce((s,v)=>s+v,0)
-                   + Object.values(managerEarnings).reduce((s,v)=>s+v,0);
+                   + Object.values(monthlyBonusByOwner).reduce((s,v)=>s+v,0);
 
   const canGoBack = rankingMode !== 'all';
   const canGoFwd  = rankingMode !== 'all' && rankingMonthOffset < 0;
