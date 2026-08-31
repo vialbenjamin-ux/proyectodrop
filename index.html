@@ -4319,7 +4319,6 @@ const STORAGE_KEY = 'dropboard_v2';
 const PROD_STAGES = [
   {id:'landing',    label:'Creando Landing',   icon:'🖥️', color:'#4ECDC4'},
   {id:'landingpub', label:'Landing Publicado', icon:'🌐', color:'#111111'},
-  {id:'releasit',   label:'Config. Releasit',  icon:'⚙️', color:'#F07070'},
   {id:'videos',     label:'Creando Videos',    icon:'🎬', color:'#A855F7'},
   {id:'standby',    label:'Stand by',          icon:'⏸️', color:'#94A3B8'},
   {id:'ads',        label:'Publicado en Ads',  icon:'🚀', color:'#F59E0B'},
@@ -6508,31 +6507,29 @@ function renderRanking(){
     if(!(owner in counts)) counts[owner] = 0;
   });
 
-  // SUBIDO A TIKTOK / META (MANAGER): $1.000 por cada plataforma marcada,
-  // atribuido al subidor guardado en uploadedToTikTokBy / uploadedToMetaBy.
+  // SUBIDO A TIKTOK / META (MANAGER): se cuentan las plataformas subidas,
+  // atribuidas al subidor guardado en uploadedToTikTokBy / uploadedToMetaBy.
+  // Ya NO generan dinero: el bono de $1.000 por subida se elimino.
   // Filtrado por período con tsCheck contra el timestamp del click.
   const managerCounts = {};    // owner → cantidad de plataformas subidas
-  const managerEarnings = {};  // owner → $ acumulado
   const productTasksData = (window._vpData && window._vpData.productTasks) || {};
   for (const h of Object.keys(productTasksData)) {
     const t = productTasksData[h] || {};
     if (t.uploadedToTikTok && t.uploadedToTikTokBy && tsCheck(t.uploadedToTikTokAt)) {
       const owner = String(t.uploadedToTikTokBy).trim();
       if (owner) {
-        managerCounts[owner]   = (managerCounts[owner]   || 0) + 1;
-        managerEarnings[owner] = (managerEarnings[owner] || 0) + 1000;
+        managerCounts[owner] = (managerCounts[owner] || 0) + 1;
       }
     }
     if (t.uploadedToMeta && t.uploadedToMetaBy && tsCheck(t.uploadedToMetaAt)) {
       const owner = String(t.uploadedToMetaBy).trim();
       if (owner) {
-        managerCounts[owner]   = (managerCounts[owner]   || 0) + 1;
-        managerEarnings[owner] = (managerEarnings[owner] || 0) + 1000;
+        managerCounts[owner] = (managerCounts[owner] || 0) + 1;
       }
     }
   }
-  // Owners con solo ganancias MANAGER también aparecen en el ranking.
-  Object.keys(managerEarnings).forEach(owner => {
+  // Owners con solo subidas MANAGER también aparecen en el ranking.
+  Object.keys(managerCounts).forEach(owner => {
     if (!(owner in counts)) counts[owner] = 0;
   });
 
@@ -6607,9 +6604,9 @@ function renderRanking(){
     const mensualDet = monthlyDetailByOwner[owner] || [];
     const releasitN = releasitCounts[owner] || 0;
     const gReleasit = releasitN * BONO_RELEASIT;
-    const gManagerN = managerCounts[owner]   || 0;
-    const gManager  = managerEarnings[owner] || 0;
-    const gananciaTotal = gBase + gMeta + gMensual + gReleasit + gManager;
+    const gManagerN = managerCounts[owner] || 0;
+    // Las subidas del MANAGER ya no suman dinero, solo se muestran como conteo.
+    const gananciaTotal = gBase + gMeta + gMensual + gReleasit;
     const metaSemanasGanadas = gMeta / BONO_META_SEMANAL;
     return `<div class="ranking-card" style="background:${oc.bg};border-color:${oc.border}">
       <div class="ranking-card-medal">${medals[i]||'🏅'}</div>
@@ -6620,7 +6617,7 @@ function renderRanking(){
       ${gMeta>0?`<div style="font-size:10px;color:var(--green);font-family:'DM Mono',monospace;margin-top:2px">⭐ +${fmtCLP(gMeta)} meta semanal × ${metaSemanasGanadas}</div>`:''}
       ${gMensual>0?`<div style="font-size:10px;color:#7B5BB5;font-family:'DM Mono',monospace;margin-top:2px;font-weight:700">🌟 +${fmtCLP(gMensual)} bono mensual (${mensualDet.length} mes${mensualDet.length!==1?'es':''})</div>`:''}
       ${gReleasit>0?`<div style="font-size:10px;color:#F07070;font-family:'DM Mono',monospace;margin-top:2px">⚙️ +${fmtCLP(gReleasit)} · ${releasitN} releasit</div>`:''}
-      ${gManager>0?`<div style="font-size:10px;color:#F59E0B;font-family:'DM Mono',monospace;margin-top:2px">📤 +${fmtCLP(gManager)} · ${gManagerN} subida${gManagerN!==1?'s':''} MANAGER</div>`:''}
+      ${gManagerN>0?`<div style="font-size:10px;color:#F59E0B;font-family:'DM Mono',monospace;margin-top:2px">📤 ${gManagerN} subida${gManagerN!==1?'s':''} MANAGER</div>`:''}
       <div style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">${fmtCLP(gBase)} base</div>
       <div class="ranking-card-bar"><div class="ranking-card-bar-fill" style="width:${barPct}%;background:${oc.border}"></div></div>
     </div>`;
@@ -14400,7 +14397,9 @@ function toggleWorkOrderBypass(){
 // Devuelve false si la tarjeta debe estar bloqueada. Sin orden, o con orden
 // 1-2, siempre se puede abrir. Con orden ≥ 3, se libera solo cuando los dos
 // productos con los órdenes inmediatamente anteriores tengan TICKEADO:
-// 1) Creando Landing (stages.landing) y 2) Config. Releasit (stages.releasit).
+// Creando Landing (stages.landing). Antes tambien exigia Config. Releasit,
+// pero esa etapa se elimino del checklist: si la siguiera pidiendo, ninguna
+// tarjeta con orden >=3 se podria abrir nunca.
 // Si el admin activó el bypass con su clave, ignoramos el bloqueo.
 function canOpenCard(p){
   if (_workOrderBypass) return true;
@@ -14408,7 +14407,7 @@ function canOpenCard(p){
   if (!order || order < 3) return true;
   const isReady = x => {
     const s = x.stages || {};
-    return !!(s.landing && s.releasit);
+    return !!s.landing;
   };
   const prev1 = state.products.find(x => x.workOrder === order - 1);
   const prev2 = state.products.find(x => x.workOrder === order - 2);
@@ -16769,7 +16768,7 @@ async function initVideosProd(forceReload){
     }
     renderVideosProdList();
     // Refresca el ranking principal para que las ganancias MANAGER
-    // (SUBIDO A TIKTOK/META = $1.000) aparezcan sin necesidad de reload.
+    // (SUBIDO A TIKTOK/META) aparezcan sin necesidad de reload.
     if (typeof renderRanking === 'function') renderRanking();
     if (status) status.textContent = '✓ ' + products.length + ' productos con carpetas Drive · ' + Object.keys(rankings).length + ' rankings asignados';
   } catch (err) {
@@ -16860,30 +16859,21 @@ function renderVpRespSummary(){
   if (!el) return;
   const tasks = (window._vpData && window._vpData.productTasks) || {};
   const products = (window._vpData && window._vpData.products) || [];
-  const byResp = {}; // resp → { testing, scaling, not_started, done, earnings }
-  // Ganancias: $1.000 por cada SUBIDO A TIKTOK y $1.000 por cada SUBIDO A META.
-  // Atribuidas al responsable que estaba asignado al momento del click
-  // (snapshot en uploadedToTikTokBy/uploadedToMetaBy), no al actual.
-  const addEarn = (name, amt) => {
-    if (!name) return;
-    if (!byResp[name]) byResp[name] = { testing:0, scaling:0, not_started:0, done:0, earnings:0 };
-    byResp[name].earnings += amt;
-  };
+  const byResp = {}; // resp → { testing, scaling, not_started, done }
+  // Las subidas a TikTok/Meta ya no generan dinero: el bono por subida se
+  // elimino, asi que este resumen solo cuenta tareas por estado.
   for (const p of products) {
     const handle = p.handle || p.id;
     const task = tasks[handle] || {};
     const resp = (task.responsible || '').trim();
     if (resp) {
-      if (!byResp[resp]) byResp[resp] = { testing:0, scaling:0, not_started:0, done:0, earnings:0 };
+      if (!byResp[resp]) byResp[resp] = { testing:0, scaling:0, not_started:0, done:0 };
       const st = task.status || 'not_started';
       if (byResp[resp][st] != null) byResp[resp][st]++;
     }
-    if (task.uploadedToTikTok) addEarn((task.uploadedToTikTokBy || '').trim(), 1000);
-    if (task.uploadedToMeta)   addEarn((task.uploadedToMetaBy   || '').trim(), 1000);
   }
   const names = Object.keys(byResp).sort();
   if (!names.length) { el.style.display = 'none'; return; }
-  const fmtMoney = v => '$' + Math.round(v).toLocaleString('es-CL');
   const parts = names.map(name => {
     const c = byResp[name];
     const active = c.testing + c.scaling + c.not_started;
@@ -16893,7 +16883,6 @@ function renderVpRespSummary(){
       ${c.testing  ? `<span style="color:#A855F7">· ${c.testing} 🟣</span>` : ''}
       ${c.scaling  ? `<span style="color:#3B82F6">· ${c.scaling} 🔵</span>` : ''}
       ${c.done     ? `<span style="color:#10B981">· ${c.done} ✅</span>` : ''}
-      ${c.earnings ? `<span style="background:#F59E0B;color:#fff;border-radius:12px;padding:2px 10px;font-weight:800;font-size:10px;letter-spacing:.5px">💰 ${fmtMoney(c.earnings)}</span>` : ''}
     </span>`;
   });
   el.innerHTML = parts.join('<span style="color:var(--border)">│</span>');
@@ -18214,13 +18203,13 @@ async function setVideoReadyForAds(fileId, ready, handle, fileName){
 }
 
 // Subidor por producto: se guarda en productTasks.<handle>.uploader. Cada
-// producto puede tener un subidor distinto. Los $1.000 por SUBIDO A TIKTOK/
+// producto puede tener un subidor distinto. Las subidas a TIKTOK/
 // META se atribuyen a este uploader (snapshot en uploadedToTikTokBy /
 // uploadedToMetaBy al momento del click).
 async function setProductUploaderPrompt(handle){
   const task = (window._vpData.productTasks && window._vpData.productTasks[handle]) || {};
   const currentUploader = (task.uploader || '').trim();
-  const val = prompt('¿Quién sube este producto a las plataformas?\n\nA esta persona se le suman $1.000 por cada SUBIDO A TIKTOK/META de este producto.', currentUploader);
+  const val = prompt('¿Quién sube este producto a las plataformas?\n\nQueda registrado como responsable de los SUBIDO A TIKTOK/META de este producto.', currentUploader);
   if (val === null) return null;
   const trimmed = String(val).trim();
   try {
@@ -18239,12 +18228,45 @@ async function setProductUploaderPrompt(handle){
   }
 }
 
+// Guarda el link del landing de un producto del MANAGER. Es un campo libre:
+// lo pega el usuario y no se deriva del handle, porque hay carpetas sueltas y
+// handles que no coinciden con el de la tienda.
+async function setProductLandingUrl(handle, url){
+  const clean = String(url || '').trim();
+  const task = (window._vpData.productTasks && window._vpData.productTasks[handle]) || {};
+  if ((task.landingUrl || '') === clean) return;
+  const update = { handle, landingUrl: clean, updatedAt: Date.now() };
+  try {
+    if (typeof firebase === 'undefined' || !firebase.firestore) throw new Error('Firestore no disponible');
+    await firebase.firestore().collection('bkdrop_video_product_tasks').doc(handle).set(update, { merge: true });
+    if (!window._vpData.productTasks) window._vpData.productTasks = {};
+    window._vpData.productTasks[handle] = { ...task, ...update };
+    showToast(clean ? 'Link del landing guardado' : 'Link del landing borrado', '🔗', 'success');
+    renderAdsQueue();
+  } catch (e) {
+    showToast('No pude guardar el link: ' + (e.message || '?'), '⚠️', 'error');
+  }
+}
+
+// Copia al portapapeles lo que haya cargado en el input del producto.
+async function copyProductLandingUrl(handle, btn){
+  const input = document.getElementById('ads-landing-' + handle);
+  const val = input ? String(input.value || '').trim() : '';
+  if (!val) { showToast('Todavía no hay link cargado', '⚠️', 'warn'); return; }
+  try {
+    await navigator.clipboard.writeText(val);
+    if (btn) { const t = btn.textContent; btn.textContent = '✅ Copiado'; setTimeout(() => { btn.textContent = t; }, 1500); }
+  } catch (_) {
+    showToast('No pude copiar', '⚠️', 'error');
+  }
+}
+
 // Cambia el estado de plataforma (TikTok/Meta) a nivel producto.
-//   action = 'upload' → marcar subido (suma $1.000 al responsable actual)
-//   action = 'skip'   → marcar "no aplica" (no suma $ ni cobra)
-//   action = 'reset'  → volver a pendiente (revierte $ si estaba en upload)
-// Guarda snapshot del responsable al momento del upload para que el $
-// acumulado no se mueva si después el responsable cambia.
+//   action = 'upload' → marcar subido
+//   action = 'skip'   → marcar "no aplica"
+//   action = 'reset'  → volver a pendiente
+// Guarda snapshot del responsable al momento del upload para que el conteo
+// no se mueva si después el responsable cambia. Ya no genera dinero.
 async function setProductPlatformState(handle, platform, action){
   const task = (window._vpData.productTasks && window._vpData.productTasks[handle]) || {};
   const capPlat = platform === 'tiktok' ? 'TikTok' : 'Meta';
@@ -18296,7 +18318,7 @@ async function setProductPlatformState(handle, platform, action){
     window._vpData.productTasks[handle] = { ...task, ...update };
     if (action === 'upload') {
       const undoHtml = '<button onclick="setProductPlatformState(\'' + handle + '\', \'' + platform + '\', \'reset\')" style="background:transparent;color:#fff;border:1px solid rgba(255,255,255,.65);border-radius:6px;padding:3px 12px;font-size:11px;font-family:\'DM Mono\',monospace;cursor:pointer;margin-left:10px;font-weight:700">↩ DESHACER</button>';
-      showToast('Subido a ' + capPlat + ' · +$1.000 a ' + uploader + undoHtml, '📤', 'success');
+      showToast('Subido a ' + capPlat + ' · ' + uploader + undoHtml, '📤', 'success');
     } else if (action === 'skip') {
       showToast('Marcado no aplica en ' + capPlat, '—', 'info');
     } else {
@@ -18758,13 +18780,23 @@ function renderAdsQueue(){
     const uploader = (task.uploader || '').trim();
     const uploaderBadge = uploader
       ? '<span onclick="setProductUploaderPrompt(\'' + esc(h) + '\')" title="Click para cambiar el subidor de este producto" style="cursor:pointer;font-size:10px;font-family:\'DM Mono\',monospace;background:#F59E0B;color:#fff;padding:3px 10px;border-radius:10px;font-weight:700">🙋 ' + esc(uploader) + ' ✏️</span>'
-      : '<span onclick="setProductUploaderPrompt(\'' + esc(h) + '\')" title="Click para asignar quien lo sube (recibirá $1.000 por SUBIDO)" style="cursor:pointer;font-size:10px;font-family:\'DM Mono\',monospace;background:transparent;color:var(--peach);border:1.5px dashed var(--peach);padding:2px 10px;border-radius:10px;font-weight:700">🙋 asignar subidor</span>';
+      : '<span onclick="setProductUploaderPrompt(\'' + esc(h) + '\')" title="Click para asignar quien lo sube" style="cursor:pointer;font-size:10px;font-family:\'DM Mono\',monospace;background:transparent;color:var(--peach);border:1.5px dashed var(--peach);padding:2px 10px;border-radius:10px;font-weight:700">🙋 asignar subidor</span>';
     html += '<div style="background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:14px;margin-bottom:14px">' +
       '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">' +
         '<div style="font-family:\'Montserrat\',sans-serif;font-weight:800;font-size:14px;color:var(--text);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc(title) + '">📦 ' + esc(title) + '</div>' +
         uploaderBadge +
         '<span style="font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace;background:var(--surface2);padding:3px 8px;border-radius:10px">' + items.length + ' pendiente' + (items.length !== 1 ? 's' : '') + '</span>' +
         (driveFolderUrl ? '<a href="' + driveFolderUrl + '" target="_blank" rel="noopener" style="background:#4285F4;color:#fff;text-decoration:none;border-radius:6px;padding:4px 10px;font-size:10px;font-family:\'DM Mono\',monospace">↗ Drive producto</a>' : '') +
+      '</div>' +
+      // Link al landing: campo libre por producto. Se guarda en Firestore
+      // (productTasks.<handle>.landingUrl) para que lo vea todo el equipo.
+      '<div style="display:flex;align-items:center;gap:6px;margin-bottom:10px;flex-wrap:wrap">' +
+        '<span style="font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace;white-space:nowrap">🔗 Landing</span>' +
+        '<input id="ads-landing-' + esc(h) + '" type="text" value="' + esc(task.landingUrl || '') + '" placeholder="Pegá acá el link del landing…" ' +
+          'onchange="setProductLandingUrl(\'' + esc(h) + '\', this.value)" ' +
+          'style="flex:1;min-width:220px;background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 10px;font-size:11px;font-family:\'DM Mono\',monospace">' +
+        '<button onclick="copyProductLandingUrl(\'' + esc(h) + '\', this)" title="Copiar el link" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 12px;font-size:10px;font-family:\'DM Mono\',monospace;cursor:pointer;font-weight:700;white-space:nowrap">📋 Copiar</button>' +
+        (task.landingUrl ? '<a href="' + esc(task.landingUrl) + '" target="_blank" rel="noopener" style="background:#111111;color:#fff;text-decoration:none;border-radius:6px;padding:6px 12px;font-size:10px;font-family:\'DM Mono\',monospace;font-weight:700;white-space:nowrap">↗ Abrir</a>' : '') +
       '</div>' +
       '<div style="display:flex;flex-direction:column;gap:8px">';
     for (const it of items) {
@@ -18788,8 +18820,8 @@ function renderAdsQueue(){
     html += '</div>'; // cierre lista de videos
 
     // Footer del producto: SUBIDO / NO APLICA por plataforma. 3 estados:
-    // pendiente (mostrar 2 botones: SUBIDO + ✕ N/A), subido ($1.000 al
-    // subidor de sesión), no aplica (gris, no cobra).
+    // pendiente (mostrar 2 botones: SUBIDO + ✕ N/A), subido (queda el
+    // subidor registrado), no aplica (gris).
     const platBtn = (plat) => {
       const capPlat = plat === 'tiktok' ? 'TikTok' : 'Meta';
       const emoji = plat === 'tiktok' ? '🎵' : '📘';
@@ -18804,9 +18836,9 @@ function renderAdsQueue(){
       if (uploaded) {
         return '<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:#111111;color:#fff;border-radius:8px;flex:1;min-width:200px">' +
           '<span style="font-family:\'DM Mono\',monospace;font-weight:800;font-size:12px">✓ Subido a ' + capPlat + '</span>' +
-          '<span style="font-size:10px;opacity:.9;font-family:\'DM Mono\',monospace">· ' + fmtTime(at) + (by ? ' · $1.000 a ' + esc(by) : '') + '</span>' +
+          '<span style="font-size:10px;opacity:.9;font-family:\'DM Mono\',monospace">· ' + fmtTime(at) + (by ? ' · por ' + esc(by) : '') + '</span>' +
           '<span style="flex:1"></span>' +
-          '<button onclick="setProductPlatformState(\'' + esc(h) + '\', \'' + plat + '\', \'reset\')" title="Deshacer — descuenta los $1.000" style="background:transparent;color:#fff;border:1px solid rgba(255,255,255,.7);border-radius:6px;padding:3px 10px;font-size:10px;font-family:\'DM Mono\',monospace;cursor:pointer">↩</button>' +
+          '<button onclick="setProductPlatformState(\'' + esc(h) + '\', \'' + plat + '\', \'reset\')" title="Deshacer — vuelve a pendiente" style="background:transparent;color:#fff;border:1px solid rgba(255,255,255,.7);border-radius:6px;padding:3px 10px;font-size:10px;font-family:\'DM Mono\',monospace;cursor:pointer">↩</button>' +
           '</div>';
       }
       if (skipped) {
@@ -18817,10 +18849,10 @@ function renderAdsQueue(){
           '</div>';
       }
       // Pendiente: dos botones (SUBIDO + N/A) juntos.
-      const upTitle = 'Marcar subido a ' + capPlat + ' (+$1.000 al subidor actual)';
+      const upTitle = 'Marcar subido a ' + capPlat;
       return '<div style="display:flex;gap:6px;flex:1;min-width:200px">' +
         '<button onclick="setProductPlatformState(\'' + esc(h) + '\', \'' + plat + '\', \'upload\')" title="' + esc(upTitle) + '" style="background:' + color + ';color:#fff;border:none;border-radius:8px;padding:10px 12px;font-size:12px;font-family:\'DM Mono\',monospace;font-weight:800;cursor:pointer;flex:1;letter-spacing:.5px">' + emoji + ' SUBIDO A ' + capPlat.toUpperCase() + '</button>' +
-        '<button onclick="setProductPlatformState(\'' + esc(h) + '\', \'' + plat + '\', \'skip\')" title="Marcar que no aplica a ' + capPlat + ' — no suma $" style="background:transparent;border:1.5px dashed var(--border);color:var(--muted);border-radius:8px;padding:10px 10px;font-size:10px;font-family:\'DM Mono\',monospace;cursor:pointer;white-space:nowrap">✕ N/A</button>' +
+        '<button onclick="setProductPlatformState(\'' + esc(h) + '\', \'' + plat + '\', \'skip\')" title="Marcar que no aplica a ' + capPlat + '" style="background:transparent;border:1.5px dashed var(--border);color:var(--muted);border-radius:8px;padding:10px 10px;font-size:10px;font-family:\'DM Mono\',monospace;cursor:pointer;white-space:nowrap">✕ N/A</button>' +
       '</div>';
     };
 
