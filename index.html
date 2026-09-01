@@ -15081,24 +15081,54 @@ function checkAuth(){
 
 // ── PERMISOS ──────────────────────────────────────────────────────────────────
 
+// Debe reflejar EXACTAMENTE las secciones del nav: applyPerms solo oculta
+// pestañas que esten aca, asi que una seccion ausente queda visible para
+// todos sin poder restringirse (le pasaba a manager/campanas/dropitea).
+// Mismo orden que el nav para que el panel de accesos se lea igual.
 const ALL_SECTIONS = [
   {id:'productos',     label:'Productos'},
-  {id:'videos',        label:'Tutorial BK'},
-  {id:'videos-prod',   label:'Videos por producto'},
-  {id:'prompts',       label:'Prompts'},
-  {id:'proveedores',   label:'Proveedores'},
-  {id:'calculadora',   label:'Calculadora'},
   {id:'pendientes',    label:'Pendientes'},
-  {id:'reportes',      label:'Reportes'},
-  {id:'calendario',    label:'Calendario'},
-  {id:'creativos',     label:'Creativos'},
-  {id:'bkfit',         label:'BKfit'},
   {id:'archivo',       label:'Archivo'},
+  {id:'calculadora',   label:'Calculadora'},
+  {id:'reportes',      label:'Reportes'},
+  {id:'campanas',      label:'Campañas Vivo'},
+  {id:'prompts',       label:'Creador de landing'},
+  {id:'videos',        label:'Tutorial BK'},
+  {id:'videos-prod',   label:'Videos'},
+  {id:'manager',       label:'Manager'},
+  {id:'dropitea',      label:'DROPITEA'},
+  {id:'calendario',    label:'Calendario'},
 ];
 
 function getDefaultPerms(){ return ALL_SECTIONS.map(s=>s.id); }
 
+// Migracion one-shot: manager/campanas/dropitea no estaban en ALL_SECTIONS,
+// asi que applyPerms nunca las ocultaba y TODOS las veian. Al incorporarlas
+// pasan a ser restringibles, y los usuarios existentes —que no las tienen en
+// su lista— las perderian de golpe. Se las concedemos una sola vez para que
+// nada cambie de facto; despues el admin las quita a mano si quiere.
+const PERMS_SECCIONES_NUEVAS_V2 = ['manager', 'campanas', 'dropitea'];
+let _permsV2Corrida = false;
+function migrarPermsV2(){
+  if (_permsV2Corrida) return;   // getUserPerms se llama en bucles de render
+  _permsV2Corrida = true;
+  try {
+    const users = loadUsers();
+    let tocado = false;
+    users.forEach(u => {
+      if (u.permsV2) return;
+      if (Array.isArray(u.perms)) {
+        PERMS_SECCIONES_NUEVAS_V2.forEach(id => { if (!u.perms.includes(id)) u.perms.push(id); });
+      }
+      u.permsV2 = true;
+      tocado = true;
+    });
+    if (tocado) saveUsers(users);
+  } catch (e) { console.warn('[perms] migracion v2 fallo:', e); }
+}
+
 function getUserPerms(username){
+  migrarPermsV2();
   const users = loadUsers();
   const u = users.find(x=>x.user===username);
   if(!u) return getDefaultPerms();
