@@ -100,6 +100,20 @@ async function getAccessScopes(domain, headers) {
   }
   const data = await resp.json();
   const granted = (data.access_scopes || []).map(x => x.handle).filter(Boolean).sort();
+
+  // Que app emitio este token. Evita tener que adivinar cual de las apps del
+  // Dev Dashboard hay que editar para agregar un scope.
+  let app = null;
+  try {
+    const gq = await fetch(`https://${domain}/admin/api/2024-10/graphql.json`, {
+      method: 'POST', headers,
+      body: JSON.stringify({ query: '{ currentAppInstallation { app { title handle } } }' }),
+    });
+    const gj = await gq.json();
+    const a = gj && gj.data && gj.data.currentAppInstallation && gj.data.currentAppInstallation.app;
+    if (a) app = { title: a.title, handle: a.handle };
+    else if (gj && gj.errors) app = { error: JSON.stringify(gj.errors).slice(0, 160) };
+  } catch (e) { app = { error: e.message || '?' }; }
   const needed = [
     'read_products', 'write_products',
     'read_publications', 'write_publications',   // publicar en el canal Tienda online
@@ -110,6 +124,7 @@ async function getAccessScopes(domain, headers) {
   const missing = needed.filter(n => !granted.includes(n));
   return respond(200, {
     domain,
+    app,
     granted,
     needed,
     missing,
