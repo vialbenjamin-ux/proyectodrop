@@ -1690,6 +1690,12 @@
             <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;line-height:1.5">
               Crea una plantilla nueva en tu theme con TODO el contenido del Master + 3 GIFs + 3 fotos. La asigna automáticamente al producto. ~30s end-to-end.
             </div>
+            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:8px 0 4px">
+              <span style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;letter-spacing:.5px">TIENDA:</span>
+              <button type="button" class="bk-landing-pais" data-pais="chile" onclick="setLandingTenant('chile')" style="background:#8A5A2A;color:#fff;border:1.5px solid #8A5A2A;border-radius:6px;padding:5px 12px;font-size:11px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">🇨🇱 Chile</button>
+              <button type="button" class="bk-landing-pais" data-pais="gt" onclick="setLandingTenant('gt')" style="background:var(--surface2);color:var(--text);border:1.5px solid var(--border);border-radius:6px;padding:5px 12px;font-size:11px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">🇬🇹 Guatemala</button>
+              <span style="font-size:10px;color:var(--muted2);font-family:'DM Mono',monospace">el producto, la plantilla y las imágenes van a esta tienda</span>
+            </div>
             <div class="bk-shopify-search-row">
               <input type="text" id="bk-auto-shrine-search" placeholder="Busca el producto por título" onkeydown="if(event.key==='Enter') buscarProductosAutoShrine()">
               <button onclick="buscarProductosAutoShrine()">🔍 Buscar</button>
@@ -10826,6 +10832,32 @@ function abrirAutoShrine(){
   }
 }
 
+// País destino del creador de landing. Se elige en la card; si no se toca,
+// hereda el tenant global. Antes las llamadas de PRODUCTO estaban clavadas en
+// Chile mientras las de TEMA seguían el tenant global: con el global en GT la
+// plantilla se escribía en GT y el producto se buscaba en Chile.
+let _landingTenant = null;
+function landingTenant(){ return _landingTenant || (typeof getCurrentTenant === 'function' ? getCurrentTenant() : 'chile'); }
+function landingParam(){ return '&tenant=' + landingTenant(); }
+function landingEsGT(){ return landingTenant() === 'gt'; }
+function landingTienda(){ return landingEsGT() ? 'benkogt.com' : 'benkotienda.com'; }
+function landingAdminSlug(){ return landingEsGT() ? '85yz4u-q5' : 'benkotienda'; }
+
+function setLandingTenant(t){
+  _landingTenant = (t === 'gt') ? 'gt' : 'chile';
+  document.querySelectorAll('.bk-landing-pais').forEach(function(b){
+    const on = b.dataset.pais === _landingTenant;
+    b.style.background = on ? '#8A5A2A' : 'var(--surface2)';
+    b.style.color = on ? '#fff' : 'var(--text)';
+    b.style.borderColor = on ? '#8A5A2A' : 'var(--border)';
+  });
+  const res = document.getElementById('bk-auto-shrine-results');
+  if (res) res.innerHTML = '';
+  _autoShrineProduct = null;
+  const st = document.getElementById('bk-auto-shrine-status');
+  if (st) st.textContent = 'País: ' + (_landingTenant === 'gt' ? 'Guatemala' : 'Chile') + ' — buscá el producto de esa tienda.';
+}
+
 async function buscarProductosAutoShrine(){
   const q = document.getElementById('bk-auto-shrine-search')?.value || '';
   const results = document.getElementById('bk-auto-shrine-results');
@@ -10834,7 +10866,7 @@ async function buscarProductosAutoShrine(){
   results.innerHTML = '<div style="font-size:11px;color:var(--muted);padding:8px">Buscando…</div>';
   if (status) status.textContent = '';
   try {
-    const url = '/.netlify/functions/shopify-products?_=1&tenant=chile' + (q ? '&q=' + encodeURIComponent(q) : '');
+    const url = '/.netlify/functions/shopify-products?_=1' + landingParam() + (q ? '&q=' + encodeURIComponent(q) : '');
     const resp = await fetch(url);
     const data = await resp.json();
     if (!resp.ok) throw new Error(data.error || ('HTTP ' + resp.status));
@@ -11004,7 +11036,7 @@ async function ejecutarAutoShrine(){
 
     for (let i = 0; i < _borrarPrevias.length; i++) {
       setStatus('⏳ Borrando imagen anterior ' + (i+1) + '/' + _borrarPrevias.length + '…');
-      const delR = await fetch('/.netlify/functions/shopify-products?tenant=chile', {
+      const delR = await fetch('/.netlify/functions/shopify-products?_=1' + landingParam(), {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: _autoShrineProduct.id, image_id: _borrarPrevias[i].id }),
@@ -11025,7 +11057,7 @@ async function ejecutarAutoShrine(){
         rd.readAsDataURL(f);
       });
       const ext = (f.name.match(/\.([a-z0-9]+)$/i) || [,'jpg'])[1];
-      const upR = await fetch('/.netlify/functions/shopify-products?_=1&tenant=chile', {
+      const upR = await fetch('/.netlify/functions/shopify-products?_=1' + landingParam(), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -11058,13 +11090,13 @@ async function ejecutarAutoShrine(){
 
     // 2. Leer el último template como base
     setStatus('⏳ Leyendo plantilla base de tu theme…');
-    const listResp = await fetch('/.netlify/functions/shopify-themes?op=list-templates' + tenantParam());
+    const listResp = await fetch('/.netlify/functions/shopify-themes?op=list-templates' + landingParam());
     const listData = await listResp.json();
     if (!listResp.ok) throw new Error(listData.error || 'list-templates fail');
     const baseTemplate = (listData.templates || [])[0];
     if (!baseTemplate) throw new Error('No hay templates de productos en el theme');
 
-    const tmplResp = await fetch('/.netlify/functions/shopify-themes?op=template&assetKey=' + encodeURIComponent(baseTemplate.key) + tenantParam());
+    const tmplResp = await fetch('/.netlify/functions/shopify-themes?op=template&assetKey=' + encodeURIComponent(baseTemplate.key) + landingParam());
     const tmplData = await tmplResp.json();
     if (!tmplResp.ok) throw new Error(tmplData.error || 'template read fail');
     const baseJson = JSON.parse(tmplData.value);
@@ -11123,7 +11155,7 @@ async function ejecutarAutoShrine(){
     const newSuffix = mm + dd + yyyy + '-' + cleanHandle;
     const newKey = 'templates/product.' + newSuffix + '.json';
     setStatus('⏳ Subiendo plantilla "' + newSuffix + '" al theme…');
-    const writeResp = await fetch('/.netlify/functions/shopify-themes?_=1' + tenantParam(), {
+    const writeResp = await fetch('/.netlify/functions/shopify-themes?_=1' + landingParam(), {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ assetKey: newKey, value: JSON.stringify(newJson, null, 2) }),
@@ -11138,7 +11170,7 @@ async function ejecutarAutoShrine(){
     if (chunksForTitle.nombres && chunksForTitle.nombres[0]) {
       updateBody.title = chunksForTitle.nombres[0];
     }
-    const updResp = await fetch('/.netlify/functions/shopify-products?_=1&tenant=chile', {
+    const updResp = await fetch('/.netlify/functions/shopify-products?_=1' + landingParam(), {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updateBody),
@@ -11147,8 +11179,8 @@ async function ejecutarAutoShrine(){
     if (!updResp.ok) throw new Error(updData.error || 'product update fail');
 
     // ✅ Listo
-    const productUrl = 'https://benkotienda.com/products/' + _autoShrineProduct.handle;
-    const adminUrl = 'https://admin.shopify.com/store/benkotienda/products/' + _autoShrineProduct.id;
+    const productUrl = 'https://' + landingTienda() + '/products/' + _autoShrineProduct.handle;
+    const adminUrl = 'https://admin.shopify.com/store/' + landingAdminSlug() + '/products/' + _autoShrineProduct.id;
     // Guardamos datos del landing recién creado para poder replicarlo a GT
     window._lastLandingCL = {
       suffix: newSuffix,
@@ -18721,7 +18753,7 @@ function _bkAskChoice(opts){
 // subiste a mano en Shopify no matchean y quedan afuera.
 async function _bkImagenesPreviasDeLaApp(productId){
   try {
-    const r = await fetch('/.netlify/functions/shopify-products?tenant=chile&id=' + encodeURIComponent(productId));
+    const r = await fetch('/.netlify/functions/shopify-products?id=' + encodeURIComponent(productId) + landingParam());
     const d = await r.json();
     if (!r.ok) return [];
     return ((d.product && d.product.images) || []).filter(function(im){
