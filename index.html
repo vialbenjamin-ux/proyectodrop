@@ -19022,8 +19022,42 @@ function renderAdsQueue(){
     catch { return '—'; }
   };
 
+  // Agrupacion por fecha "Subir el", con los MISMOS criterios que Videos por
+  // producto (vpDayDiff/vpFmtWD): atrasadas, hoy, manana, futuras, sin fecha.
+  // La fecha del producto es la mas urgente de sus videos, calculada sobre
+  // TODOS los que alguna vez se marcaron listos —no solo los pendientes— para
+  // que marcar uno como LISTO no cambie el producto de grupo.
+  const fechaDeProducto = {};
+  for (const fid of Object.keys(rankings)) {
+    const r = rankings[fid] || {};
+    if (!r.readyForAds) continue;
+    const d = (r.uploadDate || '').trim();
+    if (!d) continue;
+    const ph = r.productHandle || '_sin_producto';
+    if (!fechaDeProducto[ph] || d < fechaDeProducto[ph]) fechaDeProducto[ph] = d;
+  }
+
+  const hoyISO = (typeof vpTodayISO === 'function') ? vpTodayISO() : '';
+  const mananaISO = (typeof vpAddDaysISO === 'function') ? vpAddDaysISO(hoyISO, 1) : '';
+  const GRUPOS = {};
+  const grupoDe = (hh) => {
+    const d = fechaDeProducto[hh] || '';
+    if (!d || !hoyISO) {
+      GRUPOS['_sinfecha_'] = { label: '⚪ SIN FECHA', order: 4, color: 'var(--muted)' };
+      return '_sinfecha_';
+    }
+    const diff = vpDayDiff(hoyISO, d);
+    if (diff < 0) { GRUPOS['_atrasadas_'] = { label: '🔴 ATRASADAS', order: 0, color: '#dc2626' }; return '_atrasadas_'; }
+    if (diff === 0) { GRUPOS['_hoy_'] = { label: '📌 TAREA DE HOY · ' + vpFmtDM(hoyISO), order: 1, color: '#111111' }; return '_hoy_'; }
+    if (d === mananaISO) { GRUPOS[d] = { label: '🟠 MAÑANA · ' + vpFmtWD(d), order: 2, color: '#f59e0b' }; return d; }
+    GRUPOS[d] = { label: '📅 ' + vpFmtWD(d), order: 3, color: 'var(--accent)' };
+    return d;
+  };
+
+  const htmlPorGrupo = {};
   let html = '<div style="font-size:11px;color:var(--muted);font-family:\'DM Mono\',monospace;margin-bottom:10px">' + pending.length + ' video(s) pendientes en ' + handles.length + ' producto(s)</div>';
   for (const h of handles) {
+    const _desde = html.length;
     const p = productByHandle[h];
     const title = p ? (p.title || h) : h;
     const items = (byProduct[h] || []).sort((a, b) => (b.readyForAdsAt || 0) - (a.readyForAdsAt || 0));
@@ -19115,6 +19149,30 @@ function renderAdsQueue(){
       '</div>';
 
     html += '</div>'; // cierre card producto
+
+    // El bloque recien generado se saca de `html` y se guarda en su grupo;
+    // se reinsertan todos juntos, con encabezado, despues del bucle.
+    const _bloque = html.slice(_desde);
+    html = html.slice(0, _desde);
+    const _g = grupoDe(h);
+    (htmlPorGrupo[_g] = htmlPorGrupo[_g] || []).push(_bloque);
+  }
+
+  // Orden: atrasadas, hoy, manana, futuras (fecha asc), sin fecha.
+  const clavesGrupo = Object.keys(htmlPorGrupo).sort((ka, kb) => {
+    const a = GRUPOS[ka] || { order: 9 }, b = GRUPOS[kb] || { order: 9 };
+    if (a.order !== b.order) return a.order - b.order;
+    return String(ka).localeCompare(String(kb));
+  });
+  for (const key of clavesGrupo) {
+    const g = GRUPOS[key] || { label: key, color: 'var(--muted)' };
+    const n = htmlPorGrupo[key].length;
+    html += '<div style="display:flex;align-items:center;gap:8px;margin:20px 0 8px;font-family:\'Montserrat\',sans-serif;font-weight:800;font-size:13px;color:' + g.color + ';letter-spacing:.5px;text-transform:uppercase">'
+      + '<span>' + g.label + '</span>'
+      + '<span style="font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace;font-weight:400">' + n + ' producto' + (n !== 1 ? 's' : '') + '</span>'
+      + '<span style="flex:1;height:1px;background:var(--border)"></span>'
+      + '</div>';
+    html += htmlPorGrupo[key].join('');
   }
 
   // ── Subidos a ads (historial reciente) ──────────────────────────────────
