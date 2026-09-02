@@ -9141,6 +9141,38 @@ async function seleccionarProductoReplicarGT(id, title, handle){
   }
 }
 
+// Panel de precios + Releasit para GUATEMALA. Siempre en QUETZALES.
+// Se usa al replicar un landing de Chile a GT y al crear uno directo en GT.
+// El creador directo caia antes en el panel de Chile, forzado a
+// tenant=chile, que calcula y muestra en CLP.
+function _bkPanelReleasitGT(gtId, handle, title){
+  return (
+        '<div style="background:linear-gradient(135deg,#D9A82E 0%,#8A5A2A 100%);border-radius:10px;padding:12px;color:#fff;display:flex;flex-direction:column;gap:10px">' +
+          '<div style="font-size:12px;font-weight:700;letter-spacing:.5px">💰 Publicar Precios + Releasit en Guatemala</div>' +
+          '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">' +
+            '<label style="font-size:11px;font-family:\'DM Mono\',monospace;color:#fff">Precio GTQ:</label>' +
+            '<input type="number" id="bk-releasit-gt-price" placeholder="233" min="1" step="1" style="flex:1;min-width:100px;background:#fff;border:none;color:#111;padding:8px 10px;border-radius:6px;font-size:13px;font-family:\'DM Mono\',monospace;font-weight:700">' +
+            '<label style="font-size:10px;color:#fff;font-family:\'DM Mono\',monospace">%2u:</label>' +
+            '<input type="number" id="bk-releasit-gt-d2" value="15" min="0" max="90" style="width:52px;background:#fff;border:none;color:#111;padding:7px;border-radius:6px;font-size:11px;font-family:\'DM Mono\',monospace">' +
+            '<label style="font-size:10px;color:#fff;font-family:\'DM Mono\',monospace">%3u:</label>' +
+            '<input type="number" id="bk-releasit-gt-d3" value="20" min="0" max="90" style="width:52px;background:#fff;border:none;color:#111;padding:7px;border-radius:6px;font-size:11px;font-family:\'DM Mono\',monospace">' +
+          '</div>' +
+          '<div style="display:flex;gap:4px;flex-wrap:wrap">' +
+            '<button type="button" onclick="_bkReleasitGtNx1(1)" class="bk-gt-nx1-btn" data-nx1="1" style="flex:1;min-width:60px;background:#fff;color:#111;border:none;padding:6px;border-radius:6px;font-size:11px;font-family:\'DM Mono\',monospace;font-weight:700;cursor:pointer">1u</button>' +
+            '<button type="button" onclick="_bkReleasitGtNx1(2)" class="bk-gt-nx1-btn" data-nx1="2" style="flex:1;min-width:60px;background:#fff;color:#111;border:none;padding:6px;border-radius:6px;font-size:11px;font-family:\'DM Mono\',monospace;font-weight:700;cursor:pointer">2x1</button>' +
+            '<button type="button" onclick="_bkReleasitGtNx1(3)" class="bk-gt-nx1-btn" data-nx1="3" style="flex:1;min-width:60px;background:#fff;color:#111;border:none;padding:6px;border-radius:6px;font-size:11px;font-family:\'DM Mono\',monospace;font-weight:700;cursor:pointer">3x1</button>' +
+            '<button type="button" onclick="_bkReleasitGtNx1(4)" class="bk-gt-nx1-btn" data-nx1="4" style="flex:1;min-width:60px;background:#fff;color:#111;border:none;padding:6px;border-radius:6px;font-size:11px;font-family:\'DM Mono\',monospace;font-weight:700;cursor:pointer">4x1</button>' +
+          '</div>' +
+          '<div style="display:flex;gap:6px;flex-wrap:wrap">' +
+            '<button onclick="_bkPublicarReleasitGT(\'' + esc(gtId) + '\', \'' + esc(handle) + '\', \'' + esc(title) + '\', this)" style="flex:1;background:#fff;color:#8A5A2A;border:none;border-radius:6px;padding:9px 14px;font-size:12px;font-family:\'DM Mono\',monospace;font-weight:700;cursor:pointer">🚀 Publicar Releasit GT</button>' +
+            '<button onclick="_bkInstalarColoresGT(this)" style="background:#8B5CF6;color:#fff;border:none;border-radius:6px;padding:9px 12px;font-size:11px;font-family:\'DM Mono\',monospace;font-weight:700;cursor:pointer">🎨 Colores GT</button>' +
+            '<button onclick="_bkActivarProductoGT(\'' + esc(gtId) + '\', \'' + esc(handle) + '\', this)" style="background:#16A34A;color:#fff;border:none;border-radius:6px;padding:9px 12px;font-size:11px;font-family:\'DM Mono\',monospace;font-weight:700;cursor:pointer">✅ Activar GT</button>' +
+          '</div>' +
+          '<div id="bk-releasit-gt-status" style="font-size:11px;font-family:\'DM Mono\',monospace;min-height:14px"></div>' +
+        '</div>'
+  );
+}
+
 async function ejecutarReplicacionGT(){
   const status = document.getElementById('bk-replicar-gt-status2');
   const btn = document.getElementById('bk-replicar-gt-exec');
@@ -9226,29 +9258,7 @@ async function ejecutarReplicacionGT(){
     if(status){
       status.innerHTML =
         '<div style="color:var(--accent);margin-bottom:8px">✅ Plantilla "<b>' + esc(newSuffix) + '</b>" + imágenes replicadas al producto de GT.' + esc(imgCopyMsg) + '</div>' +
-        '<div style="background:linear-gradient(135deg,#D9A82E 0%,#8A5A2A 100%);border-radius:10px;padding:12px;color:#fff;display:flex;flex-direction:column;gap:10px">' +
-          '<div style="font-size:12px;font-weight:700;letter-spacing:.5px">💰 Publicar Precios + Releasit en Guatemala</div>' +
-          '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">' +
-            '<label style="font-size:11px;font-family:\'DM Mono\',monospace;color:#fff">Precio GTQ:</label>' +
-            '<input type="number" id="bk-releasit-gt-price" placeholder="233" min="1" step="1" style="flex:1;min-width:100px;background:#fff;border:none;color:#111;padding:8px 10px;border-radius:6px;font-size:13px;font-family:\'DM Mono\',monospace;font-weight:700">' +
-            '<label style="font-size:10px;color:#fff;font-family:\'DM Mono\',monospace">%2u:</label>' +
-            '<input type="number" id="bk-releasit-gt-d2" value="15" min="0" max="90" style="width:52px;background:#fff;border:none;color:#111;padding:7px;border-radius:6px;font-size:11px;font-family:\'DM Mono\',monospace">' +
-            '<label style="font-size:10px;color:#fff;font-family:\'DM Mono\',monospace">%3u:</label>' +
-            '<input type="number" id="bk-releasit-gt-d3" value="20" min="0" max="90" style="width:52px;background:#fff;border:none;color:#111;padding:7px;border-radius:6px;font-size:11px;font-family:\'DM Mono\',monospace">' +
-          '</div>' +
-          '<div style="display:flex;gap:4px;flex-wrap:wrap">' +
-            '<button type="button" onclick="_bkReleasitGtNx1(1)" class="bk-gt-nx1-btn" data-nx1="1" style="flex:1;min-width:60px;background:#fff;color:#111;border:none;padding:6px;border-radius:6px;font-size:11px;font-family:\'DM Mono\',monospace;font-weight:700;cursor:pointer">1u</button>' +
-            '<button type="button" onclick="_bkReleasitGtNx1(2)" class="bk-gt-nx1-btn" data-nx1="2" style="flex:1;min-width:60px;background:#fff;color:#111;border:none;padding:6px;border-radius:6px;font-size:11px;font-family:\'DM Mono\',monospace;font-weight:700;cursor:pointer">2x1</button>' +
-            '<button type="button" onclick="_bkReleasitGtNx1(3)" class="bk-gt-nx1-btn" data-nx1="3" style="flex:1;min-width:60px;background:#fff;color:#111;border:none;padding:6px;border-radius:6px;font-size:11px;font-family:\'DM Mono\',monospace;font-weight:700;cursor:pointer">3x1</button>' +
-            '<button type="button" onclick="_bkReleasitGtNx1(4)" class="bk-gt-nx1-btn" data-nx1="4" style="flex:1;min-width:60px;background:#fff;color:#111;border:none;padding:6px;border-radius:6px;font-size:11px;font-family:\'DM Mono\',monospace;font-weight:700;cursor:pointer">4x1</button>' +
-          '</div>' +
-          '<div style="display:flex;gap:6px;flex-wrap:wrap">' +
-            '<button onclick="_bkPublicarReleasitGT(\'' + esc(p.gtId) + '\', \'' + esc(p.handle) + '\', \'' + esc(p.title) + '\', this)" style="flex:1;background:#fff;color:#8A5A2A;border:none;border-radius:6px;padding:9px 14px;font-size:12px;font-family:\'DM Mono\',monospace;font-weight:700;cursor:pointer">🚀 Publicar Releasit GT</button>' +
-            '<button onclick="_bkInstalarColoresGT(this)" style="background:#8B5CF6;color:#fff;border:none;border-radius:6px;padding:9px 12px;font-size:11px;font-family:\'DM Mono\',monospace;font-weight:700;cursor:pointer">🎨 Colores GT</button>' +
-            '<button onclick="_bkActivarProductoGT(\'' + esc(p.gtId) + '\', \'' + esc(p.handle) + '\', this)" style="background:#16A34A;color:#fff;border:none;border-radius:6px;padding:9px 12px;font-size:11px;font-family:\'DM Mono\',monospace;font-weight:700;cursor:pointer">✅ Activar GT</button>' +
-          '</div>' +
-          '<div id="bk-releasit-gt-status" style="font-size:11px;font-family:\'DM Mono\',monospace;min-height:14px"></div>' +
-        '</div>';
+        _bkPanelReleasitGT(p.gtId, p.handle, p.title);
       status.style.color = 'var(--accent)';
     }
     showToast('🔄 Landing + imágenes replicados a GT', '✨', 'success');
@@ -11240,13 +11250,21 @@ async function ejecutarAutoShrine(){
       handle: _autoShrineProduct.handle,
       title: _autoShrineProduct.title,
     };
-    if (status) status.innerHTML = '✅ Plantilla "<b>' + esc(newSuffix) + '</b>" creada y asignada · ' +
-      '<a href="' + productUrl + '" target="_blank" style="color:#dc2626;font-weight:700">Ver tienda</a> · ' +
-      '<a href="' + adminUrl + '" target="_blank" style="color:var(--accent);font-weight:600">Admin</a>' +
+    // En GT los precios van en QUETZALES: se usa el panel de Guatemala en vez
+    // del de Chile, que esta forzado a tenant=chile y calcula en CLP.
+    const bloquePrecios = landingEsGT()
+      ? '<div style="margin-top:12px">' + _bkPanelReleasitGT(_autoShrineProduct.id, _autoShrineProduct.handle, _autoShrineProduct.title) + '</div>'
+      : (
       '<div style="margin-top:12px;padding:10px 12px;background:linear-gradient(135deg,#D9A82E 0%,#8A5A2A 100%);border-radius:8px;color:#fff">' +
       '<div style="font-size:12px;font-weight:700;margin-bottom:6px">➡️ Siguiente paso: Precios + Releasit</div>' +
       '<button onclick="_bkContinuarAPreciosReleasit(\'' + esc(_autoShrineProduct.id) + '\', \'' + esc(_autoShrineProduct.title) + '\', \'' + esc(_autoShrineProduct.handle) + '\')" style="background:#fff;color:#8A5A2A;border:none;border-radius:6px;padding:9px 16px;font-size:12px;font-family:\'DM Mono\',monospace;cursor:pointer;font-weight:700">💰 Continuar → Precios + Releasit</button>' +
-      '</div>' +
+      '</div>'
+      );
+
+    if (status) status.innerHTML = '✅ Plantilla "<b>' + esc(newSuffix) + '</b>" creada y asignada · ' +
+      '<a href="' + productUrl + '" target="_blank" style="color:#dc2626;font-weight:700">Ver tienda</a> · ' +
+      '<a href="' + adminUrl + '" target="_blank" style="color:var(--accent);font-weight:600">Admin</a>' +
+      bloquePrecios +
       '<div style="margin-top:8px;padding:10px 12px;background:linear-gradient(135deg,#4ECDC4 0%,#111111 100%);border-radius:8px;color:#fff">' +
       '<button onclick="replicarTemplateAGT()" id="bk-replicar-gt-btn" style="background:#fff;color:#111111;border:none;border-radius:6px;padding:8px 14px;font-size:12px;font-family:\'DM Mono\',monospace;cursor:pointer;font-weight:700">🔄 Replicar este landing a Shopify GT</button>' +
       '<div style="font-size:10px;margin-top:6px;opacity:0.9;line-height:1.4">El producto debe existir en GT con el mismo handle: <b>' + esc(_autoShrineProduct.handle) + '</b>. Las imágenes deberás reasignarlas desde el editor de Shopify GT.</div>' +
@@ -11255,9 +11273,13 @@ async function ejecutarAutoShrine(){
     showToast('🚀 Plantilla generada y aplicada', '✨', 'success');
 
     // Auto-navegar a Precios+Releasit despues de 800ms (deja que el status se vea).
-    setTimeout(() => {
-      _bkContinuarAPreciosReleasit(_autoShrineProduct.id, _autoShrineProduct.title, _autoShrineProduct.handle);
-    }, 1200);
+    // Solo en Chile: ese panel esta forzado a tenant=chile y en GT mostraria
+    // precios en CLP sobre un producto de Guatemala.
+    if (!landingEsGT()) {
+      setTimeout(() => {
+        _bkContinuarAPreciosReleasit(_autoShrineProduct.id, _autoShrineProduct.title, _autoShrineProduct.handle);
+      }, 1200);
+    }
 
     // Crear (idempotente) las 3 carpetas de Drive para el workflow de videos.
     // En background — no rompe el flow principal si falla. El usuario ve el
