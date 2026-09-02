@@ -17,7 +17,9 @@ function dropiTenant(qs, body) {
     isGT: isGT,
     base: isGT ? 'https://api.dropi.gt' : 'https://api.dropi.cl',
     app: isGT ? 'https://app.dropi.gt' : 'https://app.dropi.cl',
-    token: isGT ? process.env.DROPI_TOKEN_GT : process.env.DROPI_TOKEN_CL,
+    // .trim(): pegar la key en Netlify suele arrastrar un salto de linea o un
+    // espacio, y Dropi responde 401 sin decir que el token viene sucio.
+    token: String((isGT ? process.env.DROPI_TOKEN_GT : process.env.DROPI_TOKEN_CL) || '').trim() || null,
     envName: isGT ? 'DROPI_TOKEN_GT' : 'DROPI_TOKEN_CL',
     moneda: isGT ? 'GTQ' : 'CLP',
   };
