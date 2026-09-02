@@ -1503,6 +1503,10 @@
     📤 Manager
   </button>
 
+  <button class="tab-btn ng-standalone" data-section="campanias" onclick="switchSection('campanias')">
+    📆 ADS CALENDAR
+  </button>
+
   <button class="tab-btn ng-standalone" data-section="dropitea" onclick="switchSection('dropitea')">
     ⚡ DROPITEA
   </button>
@@ -2834,6 +2838,25 @@
         </div>
       </div><!-- /#report-tab-topflop -->
 
+    </div>
+  </div>
+
+  <div id="section-campanias" class="section">
+    <div style="max-width:1100px;margin:0 auto">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;flex-wrap:wrap">
+        <div style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:22px;color:var(--text)">📆 ADS CALENDAR</div>
+        <button class="cal-nav" onclick="campMonthShift(-1)">‹</button>
+        <button class="cal-nav" onclick="campMonthShift(1)">›</button>
+        <button class="cal-nav" onclick="campMonthShift(0)">Hoy</button>
+        <span id="camp-month-label" style="font-size:13px;color:var(--muted);font-family:'DM Mono',monospace"></span>
+        <span style="flex:1"></span>
+        <button class="cal-nav" onclick="initCampanias(true)" title="Recargar desde Firestore">🔄 Recargar</button>
+      </div>
+      <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;margin-bottom:14px">Se registra sola cada vez que marcás SUBIDO A META o SUBIDO A TIKTOK en el Manager. Click en un día para ver el detalle y editar el nombre. El registro arranca el <b>1 de septiembre de 2026</b>.</div>
+
+      <div id="camp-kpis" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px"></div>
+      <div style="overflow-x:auto"><div id="camp-grid" class="cal-grid" style="min-width:320px"></div></div>
+      <div id="camp-detalle" style="margin-top:16px"></div>
     </div>
   </div>
 
@@ -4384,7 +4407,7 @@ function openMobileMenu(){
   const isAdm = currentUser===ADMIN_USER;
   links.innerHTML = ALL_SECTIONS.map(s=>{
     if(!isAdm && !perms.includes(s.id)) return '';
-    const icons = {productos:'📦',videos:'🎬',prompts:'✨',proveedores:'🏭',calculadora:'🧮',pendientes:'📋',archivo:'📁',calendario:'📅',reportes:'📊',bkfit:'🏋️'};
+    const icons = {productos:'📦',videos:'🎬',prompts:'✨',proveedores:'🏭',calculadora:'🧮',pendientes:'📋',archivo:'📁',calendario:'📅',reportes:'📊',bkfit:'🏋️',campanias:'📆'};
     const activeSection = document.querySelector('.section.active');
     const activeId = activeSection ? activeSection.id.replace('section-','') : '';
     return `<button class="mobile-tab${activeId===s.id?' active':''}" onclick="closeMobileMenu();switchSection('${s.id}')">
@@ -4431,6 +4454,7 @@ function switchSection(s, silent){
   if(s==='campanas') initCampanasVivo();
   if(s==='landing') initLanding();
   // Pipeline removido — la sección ya no existe en el nav
+  if(s==='campanias') initCampanias();
   // Sección Personal/bkfit removida del nav
 }
 
@@ -15100,6 +15124,7 @@ const ALL_SECTIONS = [
   {id:'videos',        label:'Tutorial BK'},
   {id:'videos-prod',   label:'Videos'},
   {id:'manager',       label:'Manager'},
+  {id:'campanias',     label:'Ads Calendar'},
   {id:'dropitea',      label:'DROPITEA'},
   {id:'calendario',    label:'Calendario'},
 ];
@@ -18759,6 +18784,181 @@ async function _bkEjecutarCopysAds(){
 // Render de la cola de pendientes en sección MANAGER. Agrupa por producto los
 // videos con readyForAds && !uploadedToAds. Cada item tiene link al Drive +
 // botón "✓ Subí este" que marca uploadedToAds=true y lo saca de la cola.
+// ── ADS CALENDAR ─────────────────────────────────────────────────────────────
+// Cada vez que en el MANAGER se marca SUBIDO A META / SUBIDO A TIKTOK queda el
+// timestamp en productTasks. Esta vista los agrupa por dia para ver cuantas
+// campanas se suben diariamente. El nombre arranca con el titulo del producto
+// y se puede editar (se guarda en productTasks.<handle>.campaignName<Plat>).
+
+let _campMesOffset = 0;   // 0 = mes actual
+
+async function initCampanias(forzar){
+  const grid = document.getElementById('camp-grid');
+  if (grid && !grid.innerHTML) grid.innerHTML = '<div style="grid-column:1/-1;padding:20px;text-align:center;color:var(--muted);font-size:12px">Cargando...</div>';
+  const faltaData = !window._vpData || !window._vpData.products || !window._vpData.products.length;
+  if (forzar === true || faltaData) {
+    try { await initVideosProd(forzar === true); } catch (_) {}
+  }
+  renderCampanias();
+}
+
+function campMonthShift(delta){
+  _campMesOffset = (delta === 0) ? 0 : _campMesOffset + delta;
+  renderCampanias();
+}
+
+// Arranque del registro: no se muestran subidas anteriores a esta fecha.
+// El Manager viene marcando SUBIDO desde antes, pero esos datos no reflejan
+// campanas reales del calendario. Para incluir el historico, bajar la fecha.
+const CAMP_DESDE = new Date(2026, 8, 1).getTime();   // 1 de septiembre de 2026
+
+// Aplana productTasks -> una entrada por (producto, plataforma) subida.
+function _campEntradas(){
+  const tasks = (window._vpData && window._vpData.productTasks) || {};
+  const productos = (window._vpData && window._vpData.products) || [];
+  const titulos = {};
+  for (const p of productos) titulos[p.handle || p.id] = p.title || p.handle;
+  const out = [];
+  for (const handle of Object.keys(tasks)) {
+    const t = tasks[handle] || {};
+    for (const plat of ['TikTok', 'Meta']) {
+      if (!t['uploadedTo' + plat]) continue;
+      const ts = t['uploadedTo' + plat + 'At'];
+      if (!ts || ts < CAMP_DESDE) continue;
+      const propio = (t['campaignName' + plat] || '').trim();
+      out.push({
+        handle: handle,
+        plataforma: plat,
+        ts: ts,
+        quien: (t['uploadedTo' + plat + 'By'] || '').trim(),
+        nombre: propio || titulos[handle] || handle,
+        personalizado: !!propio,
+      });
+    }
+  }
+  return out.sort((a, b) => b.ts - a.ts);
+}
+
+function _campClave(d){
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+function renderCampanias(){
+  const grid = document.getElementById('camp-grid');
+  const label = document.getElementById('camp-month-label');
+  const kpis = document.getElementById('camp-kpis');
+  if (!grid) return;
+
+  const hoy = new Date();
+  const base = new Date(hoy.getFullYear(), hoy.getMonth() + _campMesOffset, 1);
+  const anio = base.getFullYear(), mes = base.getMonth();
+  const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  if (label) label.textContent = MESES[mes] + ' ' + anio;
+
+  const porDia = {};
+  for (const e of _campEntradas()) {
+    const d = new Date(e.ts);
+    if (d.getFullYear() !== anio || d.getMonth() !== mes) continue;
+    const k = _campClave(d);
+    (porDia[k] = porDia[k] || []).push(e);
+  }
+
+  const totalMes = Object.values(porDia).reduce((a, v) => a + v.length, 0);
+  const diasConSubidas = Object.keys(porDia).length;
+  const maxDia = Object.values(porDia).reduce((m, v) => Math.max(m, v.length), 0);
+  const meta = Object.values(porDia).reduce((a, v) => a + v.filter(x => x.plataforma === 'Meta').length, 0);
+  const tiktok = totalMes - meta;
+
+  if (kpis) {
+    const kpi = (lbl, val, color) => '<div style="background:var(--surface);border:1.5px solid var(--border);border-radius:12px;padding:10px 16px;min-width:110px">'
+      + '<div style="font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--muted)">' + lbl + '</div>'
+      + '<div style="font-family:Montserrat,sans-serif;font-weight:800;font-size:20px;color:' + color + '">' + val + '</div></div>';
+    kpis.innerHTML = kpi('Campanas del mes', totalMes, 'var(--text)')
+      + kpi('Dias con subidas', diasConSubidas, 'var(--text)')
+      + kpi('Promedio x dia activo', diasConSubidas ? (totalMes / diasConSubidas).toFixed(1) : '0', 'var(--accent)')
+      + kpi('Meta', meta, '#1877F2')
+      + kpi('TikTok', tiktok, '#010101');
+  }
+
+  const DIAS = ['Lun','Mar','Mie','Jue','Vie','Sab','Dom'];
+  let html = DIAS.map(d => '<div class="cal-day-name">' + d + '</div>').join('');
+  const primero = new Date(anio, mes, 1);
+  const offset = (primero.getDay() + 6) % 7;             // lunes = 0
+  const totalDias = new Date(anio, mes + 1, 0).getDate();
+  for (let i = 0; i < offset; i++) html += '<div class="cal-day empty"></div>';
+  const hoyK = _campClave(hoy);
+  for (let d = 1; d <= totalDias; d++) {
+    const k = anio + '-' + String(mes + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+    const lista = porDia[k] || [];
+    const intensidad = maxDia ? lista.length / maxDia : 0;
+    const fondo = lista.length ? 'rgba(212,165,66,' + (0.15 + intensidad * 0.55).toFixed(2) + ')' : '';
+    html += '<div class="cal-day' + (k === hoyK ? ' today' : '') + '" onclick="campVerDia(\'' + k + '\')"'
+      + (fondo ? ' style="background:' + fondo + '"' : '') + '>'
+      + '<div class="cal-day-num">' + d + '</div>'
+      + (lista.length ? '<div style="font-size:15px;font-family:Montserrat,sans-serif;font-weight:800;color:var(--text);line-height:1">' + lista.length + '</div>' : '')
+      + '</div>';
+  }
+  grid.innerHTML = html;
+
+  const det = document.getElementById('camp-detalle');
+  if (det && !det.dataset.dia) {
+    det.innerHTML = totalMes
+      ? '<div style="font-size:11px;color:var(--muted)">Click en un dia para ver el detalle.</div>'
+      : '<div style="background:var(--surface);border:1px dashed var(--border);border-radius:12px;padding:24px;text-align:center;color:var(--muted);font-size:12px">Sin campanas registradas este mes.<br>Se agregan solas al marcar SUBIDO A META / TIKTOK en el Manager.</div>';
+  }
+}
+
+function campVerDia(clave){
+  const det = document.getElementById('camp-detalle');
+  if (!det) return;
+  det.dataset.dia = clave;
+  const lista = _campEntradas().filter(e => _campClave(new Date(e.ts)) === clave).sort((a, b) => a.ts - b.ts);
+  const partes = clave.split('-');
+  const fechaTxt = partes[2] + '/' + partes[1] + '/' + partes[0];
+  const hora = (ts) => { try { return new Date(ts).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }); } catch (_) { return ''; } };
+
+  if (!lista.length) {
+    det.innerHTML = '<div style="font-size:12px;color:var(--muted)">Sin campanas el ' + fechaTxt + '.</div>';
+    return;
+  }
+  det.innerHTML = '<div style="background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:14px">'
+    + '<div style="font-family:Montserrat,sans-serif;font-weight:800;font-size:14px;color:var(--text);margin-bottom:10px">'
+      + fechaTxt + ' - ' + lista.length + ' campana' + (lista.length !== 1 ? 's' : '') + '</div>'
+    + lista.map(function(e){
+        const oc = (e.quien && typeof getOwnerColor === 'function') ? getOwnerColor(e.quien) : null;
+        const color = e.plataforma === 'Meta' ? '#1877F2' : '#010101';
+        return '<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;margin-bottom:6px;flex-wrap:wrap">'
+          + '<span style="background:' + color + ';color:#fff;border-radius:6px;padding:3px 9px;font-size:10px;font-weight:700;white-space:nowrap">' + e.plataforma + '</span>'
+          + '<span style="font-size:10px;color:var(--muted)">' + hora(e.ts) + '</span>'
+          + '<input value="' + esc(e.nombre) + '" onchange="setCampaignName(\'' + esc(e.handle) + '\', \'' + e.plataforma + '\', this.value)" '
+          + 'title="Nombre de la campana - editalo si en el administrador de anuncios se llama distinto" '
+          + 'style="flex:1;min-width:200px;background:var(--surface);border:1px solid ' + (e.personalizado ? 'var(--accent)' : 'var(--border)') + ';color:var(--text);border-radius:6px;padding:5px 9px;font-size:11px">'
+          + (e.quien ? '<span style="background:' + ((oc && oc.avatar) || '#F59E0B') + ';color:#fff;border-radius:10px;padding:2px 9px;font-size:10px;font-weight:700;white-space:nowrap">' + esc(e.quien) + '</span>' : '')
+          + '</div>';
+      }).join('')
+    + '</div>';
+}
+
+// Guarda el nombre editado. Vacio = vuelve al titulo del producto.
+async function setCampaignName(handle, plataforma, valor){
+  const campo = 'campaignName' + plataforma;
+  const clean = String(valor || '').trim();
+  const task = (window._vpData.productTasks && window._vpData.productTasks[handle]) || {};
+  if ((task[campo] || '') === clean) return;
+  const update = { handle: handle, updatedAt: Date.now() };
+  update[campo] = clean;
+  try {
+    if (typeof firebase === 'undefined' || !firebase.firestore) throw new Error('Firestore no disponible');
+    await firebase.firestore().collection('bkdrop_video_product_tasks').doc(handle).set(update, { merge: true });
+    if (!window._vpData.productTasks) window._vpData.productTasks = {};
+    window._vpData.productTasks[handle] = Object.assign({}, task, update);
+    showToast('Nombre de campana guardado', 'OK', 'success');
+    renderCampanias();
+  } catch (e) {
+    showToast('No pude guardar: ' + (e.message || '?'), 'X', 'error');
+  }
+}
+
 function renderAdsQueue(){
   const container = document.getElementById('ads-queue-list');
   if (!container) return;
