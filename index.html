@@ -1015,6 +1015,19 @@
     .beroas-grid{ grid-template-columns:1fr 1fr }
     #section-calculadora > div{ padding:0 }
 
+    .calc-big{ font-size:26px }
+    .admin-user-row{ flex-wrap:wrap; gap:6px }
+    .card-summary-info{ gap:5px }
+    /* Reportes mobile */
+    .reporte-kpis{ grid-template-columns:1fr 1fr !important; gap:10px !important }
+    #reporte-total-orders,#reporte-total-products{ font-size:26px !important }
+    #reporte-total-revenue{ font-size:22px !important }
+    .reporte-scroll{ overflow-x:auto; -webkit-overflow-scrolling:touch }
+    .reporte-scroll table{ min-width:520px }
+    #section-reportes th,#section-reportes td{ padding:8px 12px !important; font-size:11px !important }
+    .card-title{ font-size:13px }
+  }
+
   /* CALENDARIO */
   .cal-wrap{display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap}
   .cal-grid-wrap{flex:0 0 auto}
@@ -1053,18 +1066,10 @@
   .cal-color-btn.active{border-color:var(--text);transform:scale(1.2)}
   .upcoming-list{margin-top:16px}
   .upcoming-label{font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);font-family:'DM Mono',monospace;margin-bottom:8px;font-weight:700}
-    .calc-big{ font-size:26px }
-    .admin-user-row{ flex-wrap:wrap; gap:6px }
-    .card-summary-info{ gap:5px }
-    /* Reportes mobile */
-    .reporte-kpis{ grid-template-columns:1fr 1fr !important; gap:10px !important }
-    #reporte-total-orders,#reporte-total-products{ font-size:26px !important }
-    #reporte-total-revenue{ font-size:22px !important }
-    .reporte-scroll{ overflow-x:auto; -webkit-overflow-scrolling:touch }
-    .reporte-scroll table{ min-width:520px }
-    #section-reportes th,#section-reportes td{ padding:8px 12px !important; font-size:11px !important }
-    .card-title{ font-size:13px }
-  }
+  /* Ads Calendar: celdas mas altas, el numero grande es el conteo */
+  #camp-grid .cal-day{min-height:66px}
+  #camp-grid .cal-day-num{font-size:11px;color:var(--muted)}
+  #camp-grid .cal-day.today .cal-day-num{color:var(--accent)}
 
   /* Sub-tabs en Reportes (Shopify / Meta Ads) */
   .tenant-btn{background:var(--surface);border:1.5px solid var(--border);color:var(--muted);border-radius:18px;padding:5px 14px;font-size:11px;cursor:pointer;font-family:'DM Mono',monospace;letter-spacing:.3px;transition:all .15s}
