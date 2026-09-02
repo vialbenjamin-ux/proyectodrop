@@ -2,8 +2,9 @@
 // escribe el resultado a Firestore (coleccion bkdrop_dropi_orders).
 //
 // SOP referencia: seccion 1.2 + 4 (cache de ordenes).
-// - Token: dropi-integration-key: <DROPI_TOKEN_CL> (tipo CHATCENTER).
-// - Base Chile: https://api.dropi.cl
+// - Token: dropi-integration-key. Multi-tenant: DROPI_TOKEN_CL (default) o
+//   DROPI_TOKEN_GT con ?tenant=gt.
+// - Base: https://api.dropi.cl  |  https://api.dropi.gt
 // - Rate limit: "Too Many Attempts" bloquea por horas. Un sync incremental basta.
 //
 // Endpoint: GET /.netlify/functions/dropi-fetch?start=0&result_number=100
@@ -13,6 +14,8 @@
 // Respuesta: { orders: [...], count, hasMore }
 // Cada orden viene COMPACTADA a los campos del SOP para no explotar Firestore.
 
+const { dropiTenant } = require('./_dropi-tenant');
+
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 204, headers: cors(), body: '' };
@@ -21,14 +24,14 @@ exports.handler = async (event) => {
     return respond(405, { error: 'Method not allowed' });
   }
 
-  const token = process.env.DROPI_TOKEN_CL;
-  if (!token) return respond(500, { error: 'Falta DROPI_TOKEN_CL en env' });
-
   const qs = event.queryStringParameters || {};
+  const T = dropiTenant(qs);
+  const token = T.token;
+  if (!token) return respond(500, { error: 'Falta ' + T.envName + ' en env' });
   const start = parseInt(qs.start || '0', 10);
   const resultNumber = Math.min(parseInt(qs.result_number || '100', 10), 100);
 
-  const url = 'https://api.dropi.cl/integrations/orders/myorders'
+  const url = T.base + '/integrations/orders/myorders'
     + '?start=' + start
     + '&result_number=' + resultNumber;
 

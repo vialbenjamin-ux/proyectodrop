@@ -9,6 +9,8 @@
 //
 // Respuesta: { ok, attempted, count, dropiResponse, cancelledAt }
 
+const { dropiTenant } = require('./_dropi-tenant');
+
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 204, headers: cors(), body: '' };
@@ -17,12 +19,13 @@ exports.handler = async (event) => {
     return respond(405, { error: 'Method not allowed' });
   }
 
-  const token = process.env.DROPI_TOKEN_CL;
-  if (!token) return respond(500, { error: 'Falta DROPI_TOKEN_CL' });
-
   let body;
   try { body = JSON.parse(event.body || '{}'); }
   catch { return respond(400, { error: 'JSON invalido' }); }
+
+  const T = dropiTenant(event.queryStringParameters, body);
+  const token = T.token;
+  if (!token) return respond(500, { error: 'Falta ' + T.envName });
 
   const orderIds = Array.isArray(body.orderIds) ? body.orderIds : [];
   if (orderIds.length === 0) return respond(400, { error: 'orderIds requerido (array)' });
@@ -41,7 +44,7 @@ exports.handler = async (event) => {
   const dropiBody = cleanIds.map(id => ({ id, status: 'CANCELADO' }));
 
   try {
-    const resp = await fetch('https://api.dropi.cl/integrations/orders/myorder/masive', {
+    const resp = await fetch(T.base + '/integrations/orders/myorder/masive', {
       method: 'POST',
       headers: {
         'dropi-integration-key': token,
