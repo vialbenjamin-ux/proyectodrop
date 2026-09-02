@@ -84,7 +84,10 @@ exports.handler = async (event) => {
     try {
       const proto = event.headers['x-forwarded-proto'] || 'https';
       const host = event.headers.host || 'bkdrop.netlify.app';
-      const suppR = await fetch(proto + '://' + host + '/.netlify/functions/dropi-known-suppliers');
+      // El tenant DEBE viajar: sin el se escaneaban los proveedores de Chile y
+      // despues se buscaba el metafield de esos productos en la tienda de GT,
+      // donde no existen -> "No pude leer tokens Dropi de ningun producto".
+      const suppR = await fetch(proto + '://' + host + '/.netlify/functions/dropi-known-suppliers?tenant=' + (isGT ? 'gt' : 'chile'));
       if (suppR.ok) {
         const suppJ = await suppR.json();
         suppliers = suppJ.suppliers || [];

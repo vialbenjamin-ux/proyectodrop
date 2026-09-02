@@ -11,8 +11,10 @@
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: cors(), body: '' };
 
-  const token = process.env.SHOPIFY_TOKEN;
-  const domain = process.env.SHOPIFY_DOMAIN;
+  // Multi-tenant. Sin ?tenant escanea Chile, como siempre.
+  const isGT = String(((event.queryStringParameters || {}).tenant) || 'chile').toLowerCase() === 'gt';
+  const token  = isGT ? process.env.SHOPIFY_TOKEN_GT  : process.env.SHOPIFY_TOKEN;
+  const domain = isGT ? process.env.SHOPIFY_DOMAIN_GT : process.env.SHOPIFY_DOMAIN;
   if (!token || !domain) return respond(500, { error: 'Faltan credenciales Shopify' });
   const H = { 'X-Shopify-Access-Token': token, 'Accept': 'application/json' };
   const API = 'https://' + domain + '/admin/api/2024-10';
