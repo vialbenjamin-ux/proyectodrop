@@ -258,6 +258,7 @@ exports.handler = async (event) => {
           inventory_policy: 'continue', // vender sin stock
           inventory_management: null,   // no track (siempre disponible)
           requires_shipping: true,
+          taxable: false,               // NUNCA cobrar impuesto sobre el producto
         }],
       },
     };
