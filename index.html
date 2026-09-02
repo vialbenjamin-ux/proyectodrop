@@ -11156,13 +11156,13 @@ async function ejecutarAutoShrine(){
     const gifsRefs = [];
     for (let i = 0; i < _autoShrineGifs.length; i++) {
       setStatus('⏳ Subiendo GIF ' + (i+1) + '/3…');
-      const r = await uploadToShopifyFiles(_autoShrineGifs[i], 'gif-' + (i+1));
+      const r = await uploadToShopifyFiles(_autoShrineGifs[i], 'gif-' + (i+1), landingParam());
       gifsRefs.push(r);
     }
     const fotosRefs = [];
     for (let i = 0; i < _autoShrineFotos.length; i++) {
       setStatus('⏳ Subiendo foto testimonio ' + (i+1) + '/3…');
-      const r = await uploadToShopifyFiles(_autoShrineFotos[i], 'testimonio-' + (i+1));
+      const r = await uploadToShopifyFiles(_autoShrineFotos[i], 'testimonio-' + (i+1), landingParam());
       fotosRefs.push(r);
     }
 
@@ -11397,7 +11397,12 @@ async function crearCarpetasDriveDelProducto(handle, title){
   }
 }
 
-async function uploadToShopifyFiles(file, alt){
+// tenantQ: '&tenant=gt' | '&tenant=chile'. Si no se pasa usa el tenant global,
+// que es lo que hacia antes. El creador de landing DEBE pasarlo: si los GIFs y
+// las fotos se suben a la biblioteca de Chile, la plantilla de GT queda con
+// referencias shopify://shop_images/... que en esa tienda no existen y las
+// secciones salen con el icono de imagen rota.
+async function uploadToShopifyFiles(file, alt, tenantQ){
   // Netlify Functions tienen límite de ~6 MB en el body. Como subimos en
   // base64 (infla ~33%), el archivo real no puede pasar 4 MB para tener margen.
   const MAX_BYTES = 4 * 1024 * 1024;
@@ -11417,7 +11422,7 @@ async function uploadToShopifyFiles(file, alt){
   const stableFilename = String(alt || 'image').replace(/[^a-z0-9_-]+/gi, '-')
                        + '-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7)
                        + '.' + ext;
-  const resp = await fetch('/.netlify/functions/shopify-themes?_=1' + tenantParam(), {
+  const resp = await fetch('/.netlify/functions/shopify-themes?_=1' + (tenantQ || tenantParam()), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
