@@ -1624,6 +1624,15 @@
 
   <div id="section-prompts" class="section">
     <div style="max-width:980px">
+      <!-- Aviso de modo Guatemala. Oculto en Chile; imposible de no ver en GT. -->
+      <div id="bk-landing-gt-banner" style="display:none;align-items:center;gap:12px;flex-wrap:wrap;background:linear-gradient(135deg,#38BDF8 0%,#0369A1 100%);color:#fff;border-radius:14px;padding:14px 18px;margin-bottom:16px;box-shadow:0 4px 16px rgba(14,165,233,.32)">
+        <div style="font-size:26px;line-height:1">🇬🇹</div>
+        <div style="flex:1;min-width:200px">
+          <div style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:16px;letter-spacing:.5px">ESTÁS CREANDO PARA GUATEMALA</div>
+          <div style="font-size:11px;font-family:'DM Mono',monospace;opacity:.92">El producto, la plantilla y las imágenes van a <b>benkogt.com</b> — no a Chile.</div>
+        </div>
+        <button onclick="setLandingTenant('chile')" style="background:rgba(255,255,255,.16);color:#fff;border:1.5px solid rgba(255,255,255,.6);border-radius:8px;padding:8px 14px;font-size:11px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer;white-space:nowrap">↩ Volver a Chile</button>
+      </div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:10px">
         <div>
           <div style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:22px;color:var(--text);margin-bottom:3px">Creador de landing</div>
@@ -2864,7 +2873,7 @@
       <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:16px 18px;margin-bottom:16px">
         <div style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:15px;color:var(--text);margin-bottom:4px">✨ Crear landing en Guatemala</div>
         <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;line-height:1.5;margin-bottom:10px">Usa el mismo creador que Chile, pero apuntando a <b>benkogt.com</b>: busca el producto en la tienda de GT, escribe la plantilla en su theme y le sube las imágenes. No hace falta replicar desde Chile.</div>
-        <button onclick="irACrearLandingGT()" style="background:#16A34A;color:#fff;border:none;border-radius:8px;padding:10px 18px;font-size:12px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">✨ Ir al creador de landing (GT)</button>
+        <button onclick="irACrearLandingGT()" style="background:#0284C7;color:#fff;border:none;border-radius:8px;padding:10px 18px;font-size:12px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">✨ Ir al creador de landing (GT)</button>
       </div>
 
       <div id="gt-acciones" style="display:none;align-items:center;gap:10px;flex-wrap:wrap;background:var(--surface);border:1.5px solid var(--border);border-radius:12px;padding:10px 14px;margin-bottom:12px;font-family:'DM Mono',monospace"></div>
@@ -10856,9 +10865,28 @@ function setLandingTenant(t){
   const badge = document.getElementById('bk-landing-tienda-badge');
   if (badge) {
     const gt = landingEsGT();
-    badge.innerHTML = '<span style="background:' + (gt ? '#16A34A' : '#8A5A2A') + ';color:#fff;border-radius:6px;padding:4px 12px;font-size:11px;font-family:\'DM Mono\',monospace;font-weight:700">'
+    badge.innerHTML = '<span style="background:' + (gt ? '#0284C7' : '#8A5A2A') + ';color:#fff;border-radius:6px;padding:4px 12px;font-size:11px;font-family:\'DM Mono\',monospace;font-weight:700">'
       + (gt ? '🇬🇹 GUATEMALA' : '🇨🇱 CHILE') + '</span>'
       + '<span style="font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace">el producto, la plantilla y las imágenes van a ' + landingTienda() + '</span>';
+  }
+  const gtOn = landingEsGT();
+  const banner = document.getElementById('bk-landing-gt-banner');
+  if (banner) banner.style.display = gtOn ? 'flex' : 'none';
+  // La card de auto-generar pasa de rojo (Chile) a verde (Guatemala), para que
+  // el color del bloque donde se aprieta el boton tambien delate el pais.
+  const card = document.getElementById('bk-auto-shrine');
+  if (card) card.style.borderColor = gtOn ? '#0284C7' : '#dc2626';
+  const cardTitle = card ? card.querySelector('.bk-shopify-push-title') : null;
+  if (cardTitle) {
+    cardTitle.style.color = gtOn ? '#0284C7' : '#dc2626';
+    cardTitle.textContent = gtOn
+      ? '🇬🇹 Auto-generar plantilla Shrine — GUATEMALA'
+      : '🚀 Auto-generar plantilla Shrine completa';
+  }
+  const abrirBtn = document.getElementById('bk-btn-auto-shrine');
+  if (abrirBtn) {
+    abrirBtn.style.background = gtOn ? '#0284C7' : '#dc2626';
+    abrirBtn.textContent = gtOn ? '🇬🇹 (2) Auto-generar plantilla — GT' : '🚀 (2) Auto-generar plantilla Shrine';
   }
   const res = document.getElementById('bk-auto-shrine-results');
   if (res) res.innerHTML = '';
