@@ -6815,14 +6815,18 @@ const OWNER_COLORS = [
 ];
 
 const ownerColorMap = {};
-let ownerColorIndex = 0;
 
+// Color por persona. Se deriva del NOMBRE con un hash, no del orden en que
+// se pide: asi cada uno tiene siempre el mismo color en el ranking, en el
+// Manager y entre recargas. Antes se asignaba por orden de aparicion y podia
+// cambiar de un render a otro.
 function getOwnerColor(name){
   if(!name) return null;
   const key = name.trim().toLowerCase();
   if(!ownerColorMap[key]){
-    ownerColorMap[key] = OWNER_COLORS[ownerColorIndex % OWNER_COLORS.length];
-    ownerColorIndex++;
+    let h = 0;
+    for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
+    ownerColorMap[key] = OWNER_COLORS[h % OWNER_COLORS.length];
   }
   return ownerColorMap[key];
 }
@@ -18791,7 +18795,26 @@ function renderAdsQueue(){
   // subidor marca el último video como LISTO, el producto sale del MANAGER
   // (comportamiento original). Los botones SUBIDO A TIKTOK/META deben
   // apretarse ANTES de marcar el último video como LISTO.
-  const handles = Object.keys(byProduct).sort((a, b) => byProduct[b].length - byProduct[a].length);
+  //
+  // Orden por antiguedad del primer video listo, NO por cantidad de
+  // pendientes. Con el orden anterior, marcar un video hacia caer el producto
+  // al final de la lista y habia que volver a buscarlo; asi la posicion queda
+  // fija hasta que se terminan todos sus videos y el producto desaparece.
+  // El orden se calcula sobre TODOS los videos del producto que alguna vez se
+  // marcaron listos —incluidos los ya subidos—, no sobre los pendientes. Si
+  // se usan solo los pendientes, al marcar el mas viejo el minimo salta al
+  // siguiente y el producto igual se mueve de lugar.
+  const primerListoPorProducto = {};
+  for (const fid of Object.keys(rankings)) {
+    const r = rankings[fid] || {};
+    if (!r.readyForAds || !r.readyForAdsAt) continue;
+    const ph = r.productHandle || '_sin_producto';
+    if (primerListoPorProducto[ph] == null || r.readyForAdsAt < primerListoPorProducto[ph]) {
+      primerListoPorProducto[ph] = r.readyForAdsAt;
+    }
+  }
+  const ordenDe = (hh) => (primerListoPorProducto[hh] != null ? primerListoPorProducto[hh] : Infinity);
+  const handles = Object.keys(byProduct).sort((a, b) => (ordenDe(a) - ordenDe(b)) || a.localeCompare(b));
 
   const fmtTime = (ts) => {
     if (!ts) return '—';
@@ -18807,8 +18830,9 @@ function renderAdsQueue(){
     const driveFolderUrl = (p && p.productFolderId) ? 'https://drive.google.com/drive/folders/' + p.productFolderId : null;
     const task = productTasks[h] || {};
     const uploader = (task.uploader || '').trim();
+    const ocUp = uploader && typeof getOwnerColor === 'function' ? getOwnerColor(uploader) : null;
     const uploaderBadge = uploader
-      ? '<span onclick="setProductUploaderPrompt(\'' + esc(h) + '\')" title="Click para cambiar el subidor de este producto" style="cursor:pointer;font-size:10px;font-family:\'DM Mono\',monospace;background:#F59E0B;color:#fff;padding:3px 10px;border-radius:10px;font-weight:700">🙋 ' + esc(uploader) + ' ✏️</span>'
+      ? '<span onclick="setProductUploaderPrompt(\'' + esc(h) + '\')" title="Click para cambiar el subidor de este producto" style="cursor:pointer;font-size:10px;font-family:\'DM Mono\',monospace;background:' + ((ocUp && ocUp.avatar) || '#F59E0B') + ';color:#fff;padding:3px 10px;border-radius:10px;font-weight:700">🙋 ' + esc(uploader) + ' ✏️</span>'
       : '<span onclick="setProductUploaderPrompt(\'' + esc(h) + '\')" title="Click para asignar quien lo sube" style="cursor:pointer;font-size:10px;font-family:\'DM Mono\',monospace;background:transparent;color:var(--peach);border:1.5px dashed var(--peach);padding:2px 10px;border-radius:10px;font-weight:700">🙋 asignar subidor</span>';
     html += '<div style="background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:14px;margin-bottom:14px">' +
       '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">' +
