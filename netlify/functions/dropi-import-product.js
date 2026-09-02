@@ -117,56 +117,93 @@ exports.handler = async (event) => {
       chosen = suppliers.find(s => s.sampleHasTokens && s.sampleProductId) || suppliers[0];
     }
 
-    // Leer tokens y shop_name del producto sample del proveedor elegido
-    // (o de cualquier producto con tokens si el sample no tiene).
-    const sampleId = chosen && chosen.sampleProductId;
-    let dropiTokens = null;
-    let dropiShopName = null;
-    let tokensSource = null;
-    if (sampleId) {
+    // Leer los tokens Dropi de productos ya existentes en la tienda.
+    //
+    // IMPORTANTE: el token lleva embebido un JWT cuyo claim `sub` identifica
+    // la CUENTA de Dropi que va a recibir el pedido. No alcanza con agarrar
+    // el primero que aparezca: la tienda tiene productos viejos importados
+    // desde otra cuenta, y heredar ESE token manda el pedido a la cuenta
+    // ajena. Dropi lo rechaza con "no posee saldo suficiente en la wallet".
+    //
+    // Por eso: juntamos candidatos, decodificamos su `sub`, y nos quedamos
+    // con la cuenta MAYORITARIA de la tienda (o la de DROPI_CUENTA_ESPERADA
+    // si esta seteada). Si el unico token disponible es de otra cuenta,
+    // fallamos en vez de crear un producto que no se va a poder despachar.
+    const jwtSub = (tok) => {
       try {
-        const mfR = await fetch(API + '/products/' + sampleId + '/metafields.json?namespace=dropi', { headers: H });
-        if (mfR.ok) {
-          const mfJ = await mfR.json();
-          const mfDropi = (mfJ.metafields || []).find(m => m.namespace === 'dropi' && m.key === '_dropi_product');
-          if (mfDropi) {
-            const d = JSON.parse(mfDropi.value);
-            if (d.tokens) {
-              dropiTokens = d.tokens;
-              dropiShopName = d.shop_name || null;
-              tokensSource = { product_id: sampleId, title: chosen.name };
-            }
-          }
-        }
-      } catch (_) {}
+        const parts = String(tok || '').split('.');
+        if (parts.length < 2) return null;
+        let b = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+        while (b.length % 4) b += '=';
+        const payload = JSON.parse(Buffer.from(b, 'base64').toString('utf8'));
+        return payload && payload.sub != null ? String(payload.sub) : null;
+      } catch (_) { return null; }
+    };
+
+    const leerTokensDe = async (productId, titulo) => {
+      try {
+        const mfR = await fetch(API + '/products/' + productId + '/metafields.json?namespace=dropi', { headers: H });
+        if (!mfR.ok) return null;
+        const mfJ = await mfR.json();
+        const mfDropi = (mfJ.metafields || []).find(m => m.namespace === 'dropi' && m.key === '_dropi_product');
+        if (!mfDropi) return null;
+        const d = JSON.parse(mfDropi.value);
+        if (!d.tokens) return null;
+        return {
+          tokens: d.tokens,
+          shopName: d.shop_name || null,
+          cuenta: jwtSub(d.tokens),
+          source: { product_id: String(productId), title: titulo || null },
+        };
+      } catch (_) { return null; }
+    };
+
+    // Candidatos: el sample del proveedor elegido primero, despues el resto.
+    // Tope de 12 lecturas para no comerse el timeout de la function.
+    const sampleId = chosen && chosen.sampleProductId;
+    const aRevisar = [];
+    if (sampleId) aRevisar.push({ id: sampleId, name: chosen.name });
+    for (const s2 of suppliers) {
+      if (!s2.sampleHasTokens || !s2.sampleProductId) continue;
+      if (String(s2.sampleProductId) === String(sampleId)) continue;
+      aRevisar.push({ id: s2.sampleProductId, name: s2.name });
+      if (aRevisar.length >= 12) break;
     }
-    // Fallback: si el sample del proveedor elegido NO tenia tokens, probar
-    // con samples de otros proveedores hasta encontrar uno con tokens.
-    if (!dropiTokens) {
-      for (const s of suppliers) {
-        if (!s.sampleHasTokens || !s.sampleProductId) continue;
-        if (String(s.sampleProductId) === String(sampleId)) continue;
-        try {
-          const mfR = await fetch(API + '/products/' + s.sampleProductId + '/metafields.json?namespace=dropi', { headers: H });
-          if (!mfR.ok) continue;
-          const mfJ = await mfR.json();
-          const mfDropi = (mfJ.metafields || []).find(m => m.namespace === 'dropi' && m.key === '_dropi_product');
-          if (!mfDropi) continue;
-          const d = JSON.parse(mfDropi.value);
-          if (d.tokens) {
-            dropiTokens = d.tokens;
-            dropiShopName = d.shop_name || null;
-            tokensSource = { product_id: s.sampleProductId, title: s.name };
-            break;
-          }
-        } catch (_) {}
-      }
+
+    const candidatos = [];
+    for (const c of aRevisar) {
+      const r = await leerTokensDe(c.id, c.name);
+      if (r) candidatos.push(r);
     }
-    if (!dropiTokens) {
+
+    if (!candidatos.length) {
       return respond(400, {
         error: 'No pude leer tokens Dropi de ningun producto existente. Reintentá; si persiste, avisá.',
       });
     }
+
+    // Cuenta correcta: la forzada por env, o la mayoritaria entre los candidatos.
+    const forzada = String(process.env.DROPI_CUENTA_ESPERADA || '').trim();
+    let cuentaOk = forzada;
+    if (!cuentaOk) {
+      const conteo = {};
+      for (const c of candidatos) if (c.cuenta) conteo[c.cuenta] = (conteo[c.cuenta] || 0) + 1;
+      cuentaOk = (Object.entries(conteo).sort((a, b) => b[1] - a[1])[0] || [null])[0];
+    }
+
+    const elegido = candidatos.find(c => c.cuenta && c.cuenta === cuentaOk);
+    if (!elegido) {
+      const vistas = [...new Set(candidatos.map(c => c.cuenta || 'sin-jwt'))].join(', ');
+      return respond(400, {
+        error: 'Ningun producto de la tienda tiene un token de la cuenta Dropi esperada ('
+             + (cuentaOk || '?') + '). Cuentas encontradas: ' + vistas
+             + '. No creo el producto para que no quede apuntando a otra cuenta.',
+      });
+    }
+
+    const dropiTokens   = elegido.tokens;
+    const dropiShopName = elegido.shopName;
+    const tokensSource  = { ...elegido.source, cuenta: elegido.cuenta };
 
     // userId final resuelto:
     // - Si vino manual, usarlo tal cual.
