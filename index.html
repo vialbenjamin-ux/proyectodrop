@@ -1817,11 +1817,11 @@
               <input type="hidden" id="bk-dropi-imp-img" value="">
               <input type="hidden" id="bk-dropi-imp-gallery" value="">
               <div style="display:flex;flex-direction:column;gap:3px">
-                <label style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">Costo Dropi CLP <span style="color:#C0392B">*</span></label>
+                <label id="bk-dropi-imp-cost-lbl" style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">Costo Dropi CLP <span style="color:#C0392B">*</span></label>
                 <input type="number" id="bk-dropi-imp-cost" placeholder="1500" min="1" oninput="_bkDropiCalcPrecio()" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px 10px;border-radius:6px;font-size:13px;font-family:'DM Mono',monospace">
               </div>
               <div style="display:flex;flex-direction:column;gap:3px">
-                <label style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">Precio Shopify inicial CLP <span style="color:var(--muted);text-transform:none">(auto)</span></label>
+                <label id="bk-dropi-imp-price-lbl" style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">Precio Shopify inicial CLP <span style="color:var(--muted);text-transform:none">(auto)</span></label>
                 <input type="number" id="bk-dropi-imp-price" placeholder="auto" min="1" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px 10px;border-radius:6px;font-size:13px;font-family:'DM Mono',monospace">
                 <div id="bk-dropi-imp-price-hint" style="font-size:9px;color:var(--muted);font-family:'DM Mono',monospace"></div>
               </div>
@@ -9869,6 +9869,12 @@ function _bkDropiCalcPrecio(){
   const hint = document.getElementById('bk-dropi-imp-price-hint');
   if (!priceEl) return;
   if (!cost || cost <= 0) { priceEl.value = ''; if (hint) hint.textContent = ''; return; }
+  // En GT el precio se escribe a mano: PRECIO_TABLE es de Chile (costo CLP →
+  // precio CLP terminado en 990) y no tiene sentido en quetzales.
+  if (typeof landingEsGT === 'function' && landingEsGT()) {
+    if (hint) hint.textContent = 'Guatemala: escribí el precio en quetzales (no hay tabla automática)';
+    return;
+  }
   try {
     const { price1u, offer } = getPrecio1u(cost);
     const p1 = applyFloor(price1u);
@@ -9929,6 +9935,7 @@ async function ejecutarDropiImport(){
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        tenant: (typeof landingTenant === 'function') ? landingTenant() : 'chile',
         dropi_id: dropiId,
         user_id: userId,
         user_name: userName,
@@ -10898,6 +10905,16 @@ function setLandingTenant(t){
     abrirBtn.style.background = gtOn ? '#0284C7' : '#dc2626';
     abrirBtn.textContent = gtOn ? '🇬🇹 (2) Auto-generar plantilla — GT' : '🚀 (2) Auto-generar plantilla Shrine';
   }
+  // El importador de Dropi comparte pantalla: sus etiquetas siguen al pais.
+  const moneda = gtOn ? 'GTQ' : 'CLP';
+  const lblCost = document.getElementById('bk-dropi-imp-cost-lbl');
+  if (lblCost) lblCost.innerHTML = 'Costo Dropi ' + moneda + ' <span style="color:#C0392B">*</span>';
+  const lblPrice = document.getElementById('bk-dropi-imp-price-lbl');
+  if (lblPrice) lblPrice.innerHTML = 'Precio Shopify inicial ' + moneda
+    + ' <span style="color:var(--muted);text-transform:none">(' + (gtOn ? 'a mano' : 'auto') + ')</span>';
+  const hintImp = document.getElementById('bk-dropi-imp-price-hint');
+  if (hintImp) hintImp.textContent = gtOn ? 'Guatemala: escribí el precio en quetzales' : '';
+
   const res = document.getElementById('bk-auto-shrine-results');
   if (res) res.innerHTML = '';
   _autoShrineProduct = null;
