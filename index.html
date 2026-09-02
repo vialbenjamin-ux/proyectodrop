@@ -9297,7 +9297,7 @@ async function buscarProductoEditarSeccion(){
   results.innerHTML = '<div style="font-size:11px;color:var(--muted);padding:8px">Buscando…</div>';
   if (status) status.textContent = '';
   try {
-    const url = '/.netlify/functions/shopify-products?_=1&tenant=chile' + (q ? '&q=' + encodeURIComponent(q) : '');
+    const url = '/.netlify/functions/shopify-products?_=1' + landingParam() + (q ? '&q=' + encodeURIComponent(q) : '');
     const resp = await fetch(url);
     const data = await resp.json();
     if (!resp.ok) throw new Error(data.error || ('HTTP ' + resp.status));
@@ -9325,7 +9325,7 @@ async function seleccionarProductoEditarSeccion(id, title){
 
   try {
     // 1. Fetch del producto para obtener su template_suffix
-    const pResp = await fetch('/.netlify/functions/shopify-products?_=1&tenant=chile&id=' + id);
+    const pResp = await fetch('/.netlify/functions/shopify-products?_=1&id=' + id + landingParam());
     const pData = await pResp.json();
     if (!pResp.ok) throw new Error(pData.error || ('HTTP ' + pResp.status));
     const tsuffix = pData.product?.template_suffix;
@@ -9337,7 +9337,7 @@ async function seleccionarProductoEditarSeccion(id, title){
 
     // 2. Fetch del asset template
     const assetKey = 'templates/product.' + tsuffix + '.json';
-    const tResp = await fetch('/.netlify/functions/shopify-themes?op=template&assetKey=' + encodeURIComponent(assetKey) + tenantParam());
+    const tResp = await fetch('/.netlify/functions/shopify-themes?op=template&assetKey=' + encodeURIComponent(assetKey) + landingParam());
     const tData = await tResp.json();
     if (!tResp.ok) throw new Error(tData.error || ('HTTP ' + tResp.status));
     const json = JSON.parse(tData.value);
@@ -9490,7 +9490,7 @@ async function persistirTemplateEdit(){
   const status = document.getElementById('bk-edit-section-status');
   if (status) status.textContent = '⏳ Guardando plantilla…';
   try {
-    const resp = await fetch('/.netlify/functions/shopify-themes?_=1' + tenantParam(), {
+    const resp = await fetch('/.netlify/functions/shopify-themes?_=1' + landingParam(), {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -9556,7 +9556,7 @@ async function guardarTestimoniosExtensos(sectionKey){
     const { idx, colKey, file } = fotosToUpload[i];
     if (status) status.textContent = '⏳ Subiendo foto ' + (i+1) + '/' + fotosToUpload.length + ' (col ' + (idx+1) + ')…';
     try {
-      const ref = await uploadToShopifyFiles(file, 'testimonio-edit-' + (idx+1));
+      const ref = await uploadToShopifyFiles(file, 'testimonio-edit-' + (idx+1), landingParam());
       if (ref && ref.shopifyRef) {
         section.blocks[colKey].settings.image = ref.shopifyRef;
       } else {
