@@ -1690,12 +1690,7 @@
             <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;line-height:1.5">
               Crea una plantilla nueva en tu theme con TODO el contenido del Master + 3 GIFs + 3 fotos. La asigna automáticamente al producto. ~30s end-to-end.
             </div>
-            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:8px 0 4px">
-              <span style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;letter-spacing:.5px">TIENDA:</span>
-              <button type="button" class="bk-landing-pais" data-pais="chile" onclick="setLandingTenant('chile')" style="background:#8A5A2A;color:#fff;border:1.5px solid #8A5A2A;border-radius:6px;padding:5px 12px;font-size:11px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">🇨🇱 Chile</button>
-              <button type="button" class="bk-landing-pais" data-pais="gt" onclick="setLandingTenant('gt')" style="background:var(--surface2);color:var(--text);border:1.5px solid var(--border);border-radius:6px;padding:5px 12px;font-size:11px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">🇬🇹 Guatemala</button>
-              <span style="font-size:10px;color:var(--muted2);font-family:'DM Mono',monospace">el producto, la plantilla y las imágenes van a esta tienda</span>
-            </div>
+            <div id="bk-landing-tienda-badge" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:8px 0 4px"></div>
             <div class="bk-shopify-search-row">
               <input type="text" id="bk-auto-shrine-search" placeholder="Busca el producto por título" onkeydown="if(event.key==='Enter') buscarProductosAutoShrine()">
               <button onclick="buscarProductosAutoShrine()">🔍 Buscar</button>
@@ -2865,6 +2860,12 @@
       </div>
       <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;margin-bottom:4px">Confirma órdenes contra tu cuenta de Dropi Guatemala. Se listan solo las que están en <b>PENDIENTE CONFIRMACIÓN</b>; confirmarlas las pasa a PENDIENTE y quedan listas para despacho.</div>
       <div id="gt-status" style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;min-height:16px;margin-bottom:12px"></div>
+
+      <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:16px 18px;margin-bottom:16px">
+        <div style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:15px;color:var(--text);margin-bottom:4px">✨ Crear landing en Guatemala</div>
+        <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;line-height:1.5;margin-bottom:10px">Usa el mismo creador que Chile, pero apuntando a <b>benkogt.com</b>: busca el producto en la tienda de GT, escribe la plantilla en su theme y le sube las imágenes. No hace falta replicar desde Chile.</div>
+        <button onclick="irACrearLandingGT()" style="background:#16A34A;color:#fff;border:none;border-radius:8px;padding:10px 18px;font-size:12px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">✨ Ir al creador de landing (GT)</button>
+      </div>
 
       <div id="gt-acciones" style="display:none;align-items:center;gap:10px;flex-wrap:wrap;background:var(--surface);border:1.5px solid var(--border);border-radius:12px;padding:10px 14px;margin-bottom:12px;font-family:'DM Mono',monospace"></div>
       <div id="gt-list"></div>
@@ -4484,6 +4485,13 @@ function switchSection(s, silent){
   if(s==='campanas') initCampanasVivo();
   if(s==='landing') initLanding();
   // Pipeline removido — la sección ya no existe en el nav
+  if(s==='prompts'){
+    // Sin esto el flujo quedaria pegado en GT despues de una publicacion de
+    // Guatemala y la siguiente landing de Chile se escribiria en la tienda
+    // equivocada.
+    if (!_landingGTPendiente) setLandingTenant('chile');
+    _landingGTPendiente = false;
+  }
   if(s==='campanias') initCampanias();
   if(s==='guatemala') initGuatemala();
   // Sección Personal/bkfit removida del nav
@@ -10845,17 +10853,32 @@ function landingAdminSlug(){ return landingEsGT() ? '85yz4u-q5' : 'benkotienda';
 
 function setLandingTenant(t){
   _landingTenant = (t === 'gt') ? 'gt' : 'chile';
-  document.querySelectorAll('.bk-landing-pais').forEach(function(b){
-    const on = b.dataset.pais === _landingTenant;
-    b.style.background = on ? '#8A5A2A' : 'var(--surface2)';
-    b.style.color = on ? '#fff' : 'var(--text)';
-    b.style.borderColor = on ? '#8A5A2A' : 'var(--border)';
-  });
+  const badge = document.getElementById('bk-landing-tienda-badge');
+  if (badge) {
+    const gt = landingEsGT();
+    badge.innerHTML = '<span style="background:' + (gt ? '#16A34A' : '#8A5A2A') + ';color:#fff;border-radius:6px;padding:4px 12px;font-size:11px;font-family:\'DM Mono\',monospace;font-weight:700">'
+      + (gt ? '🇬🇹 GUATEMALA' : '🇨🇱 CHILE') + '</span>'
+      + '<span style="font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace">el producto, la plantilla y las imágenes van a ' + landingTienda() + '</span>';
+  }
   const res = document.getElementById('bk-auto-shrine-results');
   if (res) res.innerHTML = '';
   _autoShrineProduct = null;
   const st = document.getElementById('bk-auto-shrine-status');
   if (st) st.textContent = 'País: ' + (_landingTenant === 'gt' ? 'Guatemala' : 'Chile') + ' — buscá el producto de esa tienda.';
+}
+
+// Entrada desde la seccion GUATEMALA. Deja el flujo apuntando a GT y salta al
+// creador de landing, que es el mismo motor: no se duplica nada.
+let _landingGTPendiente = false;
+function irACrearLandingGT(){
+  _landingGTPendiente = true;
+  switchSection('prompts');
+  setLandingTenant('gt');
+  setTimeout(function(){
+    const card = document.getElementById('bk-prompts-master') || document.getElementById('bkv-respuesta');
+    if (card) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    showToast('Creador de landing apuntando a GUATEMALA', '🇬🇹', 'success');
+  }, 250);
 }
 
 async function buscarProductosAutoShrine(){
