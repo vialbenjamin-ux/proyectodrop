@@ -11265,11 +11265,13 @@ async function ejecutarAutoShrine(){
       '<a href="' + productUrl + '" target="_blank" style="color:#dc2626;font-weight:700">Ver tienda</a> · ' +
       '<a href="' + adminUrl + '" target="_blank" style="color:var(--accent);font-weight:600">Admin</a>' +
       bloquePrecios +
+      // Replicar a GT no tiene sentido si el landing YA se creo en GT.
+      (landingEsGT() ? '' :
       '<div style="margin-top:8px;padding:10px 12px;background:linear-gradient(135deg,#4ECDC4 0%,#111111 100%);border-radius:8px;color:#fff">' +
       '<button onclick="replicarTemplateAGT()" id="bk-replicar-gt-btn" style="background:#fff;color:#111111;border:none;border-radius:6px;padding:8px 14px;font-size:12px;font-family:\'DM Mono\',monospace;cursor:pointer;font-weight:700">🔄 Replicar este landing a Shopify GT</button>' +
       '<div style="font-size:10px;margin-top:6px;opacity:0.9;line-height:1.4">El producto debe existir en GT con el mismo handle: <b>' + esc(_autoShrineProduct.handle) + '</b>. Las imágenes deberás reasignarlas desde el editor de Shopify GT.</div>' +
       '<div id="bk-replicar-gt-status" style="font-size:11px;margin-top:8px;font-family:\'DM Mono\',monospace"></div>' +
-      '</div>';
+      '</div>');
     showToast('🚀 Plantilla generada y aplicada', '✨', 'success');
 
     // Auto-navegar a Precios+Releasit despues de 800ms (deja que el status se vea).
