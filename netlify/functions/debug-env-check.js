@@ -4,7 +4,7 @@
 // Responde: presencia (bool) y longitud (para detectar copia truncada).
 
 exports.handler = async () => {
-  const wanted = ['CHATEA_PRO_TOKEN', 'DROPI_TOKEN_CL'];
+  const wanted = ['CHATEA_PRO_TOKEN', 'DROPI_TOKEN_CL', 'SHOPIFY_TOKEN', 'SHOPIFY_TOKEN_GT'];
   const report = {};
   for (const k of wanted) {
     const v = process.env[k];
