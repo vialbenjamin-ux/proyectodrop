@@ -2138,6 +2138,10 @@
                   <input type="number" id="bk-relink-cost" placeholder="opcional" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px 10px;border-radius:6px;font-size:13px;font-family:'DM Mono',monospace">
                 </div>
               </div>
+              <label style="display:flex;align-items:flex-start;gap:8px;font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;line-height:1.5;cursor:pointer">
+                <input type="checkbox" id="bk-relink-fixacct" style="margin-top:2px">
+                <span>Reparar también la <b>cuenta de Dropi</b> — usalo si el producto apunta a una cuenta vieja y los pedidos rebotan por &ldquo;saldo insuficiente en la wallet&rdquo;. Hereda un token de la cuenta que usa el resto de tu tienda.</span>
+              </label>
               <button onclick="aplicarRelink()" style="background:#8B5CF6;color:#fff;border:none;border-radius:8px;padding:11px;font-size:13px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">🔁 Cambiar proveedor</button>
             </div>
             <div id="bk-relink-status" style="font-size:11px;font-family:'DM Mono',monospace;min-height:15px"></div>
@@ -10990,6 +10994,14 @@ let _relinkProducto = null;
 function toggleRelinkPanel(){
   const el = document.getElementById('bk-relink-panel');
   if (!el) return;
+  // Cual es la cuenta de Dropi mayoritaria de la tienda: sirve para avisar
+  // cuando un producto apunta a otra.
+  if (!window._bkCuentaTienda) {
+    fetch('/.netlify/functions/dropi-audit-products' + landingParam().replace('&', '?'))
+      .then(function(r){ return r.json(); })
+      .then(function(d){ if (d && d.esperada) window._bkCuentaTienda = String(d.esperada); })
+      .catch(function(){});
+  }
   const visible = (el.style.display !== 'none');
   el.style.display = visible ? 'none' : 'flex';
   if (!visible) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -11047,6 +11059,13 @@ async function elegirProductoRelink(id){
       + ' · <b>código de barras:</b> ' + esc(d.antes.barcode || '—')
       + ' · <b>user_id:</b> ' + esc(d.antes.user_id || 'null')
       + '<br><span style="color:var(--muted)">cuenta Dropi del producto: ' + esc(d.cuenta || '?') + '</span></div>';
+    // Si la cuenta no es la del resto de la tienda, tildamos la casilla solos:
+    // es la causa de los rebotes por "saldo insuficiente".
+    const chk = document.getElementById('bk-relink-fixacct');
+    if (chk && d.cuenta && window._bkCuentaTienda && d.cuenta !== window._bkCuentaTienda) {
+      chk.checked = true;
+      _relinkSt('⚠ Este producto apunta a la cuenta ' + esc(d.cuenta) + ', distinta de la del resto de tu tienda (' + esc(window._bkCuentaTienda) + '). Dejá tildado "Reparar la cuenta".', 'var(--amber,#B7791F)');
+    }
     _relinkSt('');
   } catch (e) {
     _relinkSt('⚠ ' + esc(e.message || 'error'), 'var(--danger,#E74C3C)');
@@ -11076,6 +11095,7 @@ async function aplicarRelink(){
         tenant: landingTenant(), product_id: _relinkProducto.id,
         dropi_id: dropiId, user_name: prov,
         user_id: userId || null, cost: cost || null,
+        fix_account: !!document.getElementById('bk-relink-fixacct')?.checked,
       }),
     });
     const d = await r.json();

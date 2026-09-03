@@ -12,7 +12,12 @@
 // productos que apunten a una cuenta ajena.
 //
 // POST body:
-//   { tenant?, product_id, dropi_id, user_name, user_id?, cost?, dry_run? }
+//   { tenant?, product_id, dropi_id, user_name, user_id?, cost?,
+//     fix_account?, dry_run? }
+//
+// fix_account: true reemplaza tambien el `tokens` por uno de la cuenta
+// MAYORITARIA de la tienda. Sirve para productos viejos importados desde otra
+// cuenta de Dropi, que rebotan con "no posee saldo suficiente en la wallet".
 //
 // Respuesta: { ok, antes, despues, cuenta, aviso, applied }
 
@@ -49,6 +54,36 @@ exports.handler = async function (event) {
       const p = JSON.parse(Buffer.from(b, 'base64').toString('utf8'));
       return p && p.sub != null ? String(p.sub) : null;
     } catch (_) { return null; }
+  };
+
+  // Busca en la tienda un token de la cuenta esperada. Reusa los productos de
+  // muestra por proveedor (un solo scan) en vez de recorrer todo el catalogo.
+  const buscarTokenDeLaCuenta = async () => {
+    const proto = event.headers['x-forwarded-proto'] || 'https';
+    const host = event.headers.host || '';
+    const suppR = await fetch(proto + '://' + host + '/.netlify/functions/dropi-known-suppliers?tenant=' + (isGT ? 'gt' : 'chile'));
+    if (!suppR.ok) return { error: 'no pude cargar proveedores de la tienda' };
+    const suppliers = ((await suppR.json()).suppliers || []).filter(x => x.sampleHasTokens && x.sampleProductId);
+    const vistos = [];
+    for (const sup of suppliers.slice(0, 14)) {
+      try {
+        const r = await fetch(API + '/products/' + sup.sampleProductId + '/metafields.json?namespace=dropi', { headers: H });
+        if (!r.ok) continue;
+        const mfd = ((await r.json()).metafields || []).find(m => m.key === '_dropi_product');
+        if (!mfd) continue;
+        const v = JSON.parse(mfd.value);
+        if (!v.tokens) continue;
+        vistos.push({ tokens: v.tokens, shop_name: v.shop_name || null, sub: jwtSub(v.tokens), de: sup.name });
+      } catch (_) {}
+    }
+    if (!vistos.length) return { error: 'ningun producto de la tienda tiene token legible' };
+    const conteo = {};
+    vistos.forEach(v => { if (v.sub) conteo[v.sub] = (conteo[v.sub] || 0) + 1; });
+    const esperada = String(body.expected_account || '').trim()
+      || (Object.entries(conteo).sort((a, b) => b[1] - a[1])[0] || [null])[0];
+    const donante = vistos.find(v => v.sub && v.sub === esperada);
+    if (!donante) return { error: 'no encontre token de la cuenta ' + (esperada || '?') + '. Vistas: ' + Object.keys(conteo).join(', ') };
+    return { donante: donante, esperada: esperada };
   };
 
   try {
@@ -105,7 +140,22 @@ exports.handler = async function (event) {
     if (!nuevo.user.id) aviso.push('El proveedor queda sin user_id: Dropi lo asigna después, pero conviene completarlo si lo sabés.');
     if (!cuenta) aviso.push('No pude leer la cuenta de Dropi del token del producto.');
 
-    if (dryRun) return respond(200, { ok: true, applied: false, antes, despues, cuenta, aviso });
+    // Reparar la cuenta: heredar un token de la cuenta mayoritaria.
+    let cuentaNueva = cuenta;
+    if (body.fix_account === true) {
+      const res = await buscarTokenDeLaCuenta();
+      if (res.error) return respond(400, { error: 'No pude reparar la cuenta: ' + res.error });
+      if (res.esperada === cuenta) {
+        aviso.push('El producto ya estaba en la cuenta ' + cuenta + ': no hacía falta repararlo.');
+      } else {
+        nuevo.tokens = res.donante.tokens;
+        if (res.donante.shop_name) nuevo.shop_name = res.donante.shop_name;
+        cuentaNueva = res.esperada;
+        aviso.push('Cuenta de Dropi: ' + cuenta + ' → ' + res.esperada + ' (token heredado de "' + res.donante.de + '").');
+      }
+    }
+
+    if (dryRun) return respond(200, { ok: true, applied: false, antes, despues, cuenta, cuentaNueva, aviso });
 
     // 4. Escribir: barcode y metafield.
     const vR = await fetch(API + '/variants/' + variant.id + '.json', {
@@ -125,7 +175,7 @@ exports.handler = async function (event) {
       });
     }
 
-    return respond(200, { ok: true, applied: true, titulo: product.title, antes, despues, cuenta, aviso });
+    return respond(200, { ok: true, applied: true, titulo: product.title, antes, despues, cuenta, cuentaNueva, aviso });
   } catch (err) {
     return respond(502, { error: err.message || 'error desconocido' });
   }
