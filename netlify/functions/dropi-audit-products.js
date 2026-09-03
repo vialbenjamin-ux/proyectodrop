@@ -40,7 +40,7 @@ exports.handler = async function (event) {
         title
         handle
         status
-        variantsCount
+        variantsCount { count }
         metafield(namespace: "dropi", key: "_dropi_product") { value }
       }
     }
@@ -89,7 +89,7 @@ exports.handler = async function (event) {
           proveedor: (v.user && v.user.name) || null,
           userId: (v.user && v.user.id != null) ? String(v.user.id) : null,
           cuenta: p && p.sub != null ? String(p.sub) : null,
-          variantes: n.variantsCount != null ? n.variantsCount : null,
+          variantes: (n.variantsCount && n.variantsCount.count != null) ? n.variantsCount.count : null,
           tipo: v.type || null,
           variaciones: Array.isArray(v.variations) ? v.variations.length
                      : (v.variations && typeof v.variations === 'object' ? Object.keys(v.variations).length : null),
