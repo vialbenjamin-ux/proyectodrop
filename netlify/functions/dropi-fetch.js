@@ -62,6 +62,12 @@ exports.handler = async (event) => {
     : [];
 
   // Compactar al esquema del SOP seccion 4
+  // ?raw=1 devuelve la PRIMERA orden sin compactar, para descubrir campos que
+  // la API trae y compact() descarta (ej: indicadores de riesgo del cliente).
+  if (qs.raw === '1') {
+    return respond(200, { rawSample: list[0] || null, keys: Object.keys(list[0] || {}) });
+  }
+
   const orders = list.map(o => compact(o));
 
   return respond(200, {
