@@ -1694,6 +1694,42 @@
             <div id="bk-shrine-paste-body"></div>
           </div>
 
+          <!-- Cambiar proveedor / codigo Dropi de un producto ya creado -->
+          <div class="bk-shopify-push" style="border-color:#8B5CF6">
+            <div class="bk-shopify-push-title" style="color:#8B5CF6">🔁 Cambiar proveedor / código Dropi</div>
+            <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;line-height:1.5">
+              Cambia el <b>código de barras</b> y el <b>metafield de Dropi</b> a la vez. Tocar solo el código deja el pedido yendo al proveedor viejo. Respeta la tienda elegida arriba.
+            </div>
+            <div class="bk-shopify-search-row">
+              <input type="text" id="bk-relink-search" placeholder="Busca el producto por título" onkeydown="if(event.key==='Enter') buscarProductoRelink()">
+              <button onclick="buscarProductoRelink()">🔍 Buscar</button>
+            </div>
+            <div class="bk-shopify-results" id="bk-relink-results"></div>
+            <div id="bk-relink-form" style="display:none;flex-direction:column;gap:8px">
+              <div id="bk-relink-actual"></div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <div style="display:flex;flex-direction:column;gap:3px;flex:1;min-width:120px">
+                  <label style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">ID Dropi nuevo <span style="color:#C0392B">*</span></label>
+                  <input type="number" id="bk-relink-dropiid" placeholder="134193" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px 10px;border-radius:6px;font-size:13px;font-family:'DM Mono',monospace">
+                </div>
+                <div style="display:flex;flex-direction:column;gap:3px;flex:1;min-width:140px">
+                  <label style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">Proveedor nuevo <span style="color:#C0392B">*</span></label>
+                  <input type="text" id="bk-relink-prov" placeholder="Nombre en Dropi" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px 10px;border-radius:6px;font-size:13px;font-family:'DM Mono',monospace">
+                </div>
+                <div style="display:flex;flex-direction:column;gap:3px;width:110px">
+                  <label style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">user_id</label>
+                  <input type="number" id="bk-relink-userid" placeholder="opcional" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px 10px;border-radius:6px;font-size:13px;font-family:'DM Mono',monospace">
+                </div>
+                <div style="display:flex;flex-direction:column;gap:3px;width:110px">
+                  <label style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">Costo</label>
+                  <input type="number" id="bk-relink-cost" placeholder="opcional" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px 10px;border-radius:6px;font-size:13px;font-family:'DM Mono',monospace">
+                </div>
+              </div>
+              <button onclick="aplicarRelink()" style="background:#8B5CF6;color:#fff;border:none;border-radius:8px;padding:11px;font-size:13px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">🔁 Cambiar proveedor</button>
+            </div>
+            <div id="bk-relink-status" style="font-size:11px;font-family:'DM Mono',monospace;min-height:15px"></div>
+          </div>
+
           <div class="bk-shopify-push" id="bk-auto-shrine" style="display:none;border-color:#dc2626">
             <div class="bk-shopify-push-title" style="color:#dc2626">🚀 Auto-generar plantilla Shrine completa</div>
             <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;line-height:1.5">
@@ -10934,6 +10970,108 @@ function irACrearLandingGT(){
     if (card) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
     showToast('Creador de landing apuntando a GUATEMALA', '🇬🇹', 'success');
   }, 250);
+}
+
+// ── CAMBIAR PROVEEDOR / CODIGO DROPI ─────────────────────────────────────────
+// Cambiar de proveedor toca el barcode Y el metafield dropi._dropi_product.
+// Hacer solo el barcode deja el pedido yendo al proveedor viejo.
+// Sigue el pais del creador de landing (landingTenant).
+
+let _relinkProducto = null;
+
+function _relinkSt(msg, color){
+  const el = document.getElementById('bk-relink-status');
+  if (el) { el.innerHTML = msg || ''; el.style.color = color || 'var(--muted)'; }
+}
+
+async function buscarProductoRelink(){
+  const q = (document.getElementById('bk-relink-search')?.value || '').trim();
+  const res = document.getElementById('bk-relink-results');
+  if (!res) return;
+  res.innerHTML = '<div style="font-size:11px;color:var(--muted);padding:8px">Buscando…</div>';
+  _relinkProducto = null;
+  document.getElementById('bk-relink-form').style.display = 'none';
+  try {
+    const r = await fetch('/.netlify/functions/shopify-products?_=1' + landingParam() + (q ? '&q=' + encodeURIComponent(q) : ''));
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || ('HTTP ' + r.status));
+    const ps = d.products || [];
+    if (!ps.length) { res.innerHTML = '<div style="font-size:11px;color:var(--muted);padding:8px">Sin resultados.</div>'; return; }
+    res.innerHTML = ps.slice(0, 12).map(function(p){
+      return '<div onclick="elegirProductoRelink(\'' + esc(String(p.id)) + '\')" style="display:flex;align-items:center;gap:8px;padding:7px 9px;border:1px solid var(--border);border-radius:8px;margin-bottom:4px;cursor:pointer;background:var(--surface)">'
+        + (p.image ? '<img src="' + esc(p.image) + '" style="width:28px;height:28px;object-fit:cover;border-radius:5px">' : '')
+        + '<span style="flex:1;font-size:11px;color:var(--text)">' + esc(p.title || '') + '</span>'
+        + '<span style="font-size:9px;color:var(--muted);font-family:\'DM Mono\',monospace">' + esc(p.status || '') + '</span>'
+        + '</div>';
+    }).join('');
+  } catch (e) {
+    res.innerHTML = '<div style="font-size:11px;color:var(--danger,#E74C3C);padding:8px">⚠ ' + esc(e.message || 'error') + '</div>';
+  }
+}
+
+// Al elegir el producto se muestra su proveedor actual, para comparar antes de
+// pisar nada (dry_run: no escribe).
+async function elegirProductoRelink(id){
+  _relinkProducto = { id: id };
+  document.getElementById('bk-relink-results').innerHTML = '';
+  _relinkSt('Leyendo proveedor actual…');
+  try {
+    const r = await fetch('/.netlify/functions/dropi-relink-product', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tenant: landingTenant(), product_id: id, dropi_id: '1', user_name: 'x', dry_run: true }),
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || ('HTTP ' + r.status));
+    _relinkProducto.antes = d.antes;
+    document.getElementById('bk-relink-form').style.display = 'flex';
+    document.getElementById('bk-relink-actual').innerHTML =
+      '<div style="font-size:11px;font-family:\'DM Mono\',monospace;color:var(--text);background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 10px">'
+      + '<b>Proveedor actual:</b> ' + esc(d.antes.proveedor || '(sin nombre)')
+      + ' · <b>ID Dropi:</b> ' + esc(d.antes.dropi_id || '—')
+      + ' · <b>código de barras:</b> ' + esc(d.antes.barcode || '—')
+      + ' · <b>user_id:</b> ' + esc(d.antes.user_id || 'null')
+      + '<br><span style="color:var(--muted)">cuenta Dropi del producto: ' + esc(d.cuenta || '?') + '</span></div>';
+    _relinkSt('');
+  } catch (e) {
+    _relinkSt('⚠ ' + esc(e.message || 'error'), 'var(--danger,#E74C3C)');
+  }
+}
+
+async function aplicarRelink(){
+  if (!_relinkProducto || !_relinkProducto.id) { _relinkSt('⚠ Elegí un producto primero', 'var(--danger,#E74C3C)'); return; }
+  const dropiId = (document.getElementById('bk-relink-dropiid')?.value || '').trim();
+  const prov    = (document.getElementById('bk-relink-prov')?.value || '').trim();
+  const userId  = (document.getElementById('bk-relink-userid')?.value || '').trim();
+  const cost    = (document.getElementById('bk-relink-cost')?.value || '').trim();
+  if (!dropiId) { _relinkSt('⚠ Falta el ID Dropi nuevo', 'var(--danger,#E74C3C)'); return; }
+  if (!prov)    { _relinkSt('⚠ Falta el proveedor nuevo', 'var(--danger,#E74C3C)'); return; }
+
+  const a = _relinkProducto.antes || {};
+  if (!confirm('Vas a cambiar el proveedor de este producto en ' + (landingEsGT() ? 'GUATEMALA' : 'CHILE') + ':\n\n'
+    + 'De:  ' + (a.proveedor || '?') + '  (ID Dropi ' + (a.dropi_id || '?') + ')\n'
+    + 'A:   ' + prov + '  (ID Dropi ' + dropiId + ')\n\n'
+    + 'Se actualiza el código de barras y el metafield de Dropi. ¿Seguro?')) return;
+
+  _relinkSt('Aplicando…');
+  try {
+    const r = await fetch('/.netlify/functions/dropi-relink-product', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        tenant: landingTenant(), product_id: _relinkProducto.id,
+        dropi_id: dropiId, user_name: prov,
+        user_id: userId || null, cost: cost || null,
+      }),
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || ('HTTP ' + r.status));
+    const avisos = (d.aviso || []).length ? '<br><span style="color:#B7791F">⚠ ' + (d.aviso || []).map(esc).join(' · ') + '</span>' : '';
+    _relinkSt('✅ Proveedor cambiado en <b>' + esc(d.titulo || '') + '</b> · ahora ' + esc(d.despues.proveedor)
+      + ' (ID Dropi ' + esc(d.despues.dropi_id) + ')' + avisos, 'var(--accent)');
+    showToast('Proveedor actualizado', '🔁', 'success');
+    elegirProductoRelink(_relinkProducto.id);
+  } catch (e) {
+    _relinkSt('⚠ ' + esc(e.message || 'error'), 'var(--danger,#E74C3C)');
+  }
 }
 
 async function buscarProductosAutoShrine(){
