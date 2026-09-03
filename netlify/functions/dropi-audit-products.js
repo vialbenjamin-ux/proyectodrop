@@ -40,6 +40,7 @@ exports.handler = async function (event) {
         title
         handle
         status
+        variantsCount
         metafield(namespace: "dropi", key: "_dropi_product") { value }
       }
     }
@@ -88,6 +89,11 @@ exports.handler = async function (event) {
           proveedor: (v.user && v.user.name) || null,
           userId: (v.user && v.user.id != null) ? String(v.user.id) : null,
           cuenta: p && p.sub != null ? String(p.sub) : null,
+          variantes: n.variantsCount != null ? n.variantsCount : null,
+          tipo: v.type || null,
+          variaciones: Array.isArray(v.variations) ? v.variations.length
+                     : (v.variations && typeof v.variations === 'object' ? Object.keys(v.variations).length : null),
+          clavesMetafield: Object.keys(v || {}),
           emitido: p && p.iat ? new Date(p.iat * 1000).toISOString().slice(0, 10) : null,
         });
       }
@@ -102,6 +108,12 @@ exports.handler = async function (event) {
       || (Object.entries(cuentas).sort((a, b) => b[1] - a[1])[0] || [null])[0];
 
     const desalineados = items.filter(it => it.cuenta !== esperada || !it.userId);
+    // ?variantes=1 devuelve solo los productos con mas de una variante: sirve
+    // para ver como modela Dropi los productos con colores.
+    if (qs.variantes === '1') {
+      const conVar = items.filter(it => (it.variantes || 1) > 1);
+      return respond(200, { conMetafield: items.length, conVariantes: conVar.length, productos: conVar.slice(0, 40) });
+    }
 
     return respond(200, {
       conMetafield: items.length,
