@@ -1752,6 +1752,7 @@
             </div>
             <div class="bk-shopify-results" id="bk-precios-results"></div>
 
+            <div id="bk-precios-gt" style="display:none;border-top:1px dashed var(--border);padding-top:10px"></div>
             <div id="bk-precios-config" style="display:none;flex-direction:column;gap:10px;border-top:1px dashed var(--border);padding-top:10px">
               <div style="display:flex;gap:6px;align-items:center">
                 <label style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;flex-shrink:0">Costo CLP:</label>
@@ -10281,9 +10282,10 @@ async function buscarProductoPrecios(){
   if (status) status.textContent = '';
   try {
     // El feature Precios+Releasit es solo tenant chile (por decision del user).
-    // Forzamos tenant=chile aca para que la busqueda no respete el tenant activo
+    // Sigue el pais elegido en el creador: en GT hay que encontrar los
+    // productos de benkogt.com, no los de Chile.
     // (que podria estar en 'gt' si el user uso el panel Reportes GT antes).
-    const url = '/.netlify/functions/shopify-products?_=1' + (q ? '&q=' + encodeURIComponent(q) : '') + '&tenant=chile';
+    const url = '/.netlify/functions/shopify-products?_=1' + (q ? '&q=' + encodeURIComponent(q) : '') + landingParam();
     const resp = await fetch(url);
     const data = await resp.json();
     if (!resp.ok) throw new Error(data.error || ('HTTP ' + resp.status));
@@ -10307,6 +10309,20 @@ function seleccionarProductoPrecios(id, title, handle){
   document.querySelectorAll('#bk-precios-results .bk-shopify-result').forEach(el => {
     el.classList.toggle('selected', String(el.dataset.id) === String(id));
   });
+  // En GT esta calculadora no sirve: PRECIO_TABLE mapea costo CLP a precio CLP
+  // con la convencion chilena del .990. Se muestra el panel en quetzales.
+  if (landingEsGT()) {
+    document.getElementById('bk-precios-config').style.display = 'none';
+    const cont = document.getElementById('bk-precios-gt');
+    if (cont) {
+      cont.style.display = 'block';
+      cont.innerHTML = _bkPanelReleasitGT(String(id), String(handle || ''), String(title || ''));
+    }
+    document.getElementById('bk-precios-status').textContent = '✓ ' + title + ' — precios en quetzales';
+    return;
+  }
+  const contGT = document.getElementById('bk-precios-gt');
+  if (contGT) { contGT.style.display = 'none'; contGT.innerHTML = ''; }
   document.getElementById('bk-precios-config').style.display = 'flex';
   document.getElementById('bk-precios-status').textContent = '✓ Producto: ' + title;
   recomputarPreciosReleasit();
