@@ -140,6 +140,14 @@ exports.handler = async (event) => {
     // del target, o sea inservible. Con 4 decimales el error de v es ~5e-5,
     // que sobre el precio es sub-peso: 20 de 20 caen exacto en el .990.
     // El precio manda; el % del titulo puede quedar corrido y esta bien.
+    //
+    // VERIFICADO EN LA LANDING PUBLICADA (3 sep 2026): el widget de Releasit
+    // procesa el v decimal sin problema. El Pelador Multitask 2x1 muestra sus
+    // tres tramos en $25.990 / $43.990 / $61.990, exactos.
+    // Si alguna vez el selector de cantidades NO aparece en la landing, mirar
+    // primero cuantos productos hay en el carrito: con mas de uno Releasit
+    // cambia a vista de carrito y esconde los tramos. Es su comportamiento
+    // normal, no un problema del grupo de ofertas.
 
     const p1 = price;
     const p2 = round990(price * 2 * (1 - pack2Disc / 100));
