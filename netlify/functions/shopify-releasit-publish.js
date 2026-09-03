@@ -132,25 +132,27 @@ exports.handler = async (event) => {
     //   dsV(qty, target) = round((1 - target / (price * qty)) * 10000)
     // El precio final que muestra Releasit sera:
     //   price * qty * (1 - dsV/10000)
-    // ds.v se manda CON DECIMALES a proposito. Con v entero el paso minimo
-    // es price*qty/10000 (5 a 13 pesos segun el tramo) y el precio final casi
-    // nunca cae justo en .990: medido sobre la tabla de precios, 0 de 20
-    // combinaciones terminaban en 990 (salia 41.988, 59.991, 43.991...).
-    // Buscar un v ENTERO que si diera .990 desviaba el precio hasta $11.000
-    // del target, o sea inservible. Con 4 decimales el error de v es ~5e-5,
-    // que sobre el precio es sub-peso: 20 de 20 caen exacto en el .990.
-    // El precio manda; el % del titulo puede quedar corrido y esta bien.
+    // ds.v va ENTERO. Se probo mandarlo con decimales para que el precio
+    // cayera exacto en .990 (con v entero el paso minimo es price*qty/10000,
+    // 5 a 13 pesos, y casi nunca cae justo). El JSON los guardaba bien, pero
+    // el WIDGET de Releasit descarta el grupo entero: el selector de ofertas
+    // por cantidad desaparecia de la landing y quedaba solo el carrito.
+    // Verificado el 3 sep 2026 sobre 483 grupos de la tienda: los 15 con
+    // decimales eran los unicos rotos, y 90 grupos con qty>1 en el primer
+    // tramo funcionaban sin decimales.
+    // Conclusion: con descuentos por porcentaje no se puede clavar el .990.
+    // El precio queda 1 a 5 pesos corrido y los rotulos se calculan sobre el
+    // precio REAL, asi que lo que ve el cliente siempre coincide.
 
     const p1 = price;
     const p2 = round990(price * 2 * (1 - pack2Disc / 100));
     const p3 = round990(price * 3 * (1 - pack3Disc / 100));
 
-    // Calcula ds.v (formato Releasit: pct * 100) para caer EXACTO en el target.
-    // 4 decimales: suficiente para precision sub-peso sin inflar el JSON.
+    // Calcula ds.v (formato Releasit: pct * 100). ENTERO obligatorio.
     const dsVForTarget = (qty, target) => {
       if (!target || !price || qty <= 0) return 0;
       const raw = (1 - target / (price * qty)) * 10000;
-      return Math.max(0, Math.round(raw * 10000) / 10000);
+      return Math.max(0, Math.round(raw));
     };
     // qty REAL que va al carrito de Shopify (con nx1 aplicado), segun la
     // formula del PDF: qty final = nx1 * k. Antes se mandaba qty 1/2/3 fijo
