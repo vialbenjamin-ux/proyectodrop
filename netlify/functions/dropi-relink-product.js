@@ -79,8 +79,23 @@ exports.handler = async function (event) {
     if (!vistos.length) return { error: 'ningun producto de la tienda tiene token legible' };
     const conteo = {};
     vistos.forEach(v => { if (v.sub) conteo[v.sub] = (conteo[v.sub] || 0) + 1; });
-    const esperada = String(body.expected_account || '').trim()
-      || (Object.entries(conteo).sort((a, b) => b[1] - a[1])[0] || [null])[0];
+    // La cuenta esperada la manda el cliente, que la saca de la auditoria
+    // (escanea TODO el catalogo). La mayoria entre estas ~14 muestras NO es
+    // confiable: una tienda con la mitad de los productos en una cuenta vieja
+    // puede inclinar la muestra para el lado equivocado.
+    let esperada = String(body.expected_account || '').trim();
+    if (!esperada) {
+      const orden = Object.entries(conteo).sort((a, b) => b[1] - a[1]);
+      const total = orden.reduce((n, e) => n + e[1], 0);
+      if (!orden.length) return { error: 'ningun token de muestra trae cuenta legible' };
+      const share = orden[0][1] / total;
+      if (orden.length > 1 && share < 0.75) {
+        return { error: 'las muestras estan repartidas entre varias cuentas ('
+          + orden.map(e => e[0] + ': ' + e[1]).join(', ')
+          + '). Indicá cuál es la correcta con expected_account en vez de dejar que adivine.' };
+      }
+      esperada = orden[0][0];
+    }
     const donante = vistos.find(v => v.sub && v.sub === esperada);
     if (!donante) return { error: 'no encontre token de la cuenta ' + (esperada || '?') + '. Vistas: ' + Object.keys(conteo).join(', ') };
     return { donante: donante, esperada: esperada };

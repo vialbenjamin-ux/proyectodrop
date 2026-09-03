@@ -11096,6 +11096,9 @@ async function aplicarRelink(){
         dropi_id: dropiId, user_name: prov,
         user_id: userId || null, cost: cost || null,
         fix_account: !!document.getElementById('bk-relink-fixacct')?.checked,
+        // La cuenta correcta sale de la auditoria, que escanea todo el
+        // catalogo. Sin esto el backend tendria que adivinarla por muestreo.
+        expected_account: window._bkCuentaTienda || null,
       }),
     });
     const d = await r.json();
