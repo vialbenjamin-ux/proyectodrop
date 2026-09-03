@@ -1694,42 +1694,6 @@
             <div id="bk-shrine-paste-body"></div>
           </div>
 
-          <!-- Cambiar proveedor / codigo Dropi de un producto ya creado -->
-          <div class="bk-shopify-push" style="border-color:#8B5CF6">
-            <div class="bk-shopify-push-title" style="color:#8B5CF6">🔁 Cambiar proveedor / código Dropi</div>
-            <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;line-height:1.5">
-              Cambia el <b>código de barras</b> y el <b>metafield de Dropi</b> a la vez. Tocar solo el código deja el pedido yendo al proveedor viejo. Respeta la tienda elegida arriba.
-            </div>
-            <div class="bk-shopify-search-row">
-              <input type="text" id="bk-relink-search" placeholder="Busca el producto por título" onkeydown="if(event.key==='Enter') buscarProductoRelink()">
-              <button onclick="buscarProductoRelink()">🔍 Buscar</button>
-            </div>
-            <div class="bk-shopify-results" id="bk-relink-results"></div>
-            <div id="bk-relink-form" style="display:none;flex-direction:column;gap:8px">
-              <div id="bk-relink-actual"></div>
-              <div style="display:flex;gap:8px;flex-wrap:wrap">
-                <div style="display:flex;flex-direction:column;gap:3px;flex:1;min-width:120px">
-                  <label style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">ID Dropi nuevo <span style="color:#C0392B">*</span></label>
-                  <input type="number" id="bk-relink-dropiid" placeholder="134193" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px 10px;border-radius:6px;font-size:13px;font-family:'DM Mono',monospace">
-                </div>
-                <div style="display:flex;flex-direction:column;gap:3px;flex:1;min-width:140px">
-                  <label style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">Proveedor nuevo <span style="color:#C0392B">*</span></label>
-                  <input type="text" id="bk-relink-prov" placeholder="Nombre en Dropi" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px 10px;border-radius:6px;font-size:13px;font-family:'DM Mono',monospace">
-                </div>
-                <div style="display:flex;flex-direction:column;gap:3px;width:110px">
-                  <label style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">user_id</label>
-                  <input type="number" id="bk-relink-userid" placeholder="opcional" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px 10px;border-radius:6px;font-size:13px;font-family:'DM Mono',monospace">
-                </div>
-                <div style="display:flex;flex-direction:column;gap:3px;width:110px">
-                  <label style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">Costo</label>
-                  <input type="number" id="bk-relink-cost" placeholder="opcional" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px 10px;border-radius:6px;font-size:13px;font-family:'DM Mono',monospace">
-                </div>
-              </div>
-              <button onclick="aplicarRelink()" style="background:#8B5CF6;color:#fff;border:none;border-radius:8px;padding:11px;font-size:13px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">🔁 Cambiar proveedor</button>
-            </div>
-            <div id="bk-relink-status" style="font-size:11px;font-family:'DM Mono',monospace;min-height:15px"></div>
-          </div>
-
           <div class="bk-shopify-push" id="bk-auto-shrine" style="display:none;border-color:#dc2626">
             <div class="bk-shopify-push-title" style="color:#dc2626">🚀 Auto-generar plantilla Shrine completa</div>
             <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;line-height:1.5">
@@ -2133,6 +2097,7 @@
       <div class="bk-prompts-sub">🛠️ Herramientas adicionales</div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;padding:12px 0">
         <button class="bk-step-btn" id="bk-btn-extraer" onclick="extraerDatosMaster()">📥 Extraer datos</button>
+        <button class="bk-step-btn" id="bk-btn-relink" onclick="toggleRelinkPanel()" style="background:#8B5CF6;color:#fff">🔁 Cambiar proveedor</button>
         <button class="bk-step-btn" id="bk-btn-shopify-push" onclick="abrirShopifyPush()" style="background:#10a37f;color:#fff">📤 Pegar en producto</button>
         <button class="bk-step-btn" id="bk-btn-shrine-paste" onclick="abrirShrinePaste()" style="background:#7B5BB5;color:#fff">📋 Copy-paste manual</button>
         <button class="bk-step-btn" id="bk-btn-mis-landings" onclick="abrirMisLandings()" style="background:#5B7CBF;color:#fff">📚 Mis landings</button>
@@ -2141,6 +2106,42 @@
         <button class="bk-step-btn" id="bk-btn-template-inspect" onclick="inspeccionarTemplate()" style="background:#E89A4A;color:#fff">🔍 Inspector</button>
         <button class="bk-step-btn" id="bk-btn-install-releasit-colors" onclick="_bkInstalarColoresReleasit(this)" style="background:#8B5CF6;color:#fff">🎨 Instalar colores Releasit</button>
       </div>
+          <!-- Cambiar proveedor / codigo Dropi de un producto ya creado -->
+          <div class="bk-shopify-push" id="bk-relink-panel" style="display:none;border-color:#8B5CF6">
+            <div class="bk-shopify-push-title" style="color:#8B5CF6">🔁 Cambiar proveedor / código Dropi</div>
+            <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;line-height:1.5">
+              Cambia el <b>código de barras</b> y el <b>metafield de Dropi</b> a la vez. Tocar solo el código deja el pedido yendo al proveedor viejo. Respeta la tienda elegida arriba.
+            </div>
+            <div class="bk-shopify-search-row">
+              <input type="text" id="bk-relink-search" placeholder="Busca el producto por título" onkeydown="if(event.key==='Enter') buscarProductoRelink()">
+              <button onclick="buscarProductoRelink()">🔍 Buscar</button>
+            </div>
+            <div class="bk-shopify-results" id="bk-relink-results"></div>
+            <div id="bk-relink-form" style="display:none;flex-direction:column;gap:8px">
+              <div id="bk-relink-actual"></div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <div style="display:flex;flex-direction:column;gap:3px;flex:1;min-width:120px">
+                  <label style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">ID Dropi nuevo <span style="color:#C0392B">*</span></label>
+                  <input type="number" id="bk-relink-dropiid" placeholder="134193" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px 10px;border-radius:6px;font-size:13px;font-family:'DM Mono',monospace">
+                </div>
+                <div style="display:flex;flex-direction:column;gap:3px;flex:1;min-width:140px">
+                  <label style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">Proveedor nuevo <span style="color:#C0392B">*</span></label>
+                  <input type="text" id="bk-relink-prov" placeholder="Nombre en Dropi" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px 10px;border-radius:6px;font-size:13px;font-family:'DM Mono',monospace">
+                </div>
+                <div style="display:flex;flex-direction:column;gap:3px;width:110px">
+                  <label style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">user_id</label>
+                  <input type="number" id="bk-relink-userid" placeholder="opcional" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px 10px;border-radius:6px;font-size:13px;font-family:'DM Mono',monospace">
+                </div>
+                <div style="display:flex;flex-direction:column;gap:3px;width:110px">
+                  <label style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">Costo</label>
+                  <input type="number" id="bk-relink-cost" placeholder="opcional" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px 10px;border-radius:6px;font-size:13px;font-family:'DM Mono',monospace">
+                </div>
+              </div>
+              <button onclick="aplicarRelink()" style="background:#8B5CF6;color:#fff;border:none;border-radius:8px;padding:11px;font-size:13px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">🔁 Cambiar proveedor</button>
+            </div>
+            <div id="bk-relink-status" style="font-size:11px;font-family:'DM Mono',monospace;min-height:15px"></div>
+          </div>
+
       <div id="bk-install-colors-status" style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;padding:0 4px"></div>
 
       <!-- OTROS PROMPTS (sistema de temáticas) -->
@@ -10978,6 +10979,14 @@ function irACrearLandingGT(){
 // Sigue el pais del creador de landing (landingTenant).
 
 let _relinkProducto = null;
+
+function toggleRelinkPanel(){
+  const el = document.getElementById('bk-relink-panel');
+  if (!el) return;
+  const visible = (el.style.display !== 'none');
+  el.style.display = visible ? 'none' : 'flex';
+  if (!visible) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
 
 function _relinkSt(msg, color){
   const el = document.getElementById('bk-relink-status');
