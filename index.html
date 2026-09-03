@@ -2112,6 +2112,7 @@
             <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;line-height:1.5">
               Cambia el <b>código de barras</b> y el <b>metafield de Dropi</b> a la vez. Tocar solo el código deja el pedido yendo al proveedor viejo. Respeta la tienda elegida arriba.
             </div>
+            <div id="bk-relink-tienda" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:6px 0 2px"></div>
             <div class="bk-shopify-search-row">
               <input type="text" id="bk-relink-search" placeholder="Busca el producto por título" onkeydown="if(event.key==='Enter') buscarProductoRelink()">
               <button onclick="buscarProductoRelink()">🔍 Buscar</button>
@@ -10949,6 +10950,12 @@ function setLandingTenant(t){
   const lblPrice = document.getElementById('bk-dropi-imp-price-lbl');
   if (lblPrice) lblPrice.innerHTML = 'Precio Shopify inicial ' + moneda
     + ' <span style="color:var(--muted);text-transform:none">(' + (gtOn ? 'a mano' : 'auto') + ')</span>';
+  const relinkT = document.getElementById('bk-relink-tienda');
+  if (relinkT) {
+    relinkT.innerHTML = '<span style="background:' + (gtOn ? '#0284C7' : '#8A5A2A') + ';color:#fff;border-radius:6px;padding:3px 10px;font-size:10px;font-family:\'DM Mono\',monospace;font-weight:700">'
+      + (gtOn ? '🇬🇹 GUATEMALA' : '🇨🇱 CHILE') + '</span>'
+      + '<span style="font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace">se busca y se cambia el proveedor en ' + landingTienda() + '</span>';
+  }
   const hintImp = document.getElementById('bk-dropi-imp-price-hint');
   if (hintImp) hintImp.textContent = gtOn ? 'Guatemala: escribí el precio en quetzales' : '';
 
