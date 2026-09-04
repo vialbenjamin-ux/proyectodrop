@@ -9332,7 +9332,7 @@ async function ejecutarReplicacionGT(){
 
     if(status){
       status.innerHTML =
-        '<div style="color:var(--accent);margin-bottom:8px">✅ Plantilla "<b>' + esc(newSuffix) + '</b>" + imágenes replicadas al producto de GT.' + esc(imgCopyMsg) + '</div>' +
+        '<div style="color:var(--accent);margin-bottom:8px">✅ Plantilla "<b>' + esc(newSuffix) + '</b>" + imágenes replicadas al producto de ' + repDestinoNombre() + '.' + esc(imgCopyMsg) + '</div>' +
         (repDestino() === 'gt'
           ? _bkPanelReleasitGT(p.gtId, p.handle, p.title)
           : '<div style="font-size:11px;color:var(--muted)">Producto replicado a Chile. Configurá precios y Releasit desde <b>Precios + Releasit</b>, que calcula en pesos.</div>');
@@ -10930,10 +10930,10 @@ async function aplicarPreciosShopify(price, comparePrice, cost){
     if (sellNoStock)  body.inventory_policy   = 'continue';
     if (allLocations) body.mark_all_locations = true;
 
-    // Forzar tenant=chile: Precios+Releasit es solo Chile por diseño.
-    // Sin esto, si el usuario navegó al panel GT antes, tenantParam() devuelve
-    // '&tenant=gt' y el PUT va a la tienda GT donde el producto no existe -> 404.
-    const resp = await fetch('/.netlify/functions/shopify-products?_=1&tenant=chile', {
+    // Sigue el pais elegido en la card, no el tenant global ni el del creador.
+    // Antes estaba forzado a Chile: con la card en Guatemala, el PUT iba igual
+    // a la tienda chilena y el producto no existia ahi.
+    const resp = await fetch('/.netlify/functions/shopify-products?_=1' + preciosParam(), {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -11817,9 +11817,9 @@ async function clonarImagenesDelTemplate(jsonText, setStatus){
       // desde sus propios servers (server-to-server, sin pasar por Netlify).
       // Esto evita el límite de 6 MB de body de Netlify Functions, que rompía
       // los .webp pesados con base64.
-      if (setStatus) setStatus(label + ' · Clonando ' + r.filename + ' a GT (server-to-server)…');
+      if (setStatus) setStatus(label + ' · Clonando ' + r.filename + ' a ' + repDestinoNombre() + ' (server-to-server)…');
       console.log('[clonar] ' + label + ' clone-from-url:', cdnUrl);
-      const cloneResp = await fetch('/.netlify/functions/shopify-themes?_=1&tenant=gt', {
+      const cloneResp = await fetch('/.netlify/functions/shopify-themes?_=1&tenant=' + repDestino(), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
