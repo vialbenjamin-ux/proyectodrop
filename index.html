@@ -9180,6 +9180,8 @@ async function seleccionarProductoReplicarGT(id, title, handle){
           '<div>📋 <strong>Producto ' + repOrigenNombre() + ':</strong> ' + esc(title) + ' · handle: <code>' + esc(handle) + '</code></div>' +
           '<div>📂 <strong>Plantilla actual:</strong> <code>' + esc(tsuffix) + '</code> · ' + (parsed.sections ? Object.keys(parsed.sections).length : 0) + ' secciones</div>' +
           '<div id="bk-replicar-gt-check" style="margin-top:8px;color:var(--muted);font-size:11px">⏳ Verificando producto en ' + repDestinoNombre() + '…</div>' +
+          '<div style="margin-top:6px"><button onclick="abrirElegirDestino()" style="background:transparent;border:1.5px solid var(--border);color:var(--muted);border-radius:6px;padding:4px 10px;font-size:10px;cursor:pointer">✎ No es este — elegir otro producto</button></div>' +
+          '<div id="bk-replicar-gt-destbox" style="display:none"></div>' +
         '</div>' +
         '<div style="display:flex;gap:6px;flex-wrap:wrap">' +
           '<button id="bk-replicar-gt-exec" disabled onclick="ejecutarReplicacionGT()" style="background:#111111;color:#fff;border:none;border-radius:8px;padding:9px 14px;font-size:12px;font-family:\'DM Mono\',monospace;cursor:pointer;font-weight:700;opacity:0.5">🔄 Replicar a ' + repDestinoNombre() + '</button>' +
@@ -9302,6 +9304,73 @@ function _bkPanelReleasitGT(gtId, handle, title){
         '</div>'
   );
 }
+
+// ── ELEGIR EL PRODUCTO DE DESTINO A MANO ─────────────────────────────────────
+// La deteccion automatica busca por handle y, si falla, por titulo. Cuando hay
+// varios productos parecidos elige uno y no hay forma de corregirlo: se
+// replicaba sobre el producto equivocado sin que se notara.
+
+function abrirElegirDestino(){
+  const box = document.getElementById('bk-replicar-gt-destbox');
+  if (!box) return;
+  const abierto = box.style.display !== 'none';
+  box.style.display = abierto ? 'none' : 'block';
+  if (!abierto) {
+    box.innerHTML =
+      '<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">'
+      + '<input type="text" id="bk-repdest-search" placeholder="Buscar producto en ' + repDestinoNombre() + '" '
+      + 'style="flex:1;min-width:180px;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:7px 10px;border-radius:6px;font-size:12px;font-family:\'DM Mono\',monospace">'
+      + '<button onclick="buscarDestinoReplicar()" style="background:#111111;color:#fff;border:none;border-radius:6px;padding:7px 14px;font-size:11px;font-family:\'DM Mono\',monospace;font-weight:700;cursor:pointer">Buscar</button>'
+      + '</div><div id="bk-repdest-results" style="margin-top:6px"></div>';
+    const inp = document.getElementById('bk-repdest-search');
+    if (inp) {
+      inp.addEventListener('keydown', function(e){ if (e.key === 'Enter') buscarDestinoReplicar(); });
+      setTimeout(function(){ inp.focus(); }, 60);
+    }
+  }
+}
+
+async function buscarDestinoReplicar(){
+  const q = (document.getElementById('bk-repdest-search')?.value || '').trim();
+  const res = document.getElementById('bk-repdest-results');
+  if (!res) return;
+  res.innerHTML = '<div style="font-size:11px;color:var(--muted);padding:6px">Buscando en ' + repDestinoNombre() + '…</div>';
+  try {
+    const r = await fetch('/.netlify/functions/shopify-products?_=1&tenant=' + repDestino() + (q ? '&q=' + encodeURIComponent(q) : ''));
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || ('HTTP ' + r.status));
+    const ps = d.products || [];
+    if (!ps.length) { res.innerHTML = '<div style="font-size:11px;color:var(--muted);padding:6px">Sin resultados.</div>'; return; }
+    res.innerHTML = ps.slice(0, 12).map(function(p){
+      return '<div class="bk-repdest-item" data-id="' + p.id + '" data-title="' + esc(String(p.title || '')) + '" data-handle="' + esc(String(p.handle || '')) + '" '
+        + 'style="display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid var(--border);border-radius:8px;margin-bottom:4px;cursor:pointer;background:var(--surface)">'
+        + (p.image ? '<img src="' + esc(p.image) + '" style="width:26px;height:26px;object-fit:cover;border-radius:5px">' : '')
+        + '<span style="flex:1;font-size:11px;color:var(--text)">' + esc(p.title || '') + '</span>'
+        + '<code style="font-size:9px;color:var(--muted)">' + esc(p.handle || '') + '</code>'
+        + '</div>';
+    }).join('');
+  } catch (e) {
+    res.innerHTML = '<div style="font-size:11px;color:var(--danger,#E74C3C);padding:6px">⚠ ' + esc(e.message || 'error') + '</div>';
+  }
+}
+
+// Delegacion: nada de onclick armado con el titulo adentro.
+document.addEventListener('click', function(ev){
+  const it = (ev.target && ev.target.closest) ? ev.target.closest('.bk-repdest-item') : null;
+  if (!it) return;
+  _replicarGtProduct = _replicarGtProduct || {};
+  _replicarGtProduct.gtId = it.dataset.id;
+  const chk = document.getElementById('bk-replicar-gt-check');
+  if (chk) {
+    chk.innerHTML = '✅ Destino elegido a mano en ' + repDestinoNombre() + ': <strong>' + esc(it.dataset.title || '') + '</strong> (ID: ' + esc(it.dataset.id) + ')'
+      + ' <span style="font-size:10px;color:var(--muted)">handle: <code>' + esc(it.dataset.handle || '') + '</code></span>';
+    chk.style.color = 'var(--accent)';
+  }
+  const box = document.getElementById('bk-replicar-gt-destbox');
+  if (box) { box.style.display = 'none'; box.innerHTML = ''; }
+  const exec = document.getElementById('bk-replicar-gt-exec');
+  if (exec) { exec.disabled = false; exec.style.opacity = '1'; }
+});
 
 async function ejecutarReplicacionGT(){
   const status = document.getElementById('bk-replicar-gt-status2');
@@ -10432,28 +10501,10 @@ async function buscarProductoPrecios(){
 // titulo del producto dentro del atributo; cualquier caracter raro lo rompia
 // en silencio: el click no hacia nada y no dejaba error en consola.
 document.addEventListener('click', function(ev){
-  const dentro = ev.target && ev.target.closest
-    ? ev.target.closest('#bk-precios-results') : null;
   const card = (ev.target && ev.target.closest)
     ? ev.target.closest('#bk-precios-results .bk-shopify-result') : null;
-  // Diagnostico temporal: reporta en pantalla que llego el click y que paso.
-  if (dentro || card) {
-    const st = document.getElementById('bk-precios-status');
-    if (st) {
-      st.textContent = 'click recibido · tarjeta=' + (card ? 'SI id=' + card.dataset.id : 'NO')
-        + ' · pais=' + (typeof preciosPais === 'function' ? preciosPais() : '?');
-    }
-  }
   if (!card) return;
-  try {
-    seleccionarProductoPrecios(card.dataset.id, card.dataset.title || '', card.dataset.handle || '');
-    const cfg = document.getElementById('bk-precios-config');
-    const st2 = document.getElementById('bk-precios-status');
-    if (st2) st2.textContent += ' · bloque=' + (cfg ? cfg.style.display : 'NO EXISTE');
-  } catch (e) {
-    const st3 = document.getElementById('bk-precios-status');
-    if (st3) st3.textContent = 'ERROR al seleccionar: ' + (e.message || e);
-  }
+  seleccionarProductoPrecios(card.dataset.id, card.dataset.title || '', card.dataset.handle || '');
 });
 
 function seleccionarProductoPrecios(id, title, handle){
