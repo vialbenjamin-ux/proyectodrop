@@ -10432,10 +10432,28 @@ async function buscarProductoPrecios(){
 // titulo del producto dentro del atributo; cualquier caracter raro lo rompia
 // en silencio: el click no hacia nada y no dejaba error en consola.
 document.addEventListener('click', function(ev){
+  const dentro = ev.target && ev.target.closest
+    ? ev.target.closest('#bk-precios-results') : null;
   const card = (ev.target && ev.target.closest)
     ? ev.target.closest('#bk-precios-results .bk-shopify-result') : null;
+  // Diagnostico temporal: reporta en pantalla que llego el click y que paso.
+  if (dentro || card) {
+    const st = document.getElementById('bk-precios-status');
+    if (st) {
+      st.textContent = 'click recibido · tarjeta=' + (card ? 'SI id=' + card.dataset.id : 'NO')
+        + ' · pais=' + (typeof preciosPais === 'function' ? preciosPais() : '?');
+    }
+  }
   if (!card) return;
-  seleccionarProductoPrecios(card.dataset.id, card.dataset.title || '', card.dataset.handle || '');
+  try {
+    seleccionarProductoPrecios(card.dataset.id, card.dataset.title || '', card.dataset.handle || '');
+    const cfg = document.getElementById('bk-precios-config');
+    const st2 = document.getElementById('bk-precios-status');
+    if (st2) st2.textContent += ' · bloque=' + (cfg ? cfg.style.display : 'NO EXISTE');
+  } catch (e) {
+    const st3 = document.getElementById('bk-precios-status');
+    if (st3) st3.textContent = 'ERROR al seleccionar: ' + (e.message || e);
+  }
 });
 
 function seleccionarProductoPrecios(id, title, handle){
