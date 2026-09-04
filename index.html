@@ -9182,6 +9182,7 @@ async function seleccionarProductoReplicarGT(id, title, handle){
           '<div id="bk-replicar-gt-check" style="margin-top:8px;color:var(--muted);font-size:11px">⏳ Verificando producto en ' + repDestinoNombre() + '…</div>' +
           '<div style="margin-top:6px"><button onclick="abrirElegirDestino()" style="background:transparent;border:1.5px solid var(--border);color:var(--muted);border-radius:6px;padding:4px 10px;font-size:10px;cursor:pointer">✎ No es este — elegir otro producto</button></div>' +
           '<div id="bk-replicar-gt-destbox" style="display:none"></div>' +
+          '<label style="display:flex;align-items:center;gap:6px;margin-top:10px;font-size:10px;color:var(--muted);cursor:pointer"><input type="checkbox" id="bk-replicar-gt-imgs" style="cursor:pointer"> Reemplazar las fotos del producto de destino (borra las que tenga y sube las de ' + repOrigenNombre() + ')</label>' +
         '</div>' +
         '<div style="display:flex;gap:6px;flex-wrap:wrap">' +
           '<button id="bk-replicar-gt-exec" disabled onclick="ejecutarReplicacionGT()" style="background:#111111;color:#fff;border:none;border-radius:8px;padding:9px 14px;font-size:12px;font-family:\'DM Mono\',monospace;cursor:pointer;font-weight:700;opacity:0.5">🔄 Replicar a ' + repDestinoNombre() + '</button>' +
@@ -9372,6 +9373,11 @@ document.addEventListener('click', function(ev){
   if (exec) { exec.disabled = false; exec.style.opacity = '1'; }
 });
 
+function _repReemplazarImgs(){
+  var c = document.getElementById('bk-replicar-gt-imgs');
+  return !!(c && c.checked);
+}
+
 async function ejecutarReplicacionGT(){
   const status = document.getElementById('bk-replicar-gt-status2');
   const btn = document.getElementById('bk-replicar-gt-exec');
@@ -9430,7 +9436,7 @@ async function ejecutarReplicacionGT(){
           target_product_id: String(p.gtId),
           source_tenant: repOrigen(),
           target_tenant: repDestino(),
-          mode: 'if_empty',
+          mode: _repReemplazarImgs() ? 'replace' : 'if_empty',
         }),
       });
       const ciData = await ciResp.json();
@@ -9438,7 +9444,7 @@ async function ejecutarReplicacionGT(){
         if (ciData.uploaded && ciData.uploaded.length > 0) {
           imgCopyMsg = ' · ' + ciData.uploaded.length + ' imágenes de producto copiadas';
         } else if (ciData.targetHadCount > 0) {
-          imgCopyMsg = ' · producto GT ya tenía ' + ciData.targetHadCount + ' imágenes (skip)';
+          imgCopyMsg = ' · ⚠ el producto de destino ya tenía ' + ciData.targetHadCount + ' fotos, no se tocaron (marcá "Reemplazar las fotos" para pisarlas)';
         } else {
           imgCopyMsg = ' · sin imágenes de producto para copiar';
         }
