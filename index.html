@@ -9390,7 +9390,10 @@ async function ejecutarReplicacionGT(){
         '<div style="color:var(--accent);margin-bottom:8px">✅ Plantilla "<b>' + esc(newSuffix) + '</b>" + imágenes replicadas al producto de ' + repDestinoNombre() + '.' + esc(imgCopyMsg) + '</div>' +
         (repDestino() === 'gt'
           ? _bkPanelReleasitGT(p.gtId, p.handle, p.title)
-          : '<div style="font-size:11px;color:var(--muted)">Producto replicado a Chile. Configurá precios y Releasit desde <b>Precios + Releasit</b>, que calcula en pesos.</div>');
+          : '<div style="font-size:11px;color:var(--muted)">Producto replicado a Chile. Te dejo abierto <b>Precios + Releasit</b> con este producto cargado.</div>');
+      if (repDestino() === 'chile') {
+        setTimeout(function(){ _bkContinuarAPreciosReleasit(p.gtId, p.title, p.handle, 'chile'); }, 900);
+      }
       status.style.color = 'var(--accent)';
     }
     showToast('🔄 Landing + imágenes replicados a ' + repDestinoNombre(), '✨', 'success');
@@ -10128,10 +10131,14 @@ async function ejecutarDropiImport(){
 
 // Puente entre paso 2 (Auto-generar plantilla) y paso 3 (Precios + Releasit).
 // Preselecciona el producto en el panel de Precios+Releasit y scrollea alla.
-function _bkContinuarAPreciosReleasit(productId, title, handle){
+function _bkContinuarAPreciosReleasit(productId, title, handle, paisDestino){
   if (!productId) return;
   // Preseleccionar producto (mismo mecanismo que usa el buscador del panel).
-  window._preciosSelectedProduct = { id: productId, title: title || '', handle: handle || '' };
+  // OJO: la variable es un `let` de nivel superior, NO window._precios...
+  // Asignar a window creaba una segunda variable y el resto del panel seguia
+  // viendo null: el bloque se abria pero "Actualizar Shopify" no hacia nada.
+  _preciosSelectedProduct = { id: productId, title: title || '', handle: handle || '' };
+  if (typeof setPreciosPais === 'function') setPreciosPais(paisDestino || 'chile');
   // Abrir el panel si esta cerrado.
   const panel = document.getElementById('bk-precios-releasit');
   if (panel) panel.style.display = 'flex';
@@ -10293,7 +10300,7 @@ async function _bkInstalarColoresReleasit(btn){
 
 // Activa el producto seleccionado en el panel Precios+Releasit (draft -> active).
 async function _bkActivarDesdePreciosPanel(btn){
-  const p = window._preciosSelectedProduct;
+  const p = _preciosSelectedProduct;
   const status = document.getElementById('bk-activar-status');
   if (!p || !p.id) { if (status) status.textContent = '⚠️ Seleccioná un producto primero'; return; }
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Activando…'; btn.style.opacity = '0.6'; }
@@ -10450,9 +10457,11 @@ function seleccionarProductoPrecios(id, title, handle){
   }
   const contGT = document.getElementById('bk-precios-gt');
   if (contGT) { contGT.style.display = 'none'; contGT.innerHTML = ''; }
-  document.getElementById('bk-precios-config').style.display = 'flex';
+  const cfg = document.getElementById('bk-precios-config');
+  cfg.style.display = 'flex';
   document.getElementById('bk-precios-status').textContent = '✓ Producto: ' + title;
   recomputarPreciosReleasit();
+  cfg.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
 function recomputarPreciosReleasit(){
