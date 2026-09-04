@@ -1853,6 +1853,11 @@
             <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;line-height:1.5">
               <span id="bk-replicar-gt-desc"></span> <strong>Las imágenes deberás reasignarlas desde el editor de Shopify GT</strong> (las refs <code>shopify://shop_images/</code> son por tienda).
             </div>
+            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:8px 0 4px">
+              <span style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;letter-spacing:.5px">DIRECCIÓN:</span>
+              <button type="button" class="bk-rep-dir" data-dir="cl-gt" onclick="setRepDir('cl-gt')" style="background:#111111;color:#fff;border:1.5px solid #111111;border-radius:6px;padding:5px 12px;font-size:11px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">🇨🇱 Chile → 🇬🇹 GT</button>
+              <button type="button" class="bk-rep-dir" data-dir="gt-cl" onclick="setRepDir('gt-cl')" style="background:var(--surface2);color:var(--text);border:1.5px solid var(--border);border-radius:6px;padding:5px 12px;font-size:11px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">🇬🇹 GT → 🇨🇱 Chile</button>
+            </div>
             <div class="bk-shopify-search-row">
               <input type="text" id="bk-replicar-gt-search" placeholder="Producto (título o handle)" onkeydown="if(event.key==='Enter') buscarProductoReplicarGT()">
               <button onclick="buscarProductoReplicarGT()" id="bk-replicar-gt-searchbtn">🔍 Buscar</button>
@@ -9034,6 +9039,8 @@ async function copyTemplateJson(){
 let _replicarGtProduct = null;
 
 function abrirReplicarGT(){
+  // Arranca en el sentido del creador, pero se puede cambiar en el panel.
+  setRepDir(repDir());
   const panel = document.getElementById('bk-replicar-gt');
   if(!panel) return;
   const visible = (panel.style.display !== 'none');
@@ -9110,12 +9117,12 @@ async function seleccionarProductoReplicarGT(id, title, handle){
       detail.style.display = 'flex';
       detail.innerHTML =
         '<div style="font-size:11px;color:var(--text);line-height:1.6">' +
-          '<div>📋 <strong>Producto CL:</strong> ' + esc(title) + ' · handle: <code>' + esc(handle) + '</code></div>' +
+          '<div>📋 <strong>Producto ' + repOrigenNombre() + ':</strong> ' + esc(title) + ' · handle: <code>' + esc(handle) + '</code></div>' +
           '<div>📂 <strong>Plantilla actual:</strong> <code>' + esc(tsuffix) + '</code> · ' + (parsed.sections ? Object.keys(parsed.sections).length : 0) + ' secciones</div>' +
-          '<div id="bk-replicar-gt-check" style="margin-top:8px;color:var(--muted);font-size:11px">⏳ Verificando producto en Shopify GT…</div>' +
+          '<div id="bk-replicar-gt-check" style="margin-top:8px;color:var(--muted);font-size:11px">⏳ Verificando producto en ' + repDestinoNombre() + '…</div>' +
         '</div>' +
         '<div style="display:flex;gap:6px;flex-wrap:wrap">' +
-          '<button id="bk-replicar-gt-exec" disabled onclick="ejecutarReplicacionGT()" style="background:#111111;color:#fff;border:none;border-radius:8px;padding:9px 14px;font-size:12px;font-family:\'DM Mono\',monospace;cursor:pointer;font-weight:700;opacity:0.5">🔄 Replicar a Shopify GT</button>' +
+          '<button id="bk-replicar-gt-exec" disabled onclick="ejecutarReplicacionGT()" style="background:#111111;color:#fff;border:none;border-radius:8px;padding:9px 14px;font-size:12px;font-family:\'DM Mono\',monospace;cursor:pointer;font-weight:700;opacity:0.5">🔄 Replicar a ' + repDestinoNombre() + '</button>' +
         '</div>';
     }
     // Guardar el template para usar al ejecutar
@@ -9182,10 +9189,10 @@ async function seleccionarProductoReplicarGT(id, title, handle){
         return;
       }
       if(checkEl){
-        checkEl.innerHTML = '❌ <strong>No existe</strong> el producto en Shopify GT.<br>' +
+        checkEl.innerHTML = '❌ <strong>No existe</strong> el producto en ' + repDestinoNombre() + '.<br>' +
           '<span style="font-size:10px">CL handle: <code>' + esc(handle) + '</code></span><br>' +
           '<span style="font-size:10px">CL título: ' + esc(title) + '</span><br>' +
-          '<span style="font-size:10px">Verificá que esté <strong>publicado</strong> en Shopify GT (status: active). Si lo está, probá cambiar el título en GT para que matchee.</span>';
+          '<span style="font-size:10px">Verificá que esté <strong>publicado</strong> en ' + repDestinoNombre() + ' (status: active). Si lo está, probá cambiar el título para que coincida.</span>';
         checkEl.style.color = 'var(--danger,#E74C3C)';
       }
       return;
@@ -9193,8 +9200,8 @@ async function seleccionarProductoReplicarGT(id, title, handle){
     if(checkEl){
       const handleNote = (gtMatch.handle === handle)
         ? ''
-        : ' <span style="font-size:10px;color:var(--muted)">(handle GT: <code>' + esc(gtMatch.handle) + '</code>, distinto al CL)</span>';
-      checkEl.innerHTML = '✅ Producto encontrado en Shopify GT: <strong>' + esc(gtMatch.title) + '</strong> (ID: ' + gtMatch.id + ')' + handleNote;
+        : ' <span style="font-size:10px;color:var(--muted)">(handle en ' + repDestinoNombre() + ': <code>' + esc(gtMatch.handle) + '</code>, distinto al de origen)</span>';
+      checkEl.innerHTML = '✅ Producto encontrado en ' + repDestinoNombre() + ': <strong>' + esc(gtMatch.title) + '</strong> (ID: ' + gtMatch.id + ')' + handleNote;
       checkEl.style.color = 'var(--accent)';
     }
     _replicarGtProduct.gtId = gtMatch.id;
@@ -9321,10 +9328,12 @@ async function ejecutarReplicacionGT(){
     if(status){
       status.innerHTML =
         '<div style="color:var(--accent);margin-bottom:8px">✅ Plantilla "<b>' + esc(newSuffix) + '</b>" + imágenes replicadas al producto de GT.' + esc(imgCopyMsg) + '</div>' +
-        _bkPanelReleasitGT(p.gtId, p.handle, p.title);
+        (repDestino() === 'gt'
+          ? _bkPanelReleasitGT(p.gtId, p.handle, p.title)
+          : '<div style="font-size:11px;color:var(--muted)">Producto replicado a Chile. Configurá precios y Releasit desde <b>Precios + Releasit</b>, que calcula en pesos.</div>');
       status.style.color = 'var(--accent)';
     }
-    showToast('🔄 Landing + imágenes replicados a GT', '✨', 'success');
+    showToast('🔄 Landing + imágenes replicados a ' + repDestinoNombre(), '✨', 'success');
 
     // Crear carpetas Drive para el producto (idempotente: si ya existe la
     // carpeta del CL no se duplica, se reusa)
@@ -9333,7 +9342,7 @@ async function ejecutarReplicacionGT(){
     if(status){ status.textContent = '⚠ ' + (err.message || 'error'); status.style.color = 'var(--danger,#E74C3C)'; }
     showToast('Error: ' + (err.message || '?'), '⚠️', 'error');
   } finally {
-    if(btn){ btn.disabled = false; btn.textContent = '🔄 Replicar a Shopify GT'; }
+    if(btn){ btn.disabled = false; btn.textContent = '🔄 Replicar a ' + repDestinoNombre(); }
   }
 }
 
@@ -11828,8 +11837,44 @@ async function clonarImagenesDelTemplate(jsonText, setStatus){
 // las reasigna después desde el editor de Shopify GT.
 // La replicacion es BIDIRECCIONAL: el destino es siempre el otro pais del que
 // se creo el landing. Antes estaba clavada Chile -> GT.
-function repOrigen(){ return landingTenant(); }
-function repDestino(){ return landingEsGT() ? 'chile' : 'gt'; }
+// El panel de replicacion tiene su PROPIA direccion: depender del modo del
+// creador era confuso —abrias el panel en modo Chile y no habia forma de
+// pedir GT -> Chile—. Si no se elige nada, arranca en el sentido del creador.
+let _repDir = null;   // 'cl-gt' | 'gt-cl'
+function repDir(){ return _repDir || (landingEsGT() ? 'gt-cl' : 'cl-gt'); }
+function repOrigen(){ return repDir() === 'gt-cl' ? 'gt' : 'chile'; }
+function repDestino(){ return repDir() === 'gt-cl' ? 'chile' : 'gt'; }
+function repOrigenNombre(){ return repOrigen() === 'gt' ? 'Guatemala' : 'Chile'; }
+function repDestinoNombre(){ return repDestino() === 'gt' ? 'Guatemala' : 'Chile'; }
+
+function setRepDir(d){
+  _repDir = d;
+  document.querySelectorAll('.bk-rep-dir').forEach(function(b){
+    const on = b.dataset.dir === d;
+    b.style.background = on ? '#111111' : 'var(--surface2)';
+    b.style.color = on ? '#fff' : 'var(--text)';
+    b.style.borderColor = on ? '#111111' : 'var(--border)';
+  });
+  const res = document.getElementById('bk-replicar-gt-results');
+  if (res) res.innerHTML = '';
+  const st = document.getElementById('bk-replicar-gt-status2');
+  if (st) st.innerHTML = '';
+  _replicarGtProduct = {};
+  if (typeof pintarTextosReplicacion === 'function') pintarTextosReplicacion();
+}
+
+// Textos del panel segun la direccion elegida.
+function pintarTextosReplicacion(){
+  const org = repOrigenNombre(), dst = repDestinoNombre();
+  const t = document.getElementById('bk-replicar-gt-title');
+  if (t) t.textContent = '🔄 Replicar landing existente: ' + org + ' → ' + dst;
+  const d = document.getElementById('bk-replicar-gt-desc');
+  if (d) d.innerHTML = 'Buscás un producto en <b>' + org + '</b> que ya tenga landing aplicado. BKDROP lee su plantilla, busca el mismo handle en ' + dst + ' y copia la plantilla allí. Si el handle no coincide, lo busca por título.';
+  const b = document.getElementById('bk-replicar-gt-searchbtn');
+  if (b) b.textContent = '🔍 Buscar en ' + (repOrigen() === 'gt' ? 'GT' : 'CL');
+  const i = document.getElementById('bk-replicar-gt-search');
+  if (i) i.placeholder = 'Producto en ' + org + ' (título o handle)';
+}
 function repDestinoNombre(){ return repDestino() === 'gt' ? 'Guatemala' : 'Chile'; }
 
 async function replicarTemplateAGT(){
@@ -11910,7 +11955,7 @@ async function replicarTemplateAGT(){
     setStatus(
       '✅ Plantilla "<b>' + esc(last.suffix) + '</b>" + imágenes replicadas en Shopify GT y asignadas al producto.'
     );
-    showToast('🔄 Landing + imágenes replicados a GT', '✨', 'success');
+    showToast('🔄 Landing + imágenes replicados a ' + repDestinoNombre(), '✨', 'success');
 
     // Crear carpetas Drive también para el producto de GT (mismo handle)
     crearCarpetasDriveDelProducto(last.handle, last.title);
