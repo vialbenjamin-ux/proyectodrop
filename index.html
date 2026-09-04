@@ -4563,7 +4563,7 @@ function openMobileMenu(){
   // Generar links según permisos
   const perms = currentUser ? getUserPerms(currentUser) : [];
   const isAdm = currentUser===ADMIN_USER;
-  links.innerHTML = ALL_SECTIONS.map(s=>{
+  links.innerHTML = ALL_SECTIONS.filter(s=>!s.soloPermiso).map(s=>{
     if(!isAdm && !perms.includes(s.id)) return '';
     const icons = {productos:'📦',videos:'🎬',prompts:'✨',proveedores:'🏭',calculadora:'🧮',pendientes:'📋',archivo:'📁',calendario:'📅',reportes:'📊',bkfit:'🏋️',campanias:'📆',guatemala:'🇬🇹'};
     const activeSection = document.querySelector('.section.active');
@@ -4585,7 +4585,9 @@ function closeMobileMenu(){
 function switchSection(s, silent){
   document.querySelectorAll('.section').forEach(e=>e.classList.remove('active'));
   if(!silent) document.querySelectorAll('.tab-btn').forEach(e=>e.classList.remove('active'));
-  document.getElementById('section-'+s).classList.add('active');
+  const _sec = document.getElementById('section-'+s);
+  if(!_sec) return;   // id sin seccion (ej: un permiso suelto): no rompas la app
+  _sec.classList.add('active');
   const tab = document.querySelector(`[data-section="${s}"]`);
   if(tab && !silent){ document.querySelectorAll('.tab-btn').forEach(e=>e.classList.remove('active')); tab.classList.add('active'); }
   // Refresh nav groups: highlight parent + close all dropdowns
@@ -6952,7 +6954,15 @@ function renderBadges(){
   setBadge('badge-pendientes', bt);
   setBadge('badge-archivo', ba);
 }
-function setBadge(id, n){ const el=document.getElementById(id); el.textContent=n; el.style.display=n>0?'':'none'; }
+// Tolera ids que ya no existen: badge-proveedores quedo colgado cuando
+// Proveedores salio del nav, y al no verificar tiraba TypeError y abortaba
+// toda la funcion que lo llamaba — por eso habia botones que "no hacian nada".
+function setBadge(id, n){
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.textContent = n;
+  el.style.display = n > 0 ? '' : 'none';
+}
 
 // ── PRODUCTOS ─────────────────────────────────────────────────────────────────
 
@@ -15643,7 +15653,10 @@ const ALL_SECTIONS = [
   {id:'manager',       label:'Manager'},
   {id:'campanias',     label:'Ads Calendar'},
   {id:'guatemala',     label:'Guatemala'},
-  {id:'guatemala-pedidos', label:'Guatemala · confirmar pedidos'},
+  // soloPermiso: gobierna un bloque dentro de otra seccion, no tiene
+  // pestaña ni <div id="section-...">. Todo lo que recorra ALL_SECTIONS
+  // esperando una seccion debe saltearlo.
+  {id:'guatemala-pedidos', label:'Guatemala · confirmar pedidos', soloPermiso:true},
   {id:'dropitea',      label:'DROPITEA'},
   {id:'calendario',    label:'Calendario'},
 ];
@@ -15716,7 +15729,7 @@ function applyPerms(username){
   if(activeSection){
     const activeId = activeSection.id.replace('section-','');
     if(!perms.includes(activeId) && !isAdmin){
-      const first = ALL_SECTIONS.find(s=>perms.includes(s.id));
+      const first = ALL_SECTIONS.find(s=>!s.soloPermiso && perms.includes(s.id));
       if(first) switchSection(first.id, true);
     }
   }
