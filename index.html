@@ -1746,6 +1746,11 @@
             <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;line-height:1.5">
               Ingresa el costo. BKDROP calcula 1u + Pack 2 + Pack 3, te empuja price y compare_at_price a Shopify automático, y deja los textos listos para pegar en Releasit COD Form.
             </div>
+            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:8px 0 4px">
+              <span style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;letter-spacing:.5px">PRECIOS DE:</span>
+              <button type="button" class="bk-precios-pais" data-pais="chile" onclick="setPreciosPais('chile')" style="background:#D9A82E;color:#fff;border:1.5px solid #D9A82E;border-radius:6px;padding:5px 12px;font-size:11px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">🇨🇱 Chile (CLP)</button>
+              <button type="button" class="bk-precios-pais" data-pais="gt" onclick="setPreciosPais('gt')" style="background:var(--surface2);color:var(--text);border:1.5px solid var(--border);border-radius:6px;padding:5px 12px;font-size:11px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">🇬🇹 Guatemala (GTQ)</button>
+            </div>
             <div class="bk-shopify-search-row">
               <input type="text" id="bk-precios-search" placeholder="Producto" onkeydown="if(event.key==='Enter') buscarProductoPrecios()">
               <button onclick="buscarProductoPrecios()">🔍 Buscar</button>
@@ -10284,6 +10289,7 @@ async function activarProductoDropi(productId, btn){
 }
 
 function abrirPreciosReleasit(){
+  setPreciosPais(preciosPais());
   const panel = document.getElementById('bk-precios-releasit');
   if (!panel) return;
   const isVisible = (panel.style.display !== 'none');
@@ -10302,6 +10308,33 @@ function abrirPreciosReleasit(){
   }
 }
 
+// La card de precios tiene su PROPIO pais. Seguir el modo del creador daba
+// resultados equivocados: replicabas de GT a Chile y despues querias poner
+// precios del producto CHILENO, pero la card seguia en quetzales.
+let _preciosPais = null;
+function preciosPais(){ return _preciosPais || landingTenant(); }
+function preciosEsGT(){ return preciosPais() === 'gt'; }
+function preciosParam(){ return '&tenant=' + preciosPais(); }
+
+function setPreciosPais(t){
+  _preciosPais = (t === 'gt') ? 'gt' : 'chile';
+  document.querySelectorAll('.bk-precios-pais').forEach(function(b){
+    const on = b.dataset.pais === _preciosPais;
+    b.style.background = on ? '#D9A82E' : 'var(--surface2)';
+    b.style.color = on ? '#fff' : 'var(--text)';
+    b.style.borderColor = on ? '#D9A82E' : 'var(--border)';
+  });
+  const res = document.getElementById('bk-precios-results');
+  if (res) res.innerHTML = '';
+  const cfg = document.getElementById('bk-precios-config');
+  if (cfg) cfg.style.display = 'none';
+  const gt = document.getElementById('bk-precios-gt');
+  if (gt) { gt.style.display = 'none'; gt.innerHTML = ''; }
+  _preciosSelectedProduct = null;
+  const st = document.getElementById('bk-precios-status');
+  if (st) st.textContent = 'Precios de ' + (_preciosPais === 'gt' ? 'Guatemala (quetzales)' : 'Chile (pesos)') + ' — buscá el producto.';
+}
+
 async function buscarProductoPrecios(){
   const q = document.getElementById('bk-precios-search')?.value || '';
   const results = document.getElementById('bk-precios-results');
@@ -10314,7 +10347,7 @@ async function buscarProductoPrecios(){
     // Sigue el pais elegido en el creador: en GT hay que encontrar los
     // productos de benkogt.com, no los de Chile.
     // (que podria estar en 'gt' si el user uso el panel Reportes GT antes).
-    const url = '/.netlify/functions/shopify-products?_=1' + (q ? '&q=' + encodeURIComponent(q) : '') + landingParam();
+    const url = '/.netlify/functions/shopify-products?_=1' + (q ? '&q=' + encodeURIComponent(q) : '') + preciosParam();
     const resp = await fetch(url);
     const data = await resp.json();
     if (!resp.ok) throw new Error(data.error || ('HTTP ' + resp.status));
@@ -10340,7 +10373,7 @@ function seleccionarProductoPrecios(id, title, handle){
   });
   // En GT esta calculadora no sirve: PRECIO_TABLE mapea costo CLP a precio CLP
   // con la convencion chilena del .990. Se muestra el panel en quetzales.
-  if (landingEsGT()) {
+  if (preciosEsGT()) {
     document.getElementById('bk-precios-config').style.display = 'none';
     const cont = document.getElementById('bk-precios-gt');
     if (cont) {
