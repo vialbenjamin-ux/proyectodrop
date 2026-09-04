@@ -2907,10 +2907,10 @@
     <div style="max-width:1100px;margin:0 auto">
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px;flex-wrap:wrap">
         <div style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:22px;color:var(--text)">🇬🇹 GUATEMALA</div>
-        <button id="gt-load-btn" onclick="gtCargarOrdenes()" style="background:var(--accent);color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:12px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">🔄 Traer órdenes de Dropi GT</button>
+        <button id="gt-load-btn" data-gt-pedidos="1" onclick="gtCargarOrdenes()" style="background:var(--accent);color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:12px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">🔄 Traer órdenes de Dropi GT</button>
         <a href="https://app.dropi.gt" target="_blank" rel="noopener" style="background:transparent;border:1.5px solid var(--accent);color:var(--accent);border-radius:8px;padding:8px 14px;font-size:11px;font-family:'DM Mono',monospace;font-weight:700;text-decoration:none">↗ Abrir Dropi GT</a>
       </div>
-      <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;margin-bottom:4px">Confirma órdenes contra tu cuenta de Dropi Guatemala. Se listan solo las que están en <b>PENDIENTE CONFIRMACIÓN</b>; confirmarlas las pasa a PENDIENTE y quedan listas para despacho.</div>
+      <div data-gt-pedidos="1" style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;margin-bottom:4px">Confirma órdenes contra tu cuenta de Dropi Guatemala. Se listan solo las que están en <b>PENDIENTE CONFIRMACIÓN</b>; confirmarlas las pasa a PENDIENTE y quedan listas para despacho.</div>
       <div id="gt-status" style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;min-height:16px;margin-bottom:12px"></div>
 
       <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:16px 18px;margin-bottom:16px">
@@ -2919,8 +2919,10 @@
         <button onclick="irACrearLandingGT()" style="background:#0284C7;color:#fff;border:none;border-radius:8px;padding:10px 18px;font-size:12px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">✨ Ir al creador de landing (GT)</button>
       </div>
 
-      <div id="gt-acciones" style="display:none;align-items:center;gap:10px;flex-wrap:wrap;background:var(--surface);border:1.5px solid var(--border);border-radius:12px;padding:10px 14px;margin-bottom:12px;font-family:'DM Mono',monospace"></div>
-      <div id="gt-list"></div>
+      <div id="gt-bloque-pedidos">
+        <div id="gt-acciones" style="display:none;align-items:center;gap:10px;flex-wrap:wrap;background:var(--surface);border:1.5px solid var(--border);border-radius:12px;padding:10px 14px;margin-bottom:12px;font-family:'DM Mono',monospace"></div>
+        <div id="gt-list"></div>
+      </div>
     </div>
   </div>
 
@@ -15473,6 +15475,7 @@ const ALL_SECTIONS = [
   {id:'manager',       label:'Manager'},
   {id:'campanias',     label:'Ads Calendar'},
   {id:'guatemala',     label:'Guatemala'},
+  {id:'guatemala-pedidos', label:'Guatemala · confirmar pedidos'},
   {id:'dropitea',      label:'DROPITEA'},
   {id:'calendario',    label:'Calendario'},
 ];
@@ -15485,6 +15488,8 @@ function getDefaultPerms(){ return ALL_SECTIONS.map(s=>s.id); }
 // su lista— las perderian de golpe. Se las concedemos una sola vez para que
 // nada cambie de facto; despues el admin las quita a mano si quiere.
 const PERMS_SECCIONES_NUEVAS_V2 = ['manager', 'campanas', 'dropitea'];
+// v3: al separar la confirmacion de pedidos de GT en su propio permiso, quien
+// ya tenia 'guatemala' lo conserva. Sin esto perderian el acceso de golpe.
 let _permsV2Corrida = false;
 function migrarPermsV2(){
   if (_permsV2Corrida) return;   // getUserPerms se llama en bucles de render
@@ -15493,12 +15498,20 @@ function migrarPermsV2(){
     const users = loadUsers();
     let tocado = false;
     users.forEach(u => {
-      if (u.permsV2) return;
-      if (Array.isArray(u.perms)) {
-        PERMS_SECCIONES_NUEVAS_V2.forEach(id => { if (!u.perms.includes(id)) u.perms.push(id); });
+      if (!u.permsV2) {
+        if (Array.isArray(u.perms)) {
+          PERMS_SECCIONES_NUEVAS_V2.forEach(id => { if (!u.perms.includes(id)) u.perms.push(id); });
+        }
+        u.permsV2 = true;
+        tocado = true;
       }
-      u.permsV2 = true;
-      tocado = true;
+      if (!u.permsV3) {
+        if (Array.isArray(u.perms) && u.perms.includes('guatemala') && !u.perms.includes('guatemala-pedidos')) {
+          u.perms.push('guatemala-pedidos');
+        }
+        u.permsV3 = true;
+        tocado = true;
+      }
     });
     if (tocado) saveUsers(users);
   } catch (e) { console.warn('[perms] migracion v2 fallo:', e); }
@@ -19418,7 +19431,19 @@ async function gtConfirmar(){
 }
 
 function initGuatemala(){
-  if (!_gtOrdenes.length) gtRender();
+  // La confirmacion de pedidos va detras de su propio permiso: hay
+  // colaboradores que solo deben poder crear landings de GT.
+  const puede = (typeof currentUser !== 'undefined' && typeof getUserPerms === 'function')
+    ? (currentUser === ADMIN_USER || getUserPerms(currentUser).includes('guatemala-pedidos'))
+    : true;
+  const bloque = document.getElementById('gt-bloque-pedidos');
+  if (bloque) bloque.style.display = puede ? '' : 'none';
+  document.querySelectorAll('[data-gt-pedidos]').forEach(function(el){
+    el.style.display = puede ? '' : 'none';
+  });
+  const st = document.getElementById('gt-status');
+  if (!puede && st) st.textContent = 'Tu usuario puede crear landings de Guatemala, pero no confirmar pedidos.';
+  if (puede && !_gtOrdenes.length) gtRender();
 }
 
 function renderAdsQueue(){
