@@ -10402,7 +10402,7 @@ async function buscarProductoPrecios(){
       const img = p.image ? '<img src="' + esc(p.image) + '" alt="">' : '<img alt="">';
       const titleAttr = String(p.title || '').replace(/'/g, "\\'");
       const handleAttr = String(p.handle || '').replace(/'/g, "\\'");
-      return '<div class="bk-shopify-result" data-id="' + p.id + '" onclick="seleccionarProductoPrecios(' + p.id + ", '" + titleAttr + "', '" + handleAttr + '\')">' +
+      return '<div class="bk-shopify-result" data-id="' + p.id + '" data-title="' + esc(String(p.title || '')) + '" data-handle="' + esc(String(p.handle || '')) + '">' +
         img + '<div class="info"><div class="title">' + esc(p.title || '') + '</div><div class="meta">' + esc(p.handle || '') + '</div></div></div>';
     }).join('');
   } catch (err) {
@@ -10410,6 +10410,16 @@ async function buscarProductoPrecios(){
     if (status) status.textContent = '⚠️ ' + (err.message || 'error');
   }
 }
+
+// Delegacion en el contenedor. El onclick inline se armaba interpolando el
+// titulo del producto dentro del atributo; cualquier caracter raro lo rompia
+// en silencio: el click no hacia nada y no dejaba error en consola.
+document.addEventListener('click', function(ev){
+  const card = (ev.target && ev.target.closest)
+    ? ev.target.closest('#bk-precios-results .bk-shopify-result') : null;
+  if (!card) return;
+  seleccionarProductoPrecios(card.dataset.id, card.dataset.title || '', card.dataset.handle || '');
+});
 
 function seleccionarProductoPrecios(id, title, handle){
   _preciosSelectedProduct = { id, title, handle };
