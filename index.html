@@ -16327,8 +16327,13 @@ function bkfitGenerarCalendario(){
   const logo = document.getElementById('splash-logo');
   const sub  = document.getElementById('splash-sub');
   const splash = document.getElementById('splash');
-  requestAnimationFrame(()=>{ logo.classList.add('show'); sub.classList.add('show'); });
-  setTimeout(()=>{ splash.classList.add('hidden'); }, 1600);
+  // splash-sub ya no existe (el splash quedo solo con el logo). Sin estas
+  // verificaciones tiraba TypeError en cada carga.
+  requestAnimationFrame(()=>{
+    if (logo) logo.classList.add('show');
+    if (sub) sub.classList.add('show');
+  });
+  setTimeout(()=>{ if (splash) splash.classList.add('hidden'); }, 1600);
 })();
 
 // ── DATOS INICIALES (importados desde CSV) ────────────────────────────────────
