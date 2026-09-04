@@ -9292,8 +9292,8 @@ async function ejecutarReplicacionGT(){
         body: JSON.stringify({
           source_product_id: String(p.id),
           target_product_id: String(p.gtId),
-          source_tenant: 'chile',
-          target_tenant: 'gt',
+          source_tenant: repOrigen(),
+          target_tenant: repDestino(),
           mode: 'if_empty',
         }),
       });
@@ -11495,13 +11495,12 @@ async function ejecutarAutoShrine(){
       '<a href="' + productUrl + '" target="_blank" style="color:#dc2626;font-weight:700">Ver tienda</a> · ' +
       '<a href="' + adminUrl + '" target="_blank" style="color:var(--accent);font-weight:600">Admin</a>' +
       bloquePrecios +
-      // Replicar a GT no tiene sentido si el landing YA se creo en GT.
-      (landingEsGT() ? '' :
+      // Replicar SIEMPRE al otro pais: desde Chile va a GT y desde GT a Chile.
       '<div style="margin-top:8px;padding:10px 12px;background:linear-gradient(135deg,#4ECDC4 0%,#111111 100%);border-radius:8px;color:#fff">' +
-      '<button onclick="replicarTemplateAGT()" id="bk-replicar-gt-btn" style="background:#fff;color:#111111;border:none;border-radius:6px;padding:8px 14px;font-size:12px;font-family:\'DM Mono\',monospace;cursor:pointer;font-weight:700">🔄 Replicar este landing a Shopify GT</button>' +
-      '<div style="font-size:10px;margin-top:6px;opacity:0.9;line-height:1.4">El producto debe existir en GT con el mismo handle: <b>' + esc(_autoShrineProduct.handle) + '</b>. Las imágenes deberás reasignarlas desde el editor de Shopify GT.</div>' +
+      '<button onclick="replicarTemplateAGT()" id="bk-replicar-gt-btn" style="background:#fff;color:#111111;border:none;border-radius:6px;padding:8px 14px;font-size:12px;font-family:\'DM Mono\',monospace;cursor:pointer;font-weight:700">🔄 Replicar este landing a ' + repDestinoNombre() + '</button>' +
+      '<div style="font-size:10px;margin-top:6px;opacity:0.9;line-height:1.4">El producto debe existir en ' + repDestinoNombre() + ' con el mismo handle: <b>' + esc(_autoShrineProduct.handle) + '</b>. Si el handle no coincide, lo busca por título.</div>' +
       '<div id="bk-replicar-gt-status" style="font-size:11px;margin-top:8px;font-family:\'DM Mono\',monospace"></div>' +
-      '</div>');
+      '</div>';
     showToast('🚀 Plantilla generada y aplicada', '✨', 'success');
 
     // Auto-navegar a Precios+Releasit despues de 800ms (deja que el status se vea).
@@ -11711,7 +11710,7 @@ async function clonarImagenesDelTemplate(jsonText, setStatus){
   // (que es flaky con hashes largos / extensiones webp).
   let clShopId = null;
   try {
-    const sResp = await fetch('/.netlify/functions/shopify-themes?op=shop-id&tenant=chile');
+    const sResp = await fetch('/.netlify/functions/shopify-themes?op=shop-id&tenant=' + repOrigen());
     const sData = await sResp.json();
     if (sResp.ok && sData.shopId) clShopId = sData.shopId;
   } catch(e){ console.warn('No se pudo obtener shopId CL', e); }
@@ -11750,7 +11749,7 @@ async function clonarImagenesDelTemplate(jsonText, setStatus){
         }
         // Intento 2 (fallback): GraphQL Files API
         if (!cdnUrl) {
-          const findResp = await fetch('/.netlify/functions/shopify-themes?op=find-file&filename=' + encodeURIComponent(r.filename) + '&tenant=chile');
+          const findResp = await fetch('/.netlify/functions/shopify-themes?op=find-file&filename=' + encodeURIComponent(r.filename) + '&tenant=' + repOrigen());
           const findData = await findResp.json();
           if (findResp.ok && findData.url) cdnUrl = findData.url;
         }
@@ -11815,6 +11814,12 @@ async function clonarImagenesDelTemplate(jsonText, setStatus){
 // el template JSON al theme MAIN de GT con la misma assetKey, y asigna el
 // template_suffix al producto de GT. NO clona las imágenes — el usuario
 // las reasigna después desde el editor de Shopify GT.
+// La replicacion es BIDIRECCIONAL: el destino es siempre el otro pais del que
+// se creo el landing. Antes estaba clavada Chile -> GT.
+function repOrigen(){ return landingTenant(); }
+function repDestino(){ return landingEsGT() ? 'chile' : 'gt'; }
+function repDestinoNombre(){ return repDestino() === 'gt' ? 'Guatemala' : 'Chile'; }
+
 async function replicarTemplateAGT(){
   const last = window._lastLandingCL;
   const statusEl = document.getElementById('bk-replicar-gt-status');
@@ -11833,7 +11838,7 @@ async function replicarTemplateAGT(){
   try {
     // 1. Buscar producto en GT — primero por handle exacto, después fallback por título.
     setStatus('1/4 · Buscando producto en GT con handle "<b>' + esc(last.handle) + '</b>"…');
-    const searchResp = await fetch('/.netlify/functions/shopify-products?q=' + encodeURIComponent(last.handle) + '&tenant=gt');
+    const searchResp = await fetch('/.netlify/functions/shopify-products?q=' + encodeURIComponent(last.handle) + '&tenant=' + repDestino());
     const searchData = await searchResp.json();
     if(!searchResp.ok) throw new Error('Búsqueda GT: ' + (searchData.error || 'fallo'));
     let matches = (searchData.products || []).filter(p => p.handle === last.handle);
@@ -11843,7 +11848,7 @@ async function replicarTemplateAGT(){
     } else if (last.title) {
       // Fallback: buscar por título (accent-insensitive, multi-palabra AND).
       setStatus('1/4 · Sin match por handle. Buscando por título "<b>' + esc(last.title.slice(0,60)) + '…</b>"…');
-      const searchResp2 = await fetch('/.netlify/functions/shopify-products?q=' + encodeURIComponent(last.title) + '&tenant=gt');
+      const searchResp2 = await fetch('/.netlify/functions/shopify-products?q=' + encodeURIComponent(last.title) + '&tenant=' + repDestino());
       const searchData2 = await searchResp2.json();
       if(!searchResp2.ok) throw new Error('Búsqueda GT por título: ' + (searchData2.error || 'fallo'));
       const titleMatches = (searchData2.products || []);
@@ -11865,7 +11870,7 @@ async function replicarTemplateAGT(){
     setStatus('2/4 · Clonando imágenes del template…');
     const jsonWithImages = await clonarImagenesDelTemplate(last.jsonText, (m)=>setStatus('2/4 · ' + m));
     setStatus('2/4 · Subiendo plantilla "<b>' + esc(last.suffix) + '</b>" al theme de GT…');
-    const writeResp = await fetch('/.netlify/functions/shopify-themes?_=1&tenant=gt', {
+    const writeResp = await fetch('/.netlify/functions/shopify-themes?_=1&tenant=' + repDestino(), {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ assetKey: last.assetKey, value: jsonWithImages }),
@@ -11875,7 +11880,7 @@ async function replicarTemplateAGT(){
 
     // 3. Asignar template_suffix al producto de GT
     setStatus('3/4 · Asignando plantilla al producto en GT…');
-    const updResp = await fetch('/.netlify/functions/shopify-products?_=1&tenant=gt', {
+    const updResp = await fetch('/.netlify/functions/shopify-products?_=1&tenant=' + repDestino(), {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: gtProduct.id, template_suffix: last.suffix }),
