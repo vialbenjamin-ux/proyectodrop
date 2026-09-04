@@ -4450,6 +4450,51 @@ try {
 </script>
 
 <script>
+// ── CAPTURADOR DE ERRORES VISIBLE ────────────────────────────────────────────
+// Los errores de JS son invisibles: un boton "no hace nada" y no hay pista.
+// Esto los muestra en pantalla para poder reportarlos con una captura.
+(function(){
+  let _errN = 0;
+  function mostrarError(msg, origen){
+    _errN++;
+    let box = document.getElementById('bk-error-banner');
+    if (!box) {
+      box = document.createElement('div');
+      box.id = 'bk-error-banner';
+      box.style.cssText = 'position:fixed;left:12px;right:12px;bottom:12px;z-index:9999;'
+        + 'background:#7F1D1D;color:#fff;border-radius:10px;padding:12px 14px;'
+        + "font-family:'DM Mono',ui-monospace,monospace;font-size:11px;line-height:1.5;"
+        + 'box-shadow:0 8px 28px rgba(0,0,0,.35);max-height:40vh;overflow-y:auto';
+      document.body.appendChild(box);
+    }
+    const linea = document.createElement('div');
+    linea.style.cssText = 'padding:4px 0;border-top:1px solid rgba(255,255,255,.2)';
+    linea.textContent = '⛔ ' + msg + (origen ? '  ·  ' + origen : '');
+    box.appendChild(linea);
+    if (!document.getElementById('bk-error-banner-head')) {
+      const head = document.createElement('div');
+      head.id = 'bk-error-banner-head';
+      head.style.cssText = 'display:flex;align-items:center;gap:10px;font-weight:700;margin-bottom:4px';
+      head.innerHTML = '<span>ERROR EN LA APP — mandale esta captura a Claude</span>';
+      const x = document.createElement('button');
+      x.textContent = '✕';
+      x.style.cssText = 'margin-left:auto;background:transparent;border:1px solid rgba(255,255,255,.6);color:#fff;border-radius:6px;padding:2px 9px;cursor:pointer;font-family:inherit';
+      x.onclick = function(){ box.remove(); };
+      head.appendChild(x);
+      box.insertBefore(head, box.firstChild);
+    }
+  }
+
+  window.addEventListener('error', function(e){
+    const donde = e.filename ? (' línea ' + e.lineno) : '';
+    mostrarError(e.message || 'error desconocido', donde);
+  });
+  window.addEventListener('unhandledrejection', function(e){
+    const r = e.reason;
+    mostrarError((r && r.message) ? r.message : String(r), 'promesa sin catch');
+  });
+})();
+
 const STORAGE_KEY = 'dropboard_v2';
 
 const PROD_STAGES = [
