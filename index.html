@@ -1849,13 +1849,13 @@
           </div>
 
           <div class="bk-shopify-push" id="bk-replicar-gt" style="display:none;border-color:#111111">
-            <div class="bk-shopify-push-title" style="color:#111111">🔄 Replicar landing existente de Chile → Guatemala</div>
+            <div class="bk-shopify-push-title" id="bk-replicar-gt-title" style="color:#111111">🔄 Replicar landing existente</div>
             <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;line-height:1.5">
-              Buscás un producto en Chile que ya tenga landing aplicado. BKDROP lee su plantilla, busca el mismo handle en Shopify GT y copia la plantilla allí. <strong>Las imágenes deberás reasignarlas desde el editor de Shopify GT</strong> (las refs <code>shopify://shop_images/</code> son por tienda).
+              <span id="bk-replicar-gt-desc"></span> <strong>Las imágenes deberás reasignarlas desde el editor de Shopify GT</strong> (las refs <code>shopify://shop_images/</code> son por tienda).
             </div>
             <div class="bk-shopify-search-row">
-              <input type="text" id="bk-replicar-gt-search" placeholder="Producto en Chile (título o handle)" onkeydown="if(event.key==='Enter') buscarProductoReplicarGT()">
-              <button onclick="buscarProductoReplicarGT()">🔍 Buscar en CL</button>
+              <input type="text" id="bk-replicar-gt-search" placeholder="Producto (título o handle)" onkeydown="if(event.key==='Enter') buscarProductoReplicarGT()">
+              <button onclick="buscarProductoReplicarGT()" id="bk-replicar-gt-searchbtn">🔍 Buscar</button>
             </div>
             <div class="bk-shopify-results" id="bk-replicar-gt-results"></div>
             <div id="bk-replicar-gt-detail" style="display:none;flex-direction:column;gap:10px;border-top:1px dashed var(--border);padding-top:10px"></div>
@@ -9054,8 +9054,8 @@ async function buscarProductoReplicarGT(){
   if(status) status.textContent = '';
   if(detail){ detail.style.display = 'none'; detail.innerHTML = ''; }
   try {
-    // SIEMPRE buscamos en Chile (tenant=chile) sin importar el tenant activo
-    const url = '/.netlify/functions/shopify-products?_=1' + (q ? '&q=' + encodeURIComponent(q) : '') + '&tenant=chile';
+    // El ORIGEN es el pais donde estas trabajando; el destino es el otro.
+    const url = '/.netlify/functions/shopify-products?_=1' + (q ? '&q=' + encodeURIComponent(q) : '') + '&tenant=' + repOrigen();
     const resp = await fetch(url);
     const data = await resp.json();
     if(!resp.ok) throw new Error(data.error || ('HTTP ' + resp.status));
@@ -9085,7 +9085,7 @@ async function seleccionarProductoReplicarGT(id, title, handle){
   if(detail){ detail.style.display = 'none'; detail.innerHTML = ''; }
   try {
     // 1. Leer producto en CL para obtener su template_suffix
-    const pResp = await fetch('/.netlify/functions/shopify-products?id=' + id + '&tenant=chile');
+    const pResp = await fetch('/.netlify/functions/shopify-products?id=' + id + '&tenant=' + repOrigen());
     const pData = await pResp.json();
     if(!pResp.ok) throw new Error(pData.error || ('HTTP ' + pResp.status));
     const tsuffix = pData.product?.template_suffix;
@@ -9096,7 +9096,7 @@ async function seleccionarProductoReplicarGT(id, title, handle){
     const assetKey = 'templates/product.' + tsuffix + '.json';
 
     // 2. Leer el contenido del template
-    const tResp = await fetch('/.netlify/functions/shopify-themes?op=template&assetKey=' + encodeURIComponent(assetKey) + '&tenant=chile');
+    const tResp = await fetch('/.netlify/functions/shopify-themes?op=template&assetKey=' + encodeURIComponent(assetKey) + '&tenant=' + repOrigen());
     const tData = await tResp.json();
     if(!tResp.ok) throw new Error(tData.error || 'No se pudo leer la plantilla');
 
@@ -9126,7 +9126,7 @@ async function seleccionarProductoReplicarGT(id, title, handle){
     if(status) status.textContent = '';
 
     // 5. Verificar producto en GT — primero por handle exacto, después por título.
-    const gtSearch = await fetch('/.netlify/functions/shopify-products?q=' + encodeURIComponent(handle) + '&tenant=gt');
+    const gtSearch = await fetch('/.netlify/functions/shopify-products?q=' + encodeURIComponent(handle) + '&tenant=' + repDestino());
     const gtData = await gtSearch.json();
     const checkEl = document.getElementById('bk-replicar-gt-check');
     const execBtn = document.getElementById('bk-replicar-gt-exec');
@@ -9140,7 +9140,7 @@ async function seleccionarProductoReplicarGT(id, title, handle){
     // Fallback: si no hay match exacto por handle, buscar por título completo
     if(!gtMatch && title){
       if(checkEl){ checkEl.innerHTML = '⏳ Sin match por handle. Buscando en GT por título…'; checkEl.style.color = 'var(--muted)'; }
-      const gtSearch2 = await fetch('/.netlify/functions/shopify-products?q=' + encodeURIComponent(title) + '&tenant=gt');
+      const gtSearch2 = await fetch('/.netlify/functions/shopify-products?q=' + encodeURIComponent(title) + '&tenant=' + repDestino());
       const gtData2 = await gtSearch2.json();
       if (gtSearch2.ok) {
         const titleMatches = gtData2.products || [];
@@ -9262,7 +9262,7 @@ async function ejecutarReplicacionGT(){
 
     // 2. Subir el template renombrado al theme MAIN de GT
     if(status){ status.textContent = '2/4 · Subiendo plantilla "' + newSuffix + '" al theme de GT…'; status.style.color = 'var(--muted)'; }
-    const wResp = await fetch('/.netlify/functions/shopify-themes?_=1&tenant=gt', {
+    const wResp = await fetch('/.netlify/functions/shopify-themes?_=1&tenant=' + repDestino(), {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ assetKey: newAssetKey, value: jsonWithImages }),
@@ -9272,7 +9272,7 @@ async function ejecutarReplicacionGT(){
 
     // 3. Asignar template_suffix renombrado al producto en GT
     if(status){ status.textContent = '3/4 · Asignando plantilla al producto en GT…'; status.style.color = 'var(--muted)'; }
-    const uResp = await fetch('/.netlify/functions/shopify-products?_=1&tenant=gt', {
+    const uResp = await fetch('/.netlify/functions/shopify-products?_=1&tenant=' + repDestino(), {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: p.gtId, template_suffix: newSuffix }),
@@ -10990,6 +10990,18 @@ function setLandingTenant(t){
   const lblPrice = document.getElementById('bk-dropi-imp-price-lbl');
   if (lblPrice) lblPrice.innerHTML = 'Precio Shopify inicial ' + moneda
     + ' <span style="color:var(--muted);text-transform:none">(' + (gtOn ? 'a mano' : 'auto') + ')</span>';
+  const repT = document.getElementById('bk-replicar-gt-title');
+  if (repT) repT.textContent = '🔄 Replicar landing existente: ' + (gtOn ? 'Guatemala → Chile' : 'Chile → Guatemala');
+  const repD = document.getElementById('bk-replicar-gt-desc');
+  if (repD) {
+    const org = gtOn ? 'Guatemala' : 'Chile', dst = gtOn ? 'Chile' : 'Guatemala';
+    repD.innerHTML = 'Buscás un producto en <b>' + org + '</b> que ya tenga landing aplicado. BKDROP lee su plantilla, busca el mismo handle en ' + dst + ' y copia la plantilla allí. Si el handle no coincide, lo busca por título.';
+  }
+  const repB = document.getElementById('bk-replicar-gt-searchbtn');
+  if (repB) repB.textContent = gtOn ? '🔍 Buscar en GT' : '🔍 Buscar en CL';
+  const repI = document.getElementById('bk-replicar-gt-search');
+  if (repI) repI.placeholder = 'Producto en ' + (gtOn ? 'Guatemala' : 'Chile') + ' (título o handle)';
+
   const relinkT = document.getElementById('bk-relink-tienda');
   if (relinkT) {
     relinkT.innerHTML = '<span style="background:' + (gtOn ? '#0284C7' : '#8A5A2A') + ';color:#fff;border-radius:6px;padding:3px 10px;font-size:10px;font-family:\'DM Mono\',monospace;font-weight:700">'
