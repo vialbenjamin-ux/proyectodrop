@@ -1485,8 +1485,12 @@
     </div>
   </div>
 
-  <button class="tab-btn ng-standalone" data-section="prompts" onclick="switchSection('prompts')" style="border:2px solid var(--accent);background:#111111;color:var(--accent);font-weight:700;box-shadow:0 2px 6px rgba(212,165,66,.3)">
-    ✨ Creador de landing
+  <button class="tab-btn ng-standalone" data-section="prompts" onclick="irACrearLandingCH()" style="border:2px solid var(--accent);background:#111111;color:var(--accent);font-weight:700;box-shadow:0 2px 6px rgba(212,165,66,.3)">
+    ✨ Creador landing CH
+  </button>
+
+  <button class="tab-btn ng-standalone" id="nav-landing-gt" onclick="irACrearLandingGT()" style="border:2px solid #16A34A;background:#15803D;color:#fff;font-weight:700;box-shadow:0 2px 6px rgba(22,163,74,.35)">
+    ✨ Creador landing GT
   </button>
 
   <div class="nav-group" data-group="optimiza">
@@ -4572,6 +4576,10 @@ function openMobileMenu(){
       <span style="font-size:18px">${icons[s.id]||'•'}</span>${s.label}
     </button>`;
   }).join('');
+  if (isAdm || (perms.includes('prompts') && perms.includes('guatemala'))) {
+    links.innerHTML += '<button class="mobile-tab" onclick="closeMobileMenu();irACrearLandingGT()">'
+      + '<span style="font-size:18px">✨</span>Creador landing GT</button>';
+  }
 
   menu.classList.add('open');
   document.body.style.overflow='hidden';
@@ -11192,6 +11200,7 @@ function setLandingTenant(t){
   if (repB) repB.textContent = gtOn ? '🔍 Buscar en GT' : '🔍 Buscar en CL';
   const repI = document.getElementById('bk-replicar-gt-search');
   if (repI) repI.placeholder = 'Producto en ' + (gtOn ? 'Guatemala' : 'Chile') + ' (título o handle)';
+  _pintarNavLanding();
 
   const relinkT = document.getElementById('bk-relink-tienda');
   if (relinkT) {
@@ -11212,10 +11221,28 @@ function setLandingTenant(t){
 // Entrada desde la seccion GUATEMALA. Deja el flujo apuntando a GT y salta al
 // creador de landing, que es el mismo motor: no se duplica nada.
 let _landingGTPendiente = false;
+// El nav tiene dos botones que llevan a la MISMA seccion 'prompts'. El
+// resaltado normal de switchSection marca el que tiene data-section, o sea
+// siempre el de Chile; hay que corregirlo a mano segun el pais elegido.
+function _pintarNavLanding(){
+  const gtBtn = document.getElementById('nav-landing-gt');
+  const chBtn = document.querySelector('[data-section="prompts"]');
+  const enPrompts = !!document.querySelector('#section-prompts.active');
+  if (gtBtn) gtBtn.classList.toggle('active', enPrompts && landingEsGT());
+  if (chBtn) chBtn.classList.toggle('active', enPrompts && !landingEsGT());
+}
+
+function irACrearLandingCH(){
+  switchSection('prompts');
+  setLandingTenant('chile');
+  _pintarNavLanding();
+}
+
 function irACrearLandingGT(){
   _landingGTPendiente = true;
   switchSection('prompts');
   setLandingTenant('gt');
+  _pintarNavLanding();
   setTimeout(function(){
     const card = document.getElementById('bk-prompts-master') || document.getElementById('bkv-respuesta');
     if (card) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -15801,6 +15828,13 @@ function applyPerms(username){
     const tab = document.querySelector(`[data-section="${s.id}"]`);
     if(tab) tab.style.display = allowed ? '' : 'none';
   });
+  // El boton verde "Creador landing GT" no es una seccion propia: lleva a
+  // 'prompts' apuntando a Guatemala, asi que pide los dos permisos.
+  const gtLandBtn = document.getElementById('nav-landing-gt');
+  if (gtLandBtn) {
+    const puede = isAdmin || (perms.includes('prompts') && perms.includes('guatemala'));
+    gtLandBtn.style.display = puede ? '' : 'none';
+  }
   // Ocultar grupos del nav que no tienen items visibles
   document.querySelectorAll('.nav-group').forEach(g=>{
     const items = g.querySelectorAll('.ng-item');
