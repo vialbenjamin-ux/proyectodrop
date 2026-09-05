@@ -23156,6 +23156,7 @@ function ttShowOrders(campaignId, campaignName){
 
   const modal = document.createElement('div');
   modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10000;display:flex;align-items:center;justify-content:center;padding:20px';
+  modal.className = 'bk-modal-x';
   modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
   modal.innerHTML = `
     <div style="background:var(--surface);border-radius:14px;max-width:900px;width:100%;max-height:80vh;overflow:auto;border:1.5px solid var(--border)" onclick="event.stopPropagation()">
@@ -23164,7 +23165,7 @@ function ttShowOrders(campaignId, campaignName){
           <div style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:16px;color:var(--text)">📦 ${escapeHtmlSafe(label)}</div>
           <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;margin-top:2px">${details.length} órdenes · Total: ${fmt(total)}</div>
         </div>
-        <button onclick="this.closest('[style*=\\'position:fixed\\']').remove()" style="background:transparent;border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer">✕ Cerrar</button>
+        <button onclick="this.closest('.bk-modal-x').remove()" style="background:transparent;border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer">✕ Cerrar</button>
       </div>
       <table style="width:100%;border-collapse:collapse">
         <thead><tr style="border-bottom:1px solid var(--border);background:var(--surface2)">
@@ -23236,6 +23237,7 @@ function ttShowAllOrders(){
 
   const modal = document.createElement('div');
   modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10000;display:flex;align-items:center;justify-content:center;padding:20px';
+  modal.className = 'bk-modal-x';
   modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
   modal.innerHTML = `
     <div style="background:var(--surface);border-radius:14px;max-width:1100px;width:100%;max-height:85vh;overflow:auto;border:1.5px solid var(--border)" onclick="event.stopPropagation()">
@@ -23246,7 +23248,7 @@ function ttShowAllOrders(){
             ${all.length} órdenes · ${matchedCount} ✅ matcheadas · ${orphanCount} 🟡 sin matchear · Total: ${fmt(total)}
           </div>
         </div>
-        <button onclick="this.closest('[style*=\\'position:fixed\\']').remove()" style="background:transparent;border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer">✕ Cerrar</button>
+        <button onclick="this.closest('.bk-modal-x').remove()" style="background:transparent;border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer">✕ Cerrar</button>
       </div>
       <table style="width:100%;border-collapse:collapse">
         <thead><tr style="border-bottom:1px solid var(--border);background:var(--surface2)">
@@ -23356,6 +23358,7 @@ function ttShowUnmatched(){
 
   const modal = document.createElement('div');
   modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10000;display:flex;align-items:center;justify-content:center;padding:20px';
+  modal.className = 'bk-modal-x';
   modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
   modal.innerHTML = `
     <div style="background:var(--surface);border-radius:14px;max-width:780px;width:100%;max-height:80vh;overflow:auto;border:1.5px solid var(--border)" onclick="event.stopPropagation()">
@@ -23364,7 +23367,7 @@ function ttShowUnmatched(){
           <div style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:16px;color:var(--text)">🔗 Mapear UTMs históricos a campañas actuales</div>
           <div style="font-size:11px;color:var(--muted);margin-top:2px">Las órdenes con UTMs viejos se atribuirán a la campaña que elijas. Mapping se guarda en localStorage.</div>
         </div>
-        <button onclick="this.closest('[style*=\\'position:fixed\\']').remove()" style="background:transparent;border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer">✕ Cerrar</button>
+        <button onclick="this.closest('.bk-modal-x').remove()" style="background:transparent;border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer">✕ Cerrar</button>
       </div>
       <table style="width:100%;border-collapse:collapse">
         <thead><tr style="border-bottom:1px solid var(--border);background:var(--surface2)">
@@ -23376,7 +23379,7 @@ function ttShowUnmatched(){
       </table>
       <div style="padding:12px 20px;background:var(--surface2);display:flex;gap:8px;align-items:center;justify-content:space-between">
         <span style="font-size:10px;color:var(--muted)">💡 Cambios se aplican al instante. Los mappings persisten entre sesiones.</span>
-        <button onclick="ttClearAllMappings(); this.closest('[style*=\\'position:fixed\\']').remove();" style="background:var(--surface);border:1px solid var(--border);color:var(--muted2);border-radius:8px;padding:6px 12px;font-size:11px;cursor:pointer;font-family:'DM Mono',monospace">🗑 Borrar todos los mappings</button>
+        <button onclick="ttClearAllMappings(); this.closest('.bk-modal-x').remove();" style="background:var(--surface);border:1px solid var(--border);color:var(--muted2);border-radius:8px;padding:6px 12px;font-size:11px;cursor:pointer;font-family:'DM Mono',monospace">🗑 Borrar todos los mappings</button>
       </div>
     </div>
   `;
@@ -23456,6 +23459,7 @@ function showAlertsModal(){
   }).join('');
   const modal = document.createElement('div');
   modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10000;display:flex;align-items:center;justify-content:center;padding:20px';
+  modal.className = 'bk-modal-x';
   modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
   modal.innerHTML = `
     <div style="background:var(--surface);border-radius:14px;max-width:840px;width:100%;max-height:80vh;overflow:auto;border:1.5px solid var(--border)" onclick="event.stopPropagation()">
@@ -23464,7 +23468,7 @@ function showAlertsModal(){
           <div style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:16px;color:var(--text)">⚠️ Alertas activas (${alerts.length})</div>
           <div style="font-size:11px;color:var(--muted);margin-top:2px">🟡 ≥$10k sin ventas · 🟠 ≥$15k con 1 sola venta · También llegan por Telegram</div>
         </div>
-        <button onclick="this.closest('[style*=\\'position:fixed\\']').remove()" style="background:transparent;border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer">✕ Cerrar</button>
+        <button onclick="this.closest('.bk-modal-x').remove()" style="background:transparent;border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer">✕ Cerrar</button>
       </div>
       <table style="width:100%;border-collapse:collapse">
         <thead><tr style="border-bottom:1px solid var(--border);background:var(--surface2)">
