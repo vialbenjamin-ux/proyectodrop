@@ -5233,6 +5233,28 @@ function renderHuerfanos() {
   }).join('');
 }
 
+// Motivo real del rechazo de Dropi. Con una sola bodega la respuesta trae
+// `detail`; cuando se probaron todas trae `attempts` (un mensaje por bodega) y
+// `hint`. Mostrar solo el error de arriba dejaba al usuario sin diagnostico.
+function _dropiMotivo(data){
+  if (!data) return '';
+  const d = data.detail || {};
+  const directo = d.message || d.data_error || d.error || '';
+  if (directo) return String(directo);
+  const msgs = [];
+  (data.attempts || []).forEach(function(a){
+    const m = a && (a.message || a.error);
+    if (m && msgs.indexOf(String(m)) === -1) msgs.push(String(m));
+  });
+  let out = msgs.join('\n');
+  if (data.hint) out = (out ? out + '\n\n' : '') + data.hint;
+  const bodegas = (data.attempts || []).map(function(a){
+    return a.warehouse_id == null ? 'sin bodega' : a.warehouse_id;
+  }).join(', ');
+  if (bodegas) out += '\n\nBodegas probadas: ' + bodegas;
+  return out;
+}
+
 async function createHuerfanoInDropi(idx) {
   const o = window._huerData.orphans[idx];
   if (!o) return;
@@ -5274,7 +5296,7 @@ async function createHuerfanoInDropi(idx) {
     if (!resp.ok || !data.ok) {
       const errText = data.error || ('HTTP ' + resp.status);
       // Detalle real de Dropi (mensaje descriptivo con motivo del rechazo)
-      const dropiMsg = data.detail && (data.detail.message || data.detail.data_error || data.detail.error) ? String(data.detail.message || data.detail.data_error || data.detail.error) : '';
+      const dropiMsg = _dropiMotivo(data);
       const unmatched = data.unmatched && data.unmatched.length > 0 ? '\n\nProductos no encontrados:\n' + data.unmatched.map(u => '- ' + (u.sku || u.name || u.barcode)).join('\n') : '';
       const fullMsg = '❌ ' + errText + (dropiMsg ? '\n\n📋 Dropi dice:\n' + dropiMsg : '') + unmatched;
       alert(fullMsg);
@@ -5393,7 +5415,7 @@ async function createAllHuerfanos() {
       });
       const data = await resp.json();
       if (!resp.ok || !data.ok) {
-        const dropiMsg = data.detail && (data.detail.message || data.detail.data_error) || data.error || 'unknown';
+        const dropiMsg = _dropiMotivo(data) || data.error || 'unknown';
         log.innerHTML += `<br>❌ ${o.name} · ${o.customer_name || ''}: ${escapeHtml(String(dropiMsg).slice(0, 120))}`;
         btn.disabled = false;
         btn.textContent = '⚡ Reintentar';
