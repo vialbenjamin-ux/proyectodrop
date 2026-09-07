@@ -5252,6 +5252,21 @@ function _dropiMotivo(data){
     return a.warehouse_id == null ? 'sin bodega' : a.warehouse_id;
   }).join(', ');
   if (bodegas) out += '\n\nBodegas probadas: ' + bodegas;
+  // Que producto Dropi se pidio exactamente: sin esto no hay forma de saber
+  // si el id o la variante son los correctos cuando Dropi dice 'sin stock'.
+  const prods = (data.sentBody && data.sentBody.products) || [];
+  if (prods.length) {
+    out += '\n\nSe le pidio a Dropi:\n' + prods.map(function(pr){
+      return '- producto ' + (pr.product_id || pr.id)
+        + (pr.variation_id ? ' / variante ' + pr.variation_id : ' (sin variante)')
+        + ' x' + (pr.quantity || 1);
+    }).join('\n');
+  }
+  if (data.unmatched && data.unmatched.length) {
+    out += '\n\nSin match en Dropi: ' + data.unmatched.map(function(u){
+      return u.sku || u.name || u.barcode;
+    }).join(', ');
+  }
   return out;
 }
 
