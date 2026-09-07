@@ -352,10 +352,35 @@ exports.handler = async (event) => {
   // También intentar SIN warehouse (algunos productos Dropi lo maneja auto)
   warehousesToTry.push(null);
 
+  // Cuando TODOS los items traen barcode se saltea el fetch de las 500 ordenes
+  // (es lo que evita el rate limit en batch), pero eso deja knownWarehouses
+  // vacio: la cascada quedaba en un unico intento "sin bodega" y Dropi
+  // respondia "no posee stock en ninguna de sus bodegas". Si ese intento falla
+  // se descubren las bodegas con UNA sola pagina y se sigue probando.
+  let cascadaCargada = warehousesToTry.length > 1;
+  async function descubrirWarehouses() {
+    const uso = {};
+    try {
+      const r = await fetch(
+        'https://api.dropi.cl/integrations/orders/myorders?start=0&result_number=100',
+        { method: 'GET', headers }
+      );
+      if (!r.ok) return [];
+      const d = await r.json();
+      for (const o of (d.objects || [])) {
+        if (o.warehouse_id != null) uso[o.warehouse_id] = (uso[o.warehouse_id] || 0) + 1;
+      }
+    } catch (e) {
+      return [];
+    }
+    return Object.entries(uso).sort((a, b) => b[1] - a[1]).map(e => parseInt(e[0], 10));
+  }
+
   let dropiResponse = null;
   let successWarehouse = null;
   const attempts = [];
-  for (const tryWh of warehousesToTry) {
+  for (let wIdx = 0; wIdx < warehousesToTry.length; wIdx++) {
+    const tryWh = warehousesToTry[wIdx];
     const attemptBody = { ...dropiBody, warehouse_id: tryWh };
     try {
       const createResp = await fetch('https://api.dropi.cl/integrations/orders/myorders', {
@@ -386,6 +411,13 @@ exports.handler = async (event) => {
         });
       }
       // Es error de stock → probar siguiente warehouse
+      if (!cascadaCargada && wIdx === warehousesToTry.length - 1) {
+        cascadaCargada = true;
+        const extra = await descubrirWarehouses();
+        for (const wid of extra) {
+          if (!warehousesToTry.includes(wid)) warehousesToTry.push(wid);
+        }
+      }
       await new Promise(r => setTimeout(r, 300));   // pausa anti-rate-limit
     } catch (err) {
       attempts.push({ warehouse_id: tryWh, error: err.message });
