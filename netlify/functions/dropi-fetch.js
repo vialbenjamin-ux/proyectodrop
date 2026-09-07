@@ -65,7 +65,26 @@ exports.handler = async (event) => {
   // ?raw=1 devuelve UNA orden sin compactar. Sirve para comparar la estructura
   // real que acepta Dropi contra el body que arma dropi-create-order.
   if (qs.raw === '1') {
-    return respond(200, { raw: list[0] || null, count: list.length });
+    // Cuantos productos distintos trae cada orden aceptada: sirve para saber
+    // si Dropi admite una orden con productos de bodegas distintas.
+    const porCantidadDeItems = {};
+    for (const o of list) {
+      const n = Array.isArray(o.orderdetails) ? o.orderdetails.length : 0;
+      porCantidadDeItems[n] = (porCantidadDeItems[n] || 0) + 1;
+    }
+    const multi = list
+      .filter(o => Array.isArray(o.orderdetails) && o.orderdetails.length > 1)
+      .slice(0, 3)
+      .map(o => ({
+        id: o.id,
+        warehouse_id: o.warehouse_id,
+        productos: o.orderdetails.map(d => ({
+          product_id: d.product_id,
+          nombre: (d.product || {}).name,
+          variation_id: d.variation_id,
+        })),
+      }));
+    return respond(200, { raw: list[0] || null, count: list.length, porCantidadDeItems, multi });
   }
   const orders = list.map(o => compact(o));
 
