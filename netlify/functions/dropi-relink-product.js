@@ -128,6 +128,11 @@ exports.handler = async function (event) {
       dropi_id: actual.id != null ? String(actual.id) : null,
       proveedor: (actual.user && actual.user.name) || null,
       user_id: (actual.user && actual.user.id != null) ? String(actual.user.id) : null,
+      // La bodega del producto: dropi-create-order solo conoce las bodegas de
+      // ordenes pasadas, asi que un proveedor sin ventas recientes nunca se
+      // prueba y Dropi contesta "no posee stock en ninguna de sus bodegas".
+      warehouse_product: actual.warehouse_product != null ? actual.warehouse_product : null,
+      stock: actual.stock != null ? actual.stock : null,
     };
 
     // 3. Metafield nuevo. `tokens` y `shop_name` se conservan: son de la tienda,
