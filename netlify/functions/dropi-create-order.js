@@ -357,7 +357,59 @@ exports.handler = async (event) => {
   // vacio: la cascada quedaba en un unico intento "sin bodega" y Dropi
   // respondia "no posee stock en ninguna de sus bodegas". Si ese intento falla
   // se descubren las bodegas con UNA sola pagina y se sigue probando.
-  let cascadaCargada = warehousesToTry.length > 1;
+  // Las bodegas REALES del producto viven en el metafield dropi de Shopify
+  // (warehouse_product). Adivinarlas desde el historial de ordenes falla con
+  // proveedores sin ventas recientes: al dispensador 30925 se le probaron 7
+  // bodegas y ninguna era la suya. Una consulta GraphQL por barcode las trae.
+  async function bodegasDesdeShopify(codigos) {
+    const dom = process.env.SHOPIFY_DOMAIN;
+    const tok = process.env.SHOPIFY_TOKEN;
+    if (!dom || !tok || !codigos.length) return [];
+    const filtro = codigos.map(function (c) { return 'barcode:' + c; }).join(' OR ');
+    const query = 'query($q: String!) { productVariants(first: 30, query: $q) { edges { node { barcode product { metafield(namespace: "dropi", key: "_dropi_product") { value } } } } } }';
+    try {
+      const r = await fetch('https://' + dom + '/admin/api/2024-10/graphql.json', {
+        method: 'POST',
+        headers: { 'X-Shopify-Access-Token': tok, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: query, variables: { q: filtro } }),
+      });
+      if (!r.ok) return [];
+      const j = await r.json();
+      const edges = (((j.data || {}).productVariants || {}).edges) || [];
+      const porStock = [];
+      for (const e of edges) {
+        const mv = (((e.node || {}).product || {}).metafield || {}).value;
+        if (!mv) continue;
+        let meta;
+        try { meta = JSON.parse(mv); } catch (_) { continue; }
+        for (const w of (meta.warehouse_product || [])) {
+          if (w && w.warehouse_id != null) {
+            porStock.push({ id: Number(w.warehouse_id), stock: Number(w.stock || 0) });
+          }
+        }
+      }
+      // Mas stock primero: es la bodega con mas chance de aceptar.
+      porStock.sort(function (a, b) { return b.stock - a.stock; });
+      const out = [];
+      for (const w of porStock) if (out.indexOf(w.id) === -1) out.push(w.id);
+      return out;
+    } catch (_) {
+      return [];
+    }
+  }
+
+  const codigosBarras = (body.items || [])
+    .map(function (it) { return String(it.barcode || '').trim().split('-')[0]; })
+    .filter(function (c) { return /^\d+$/.test(c); });
+  const bodegasProducto = await bodegasDesdeShopify(codigosBarras);
+  for (let i = bodegasProducto.length - 1; i >= 0; i--) {
+    const wid = bodegasProducto[i];
+    const yaEsta = warehousesToTry.indexOf(wid);
+    if (yaEsta !== -1) warehousesToTry.splice(yaEsta, 1);
+    warehousesToTry.unshift(wid);   // las del producto van primero
+  }
+
+  let cascadaCargada = knownWarehouses.length > 0;
   async function descubrirWarehouses() {
     const uso = {};
     try {
@@ -428,6 +480,7 @@ exports.handler = async (event) => {
     return respond(502, {
       error: 'Dropi create fail: ningún warehouse aceptó la orden',
       hint: 'El producto no tiene stock en ninguno de los ' + warehousesToTry.length + ' warehouses probados.',
+      bodegasDelProducto: bodegasProducto,
       attempts,
       sentBody: dropiBody,
     });
