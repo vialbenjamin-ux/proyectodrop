@@ -62,6 +62,11 @@ exports.handler = async (event) => {
     : [];
 
   // Compactar al esquema del SOP seccion 4
+  // ?raw=1 devuelve UNA orden sin compactar. Sirve para comparar la estructura
+  // real que acepta Dropi contra el body que arma dropi-create-order.
+  if (qs.raw === '1') {
+    return respond(200, { raw: list[0] || null, count: list.length });
+  }
   const orders = list.map(o => compact(o));
 
   return respond(200, {
