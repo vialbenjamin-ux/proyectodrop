@@ -10938,7 +10938,10 @@ async function _bkUpsellManualBuscar(){
         id: p.id, title: p.title, handle: p.handle, image: p.image,
         price: p.price, cost: p.cost, variantId: p.variantId,
       }));
-      sourceLabel = 'Proveedor ' + (ctx.supplierName || ctx.supplierId) + ' (' + products.length + ' matches de ' + (data.scanned || 0) + ' escaneados)';
+      const hay = (data.matched != null) ? data.matched : products.length;
+      sourceLabel = 'Proveedor ' + (ctx.supplierName || ctx.supplierId) + ' — ' + hay + ' productos'
+        + (hay > products.length ? ' (mostrando ' + products.length + ', afiná la búsqueda)' : '')
+        + ' · ' + (data.scanned || 0) + ' escaneados';
     } else {
       // Buscador Shopify global (sin filtro de proveedor).
       if (!q) { box.innerHTML = '<div style="font-size:10px;color:var(--muted);padding:4px">Escribí algo para buscar en toda la tienda.</div>'; return; }
