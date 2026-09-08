@@ -27,6 +27,11 @@ exports.handler = async (event) => {
   const q = String(qs.q || '').trim().toLowerCase();
   const limit = Math.min(Math.max(parseInt(qs.limit, 10) || 30, 1), 50);
   const excludeId = String(qs.exclude_product_id || '').trim();
+  // Bodega: el proveedor no alcanza. Dos productos del MISMO proveedor pueden
+  // estar en bodegas distintas, y una orden de Dropi tiene UNA bodega, asi que
+  // ese upsell hace imposible crear el pedido.
+  const baseId = String(qs.match_warehouse_of || '').trim();
+  const soloMisma = String(qs.solo_misma_bodega || '') === '1';
 
   if (!supplierId) return respond(400, { error: 'Falta supplier_id' });
 
@@ -60,6 +65,7 @@ exports.handler = async (event) => {
   let cursor = null;
   let pages = 0;
   let truncated = false;
+  let baseBodegas = null;
   const results = [];
 
   try {
@@ -79,11 +85,15 @@ exports.handler = async (event) => {
       for (const e of edges) {
         const n = e.node || {};
         const id = String(n.id || '').split('/').pop();
-        if (!id || (excludeId && id === excludeId)) continue;
+        if (!id) continue;
         if (!n.metafield || !n.metafield.value) continue;
 
         let meta;
         try { meta = JSON.parse(n.metafield.value); } catch (_) { continue; }
+
+        // El producto base puede aparecer antes o despues; se anota igual.
+        if (baseId && id === baseId) baseBodegas = bodegasDe(meta);
+        if (excludeId && id === excludeId) continue;
         if (!meta.user || String(meta.user.id) !== supplierId) continue;
 
         if (terms.length) {
@@ -104,6 +114,7 @@ exports.handler = async (event) => {
           variantId: String(v0.id || '').split('/').pop(),
           cost: meta.sale_price != null ? Number(meta.sale_price) : null,
           dropiId: meta.id || null,
+          bodegas: bodegasDe(meta),
         });
       }
 
@@ -116,8 +127,26 @@ exports.handler = async (event) => {
     return respond(502, { error: err.message || 'unknown' });
   }
 
-  // Sin texto de busqueda los activos primero: son los que sirven de upsell.
-  results.sort((a, b) => {
+  // Comparar bodegas contra el producto base. 'si' comparten al menos una,
+  // 'no' si no comparten ninguna, '?' si alguno no declara bodegas (hay
+  // productos con warehouse_product vacio: ahi no se puede saber).
+  const baseSet = baseBodegas && baseBodegas.length ? baseBodegas : null;
+  for (const p of results) {
+    if (!baseId) { p.comparteBodega = null; continue; }
+    if (!baseSet || !p.bodegas || !p.bodegas.length) { p.comparteBodega = '?'; continue; }
+    p.comparteBodega = p.bodegas.some((w) => baseSet.indexOf(w) !== -1) ? 'si' : 'no';
+  }
+
+  let finales = results;
+  if (baseId && soloMisma) finales = results.filter((p) => p.comparteBodega === 'si');
+
+  // Primero los que comparten bodega, despues los dudosos, al final los que
+  // seguro no. Dentro de cada grupo, activos antes que borradores.
+  const rank = { si: 0, '?': 1, no: 2 };
+  finales.sort((a, b) => {
+    const ra = rank[a.comparteBodega] != null ? rank[a.comparteBodega] : 1;
+    const rb = rank[b.comparteBodega] != null ? rank[b.comparteBodega] : 1;
+    if (ra !== rb) return ra - rb;
     if (a.status !== b.status) return a.status === 'active' ? -1 : 1;
     return String(a.title || '').localeCompare(String(b.title || ''));
   });
@@ -126,11 +155,28 @@ exports.handler = async (event) => {
     supplierId,
     query: q || null,
     scanned,
-    matched: results.length,
+    matched: finales.length,
     truncated,
-    products: results.slice(0, limit),
+    baseProductId: baseId || null,
+    baseBodegas: baseBodegas,
+    products: finales.slice(0, limit),
   });
 };
+
+// Ids de bodega declarados en el metafield. Puede venir vacio: hay productos
+// importados por otra via que no traen warehouse_product.
+function bodegasDe(meta) {
+  const wp = (meta && meta.warehouse_product) || [];
+  if (!Array.isArray(wp)) return [];
+  const out = [];
+  for (const w of wp) {
+    if (w && w.warehouse_id != null) {
+      const id = Number(w.warehouse_id);
+      if (out.indexOf(id) === -1) out.push(id);
+    }
+  }
+  return out;
+}
 
 function cors() {
   return {

@@ -10832,6 +10832,9 @@ function mostrarPreviewReleasitModal(data, { disc2, disc3, nx1, priceOverride })
               '<label style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace;white-space:nowrap;cursor:pointer">' +
                 '<input type="checkbox" id="bk-upsell-manual-same-supplier" checked> Solo mismo proveedor' +
               '</label>' +
+              '<label style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--muted);font-family:monospace;white-space:nowrap;cursor:pointer" title="Una orden de Dropi tiene UNA bodega: si el upsell esta en otra, el pedido no se puede crear">' +
+                '<input type="checkbox" id="bk-upsell-manual-same-wh" checked> Solo misma bodega' +
+              '</label>' +
               '<button onclick="_bkUpsellManualBuscar()" style="background:#8A5A2A;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:11px;font-family:\'DM Mono\',monospace;font-weight:700;cursor:pointer">🔍 Buscar</button>' +
             '</div>' +
           '</div>' +
@@ -10917,6 +10920,8 @@ async function _bkUpsellManualBuscar(){
   if (!box) return;
   const sameSupplierEl = document.getElementById('bk-upsell-manual-same-supplier');
   const sameSupplier = sameSupplierEl ? sameSupplierEl.checked : true;
+  const whEl = document.getElementById('bk-upsell-manual-same-wh');
+  const mismaBodega = whEl ? whEl.checked : false;
   const ctx = window._bkReleasitContext || {};
 
   box.style.display = 'block';
@@ -10930,6 +10935,8 @@ async function _bkUpsellManualBuscar(){
       const url = '/.netlify/functions/dropi-supplier-shopify-products'
         + '?supplier_id=' + encodeURIComponent(ctx.supplierId)
         + (ctx.baseProductId ? '&exclude_product_id=' + encodeURIComponent(ctx.baseProductId) : '')
+        + (ctx.baseProductId ? '&match_warehouse_of=' + encodeURIComponent(ctx.baseProductId) : '')
+        + (mismaBodega ? '&solo_misma_bodega=1' : '')
         + (q ? '&q=' + encodeURIComponent(q) : '')
         + '&limit=30';
       const resp = await fetch(url);
@@ -10963,11 +10970,18 @@ async function _bkUpsellManualBuscar(){
       const img = p.image ? '<img src="' + esc(p.image) + '" style="width:36px;height:36px;object-fit:cover;border-radius:4px">' : '<div style="width:36px;height:36px;background:#F5F5F5;border-radius:4px"></div>';
       const priceHtml = p.price != null ? '<span style="color:#8A5A2A;font-weight:700">$' + Math.round(p.price).toLocaleString('es-CL') + '</span>' : '';
       const costHtml = p.cost != null ? '<span style="color:var(--muted);margin-left:4px">costo $' + Math.round(p.cost).toLocaleString('es-CL') + '</span>' : '';
+      // Aviso de bodega: un upsell en otra bodega vuelve imposible crear el
+      // pedido en Dropi, asi que tiene que verse antes de elegirlo.
+      const wh = p.comparteBodega;
+      const whHtml = wh === 'si' ? '<span style="color:#2B7A2B;font-weight:700">misma bodega</span> · '
+        : wh === 'no' ? '<span style="color:#C0392B;font-weight:700">OTRA bodega</span> · '
+        : wh === '?' ? '<span style="color:#8A5A2A">bodega sin dato</span> · '
+        : '';
       return '<div onclick="_bkUpsellManualPick(' + p.id + ')" style="display:flex;gap:8px;align-items:center;padding:6px;border-radius:6px;cursor:pointer;font-size:11px" onmouseover="this.style.background=\'#F5F5F5\'" onmouseout="this.style.background=\'transparent\'">' +
         img +
         '<div style="flex:1;min-width:0">' +
           '<div style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(p.title || '') + '</div>' +
-          '<div style="color:var(--muted);font-family:\'DM Mono\',monospace;font-size:9px">' + priceHtml + costHtml + ' · ' + esc(p.handle || '') + '</div>' +
+          '<div style="color:var(--muted);font-family:\'DM Mono\',monospace;font-size:9px">' + priceHtml + costHtml + ' · ' + whHtml + esc(p.handle || '') + '</div>' +
         '</div>' +
       '</div>';
     }).join('');
