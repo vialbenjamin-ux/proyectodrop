@@ -19970,13 +19970,16 @@ function renderAdsQueue(){
   // La fecha del producto es la mas urgente de sus videos, calculada sobre
   // TODOS los que alguna vez se marcaron listos —no solo los pendientes— para
   // que marcar uno como LISTO no cambie el producto de grupo.
+  // Solo cuentan los videos que SIGUEN pendientes. Antes se miraban todos los
+  // que alguna vez se marcaron listos, y un video ya subido con fecha vieja
+  // tiraba el producto a ATRASADAS aunque lo que falta sea para mañana.
+  // Como los pendientes de un producto suelen compartir fecha, la posicion
+  // igual no se mueve al ir marcando LISTO.
   const fechaDeProducto = {};
-  for (const fid of Object.keys(rankings)) {
-    const r = rankings[fid] || {};
-    if (!r.readyForAds) continue;
-    const d = (r.uploadDate || '').trim();
+  for (const it of pending) {
+    const d = (it.uploadDate || '').trim();
     if (!d) continue;
-    const ph = r.productHandle || '_sin_producto';
+    const ph = it.productHandle || '_sin_producto';
     if (!fechaDeProducto[ph] || d < fechaDeProducto[ph]) fechaDeProducto[ph] = d;
   }
 
