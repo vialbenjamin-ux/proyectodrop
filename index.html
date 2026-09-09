@@ -4601,13 +4601,15 @@ function switchSection(s, silent){
   if(s==='videos') renderVideos();
   if(s==='videos-prod') initVideosProd();
   if(s==='manager'){
-    // MANAGER usa los mismos datos de _vpData (rankings + products). Si ya
-    // están cargados, sólo renderizamos; si no, los traemos primero.
+    // MANAGER usa los mismos datos de _vpData (rankings + products). Si ya hay
+    // algo cargado se pinta al toque para no dejar la pantalla en blanco, pero
+    // SIEMPRE se refresca contra Firestore: antes, entrar a la seccion con la
+    // pestaña abierta mostraba la foto vieja y los videos que el editor acababa
+    // de marcar listos no aparecian hasta apretar Recargar o refrescar la web.
     if (window._vpData && window._vpData.products && window._vpData.products.length) {
       renderAdsQueue();
-    } else {
-      initVideosProd().then(() => renderAdsQueue());
     }
+    initVideosProd().then(() => renderAdsQueue()).catch(() => {});
   }
   if(s==='calendario') renderCalendar();
   if(s==='prompts'){ renderPrompts(); loadBkVars(); }
@@ -18539,7 +18541,12 @@ function renderVideoCard(file, type, handle, showRank){
     const isUploaded = !!(r && r.uploadedToAds);
     const safeFileName = esc(file.name).replace(/'/g, "\\'");
     if (isUploaded) {
-      readyForAdsHtml = `<div style="padding:6px 10px;border-top:1px dashed var(--border);background:var(--surface);font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;text-align:center" onclick="event.stopPropagation()">✓ YA SUBIDO A ADS</div>`;
+      // Antes esto era un cartel muerto: una vez marcado como subido no habia
+      // como devolverlo a la cola del MANAGER. El unico "deshacer" vivia en el
+      // toast, que se va a los segundos.
+      readyForAdsHtml = `<div style="padding:6px 10px;border-top:1px dashed var(--border);background:var(--surface)" onclick="event.stopPropagation()">
+        <button onclick="event.stopPropagation();setVideoUploadedToAds('${esc(file.id)}', false, '${esc(handle)}', '${safeFileName}')" title="Vuelve a la cola del MANAGER como tarea pendiente" style="width:100%;background:transparent;border:1.5px dashed var(--muted);color:var(--muted);border-radius:5px;padding:5px 8px;font-size:10px;font-family:'DM Mono',monospace;cursor:pointer;font-weight:600">✓ YA SUBIDO A ADS · ↩ reactivar</button>
+      </div>`;
     } else if (isReady) {
       readyForAdsHtml = `<div style="padding:6px 10px;border-top:1px dashed var(--border);background:var(--surface)" onclick="event.stopPropagation()">
         <button onclick="event.stopPropagation();setVideoReadyForAds('${esc(file.id)}', false, '${esc(handle)}', '${safeFileName}')" title="Desmarcar — el subidor ya no lo verá en MANAGER" style="width:100%;background:#111111;color:#fff;border:none;border-radius:5px;padding:6px 8px;font-size:10px;font-family:'DM Mono',monospace;cursor:pointer;font-weight:700">📤 LISTO PARA ADS · click para desmarcar</button>
@@ -19145,6 +19152,7 @@ async function setVideoUploadedToAds(fileId, uploaded, handle, fileName){
       showToast('Marcado como subido' + undoHtml, '✓', 'success');
     } else {
       showToast('Reabierto · vuelve a la cola', '↩', 'success');
+      if (typeof renderVideosProdList === 'function') renderVideosProdList();
     }
     if (typeof renderAdsQueue === 'function') renderAdsQueue();
   } catch (err) {
