@@ -4,8 +4,10 @@
 // producto esta en otra bodega de Dropi la orden no se puede crear: una orden
 // de Dropi tiene UNA bodega. Sacar el upsell era entrar a Releasit a mano.
 //
-// POST { tenant?, product_id, upsell_id?, action: "off" | "on" | "delete",
-//        dry_run? }
+// POST { tenant?, product_id, upsell_id?, action: "off" | "on" | "delete" | "set",
+//        connect_product_id?, price?, activar?, dry_run? }
+//   set: conecta otro producto (connect_product_id) a price pesos. Queda
+//        apagado salvo activar: true.
 //   product_id: producto de Shopify donde vive el upsell (campo `prods`).
 //   upsell_id : cual, si el producto tiene mas de uno. Si hay uno solo, opcional.
 //
@@ -29,8 +31,17 @@ exports.handler = async (event) => {
   const action    = String(body.action || '').toLowerCase();
   const dryRun    = body.dry_run === true;
   if (!productId) return respond(400, { error: 'Falta product_id' });
-  if (['off', 'on', 'delete'].indexOf(action) === -1) {
-    return respond(400, { error: 'action debe ser "off", "on" o "delete"' });
+  if (['off', 'on', 'delete', 'set'].indexOf(action) === -1) {
+    return respond(400, { error: 'action debe ser "off", "on", "delete" o "set"' });
+  }
+  // set: cambia QUE producto ofrece el upsell, conservando su diseño (colores,
+  // borde, texto "Agrega {title} por solo {price}"). Titulo, variante e imagen
+  // se leen del producto conectado para no escribirlos a mano.
+  const connectId = String(body.connect_product_id || '').trim();
+  const precioPesos = body.price != null && String(body.price) !== '' ? Number(body.price) : null;
+  if (action === 'set') {
+    if (!connectId) return respond(400, { error: 'Falta connect_product_id (producto que se ofrece)' });
+    if (precioPesos == null || !(precioPesos > 0)) return respond(400, { error: 'Falta price en pesos (ej. 5990)' });
   }
 
   const API = 'https://' + domain + '/admin/api/2024-10';
@@ -66,8 +77,29 @@ exports.handler = async (event) => {
     }
 
     const afectados = encontrados.map(u => ({ id: u.id, name: u.name, isActive: u.isActive }));
+    let cambios = null;
+    if (action === 'set') {
+      const pr = await fetch(API + '/products/' + encodeURIComponent(connectId) + '.json', { headers: H });
+      if (!pr.ok) return respond(pr.status, { error: 'No pude leer el producto a ofrecer: ' + (await pr.text()).slice(0, 160) });
+      const prod = (await pr.json()).product || {};
+      const v0 = (prod.variants || [])[0];
+      if (!v0) return respond(400, { error: 'El producto a ofrecer no tiene variantes' });
+      if (String(prod.status) !== 'active') return respond(400, { error: 'El producto a ofrecer no esta activo (' + prod.status + ')' });
+      cambios = {
+        name: 'UPSELL: ' + prod.title,
+        title: prod.title,
+        connP: String(prod.id),
+        connV: String(v0.id),
+        imgUrl: (prod.image && prod.image.src) || '',
+        // Releasit guarda el precio en centavos: 5990 pesos = 599000.
+        price: Math.round(precioPesos * 100),
+        isActive: body.activar === true,
+      };
+    }
     let nueva;
-    if (action === 'delete') {
+    if (action === 'set') {
+      nueva = lista.map(u => (objetivo(u) ? Object.assign({}, u, cambios) : u));
+    } else if (action === 'delete') {
       nueva = lista.filter(u => !objetivo(u));
     } else {
       const activo = action === 'on';
@@ -75,7 +107,7 @@ exports.handler = async (event) => {
     }
 
     if (dryRun) {
-      return respond(200, { ok: true, applied: false, action, afectados, quedan: nueva.length });
+      return respond(200, { ok: true, applied: false, action, afectados, cambios, quedan: nueva.length });
     }
 
     const w = await fetch(API + '/metafields/' + mfUP.id + '.json', {
@@ -87,7 +119,7 @@ exports.handler = async (event) => {
       return respond(502, { error: 'No pude escribir tick_upsells_json: ' + t.slice(0, 300) });
     }
 
-    return respond(200, { ok: true, applied: true, action, afectados, quedan: nueva.length });
+    return respond(200, { ok: true, applied: true, action, afectados, cambios, quedan: nueva.length });
   } catch (err) {
     return respond(502, { error: err.message || 'unknown' });
   }
