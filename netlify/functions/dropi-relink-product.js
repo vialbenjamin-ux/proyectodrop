@@ -1,3 +1,5 @@
+const { cuentaDelToken } = require('./_dropi-tenant');
+
 // Cambia el PROVEEDOR / codigo Dropi de un producto ya existente en Shopify.
 //
 // Cambiar de proveedor toca DOS cosas, y hacer solo una deja el producto roto:
@@ -83,7 +85,7 @@ exports.handler = async function (event) {
     // (escanea TODO el catalogo). La mayoria entre estas ~14 muestras NO es
     // confiable: una tienda con la mitad de los productos en una cuenta vieja
     // puede inclinar la muestra para el lado equivocado.
-    let esperada = String(body.expected_account || '').trim();
+    let esperada = String(body.expected_account || '').trim() || cuentaDelToken(isGT) || '';
     if (!esperada) {
       const orden = Object.entries(conteo).sort((a, b) => b[1] - a[1]);
       const total = orden.reduce((n, e) => n + e[1], 0);

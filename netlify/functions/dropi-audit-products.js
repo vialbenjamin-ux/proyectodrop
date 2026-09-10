@@ -1,3 +1,5 @@
+const { cuentaDelToken } = require('./_dropi-tenant');
+
 // Auditoria: detecta productos Shopify cuyo metafield dropi._dropi_product
 // apunta a OTRA cuenta de Dropi.
 //
@@ -105,6 +107,7 @@ exports.handler = async function (event) {
     const cuentas = {};
     for (const it of items) if (it.cuenta) cuentas[it.cuenta] = (cuentas[it.cuenta] || 0) + 1;
     const esperada = String(qs.expected || '').trim()
+      || cuentaDelToken(isGT)
       || (Object.entries(cuentas).sort((a, b) => b[1] - a[1])[0] || [null])[0];
 
     const desalineados = items.filter(it => it.cuenta !== esperada || !it.userId);

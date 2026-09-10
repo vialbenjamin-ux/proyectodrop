@@ -1,3 +1,5 @@
+const { cuentaDelToken } = require('./_dropi-tenant');
+
 // Importa un producto Dropi a Shopify (Chile) como DRAFT con la estructura
 // completa que Dropi/Releasit esperan:
 //   - status = draft
@@ -188,7 +190,11 @@ exports.handler = async (event) => {
     }
 
     // Cuenta correcta: la forzada por env, o la mayoritaria entre los candidatos.
-    const forzada = String(process.env.DROPI_CUENTA_ESPERADA || '').trim();
+    // Orden de prioridad: env explicita > cuenta del token de la API > mayoria.
+    // La mayoria entre ~14 muestras elegia la cuenta vieja: asi nacieron en
+    // 116407 los productos creados entre el 6 y el 10 de septiembre.
+    const forzada = String(process.env.DROPI_CUENTA_ESPERADA || '').trim()
+      || cuentaDelToken(isGT) || '';
     let cuentaOk = forzada;
     if (!cuentaOk) {
       const conteo = {};

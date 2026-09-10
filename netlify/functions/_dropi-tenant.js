@@ -25,4 +25,23 @@ function dropiTenant(qs, body) {
   };
 }
 
-module.exports = { dropiTenant };
+// Cuenta de Dropi a la que pertenece el token de la API (claim `sub` del JWT).
+// Es la fuente de verdad de "cual es la cuenta buena": los productos cuyo
+// metafield trae un token de OTRA cuenta rebotan con "no posee saldo
+// suficiente en la wallet". Antes se adivinaba por mayoria entre productos de
+// muestra, y con la tienda repartida mitad y mitad salia la cuenta vieja.
+function cuentaDelToken(isGT) {
+  const tok = String((isGT ? process.env.DROPI_TOKEN_GT : process.env.DROPI_TOKEN_CL) || '').trim();
+  try {
+    const parts = tok.split('.');
+    if (parts.length < 2) return null;
+    let b = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    while (b.length % 4) b += '=';
+    const p = JSON.parse(Buffer.from(b, 'base64').toString('utf8'));
+    return p && p.sub != null ? String(p.sub) : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+module.exports = { dropiTenant, cuentaDelToken };
