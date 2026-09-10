@@ -133,6 +133,13 @@ exports.handler = async function (event) {
       // prueba y Dropi contesta "no posee stock en ninguna de sus bodegas".
       warehouse_product: actual.warehouse_product != null ? actual.warehouse_product : null,
       stock: actual.stock != null ? actual.stock : null,
+      // Variantes guardadas al importar. La app de Dropi manda el pedido con
+      // estas: si el proveedor rehace las variantes en Dropi, quedan viejas y
+      // cada pedido rebota con "La variation X no pertenece al producto Y".
+      tipo: actual.type || null,
+      variaciones: resumirVariaciones(actual.variations),
+      chose_variations: actual.chose_variations != null ? actual.chose_variations : null,
+      variationstoimport: actual.variationstoimport != null ? actual.variationstoimport : null,
     };
 
     // 3. Metafield nuevo. `tokens` y `shop_name` se conservan: son de la tienda,
@@ -200,6 +207,31 @@ exports.handler = async function (event) {
     return respond(502, { error: err.message || 'error desconocido' });
   }
 };
+
+// Resumen legible de metafield.variations: id, nombre armado con los valores
+// de sus atributos, sku y stock. Guarda tambien las claves del primero para
+// poder ver la forma real si Dropi cambia el formato.
+function resumirVariaciones(vs) {
+  if (!Array.isArray(vs)) return null;
+  return vs.map(function (v) {
+    if (!v || typeof v !== 'object') return v;
+    const vals = [];
+    const attrs = v.attribute_values || v.attributes || v.values || [];
+    if (Array.isArray(attrs)) {
+      attrs.forEach(function (a) {
+        const x = a && (a.value || a.name || (a.attribute_value && a.attribute_value.value));
+        if (x) vals.push(String(x));
+      });
+    }
+    return {
+      id: v.id != null ? v.id : null,
+      nombre: vals.join(' / ') || v.name || null,
+      sku: v.sku || null,
+      stock: v.stock != null ? v.stock : null,
+      claves: Object.keys(v),
+    };
+  });
+}
 
 function cors() {
   return {
