@@ -187,14 +187,14 @@ exports.handler = async (event) => {
 // sumarlo sea impulso. Los listados "2x1"/"3x1" se excluyen: como upsell el
 // cliente ve "2x1" y Dropi despacha una unidad.
 const RUBROS = {
-  cocina: ['cocina', 'cocin', 'aliment', 'comida', 'refri', 'nevera', 'hervidor', 'olla', 'sarten', 'cuchill', 'tijera', 'rallador', 'pelador', 'picad', 'huevo', 'cafe', 'vaso', 'taza', 'botella', 'termo', 'bolsa', 'sellador', 'hermetic', 'conserva', 'especia', 'aceite', 'mezcl', 'batidor', 'licuad', 'exprim', 'jugo', 'balanza', 'horno', 'parrilla', 'asado', 'lavaloza', 'salpicadura', 'masas$', 'amasa', 'tortilla', 'sopaipilla', 'desmenuz'],
+  cocina: ['cocina', 'cocin', 'aliment', 'comida', 'refri', 'nevera', 'hervidor', 'olla', 'sarten', 'cuchill', 'tijera', 'rallador', 'pelador', 'picad', 'huevo', 'cafe', 'vaso', 'taza', 'botella', 'termo$', 'termos$', 'bolsa', 'sellador', 'hermetic', 'conserva', 'especia$', 'especias$', 'aceite', 'mezcl', 'batidor', 'licuad', 'exprim', 'jugo', 'balanza', 'horno', 'parrilla', 'asado', 'lavaloza', 'salpicadura', 'masas$', 'amasa', 'tortilla', 'sopaipilla', 'desmenuz'],
   limpieza: ['limpi', 'lavaloza', 'jabon', 'detergente', 'destap', 'caneria', 'antisarro', 'sarro', 'mancha', 'pelusa', 'escoba', 'trapeador', 'desinfect', 'espuma', 'quita', 'cepillo', 'lavadora'],
   bano: ['bano', 'ducha', 'inodoro', 'toalla', 'antimoho', 'moho'],
   organizacion: ['organiz', 'perchero', 'zapatero', 'colgador', 'tendedero', 'estante', 'repisa', 'gancho', 'cajon', 'almacen'],
-  exterior: ['jardin', 'solar', 'guirnalda', 'exterior', 'planta', 'riego', 'manguera'],
+  exterior: ['jardin', 'solar', 'guirnalda', 'exterior', 'planta$', 'plantas$', 'riego', 'manguera'],
   auto: ['auto$', 'autos$', 'automovil', 'carro', 'vehicul', 'asiento', 'volante', 'parabris'],
-  mascota: ['mascota', 'perro', 'gato'],
-  belleza: ['crema', 'piel', 'facial', 'cabello', 'pestana', 'maquill', 'cosmet', 'blanque', 'depil'],
+  mascota: ['mascota', 'perro', 'gato$', 'gatos$'],
+  belleza: ['crema$', 'cremas$', 'piel', 'facial', 'cabello', 'pestana', 'maquill', 'cosmet', 'blanque', 'depil'],
   bienestar: ['dolor', 'masaj', 'postura', 'cervical', 'cuello', 'espalda', 'rodilla', 'insomnio', 'ronquido', 'ejercit', 'terapia'],
   tecnologia: ['bluetooth', 'audifon', 'parlante', 'cargador', 'usb', 'lampara', 'camara', 'tablet', 'celular'],
   ninos: ['bebe$', 'bebes$', 'nino', 'infantil', 'juguete', 'motriz'],
