@@ -155,15 +155,33 @@ exports.handler = async function (event) {
     if (body.cost !== undefined && body.cost !== null && String(body.cost) !== '') {
       nuevo.sale_price = Number(body.cost);
     }
+    // simple: el producto nuevo en Dropi NO tiene variantes. Sin esto se
+    // arrastran type VARIABLE y las variaciones del producto viejo, y la app
+    // de Dropi sigue mandando esa variante: el pedido rebota con "La
+    // variation X no pertenece al producto <nuevo>". Tambien se limpian las
+    // bodegas y el stock, que son del producto viejo.
+    if (body.simple === true) {
+      nuevo.type = 'SIMPLE';
+      nuevo.variations = [];
+      nuevo.variationstoimport = [];
+      nuevo.chose_variations = [];
+      nuevo.warehouse_product = [];
+    }
 
     const despues = {
       barcode: dropiId,
       dropi_id: dropiId,
       proveedor: userName,
       user_id: nuevo.user.id != null ? String(nuevo.user.id) : null,
+      tipo: nuevo.type || null,
+      variaciones: resumirVariaciones(nuevo.variations),
     };
 
     const aviso = [];
+    if (String(nuevo.type || '').toUpperCase() === 'VARIABLE' && dropiId !== String(actual.id)) {
+      aviso.push('El producto sigue como VARIABLE con las variantes del producto ' + actual.id
+        + '. Si el nuevo es simple, mandá simple: true o el pedido va a rebotar por variante.');
+    }
     if (!nuevo.user.id) aviso.push('El proveedor queda sin user_id: Dropi lo asigna después, pero conviene completarlo si lo sabés.');
     if (!cuenta) aviso.push('No pude leer la cuenta de Dropi del token del producto.');
 
