@@ -10837,6 +10837,7 @@ function mostrarPreviewReleasitModal(data, { disc2, disc3, nx1, priceOverride })
               '<label style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--muted);font-family:monospace;white-space:nowrap;cursor:pointer" title="Una orden de Dropi tiene UNA bodega: si el upsell esta en otra, el pedido no se puede crear">' +
                 '<input type="checkbox" id="bk-upsell-manual-same-wh" checked> Solo misma bodega' +
               '</label>' +
+              '<button onclick="_bkUpsellSugerir()" title="Propuestas del mismo proveedor que no rebotan en Dropi: cuenta correcta, misma bodega, mismo rubro y baratas" style="background:#15803D;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:11px;font-family:monospace;font-weight:700;cursor:pointer;white-space:nowrap">✨ Sugerir</button>' +
               '<button onclick="_bkUpsellManualBuscar()" style="background:#8A5A2A;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:11px;font-family:\'DM Mono\',monospace;font-weight:700;cursor:pointer">🔍 Buscar</button>' +
             '</div>' +
           '</div>' +
@@ -10847,7 +10848,8 @@ function mostrarPreviewReleasitModal(data, { disc2, disc3, nx1, priceOverride })
         '<div>⚠️ Sin upsell auto (razón: ' + esc(data.upsellReason || 'n/a') + '). Podés buscar uno manualmente o publicar solo la oferta de cantidad.</div>' +
         '<div style="display:flex;gap:6px;align-items:center">' +
           '<input type="text" id="bk-upsell-manual-q" placeholder="Buscar producto por nombre" onkeydown="if(event.key===\'Enter\'){event.preventDefault();_bkUpsellManualBuscar()}" style="flex:1;background:var(--surface);border:1.5px solid var(--border);color:var(--text);padding:6px 10px;border-radius:6px;font-size:12px">' +
-          '<button onclick="_bkUpsellManualBuscar()" style="background:#8A5A2A;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:11px;font-family:\'DM Mono\',monospace;font-weight:700;cursor:pointer">🔍 Buscar</button>' +
+          '<button onclick="_bkUpsellSugerir()" title="Propuestas del mismo proveedor que no rebotan en Dropi: cuenta correcta, misma bodega, mismo rubro y baratas" style="background:#15803D;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:11px;font-family:monospace;font-weight:700;cursor:pointer;white-space:nowrap">✨ Sugerir</button>' +
+              '<button onclick="_bkUpsellManualBuscar()" style="background:#8A5A2A;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:11px;font-family:\'DM Mono\',monospace;font-weight:700;cursor:pointer">🔍 Buscar</button>' +
         '</div>' +
         '<div id="bk-upsell-manual-results" style="display:none;max-height:220px;overflow-y:auto;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:6px"></div>' +
         '<div id="bk-upsell-cards-container" style="display:flex;gap:10px;flex-wrap:wrap"></div>' +
@@ -10916,6 +10918,70 @@ function _bkUpsellSelect(idx){
 // Busca upsells manualmente. Por default, SOLO del mismo proveedor Dropi
 // (usa dropi-supplier-shopify-products que filtra por metafield dropi.user.id).
 // Si el checkbox esta OFF, cae al buscador Shopify global (todos los proveedores).
+// Propuestas de upsell rankeadas por el backend (dropi-supplier-shopify-products
+// con sugerir=1): primero las que no rebotan en Dropi (cuenta y bodega), despues
+// las del mismo rubro, y dentro de eso las mas baratas. Cada una dice por que.
+async function _bkUpsellSugerir(){
+  const box = document.getElementById('bk-upsell-manual-results');
+  if (!box) return;
+  const ctx = window._bkReleasitContext || {};
+  box.style.display = 'block';
+  if (!ctx.supplierId) {
+    box.innerHTML = '<div style="font-size:10px;color:#C0392B;padding:4px">No se pudo leer el proveedor Dropi de este producto: no hay a quien pedirle propuestas.</div>';
+    return;
+  }
+  box.innerHTML = '<div style="font-size:10px;color:var(--muted);padding:4px">Buscando propuestas en todo el catálogo del proveedor…</div>';
+  try {
+    const url = '/.netlify/functions/dropi-supplier-shopify-products'
+      + '?supplier_id=' + encodeURIComponent(ctx.supplierId)
+      + (ctx.baseProductId ? '&match_warehouse_of=' + encodeURIComponent(ctx.baseProductId)
+                           + '&exclude_product_id=' + encodeURIComponent(ctx.baseProductId) : '')
+      + '&sugerir=1&limit=8';
+    const resp = await fetch(url);
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || ('HTTP ' + resp.status));
+    const prods = data.products || [];
+    if (!prods.length) {
+      box.innerHTML = '<div style="font-size:10px;color:var(--muted);padding:4px">Sin propuestas activas de ' + esc(ctx.supplierName || 'este proveedor') + '.</div>';
+      return;
+    }
+    const baseTxt = (data.baseBodegas && data.baseBodegas.length)
+      ? 'bodegas del producto: ' + data.baseBodegas.join(', ')
+      : 'el producto no declara bodega · se usa la principal del proveedor (' + (data.bodegaPrincipal != null ? data.bodegaPrincipal : '?') + ')';
+    const header = '<div style="font-size:9px;color:var(--muted);font-family:monospace;padding:2px 4px;border-bottom:1px solid var(--border);margin-bottom:4px">'
+      + esc(ctx.supplierName || 'Proveedor') + ' · ' + data.candidatos + ' candidatos · ' + esc(baseTxt)
+      + (data.baseRubros && data.baseRubros.length ? ' · rubro: ' + esc(data.baseRubros.join(', ')) : '')
+      + (data.excluidosPack ? ' · ' + data.excluidosPack + ' packs 2x1/3x1 excluidos' : '')
+      + '</div>';
+    const badge = function(txt, color){
+      return '<span style="display:inline-block;background:' + color + ';color:#fff;border-radius:4px;padding:1px 6px;font-size:9px;font-weight:700;margin-right:4px">' + txt + '</span>';
+    };
+    box.innerHTML = header + prods.map(function(p, i){
+      const sg = p.sugerencia || {};
+      const img = p.image ? '<img src="' + esc(p.image) + '" style="width:40px;height:40px;object-fit:cover;border-radius:4px;flex-shrink:0">' : '<div style="width:40px;height:40px;background:#F5F5F5;border-radius:4px;flex-shrink:0"></div>';
+      let b = '';
+      if (!sg.cuentaOk) b += badge('CUENTA VIEJA', '#C0392B');
+      if (sg.bodega === 'si') b += badge('MISMA BODEGA', '#2B7A2B');
+      else if (sg.bodega === 'probable') b += badge('BODEGA PROBABLE', '#8A5A2A');
+      else if (sg.bodega === 'no') b += badge('OTRA BODEGA', '#C0392B');
+      else b += badge('BODEGA SIN DATO', '#999');
+      if (sg.rubros && sg.rubros.length) b += badge(sg.rubros.join(' + ').toUpperCase(), '#2563EB');
+      const costo = p.cost != null ? '$' + Math.round(p.cost).toLocaleString('es-CL') : '—';
+      return '<div onclick="_bkUpsellManualPick(' + Number(p.id) + ')" style="display:flex;gap:8px;align-items:flex-start;padding:6px;border-radius:6px;cursor:pointer;font-size:11px;border-bottom:1px dashed var(--border)" onmouseover="this.style.background=\'#F5F5F5\'" onmouseout="this.style.background=\'transparent\'">'
+        + img
+        + '<div style="flex:1;min-width:0">'
+        +   '<div style="font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + (i + 1) + '. ' + esc(p.title || '') + '</div>'
+        +   '<div style="margin:3px 0">' + b + '<span style="font-size:10px;color:#8A5A2A;font-weight:700">costo ' + costo + '</span>'
+        +     (p.stock != null ? '<span style="font-size:10px;color:var(--muted);margin-left:6px">stock ' + p.stock + '</span>' : '') + '</div>'
+        +   '<div style="font-size:9px;color:var(--muted);font-family:monospace">' + esc((sg.razones || []).join(' · ')) + '</div>'
+        + '</div>'
+        + '</div>';
+    }).join('');
+  } catch (err) {
+    box.innerHTML = '<div style="font-size:10px;color:#C0392B;padding:4px">Error: ' + esc(err.message || 'desconocido') + '</div>';
+  }
+}
+
 async function _bkUpsellManualBuscar(){
   const q = document.getElementById('bk-upsell-manual-q')?.value?.trim() || '';
   const box = document.getElementById('bk-upsell-manual-results');

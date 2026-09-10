@@ -18,6 +18,8 @@
 //   { products: [ { id, title, handle, image, price, variantId, cost, status } ],
 //     scanned, matched, truncated }
 
+const { cuentaDelToken } = require('./_dropi-tenant');
+
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: cors(), body: '' };
   if (event.httpMethod !== 'GET') return respond(405, { error: 'Method not allowed' });
@@ -32,6 +34,9 @@ exports.handler = async (event) => {
   // ese upsell hace imposible crear el pedido.
   const baseId = String(qs.match_warehouse_of || '').trim();
   const soloMisma = String(qs.solo_misma_bodega || '') === '1';
+  // sugerir=1: rankea candidatos a upsell (cuenta, bodega, rubro, costo) con
+  // el motivo de cada uno. Usa match_warehouse_of como producto base.
+  const sugerir = String(qs.sugerir || '') === '1';
 
   if (!supplierId) return respond(400, { error: 'Falta supplier_id' });
 
@@ -51,7 +56,7 @@ exports.handler = async (event) => {
     '  products(first: 250, after: $cursor) {',
     '    pageInfo { hasNextPage endCursor }',
     '    edges { node {',
-    '      id title handle status',
+    '      id title handle status totalInventory',
     '      featuredImage { url }',
     '      variants(first: 1) { edges { node { id price } } }',
     '      metafield(namespace: "dropi", key: "_dropi_product") { value }',
@@ -66,6 +71,7 @@ exports.handler = async (event) => {
   let pages = 0;
   let truncated = false;
   let baseBodegas = null;
+  let baseInfo = null;
   const results = [];
 
   try {
@@ -92,7 +98,10 @@ exports.handler = async (event) => {
         try { meta = JSON.parse(n.metafield.value); } catch (_) { continue; }
 
         // El producto base puede aparecer antes o despues; se anota igual.
-        if (baseId && id === baseId) baseBodegas = bodegasDe(meta);
+        if (baseId && id === baseId) {
+          baseBodegas = bodegasDe(meta);
+          baseInfo = { title: n.title || '', texto: (n.title || '') + ' ' + textoDe(meta) };
+        }
         if (excludeId && id === excludeId) continue;
         if (!meta.user || String(meta.user.id) !== supplierId) continue;
 
@@ -115,6 +124,9 @@ exports.handler = async (event) => {
           cost: meta.sale_price != null ? Number(meta.sale_price) : null,
           dropiId: meta.id || null,
           bodegas: bodegasDe(meta),
+          stock: n.totalInventory != null ? n.totalInventory : null,
+          _cuenta: cuentaDeTokens(meta.tokens),
+          _texto: (n.title || '') + ' ' + textoDe(meta),
         });
       }
 
@@ -126,6 +138,11 @@ exports.handler = async (event) => {
   } catch (err) {
     return respond(502, { error: err.message || 'unknown' });
   }
+
+  if (sugerir) {
+    return respond(200, sugerirUpsells(results, baseId, baseBodegas, baseInfo, cuentaDelToken(isGT), limit, scanned));
+  }
+  for (const p of results) { delete p._cuenta; delete p._texto; }
 
   // Comparar bodegas contra el producto base. 'si' comparten al menos una,
   // 'no' si no comparten ninguna, '?' si alguno no declara bodegas (hay
@@ -162,6 +179,133 @@ exports.handler = async (event) => {
     products: finales.slice(0, limit),
   });
 };
+
+// ── Sugerencias de upsell ────────────────────────────────────────────────────
+// Replica el criterio que se usaba a mano: 1) que el pedido pase (cuenta
+// Dropi correcta y misma bodega, porque una orden de Dropi tiene UNA bodega),
+// 2) que combine con el producto base (mismo rubro), 3) barato, para que
+// sumarlo sea impulso. Los listados "2x1"/"3x1" se excluyen: como upsell el
+// cliente ve "2x1" y Dropi despacha una unidad.
+const RUBROS = {
+  cocina: ['cocina', 'cocin', 'aliment', 'comida', 'refri', 'nevera', 'hervidor', 'olla', 'sarten', 'cuchill', 'tijera', 'rallador', 'pelador', 'picad', 'huevo', 'cafe', 'vaso', 'taza', 'botella', 'termo', 'bolsa', 'sellador', 'hermetic', 'conserva', 'especia', 'aceite', 'mezcl', 'batidor', 'licuad', 'exprim', 'jugo', 'balanza', 'horno', 'parrilla', 'asado', 'lavaloza', 'salpicadura', 'masas$', 'amasa', 'tortilla', 'sopaipilla', 'desmenuz'],
+  limpieza: ['limpi', 'lavaloza', 'jabon', 'detergente', 'destap', 'caneria', 'antisarro', 'sarro', 'mancha', 'pelusa', 'escoba', 'trapeador', 'desinfect', 'espuma', 'quita', 'cepillo', 'lavadora'],
+  bano: ['bano', 'ducha', 'inodoro', 'toalla', 'antimoho', 'moho'],
+  organizacion: ['organiz', 'perchero', 'zapatero', 'colgador', 'tendedero', 'estante', 'repisa', 'gancho', 'cajon', 'almacen'],
+  exterior: ['jardin', 'solar', 'guirnalda', 'exterior', 'planta', 'riego', 'manguera'],
+  auto: ['auto$', 'autos$', 'automovil', 'carro', 'vehicul', 'asiento', 'volante', 'parabris'],
+  mascota: ['mascota', 'perro', 'gato'],
+  belleza: ['crema', 'piel', 'facial', 'cabello', 'pestana', 'maquill', 'cosmet', 'blanque', 'depil'],
+  bienestar: ['dolor', 'masaj', 'postura', 'cervical', 'cuello', 'espalda', 'rodilla', 'insomnio', 'ronquido', 'ejercit', 'terapia'],
+  tecnologia: ['bluetooth', 'audifon', 'parlante', 'cargador', 'usb', 'lampara', 'camara', 'tablet', 'celular'],
+  ninos: ['bebe$', 'bebes$', 'nino', 'infantil', 'juguete', 'motriz'],
+};
+
+function normTxt(s) {
+  return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+}
+
+// Cada clave calza al COMIENZO de una palabra ("cocin" -> cocina, cocinar);
+// con "$" al final tiene que ser la palabra exacta. Buscar en cualquier parte
+// daba falsos positivos: "masa" en "masajeadora", "auto" en "automatico".
+function rubrosDe(texto) {
+  const palabras = normTxt(texto).split(/[^a-z0-9]+/).filter(Boolean);
+  const calza = (k) => (k.slice(-1) === '$'
+    ? palabras.indexOf(k.slice(0, -1)) !== -1
+    : palabras.some((w) => w.indexOf(k) === 0));
+  const out = [];
+  for (const r of Object.keys(RUBROS)) if (RUBROS[r].some(calza)) out.push(r);
+  return out;
+}
+
+// El titulo no alcanza para el rubro ("Bolsas Frescura Pro"); la descripcion
+// y las categorias de Dropi, cuando existen, dicen mucho mas.
+function textoDe(meta) {
+  const cats = Array.isArray(meta && meta.categories)
+    ? meta.categories.map((c) => (c && (c.name || c.title)) || (typeof c === 'string' ? c : '')).join(' ')
+    : '';
+  const desc = String((meta && meta.description) || '').replace(/<[^>]+>/g, ' ').slice(0, 1500);
+  return cats + ' ' + desc;
+}
+
+function cuentaDeTokens(tok) {
+  try {
+    const parts = String(tok || '').split('.');
+    if (parts.length < 2) return null;
+    let b = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    while (b.length % 4) b += '=';
+    const p = JSON.parse(Buffer.from(b, 'base64').toString('utf8'));
+    return p && p.sub != null ? String(p.sub) : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function sugerirUpsells(todos, baseId, baseBodegas, baseInfo, cuentaOk, limit, scanned) {
+  const esPack = (t) => /\b\d\s*x\s*\d\b/i.test(String(t || ''));
+  // Bodega principal del proveedor: la mas repetida entre sus productos. Si el
+  // base no declara bodegas (todo lo creado con el importador), es la mejor
+  // apuesta.
+  const uso = {};
+  for (const p of todos) for (const w of (p.bodegas || [])) uso[w] = (uso[w] || 0) + 1;
+  const principal = Object.keys(uso).sort((a, b) => uso[b] - uso[a])[0];
+  const principalId = principal != null ? Number(principal) : null;
+  const baseSet = baseBodegas && baseBodegas.length ? baseBodegas : null;
+  const baseRubros = baseInfo ? rubrosDe(baseInfo.texto) : [];
+
+  let excluidosPack = 0;
+  const cand = [];
+  for (const p of todos) {
+    if (p.status !== 'active') continue;
+    if (esPack(p.title)) { excluidosPack++; continue; }
+    const razones = [];
+    let bodega;
+    if (!p.bodegas || !p.bodegas.length) {
+      bodega = '?';
+      razones.push('bodega sin dato');
+    } else if (baseSet) {
+      const comun = p.bodegas.filter((w) => baseSet.indexOf(w) !== -1);
+      bodega = comun.length ? 'si' : 'no';
+      razones.push(comun.length ? 'comparte bodega (' + comun.join(', ') + ')' : 'OTRA bodega (' + p.bodegas.join(', ') + ')');
+    } else if (principalId != null && p.bodegas.indexOf(principalId) !== -1) {
+      bodega = 'probable';
+      razones.push('bodega principal del proveedor (' + principalId + ')');
+    } else {
+      bodega = 'no';
+      razones.push('fuera de la bodega principal (' + p.bodegas.join(', ') + ')');
+    }
+    const cuentaBuena = !cuentaOk || !p._cuenta || p._cuenta === cuentaOk;
+    if (!cuentaBuena) razones.unshift('cuenta Dropi vieja (' + p._cuenta + '): el pedido rebotaria por saldo');
+    const rub = rubrosDe(p._texto).filter((r) => baseRubros.indexOf(r) !== -1);
+    if (rub.length) razones.push('mismo rubro: ' + rub.join(', '));
+    if (p.cost != null) razones.push('costo Dropi $' + Math.round(p.cost).toLocaleString('es-CL'));
+    cand.push({
+      id: p.id, title: p.title, handle: p.handle, image: p.image, price: p.price,
+      cost: p.cost, variantId: p.variantId, bodegas: p.bodegas, stock: p.stock,
+      sugerencia: { bodega, cuentaOk: cuentaBuena, rubros: rub, razones },
+    });
+  }
+  const rankB = { si: 0, probable: 1, '?': 2, no: 3 };
+  cand.sort((a, b) => {
+    const A = a.sugerencia, B = b.sugerencia;
+    if (A.cuentaOk !== B.cuentaOk) return A.cuentaOk ? -1 : 1;
+    if (rankB[A.bodega] !== rankB[B.bodega]) return rankB[A.bodega] - rankB[B.bodega];
+    if (A.rubros.length !== B.rubros.length) return B.rubros.length - A.rubros.length;
+    const ca = a.cost != null ? a.cost : Infinity, cb = b.cost != null ? b.cost : Infinity;
+    return ca - cb;
+  });
+  return {
+    modo: 'sugerir',
+    baseProductId: baseId || null,
+    baseBodegas: baseBodegas,
+    baseRubros,
+    bodegaPrincipal: principalId,
+    cuentaEsperada: cuentaOk || null,
+    scanned,
+    candidatos: cand.length,
+    excluidosPack,
+    products: cand.slice(0, limit),
+  };
+}
 
 // Ids de bodega declarados en el metafield. Puede venir vacio: hay productos
 // importados por otra via que no traen warehouse_product.
