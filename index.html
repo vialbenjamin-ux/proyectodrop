@@ -9414,6 +9414,18 @@ document.addEventListener('click', function(ev){
   if (exec) { exec.disabled = false; exec.style.opacity = '1'; }
 });
 
+// Shopify solo acepta [a-z0-9-_] en la asset key de un template. Un handle con
+// simbolos (el ™ de "devil-s-eye™-la-mirada-de-respeto", acentos, apostrofos)
+// hace fallar la subida con 422 "asset contains illegal characters". El creador
+// de landing ya saneaba; la replicacion no, y por eso reventaba solo al copiar.
+function bkHandleLimpio(handle){
+  return (String(handle || 'producto')
+    .toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')) || 'producto';
+}
+
 function _repReemplazarImgs(){
   var c = document.getElementById('bk-replicar-gt-imgs');
   return !!(c && c.checked);
@@ -9435,7 +9447,7 @@ async function ejecutarReplicacionGT(){
     const mm = String(today.getMonth() + 1).padStart(2, '0');
     const dd = String(today.getDate()).padStart(2, '0');
     const yyyy = today.getFullYear();
-    const newSuffix = mm + dd + yyyy + '-' + p.handle;
+    const newSuffix = mm + dd + yyyy + '-' + bkHandleLimpio(p.handle);
     const newAssetKey = 'templates/product.' + newSuffix + '.json';
 
     // 1. Clonar imágenes del TEMPLATE (secciones custom del landing) CL → GT
@@ -11782,13 +11794,7 @@ async function ejecutarAutoShrine(){
     const mm = String(today.getMonth() + 1).padStart(2, '0');
     const dd = String(today.getDate()).padStart(2, '0');
     const yyyy = today.getFullYear();
-    // Shopify solo permite [a-z0-9-_] en la asset key del template. Saneamos el
-    // handle (quita ™, apóstrofos, acentos, espacios y demás caracteres ilegales)
-    // para no recibir "asset contains illegal characters" (422).
-    const cleanHandle = (String(_autoShrineProduct.handle || 'producto')
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '')) || 'producto';
+    const cleanHandle = bkHandleLimpio(_autoShrineProduct.handle);
     const newSuffix = mm + dd + yyyy + '-' + cleanHandle;
     const newKey = 'templates/product.' + newSuffix + '.json';
     setStatus('⏳ Subiendo plantilla "' + newSuffix + '" al theme…');
