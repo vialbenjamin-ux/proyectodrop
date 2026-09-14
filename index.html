@@ -10176,13 +10176,14 @@ async function _bkDropiCargarProveedores(){
   const hint = document.getElementById('bk-dropi-supplier-hint');
   if (!dl) return;
   try {
-    const resp = await fetch('/.netlify/functions/dropi-known-suppliers');
+    // Sin tenant siempre traia los proveedores de Chile, incluso creando en GT.
+    const resp = await fetch('/.netlify/functions/dropi-known-suppliers?tenant=' + landingTenant());
     const data = await resp.json();
     const suppliers = data.suppliers || [];
     dl.innerHTML = suppliers.map(s =>
       '<option data-userid="' + esc(s.id) + '" value="' + esc(s.name) + '">' + esc(s.name) + ' (id ' + esc(s.id) + ', ' + s.productCount + ' productos)</option>'
     ).join('');
-    if (hint) hint.textContent = suppliers.length + ' proveedores conocidos · escribí para filtrar';
+    if (hint) hint.textContent = suppliers.length + ' proveedores de ' + (landingEsGT() ? 'Guatemala' : 'Chile') + ' · escribí para filtrar';
   } catch (err) {
     if (hint) hint.textContent = '⚠️ error cargando proveedores: ' + (err.message || 'unknown');
   }
@@ -11437,6 +11438,11 @@ function setLandingTenant(t){
   const repI = document.getElementById('bk-replicar-gt-search');
   if (repI) repI.placeholder = 'Producto en ' + (gtOn ? 'Guatemala' : 'Chile') + ' (título o handle)';
   _pintarNavLanding();
+  // La lista de proveedores es por pais: si quedo cargada la del pais
+  // anterior, el importador ofrece proveedores que no existen en esa tienda.
+  if (document.getElementById('bk-dropi-supplier-list') && typeof _bkDropiCargarProveedores === 'function') {
+    _bkDropiCargarProveedores();
+  }
 
   const relinkT = document.getElementById('bk-relink-tienda');
   if (relinkT) {
