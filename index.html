@@ -10349,7 +10349,7 @@ async function _bkPublicarReleasitGT(productId, handle, title, btn){
       }),
     });
     const data = await resp.json();
-    if (!resp.ok || !data.applied) throw new Error(data.error || 'error publicando');
+    if (!resp.ok || !data.applied) throw new Error(data.error || ('error publicando (HTTP ' + resp.status + ')'));
     if (btn) { btn.textContent = '✅ Publicado'; btn.style.background = '#DFF2E8'; btn.style.color = '#166534'; }
     if (status) status.innerHTML = '✅ Oferta publicada en Releasit GT. Verificá en la <a href="https://benkogt.com/products/' + esc(handle) + '" target="_blank" style="color:#fff;text-decoration:underline;font-weight:700">landing GT</a>.';
     showToast('Oferta publicada en Releasit GT', '🚀', 'ok');

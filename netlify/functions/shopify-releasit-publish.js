@@ -25,6 +25,26 @@
 //     metafieldsBefore, metafieldsAfter, applied
 //   }
 
+// Shopify limita por ritmo y contesta 429. Pasa cuando se publica Releasit
+// justo despues de replicar, porque la replicacion ya subio varias imagenes.
+// Antes cualquier 429 abortaba con "Fetch metafields tienda: 429" y habia que
+// reintentar a mano. Reintenta respetando Retry-After; tambien ante 5xx.
+async function fetchShopify(url, opts, intentos) {
+  const max = intentos || 3;
+  let ultima = null;
+  for (let i = 0; i < max; i++) {
+    ultima = await fetch(url, opts);
+    if (ultima.status !== 429 && ultima.status < 500) return ultima;
+    if (i === max - 1) break;
+    // Netlify corta la funcion a los 10s: si los reintentos se comen el
+    // presupuesto, el front recibe un error sin cuerpo ("error publicando").
+    const ra = Number(ultima.headers.get('Retry-After'));
+    const espera = (ra > 0 ? ra * 1000 : 700 * Math.pow(2, i));
+    await new Promise((r) => setTimeout(r, Math.min(espera, 1500)));
+  }
+  return ultima;
+}
+
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: cors(), body: '' };
   if (event.httpMethod !== 'POST') return respond(405, { error: 'Method not allowed' });
@@ -73,8 +93,8 @@ exports.handler = async (event) => {
   try {
     // 1. Traer producto base + su metafield dropi._dropi_product
     const [prodR, mfProdR] = await Promise.all([
-      fetch(API + '/products/' + productId + '.json', { headers: H }),
-      fetch(API + '/products/' + productId + '/metafields.json', { headers: H }),
+      fetchShopify(API + '/products/' + productId + '.json', { headers: H }),
+      fetchShopify(API + '/products/' + productId + '/metafields.json', { headers: H }),
     ]);
     if (!prodR.ok) return respond(prodR.status, { error: 'Fetch producto: ' + prodR.status });
     const prodJ = await prodR.json();
@@ -313,8 +333,10 @@ exports.handler = async (event) => {
     }
 
     // 4. Leer metafields Releasit actuales de la TIENDA
-    const mfShopR = await fetch(API + '/metafields.json?limit=250', { headers: H });
-    if (!mfShopR.ok) return respond(502, { error: 'Fetch metafields tienda: ' + mfShopR.status });
+    const mfShopR = await fetchShopify(API + '/metafields.json?namespace=_rsi_cod_form_sf&limit=250', { headers: H });
+    if (!mfShopR.ok) return respond(502, { error: mfShopR.status === 429
+      ? 'Shopify te esta limitando por ritmo (429). Espera unos segundos y volve a apretar Publicar.'
+      : 'Fetch metafields tienda: ' + mfShopR.status });
     const mfShopJ = await mfShopR.json();
     const mfQO = (mfShopJ.metafields || []).find(m => m.namespace === '_rsi_cod_form_sf' && m.key === 'quantity_offers_json');
     const mfUP = (mfShopJ.metafields || []).find(m => m.namespace === '_rsi_cod_form_sf' && m.key === 'tick_upsells_json');
@@ -430,7 +452,7 @@ exports.handler = async (event) => {
         const currentTags = String(product.tags || '').split(',').map(t => t.trim()).filter(Boolean);
         if (!currentTags.includes('bk-releasit-colors')) {
           currentTags.push('bk-releasit-colors');
-          const tagR = await fetch(API + '/products/' + productId + '.json', {
+          const tagR = await fetchShopify(API + '/products/' + productId + '.json', {
             method: 'PUT', headers: H,
             body: JSON.stringify({ product: { id: parseInt(productId, 10), tags: currentTags.join(', ') } }),
           });
@@ -446,7 +468,7 @@ exports.handler = async (event) => {
     let writeErrors = [];
     if (!dryRun) {
       // Escribir quantity_offers
-      const wQO = await fetch(API + '/metafields/' + mfQO.id + '.json', {
+      const wQO = await fetchShopify(API + '/metafields/' + mfQO.id + '.json', {
         method: 'PUT', headers: H,
         body: JSON.stringify({ metafield: { id: mfQO.id, value: JSON.stringify(listaQOLimpia), type: 'json' } }),
       });
@@ -457,7 +479,7 @@ exports.handler = async (event) => {
       // Escribir tick_upsells solo si el metafield existe. Si no, skip
       // (la tienda GT/CL puede no haber guardado nunca un upsell manual).
       if (hasUpsellMetafield) {
-        const wUP = await fetch(API + '/metafields/' + mfUP.id + '.json', {
+        const wUP = await fetchShopify(API + '/metafields/' + mfUP.id + '.json', {
           method: 'PUT', headers: H,
           body: JSON.stringify({ metafield: { id: mfUP.id, value: JSON.stringify(listaUPLimpia), type: 'json' } }),
         });
@@ -507,7 +529,7 @@ async function buscarUpsellCandidato(API, H, { supplierUserId, excludeProductId,
   let pages = 0;
 
   while (pageUrl && pages < MAX_PAGES) {
-    const r = await fetch(pageUrl, { headers: H });
+    const r = await fetchShopify(pageUrl, { headers: H });
     if (!r.ok) break;
     const j = await r.json();
     const products = j.products || [];
@@ -521,7 +543,7 @@ async function buscarUpsellCandidato(API, H, { supplierUserId, excludeProductId,
       // Ir a por hasta 8 candidatos (antes 5) para poblar top 5 mostrando 5 opciones.
       // Filtro por supplier: leer metafield dropi._dropi_product
       lookups++;
-      const mfR = await fetch(API + '/products/' + p.id + '/metafields.json?namespace=dropi', { headers: H });
+      const mfR = await fetchShopify(API + '/products/' + p.id + '/metafields.json?namespace=dropi', { headers: H });
       if (!mfR.ok) continue;
       const mfJ = await mfR.json();
       const mfDropi = (mfJ.metafields || []).find(m => m.namespace === 'dropi' && m.key === '_dropi_product');
