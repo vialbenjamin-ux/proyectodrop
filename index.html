@@ -9320,6 +9320,9 @@ async function seleccionarProductoReplicarGT(id, title, handle){
 // El creador directo caia antes en el panel de Chile, forzado a
 // tenant=chile, que calcula y muestra en CLP.
 function _bkPanelReleasitGT(gtId, handle, title){
+  // El buscador de upsells necesita saber sobre que producto trabaja.
+  window._bkUpsGtBaseId = String(gtId);
+  window._bkUpsGtElegido = null;
   return (
         '<div style="background:linear-gradient(135deg,#D9A82E 0%,#8A5A2A 100%);border-radius:10px;padding:12px;color:#fff;display:flex;flex-direction:column;gap:10px">' +
           '<div style="font-size:12px;font-weight:700;letter-spacing:.5px">💰 Publicar Precios + Releasit en Guatemala</div>' +
@@ -9336,6 +9339,18 @@ function _bkPanelReleasitGT(gtId, handle, title){
             '<button type="button" onclick="_bkReleasitGtNx1(2)" class="bk-gt-nx1-btn" data-nx1="2" style="flex:1;min-width:60px;background:#fff;color:#111;border:none;padding:6px;border-radius:6px;font-size:11px;font-family:\'DM Mono\',monospace;font-weight:700;cursor:pointer">2x1</button>' +
             '<button type="button" onclick="_bkReleasitGtNx1(3)" class="bk-gt-nx1-btn" data-nx1="3" style="flex:1;min-width:60px;background:#fff;color:#111;border:none;padding:6px;border-radius:6px;font-size:11px;font-family:\'DM Mono\',monospace;font-weight:700;cursor:pointer">3x1</button>' +
             '<button type="button" onclick="_bkReleasitGtNx1(4)" class="bk-gt-nx1-btn" data-nx1="4" style="flex:1;min-width:60px;background:#fff;color:#111;border:none;padding:6px;border-radius:6px;font-size:11px;font-family:\'DM Mono\',monospace;font-weight:700;cursor:pointer">4x1</button>' +
+          '</div>' +
+          '<div style="border-top:1px dashed rgba(255,255,255,.45);padding-top:8px;display:flex;flex-direction:column;gap:6px">' +
+            '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">' +
+              '<span style="font-size:10px;font-family:monospace;font-weight:700">🎁 Upsell:</span>' +
+              '<input type="text" id="bk-ups-gt-q" placeholder="Buscar producto en GT" style="flex:1;min-width:110px;background:#fff;border:none;color:#111;padding:6px 8px;border-radius:6px;font-size:11px;font-family:monospace">' +
+              '<button type="button" onclick="_bkUpsGtBuscar()" style="background:#fff;color:#8A5A2A;border:none;border-radius:6px;padding:6px 10px;font-size:11px;font-family:monospace;font-weight:700;cursor:pointer">🔍</button>' +
+              '<button type="button" onclick="_bkUpsGtSugerir()" style="background:#15803D;color:#fff;border:none;border-radius:6px;padding:6px 10px;font-size:11px;font-family:monospace;font-weight:700;cursor:pointer">✨ Sugerir</button>' +
+              '<label style="font-size:10px;font-family:monospace">Q</label>' +
+              '<input type="number" id="bk-ups-gt-price" placeholder="49" min="1" step="1" style="width:64px;background:#fff;border:none;color:#111;padding:6px;border-radius:6px;font-size:11px;font-family:monospace;font-weight:700">' +
+            '</div>' +
+            '<div id="bk-ups-gt-sel" style="font-size:10px;font-family:monospace"></div>' +
+            '<div id="bk-ups-gt-res" style="display:none;max-height:180px;overflow-y:auto;background:#fff;color:#111;border-radius:6px;padding:6px"></div>' +
           '</div>' +
           '<div style="display:flex;gap:6px;flex-wrap:wrap">' +
             '<button onclick="_bkPublicarReleasitGT(\'' + esc(gtId) + '\', \'' + esc(handle) + '\', \'' + esc(title) + '\', this)" style="flex:1;background:#fff;color:#8A5A2A;border:none;border-radius:6px;padding:9px 14px;font-size:12px;font-family:\'DM Mono\',monospace;font-weight:700;cursor:pointer">🚀 Publicar Releasit GT</button>' +
@@ -10325,12 +10340,103 @@ function _bkReleasitGtNx1(n){
 }
 
 // Publica la oferta Releasit en la tienda GT (post-replicar landing).
+// ── UPSELL EN GUATEMALA ──────────────────────────────────────────────────────
+// El panel GT publicaba solo las ofertas por cantidad: el upsell era exclusivo
+// de Chile. La busqueda automatica del backend casi nunca encuentra candidatos
+// en GT (tienda chica), asi que aca se elige a mano o con Sugerir, igual que en
+// el modal de Chile pero apuntando a la tienda de Guatemala.
+window._bkUpsGtElegido = null;
+
+function _bkUpsGtProductoBase(){
+  return window._bkUpsGtBaseId || null;
+}
+
+async function _bkUpsGtConsultar(sugerir){
+  const box = document.getElementById('bk-ups-gt-res');
+  const gtId = _bkUpsGtProductoBase();
+  if (!box) return;
+  if (!gtId) { box.style.display = 'block'; box.innerHTML = '<div style="font-size:10px;color:#C0392B">No se pudo leer el producto base.</div>'; return; }
+  const q = (document.getElementById('bk-ups-gt-q') || {}).value || '';
+  box.style.display = 'block';
+  box.innerHTML = '<div style="font-size:10px;color:#666">Buscando en la tienda de Guatemala…</div>';
+  try {
+    const url = '/.netlify/functions/dropi-supplier-shopify-products?tenant=gt'
+      + '&de_producto=' + encodeURIComponent(gtId)
+      + (sugerir ? '&sugerir=1' : '')
+      + (q.trim() ? '&q=' + encodeURIComponent(q.trim()) : '')
+      + '&limit=8';
+    const resp = await fetch(url);
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || ('HTTP ' + resp.status));
+    const prods = data.products || [];
+    if (!prods.length) {
+      box.innerHTML = '<div style="font-size:10px;color:#666">Sin resultados'
+        + (data.supplierId ? ' para el proveedor ' + esc(String(data.supplierId)) : '') + '.</div>';
+      return;
+    }
+    box.innerHTML = prods.map(function(p){
+      const sg = p.sugerencia || {};
+      const img = p.image
+        ? '<img src="' + esc(p.image) + '" style="width:30px;height:30px;object-fit:cover;border-radius:4px;flex-shrink:0">'
+        : '<div style="width:30px;height:30px;background:#eee;border-radius:4px;flex-shrink:0"></div>';
+      const costo = p.cost != null ? 'costo Q' + Math.round(p.cost).toLocaleString('es-GT') : '';
+      const motivo = (sg.razones || []).join(' · ');
+      return '<div onclick="_bkUpsGtElegir(' + Number(p.id) + ')" style="display:flex;gap:6px;align-items:center;padding:5px;border-radius:5px;cursor:pointer;border-bottom:1px solid #eee">'
+        + img
+        + '<div style="flex:1;min-width:0">'
+        +   '<div style="font-size:11px;font-weight:700;color:#111;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(p.title || '') + '</div>'
+        +   '<div style="font-size:9px;color:#666;font-family:monospace">' + esc(motivo || costo) + '</div>'
+        + '</div>'
+        + '</div>';
+    }).join('');
+  } catch (err) {
+    box.innerHTML = '<div style="font-size:10px;color:#C0392B">Error: ' + esc(err.message || 'desconocido') + '</div>';
+  }
+}
+
+function _bkUpsGtBuscar(){ return _bkUpsGtConsultar(false); }
+function _bkUpsGtSugerir(){ return _bkUpsGtConsultar(true); }
+
+async function _bkUpsGtElegir(productId){
+  const sel = document.getElementById('bk-ups-gt-sel');
+  const box = document.getElementById('bk-ups-gt-res');
+  try {
+    const resp = await fetch('/.netlify/functions/shopify-products?tenant=gt&id=' + encodeURIComponent(productId));
+    const data = await resp.json();
+    const prod = data.product;
+    if (!prod) throw new Error('Producto no encontrado en GT');
+    const v0 = (prod.variants || [])[0] || {};
+    window._bkUpsGtElegido = {
+      product_id: String(prod.id),
+      variant_id: String(v0.id || ''),
+      name: prod.title || '',
+      imgUrl: (prod.image && prod.image.src) || '',
+    };
+    if (box) box.style.display = 'none';
+    if (sel) sel.innerHTML = '🎁 Upsell elegido: <b>' + esc(prod.title || '') + '</b>'
+      + ' <button onclick="_bkUpsGtQuitar()" style="background:transparent;border:1px solid rgba(255,255,255,.6);color:#fff;border-radius:5px;padding:1px 7px;font-size:9px;cursor:pointer;margin-left:4px">quitar</button>';
+  } catch (err) {
+    if (sel) sel.textContent = '⚠️ ' + (err.message || 'error');
+  }
+}
+
+function _bkUpsGtQuitar(){
+  window._bkUpsGtElegido = null;
+  const sel = document.getElementById('bk-ups-gt-sel');
+  if (sel) sel.innerHTML = '';
+}
+
 async function _bkPublicarReleasitGT(productId, handle, title, btn){
   const status = document.getElementById('bk-releasit-gt-status');
   const price = parseFloat(document.getElementById('bk-releasit-gt-price')?.value);
   const disc2 = parseFloat(document.getElementById('bk-releasit-gt-d2')?.value) || 15;
   const disc3 = parseFloat(document.getElementById('bk-releasit-gt-d3')?.value) || 20;
   const nx1 = window._bkReleasitGtNx1Manual || 1;
+  const upsellPrecio = parseFloat((document.getElementById('bk-ups-gt-price') || {}).value) || 0;
+  if (window._bkUpsGtElegido && !(upsellPrecio > 0)) {
+    if (status) status.textContent = '⚠️ Elegiste un upsell: ponele precio en Q antes de publicar';
+    return;
+  }
   if (!price || price <= 0) { if (status) status.textContent = '⚠️ Ingresá el precio GTQ primero'; return; }
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Publicando…'; btn.style.opacity = '0.6'; }
   if (status) status.textContent = '⏳ Publicando oferta Releasit en GT…';
@@ -10346,6 +10452,8 @@ async function _bkPublicarReleasitGT(productId, handle, title, btn){
         price_override: price,
         dry_run: false,
         tenant: 'gt',
+        upsell_manual: window._bkUpsGtElegido || undefined,
+        upsell_override_price: upsellPrecio > 0 ? upsellPrecio : undefined,
       }),
     });
     const data = await resp.json();

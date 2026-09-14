@@ -351,6 +351,7 @@ exports.handler = async (event) => {
     // saltamos la escritura del upsell (aunque haya candidato, sin metafield no
     // hay donde escribirlo).
     const hasUpsellMetafield = !!mfUP;
+    let upsellMetafieldCreado = false;
 
     // 5. Armar el nuevo grupo de quantity_offers
     const grupoNuevo = {
@@ -476,8 +477,9 @@ exports.handler = async (event) => {
         const t = await wQO.text();
         writeErrors.push({ metafield: 'quantity_offers_json', status: wQO.status, error: t.slice(0, 300) });
       }
-      // Escribir tick_upsells solo si el metafield existe. Si no, skip
-      // (la tienda GT/CL puede no haber guardado nunca un upsell manual).
+      // tick_upsells: si el metafield no existe todavia (le pasaba a GT, que
+      // nunca guardo un upsell a mano en Releasit) se CREA. Antes se saltaba
+      // en silencio y el upsell no se publicaba nunca.
       if (hasUpsellMetafield) {
         const wUP = await fetchShopify(API + '/metafields/' + mfUP.id + '.json', {
           method: 'PUT', headers: H,
@@ -486,6 +488,20 @@ exports.handler = async (event) => {
         if (!wUP.ok) {
           const t = await wUP.text();
           writeErrors.push({ metafield: 'tick_upsells_json', status: wUP.status, error: t.slice(0, 300) });
+        }
+      } else if (listaUPLimpia.length) {
+        const cUP = await fetchShopify(API + '/metafields.json', {
+          method: 'POST', headers: H,
+          body: JSON.stringify({ metafield: {
+            namespace: '_rsi_cod_form_sf', key: 'tick_upsells_json',
+            type: 'json', value: JSON.stringify(listaUPLimpia),
+          } }),
+        });
+        if (!cUP.ok) {
+          const t = await cUP.text();
+          writeErrors.push({ metafield: 'tick_upsells_json (creando)', status: cUP.status, error: t.slice(0, 300) });
+        } else {
+          upsellMetafieldCreado = true;
         }
       }
       applied = writeErrors.length === 0;
@@ -499,7 +515,9 @@ exports.handler = async (event) => {
       upsell,
       upsellCandidates,
       upsellReason,
-      metafieldsBefore: { quantity_offers_count: listaQO.length, tick_upsells_count: listaUP.length },
+      metafieldsBefore: { quantity_offers_count: listaQO.length, tick_upsells_count: listaUP.length,
+        tick_upsells_exists: hasUpsellMetafield },
+      upsellMetafieldCreado,
       metafieldsAfter: { quantity_offers_count: listaQOLimpia.length, tick_upsells_count: listaUPLimpia.length },
       dryRun,
       applied,

@@ -38,7 +38,10 @@ exports.handler = async (event) => {
   // el motivo de cada uno. Usa match_warehouse_of como producto base.
   const sugerir = String(qs.sugerir || '') === '1';
 
-  if (!supplierId) return respond(400, { error: 'Falta supplier_id' });
+  // de_producto: resuelve solo el proveedor, el producto base y la exclusion
+  // a partir de un producto. El panel de GT no conoce el supplier_id.
+  const deProducto = String(qs.de_producto || '').trim();
+  if (!supplierId && !deProducto) return respond(400, { error: 'Falta supplier_id o de_producto' });
 
   const isGT = String(qs.tenant || 'chile').toLowerCase() === 'gt';
   const token  = isGT ? process.env.SHOPIFY_TOKEN_GT  : process.env.SHOPIFY_TOKEN;
@@ -47,6 +50,26 @@ exports.handler = async (event) => {
 
   const H = { 'X-Shopify-Access-Token': token, 'Content-Type': 'application/json', 'Accept': 'application/json' };
   const GQL = 'https://' + domain + '/admin/api/2024-10/graphql.json';
+
+  let supplierIdFinal = supplierId;
+  let baseIdFinal = baseId;
+  let excludeIdFinal = excludeId;
+  if (deProducto) {
+    try {
+      const r = await fetch('https://' + domain + '/admin/api/2024-10/products/'
+        + encodeURIComponent(deProducto) + '/metafields.json?namespace=dropi', { headers: H });
+      if (!r.ok) return respond(r.status, { error: 'No pude leer el producto base: ' + r.status });
+      const mf = ((await r.json()).metafields || []).find((m) => m.key === '_dropi_product');
+      if (!mf) return respond(400, { error: 'El producto base no tiene metafield dropi: no se sabe el proveedor.' });
+      const meta = JSON.parse(mf.value);
+      if (!meta.user || meta.user.id == null) return respond(400, { error: 'El metafield del producto base no trae proveedor.' });
+      supplierIdFinal = String(meta.user.id);
+      if (!baseIdFinal) baseIdFinal = deProducto;
+      if (!excludeIdFinal) excludeIdFinal = deProducto;
+    } catch (err) {
+      return respond(502, { error: 'No pude resolver el proveedor del producto base: ' + (err.message || 'error') });
+    }
+  }
 
   const normalize = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
   const terms = normalize(q).split(/\s+/).filter(Boolean);
@@ -98,12 +121,12 @@ exports.handler = async (event) => {
         try { meta = JSON.parse(n.metafield.value); } catch (_) { continue; }
 
         // El producto base puede aparecer antes o despues; se anota igual.
-        if (baseId && id === baseId) {
+        if (baseIdFinal && id === baseIdFinal) {
           baseBodegas = bodegasDe(meta);
           baseInfo = { title: n.title || '', texto: (n.title || '') + ' ' + textoDe(meta) };
         }
-        if (excludeId && id === excludeId) continue;
-        if (!meta.user || String(meta.user.id) !== supplierId) continue;
+        if (excludeIdFinal && id === excludeIdFinal) continue;
+        if (!meta.user || String(meta.user.id) !== supplierIdFinal) continue;
 
         if (terms.length) {
           const hay = normalize((n.title || '') + ' ' + (n.handle || ''));
@@ -140,7 +163,7 @@ exports.handler = async (event) => {
   }
 
   if (sugerir) {
-    return respond(200, sugerirUpsells(results, baseId, baseBodegas, baseInfo, cuentaDelToken(isGT), limit, scanned));
+    return respond(200, sugerirUpsells(results, baseIdFinal, baseBodegas, baseInfo, cuentaDelToken(isGT), limit, scanned));
   }
   for (const p of results) { delete p._cuenta; delete p._texto; }
 
@@ -149,13 +172,13 @@ exports.handler = async (event) => {
   // productos con warehouse_product vacio: ahi no se puede saber).
   const baseSet = baseBodegas && baseBodegas.length ? baseBodegas : null;
   for (const p of results) {
-    if (!baseId) { p.comparteBodega = null; continue; }
+    if (!baseIdFinal) { p.comparteBodega = null; continue; }
     if (!baseSet || !p.bodegas || !p.bodegas.length) { p.comparteBodega = '?'; continue; }
     p.comparteBodega = p.bodegas.some((w) => baseSet.indexOf(w) !== -1) ? 'si' : 'no';
   }
 
   let finales = results;
-  if (baseId && soloMisma) finales = results.filter((p) => p.comparteBodega === 'si');
+  if (baseIdFinal && soloMisma) finales = results.filter((p) => p.comparteBodega === 'si');
 
   // Primero los que comparten bodega, despues los dudosos, al final los que
   // seguro no. Dentro de cada grupo, activos antes que borradores.
@@ -169,12 +192,12 @@ exports.handler = async (event) => {
   });
 
   return respond(200, {
-    supplierId,
+    supplierId: supplierIdFinal,
     query: q || null,
     scanned,
     matched: finales.length,
     truncated,
-    baseProductId: baseId || null,
+    baseProductId: baseIdFinal || null,
     baseBodegas: baseBodegas,
     products: finales.slice(0, limit),
   });
