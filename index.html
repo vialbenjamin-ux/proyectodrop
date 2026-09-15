@@ -11870,6 +11870,18 @@ async function ejecutarAutoShrine(){
 
     // 3.5 VALIDACIÓN PRE-PUSH: contar elementos críticos y mostrar confirmación
     const checkChunks = parseMasterToChunks(masterText);
+    // Si no se reconoce NINGUNA seccion, el textarea no tiene un master:
+    // esta vacio o quedo el aviso de una generacion fallida. Aplicar eso
+    // deja la landing sin contenido.
+    const seccionesOk = Object.keys(parseMasterSections(masterText)).length;
+    if (!seccionesOk) {
+      const previa = String(masterText).trim().slice(0, 60);
+      setStatus('No se reconoce el texto maestro' + (previa ? ' (dice: "' + previa + '...")' : ' (esta vacio)')
+        + '. Pega la respuesta del Master, o recuperala en Mis Landings, y volve a intentar.');
+      goBtn.disabled = false;
+      goBtn.textContent = 'Generar plantilla y aplicar al producto';
+      return;
+    }
     const validation = {
       'Beneficios':         { count: checkChunks.beneficios.length,         expected: 3 },
       'Testimonios breves': { count: checkChunks.testimoniosBreves.length, expected: 3 },
@@ -15070,6 +15082,10 @@ async function seleccionarAngulo(idx){
 
     showToast(`🎯 "${esc(titulo)}" elegido · desarrollando master enfocado…`, '🎯', 'info');
     if(res){ res.classList.remove('warn','success'); res.textContent = '⏳ Desarrollando master focalizado en "' + titulo + '"…'; }
+    // Se guarda el texto que habia: si Gemini falla, el catch lo devuelve.
+    // Antes quedaba el reloj de arena pisando el master, y la landing se
+    // generaba vacia con todos los contadores en 0.
+    const textoPrevio = respEl ? respEl.value : '';
     if(respEl){ respEl.value = '⏳ Generando master enfocado…'; }
 
     try {
@@ -15095,6 +15111,7 @@ async function seleccionarAngulo(idx){
       const msg = err && err.message ? err.message : '?';
       if(res){ res.classList.add('warn'); res.textContent = '⚠️ Error desarrollando master: ' + msg; }
       showToast('No se pudo desarrollar el master: ' + msg, '⚠️', 'error');
+      if(respEl) respEl.value = textoPrevio;
       return;
     }
   } else {
