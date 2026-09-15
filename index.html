@@ -2113,6 +2113,7 @@
       <div style="display:flex;gap:6px;flex-wrap:wrap;padding:12px 0">
         <button class="bk-step-btn" id="bk-btn-extraer" onclick="extraerDatosMaster()">📥 Extraer datos</button>
         <button class="bk-step-btn" id="bk-btn-relink" onclick="toggleRelinkPanel()" style="background:#8B5CF6;color:#fff">🔁 Cambiar proveedor</button>
+        <button class="bk-step-btn" id="bk-btn-variantes" onclick="toggleVariantesPanel()" style="background:#D97706;color:#fff">🎨 Producto con variantes</button>
         <button class="bk-step-btn" id="bk-btn-shopify-push" onclick="abrirShopifyPush()" style="background:#10a37f;color:#fff">📤 Pegar en producto</button>
         <button class="bk-step-btn" id="bk-btn-shrine-paste" onclick="abrirShrinePaste()" style="background:#7B5BB5;color:#fff">📋 Copy-paste manual</button>
         <button class="bk-step-btn" id="bk-btn-mis-landings" onclick="abrirMisLandings()" style="background:#5B7CBF;color:#fff">📚 Mis landings</button>
@@ -2121,6 +2122,35 @@
         <button class="bk-step-btn" id="bk-btn-template-inspect" onclick="inspeccionarTemplate()" style="background:#E89A4A;color:#fff">🔍 Inspector</button>
         <button class="bk-step-btn" id="bk-btn-install-releasit-colors" onclick="_bkInstalarColoresReleasit(this)" style="background:#8B5CF6;color:#fff">🎨 Instalar colores Releasit</button>
       </div>
+          <!-- Convertir un producto simple en uno con variantes de Dropi -->
+          <div class="bk-shopify-push" id="bk-variantes-panel" style="display:none;border-color:#D97706">
+            <div class="bk-shopify-push-title" style="color:#D97706">🎨 Producto con variantes</div>
+            <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;line-height:1.5">
+              Para productos que en Dropi son <b>Variable</b> (colores, tallas) pero acá quedaron como uno solo. Sin esto el pedido llega sin decir cuál y Dropi lo rechaza por stock. Los ids salen del panel de Dropi: copiá las filas de la tabla de variantes y pegalas abajo. Respeta la tienda elegida arriba.
+            </div>
+            <div class="bk-shopify-search-row">
+              <input type="text" id="bk-var-search" placeholder="Busca el producto por título" onkeydown="if(event.key==='Enter') buscarProductoVariantes()">
+              <button onclick="buscarProductoVariantes()">🔍 Buscar</button>
+            </div>
+            <div class="bk-shopify-results" id="bk-var-results"></div>
+            <div id="bk-var-form" style="display:none;flex-direction:column;gap:8px">
+              <div id="bk-var-actual"></div>
+              <div style="display:flex;flex-direction:column;gap:3px;width:160px">
+                <label style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">Nombre de la opción</label>
+                <input type="text" id="bk-var-opcion" value="Color" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px 10px;border-radius:6px;font-size:13px;font-family:'DM Mono',monospace">
+              </div>
+              <div style="display:flex;flex-direction:column;gap:3px">
+                <label style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">Variantes de Dropi (una por línea)</label>
+                <textarea id="bk-var-lineas" rows="5" placeholder="14514 Color: Rojo 12 $ 15.990&#10;14516 Color: Rosado 12 $ 15.990&#10;19553 Color: Azul 12 $ 15.990" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:8px 10px;border-radius:6px;font-size:12px;font-family:'DM Mono',monospace"></textarea>
+              </div>
+              <div id="bk-var-preview"></div>
+              <div style="display:flex;gap:6px;flex-wrap:wrap">
+                <button onclick="previsualizarVariantes()" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--text);border-radius:8px;padding:10px 14px;font-size:12px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">👁 Vista previa</button>
+                <button onclick="aplicarVariantes()" id="bk-var-apply" disabled style="flex:1;background:#D97706;color:#fff;border:none;border-radius:8px;padding:11px;font-size:13px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer;opacity:.55">🎨 Crear variantes</button>
+              </div>
+            </div>
+            <div id="bk-var-status" style="font-size:11px;font-family:'DM Mono',monospace;min-height:14px"></div>
+          </div>
           <!-- Cambiar proveedor / codigo Dropi de un producto ya creado -->
           <div class="bk-shopify-push" id="bk-relink-panel" style="display:none;border-color:#8B5CF6">
             <div class="bk-shopify-push-title" style="color:#8B5CF6">🔁 Cambiar proveedor / código Dropi</div>
@@ -11498,6 +11528,173 @@ function irACrearLandingGT(){
 // Sigue el pais del creador de landing (landingTenant).
 
 let _relinkProducto = null;
+
+// ── PRODUCTO CON VARIANTES ───────────────────────────────────────────────────
+// El importador crea siempre productos simples: la API de Dropi no expone los
+// productos, asi que no hay de donde sacar los ids de las variaciones. Si el
+// producto en Dropi es Variable, el pedido llega sin decir cual y rebota con
+// "no posee stock en ninguna de sus bodegas". Los ids se leen del panel de
+// Dropi y se pegan aca.
+let _varProducto = null;
+
+function _varSt(msg, color){
+  const el = document.getElementById('bk-var-status');
+  if (el) { el.innerHTML = msg || ''; el.style.color = color || 'var(--muted)'; }
+}
+
+function toggleVariantesPanel(){
+  const el = document.getElementById('bk-variantes-panel');
+  if (!el) return;
+  const visible = el.style.display !== 'none';
+  el.style.display = visible ? 'none' : 'flex';
+  if (!visible) {
+    _varProducto = null;
+    const form = document.getElementById('bk-var-form');
+    if (form) form.style.display = 'none';
+    _varSt('');
+  }
+}
+
+async function buscarProductoVariantes(){
+  const q = (document.getElementById('bk-var-search')?.value || '').trim();
+  const res = document.getElementById('bk-var-results');
+  if (!res) return;
+  res.innerHTML = '<div style="font-size:11px;color:var(--muted);padding:8px">Buscando…</div>';
+  _varProducto = null;
+  const form = document.getElementById('bk-var-form');
+  if (form) form.style.display = 'none';
+  try {
+    const r = await fetch('/.netlify/functions/shopify-products?_=1' + landingParam() + (q ? '&q=' + encodeURIComponent(q) : ''));
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || ('HTTP ' + r.status));
+    const ps = d.products || [];
+    if (!ps.length) { res.innerHTML = '<div style="font-size:11px;color:var(--muted);padding:8px">Sin resultados.</div>'; return; }
+    res.innerHTML = ps.slice(0, 12).map(function(p){
+      return '<div onclick="elegirProductoVariantes(' + Number(p.id) + ')" style="display:flex;align-items:center;gap:8px;padding:7px 9px;border:1px solid var(--border);border-radius:8px;margin-bottom:4px;cursor:pointer;background:var(--surface)">'
+        + (p.image ? '<img src="' + esc(p.image) + '" style="width:28px;height:28px;object-fit:cover;border-radius:5px">' : '')
+        + '<span style="flex:1;font-size:11px;color:var(--text)">' + esc(p.title || '') + '</span>'
+        + '<span style="font-size:9px;color:var(--muted);font-family:monospace">' + esc(p.status || '') + '</span>'
+        + '</div>';
+    }).join('');
+  } catch (e) {
+    res.innerHTML = '<div style="font-size:11px;color:var(--danger,#E74C3C);padding:8px">⚠ ' + esc(e.message || 'error') + '</div>';
+  }
+}
+
+async function elegirProductoVariantes(id){
+  _varProducto = { id: String(id) };
+  const res = document.getElementById('bk-var-results');
+  if (res) res.innerHTML = '';
+  _varSt('Leyendo el producto…');
+  try {
+    const r = await fetch('/.netlify/functions/shopify-products?tenant=' + landingTenant() + '&id=' + encodeURIComponent(id));
+    const d = await r.json();
+    const p = d.product;
+    if (!p) throw new Error('No pude leer el producto');
+    const vs = p.variants || [];
+    _varProducto.title = p.title;
+    const form = document.getElementById('bk-var-form');
+    if (form) form.style.display = 'flex';
+    const aviso = vs.length > 1
+      ? '<div style="color:#C0392B;margin-top:4px">Este producto YA tiene ' + vs.length + ' variantes: la herramienta solo convierte productos simples.</div>'
+      : '';
+    const el = document.getElementById('bk-var-actual');
+    if (el) el.innerHTML = '<div style="font-size:11px;font-family:monospace;color:var(--text);background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 10px">'
+      + '<b>' + esc(p.title || '') + '</b><br>'
+      + 'variantes: ' + vs.length + ' · código actual: ' + esc((vs[0] || {}).barcode || '—') + ' · precio: ' + esc((vs[0] || {}).price || '—')
+      + aviso + '</div>';
+    _varSt('Pegá las filas de variantes del panel de Dropi y apretá Vista previa.');
+  } catch (e) {
+    _varSt('⚠ ' + (e.message || 'error'), 'var(--danger,#E74C3C)');
+  }
+}
+
+// Acepta lo que se copia del panel de Dropi ("14514 Color: Rojo 12 $ 15.990"),
+// y tambien "Rojo | 14514" o "14514 Rojo".
+function _bkVarParsear(txt){
+  const out = [];
+  String(txt || '').split(/\r?\n/).forEach(function(linea){
+    const l = String(linea).trim();
+    if (!l) return;
+    const mId = l.match(/\b(\d{3,})\b/);
+    if (!mId) return;
+    const id = mId[1];
+    const resto = l.slice(0, mId.index) + ' ' + l.slice(mId.index + id.length);
+    const mCat = resto.match(/:\s*([^|\d$]+)/);
+    let nombre = mCat ? mCat[1] : resto;
+    nombre = nombre.replace(/\$[\d.,]+/g, ' ').replace(/[|]/g, ' ')
+      .replace(/\b\d+[\d.,]*\b/g, ' ').replace(/\s+/g, ' ').trim();
+    if (!nombre) return;
+    out.push({ nombre: nombre, variation_id: id });
+  });
+  return out;
+}
+
+async function previsualizarVariantes(){
+  if (!_varProducto) { _varSt('⚠ Elegí primero un producto', 'var(--danger,#E74C3C)'); return; }
+  const variaciones = _bkVarParsear((document.getElementById('bk-var-lineas') || {}).value);
+  const prev = document.getElementById('bk-var-preview');
+  const apply = document.getElementById('bk-var-apply');
+  if (apply) apply.disabled = true;
+  if (variaciones.length < 2) {
+    if (prev) prev.innerHTML = '';
+    _varSt('⚠ No pude leer al menos 2 variantes de lo que pegaste. Cada línea necesita el id y el nombre.', 'var(--danger,#E74C3C)');
+    return;
+  }
+  _varSt('Calculando…');
+  try {
+    const r = await fetch('/.netlify/functions/shopify-product-variantes', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        tenant: landingTenant(), product_id: _varProducto.id,
+        opcion: (document.getElementById('bk-var-opcion') || {}).value || 'Color',
+        variaciones: variaciones, dry_run: true,
+      }),
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || ('HTTP ' + r.status));
+    const pl = d.plan || {};
+    if (prev) prev.innerHTML = '<div style="font-size:11px;font-family:monospace;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 10px">'
+      + '<b>Producto Dropi ' + esc(pl.dropi && pl.dropi.id) + '</b> (hoy: ' + esc((pl.dropi && pl.dropi.tipoActual) || '?') + ')<br>'
+      + (pl.variantes || []).map(function(v){
+          return '• ' + esc(v.nombre) + ' — código <b>' + esc(v.barcode) + '</b> — $' + esc(v.precio);
+        }).join('<br>')
+      + '<div style="color:var(--amber,#B7791F);margin-top:6px">' + (pl.avisos || []).map(esc).join('<br>') + '</div>'
+      + '</div>';
+    if (apply) apply.disabled = false;
+    _varSt('Revisá la vista previa. Si está bien, apretá Crear variantes.');
+  } catch (e) {
+    if (prev) prev.innerHTML = '';
+    _varSt('⚠ ' + (e.message || 'error'), 'var(--danger,#E74C3C)');
+  }
+}
+
+async function aplicarVariantes(){
+  if (!_varProducto) return;
+  const variaciones = _bkVarParsear((document.getElementById('bk-var-lineas') || {}).value);
+  if (variaciones.length < 2) { _varSt('⚠ Faltan variantes', 'var(--danger,#E74C3C)'); return; }
+  const btn = document.getElementById('bk-var-apply');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Creando…'; }
+  _varSt('Creando variantes en Shopify…');
+  try {
+    const r = await fetch('/.netlify/functions/shopify-product-variantes', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        tenant: landingTenant(), product_id: _varProducto.id,
+        opcion: (document.getElementById('bk-var-opcion') || {}).value || 'Color',
+        variaciones: variaciones,
+      }),
+    });
+    const d = await r.json();
+    if (!r.ok || !d.applied) throw new Error(d.error || ('HTTP ' + r.status));
+    _varSt('✅ Listo: ' + (d.variantesCreadas || []).length + ' variantes creadas y metafield en VARIABLE.', 'var(--accent)');
+    showToast('Variantes creadas', '🎨', 'success');
+  } catch (e) {
+    _varSt('⚠ ' + (e.message || 'error'), 'var(--danger,#E74C3C)');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '🎨 Crear variantes'; }
+  }
+}
 
 function toggleRelinkPanel(){
   const el = document.getElementById('bk-relink-panel');
