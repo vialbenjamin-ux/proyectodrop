@@ -180,6 +180,9 @@ exports.handler = async function (event) {
     };
 
     const aviso = [];
+    if (!String(variant.sku || '').trim()) {
+      aviso.push('La variante no tenia SKU y Shopify lo exige para guardar: se completa con el id de Dropi (' + dropiId + ').');
+    }
     if (String(nuevo.type || '').toUpperCase() === 'VARIABLE' && dropiId !== String(actual.id)) {
       aviso.push('El producto sigue como VARIABLE con las variantes del producto ' + actual.id
         + '. Si el nuevo es simple, mandá simple: true o el pedido va a rebotar por variante.');
@@ -205,9 +208,13 @@ exports.handler = async function (event) {
     if (dryRun) return respond(200, { ok: true, applied: false, antes, despues, cuenta, cuentaNueva, aviso });
 
     // 4. Escribir: barcode y metafield.
+    // Shopify rechaza el update con {"sku":["can't be blank"]} cuando la
+    // variante no tiene SKU. Se manda el que ya tenia y, si esta vacio, el id
+    // de Dropi: es la convencion que usa el importador.
+    const skuActual = String(variant.sku || '').trim();
     const vR = await fetch(API + '/variants/' + variant.id + '.json', {
       method: 'PUT', headers: H,
-      body: JSON.stringify({ variant: { id: variant.id, barcode: dropiId } }),
+      body: JSON.stringify({ variant: { id: variant.id, barcode: dropiId, sku: skuActual || dropiId } }),
     });
     if (!vR.ok) return respond(vR.status, { error: 'No pude actualizar el código de barras: ' + (await vR.text()).slice(0, 160) });
 
