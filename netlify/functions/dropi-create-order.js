@@ -19,6 +19,39 @@
 // SEGURIDAD: crea SIEMPRE con status "PENDIENTE CONFIRMACION" para que el
 // call center las confirme antes de despachar.
 
+// Dropi valida el nombre EXACTO de la region y responde "El departamento no
+// existe o esta deshabilitado" cuando no calza. Shopify manda NUBLE y
+// OHIGGINS; Dropi los escribe con Ñ y con acento grave. El 21 sep 2026
+// rebotaron 5 pedidos por esto y ninguno era un problema real.
+// Los nombres salieron de las ordenes ya aceptadas en Dropi.
+const REGIONES_DROPI = {
+  'NUBLE': 'ÑUBLE',
+  'OHIGGINS': 'LIBERTADOR GENERAL BERNARDO O`HIGGINS',
+  'LIBERTADOR GENERAL BERNARDO OHIGGINS': 'LIBERTADOR GENERAL BERNARDO O`HIGGINS',
+  'LIBERTADOR BERNARDO OHIGGINS': 'LIBERTADOR GENERAL BERNARDO O`HIGGINS',
+  'BIOBIO': 'BIO - BIO',
+  'BIO BIO': 'BIO - BIO',
+  'METROPOLITANA': 'METROPOLITANA DE SANTIAGO',
+  'REGION METROPOLITANA': 'METROPOLITANA DE SANTIAGO',
+  'LA ARAUCANIA': 'ARAUCANIA',
+  'AYSEN': 'AISEN DEL GENERAL CARLOS IBANEZ DEL CAMPO',
+  'MAGALLANES': 'MAGALLANES Y DE LA ANTARTICA CHILENA',
+};
+
+// Compara sin tildes, sin apostrofos y sin espacios de mas: asi
+// "O'Higgins", "OHIGGINS" y "ohiggins" llegan todos a la misma entrada.
+function regionDropi(valor) {
+  const crudo = String(valor || '').trim();
+  if (!crudo) return crudo;
+  const clave = crudo
+    .toUpperCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[`'\u2019]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return REGIONES_DROPI[clave] || crudo.toUpperCase();
+}
+
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 204, headers: cors(), body: '' };
@@ -325,7 +358,7 @@ exports.handler = async (event) => {
     client_email: String(body.email || ''),
     dir: String(body.dir || '').slice(0, 200),
     city: String(body.city || '').toUpperCase(),
-    state: String(body.state || '').toUpperCase(),
+    state: regionDropi(body.state),
     zip_code: null,
     colonia: null,
     notes: String(body.notes || 'Creada via BKDROP desde huerfano Shopify').slice(0, 300),
