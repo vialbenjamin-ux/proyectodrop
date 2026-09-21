@@ -61,6 +61,7 @@ exports.handler = async function (event) {
 
   try {
     const items = [];
+    const sinMetafield = [];
     let cursor = null;
     // Tope de seguridad: 20 paginas = 5000 productos.
     for (let page = 0; page < 20; page++) {
@@ -78,7 +79,17 @@ exports.handler = async function (event) {
       if (!conn) break;
       for (const n of (conn.nodes || [])) {
         const raw = n.metafield && n.metafield.value;
-        if (!raw) continue;
+        // Sin metafield dropi el producto no existe para Dropi y sus pedidos
+        // se descartan enteros ("Esta orden no tiene productos dropi").
+        if (!raw) {
+          sinMetafield.push({
+            id: String(n.id || '').split('/').pop(),
+            title: n.title,
+            handle: n.handle,
+            status: String(n.status || '').toLowerCase(),
+          });
+          continue;
+        }
         let v = null;
         try { v = JSON.parse(raw); } catch (_) { continue; }
         const p = jwtPayload(v.tokens);
@@ -120,6 +131,8 @@ exports.handler = async function (event) {
 
     return respond(200, {
       conMetafield: items.length,
+      sinMetafield: sinMetafield.filter((x) => x.status === 'active'),
+      sinMetafieldTotal: sinMetafield.length,
       cuentas,
       esperada,
       desalineados: desalineados.sort((a, b) => (a.status === 'active' ? -1 : 1) - (b.status === 'active' ? -1 : 1)),

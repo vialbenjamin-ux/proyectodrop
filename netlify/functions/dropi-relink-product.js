@@ -115,21 +115,41 @@ exports.handler = async function (event) {
     const mR = await fetch(API + '/products/' + encodeURIComponent(productId) + '/metafields.json?namespace=dropi', { headers: H });
     const mJ = mR.ok ? await mR.json() : { metafields: [] };
     const mf = (mJ.metafields || []).find(m => m.namespace === 'dropi' && m.key === '_dropi_product');
-    if (!mf) {
-      return respond(400, {
-        error: 'El producto no tiene metafield dropi._dropi_product. No fue importado desde Dropi, así que no hay proveedor que reemplazar.',
-      });
-    }
+    // Sin metafield el producto NO existe para Dropi: la app mira el pedido,
+    // no encuentra productos suyos y lo descarta entero con la nota "Esta orden
+    // no tiene productos dropi". Paso con el Soporte Mural (pedido #30054).
+    // En ese caso se CREA el metafield heredando el token de la cuenta correcta,
+    // igual que hace el importador.
     let actual;
-    try { actual = JSON.parse(mf.value); }
-    catch { return respond(400, { error: 'El metafield dropi no es JSON válido' }); }
+    let creandoMetafield = false;
+    if (!mf) {
+      creandoMetafield = true;
+      const res = await buscarTokenDeLaCuenta();
+      if (res.error) {
+        return respond(400, {
+          error: 'El producto no tiene metafield dropi y no pude crear uno: ' + res.error,
+        });
+      }
+      actual = {
+        id: parseInt(dropiId, 10),
+        name: product.title || '',
+        type: 'SIMPLE',
+        user: { id: null, name: userName },
+        tokens: res.donante.tokens,
+        shop_name: res.donante.shop_name || null,
+      };
+    } else {
+      try { actual = JSON.parse(mf.value); }
+      catch { return respond(400, { error: 'El metafield dropi no es JSON válido' }); }
+    }
 
     const cuenta = jwtSub(actual.tokens);
     const antes = {
       barcode: variant.barcode || null,
-      dropi_id: actual.id != null ? String(actual.id) : null,
-      proveedor: (actual.user && actual.user.name) || null,
-      user_id: (actual.user && actual.user.id != null) ? String(actual.user.id) : null,
+      // Al crear el vinculo no hay "antes": `actual` ya son los datos nuevos.
+      dropi_id: creandoMetafield ? null : (actual.id != null ? String(actual.id) : null),
+      proveedor: creandoMetafield ? null : ((actual.user && actual.user.name) || null),
+      user_id: creandoMetafield ? null : ((actual.user && actual.user.id != null) ? String(actual.user.id) : null),
       // La bodega del producto: dropi-create-order solo conoce las bodegas de
       // ordenes pasadas, asi que un proveedor sin ventas recientes nunca se
       // prueba y Dropi contesta "no posee stock en ninguna de sus bodegas".
@@ -180,6 +200,10 @@ exports.handler = async function (event) {
     };
 
     const aviso = [];
+    if (creandoMetafield) {
+      aviso.push('Este producto NO estaba vinculado a Dropi: se crea el vínculo desde cero. '
+        + 'Sus pedidos anteriores quedaron fuera de Dropi y hay que pasarlos a mano.');
+    }
     if (!String(variant.sku || '').trim()) {
       aviso.push('La variante no tenia SKU y Shopify lo exige para guardar: se completa con el id de Dropi (' + dropiId + ').');
     }
@@ -205,7 +229,7 @@ exports.handler = async function (event) {
       }
     }
 
-    if (dryRun) return respond(200, { ok: true, applied: false, antes, despues, cuenta, cuentaNueva, aviso });
+    if (dryRun) return respond(200, { ok: true, applied: false, creandoMetafield, antes, despues, cuenta, cuentaNueva, aviso });
 
     // 4. Escribir: barcode y metafield.
     // Shopify rechaza el update con {"sku":["can't be blank"]} cuando la
@@ -218,10 +242,18 @@ exports.handler = async function (event) {
     });
     if (!vR.ok) return respond(vR.status, { error: 'No pude actualizar el código de barras: ' + (await vR.text()).slice(0, 160) });
 
-    const mW = await fetch(API + '/metafields/' + mf.id + '.json', {
-      method: 'PUT', headers: H,
-      body: JSON.stringify({ metafield: { id: mf.id, value: JSON.stringify(nuevo), type: 'json' } }),
-    });
+    const mW = creandoMetafield
+      ? await fetch(API + '/products/' + encodeURIComponent(productId) + '/metafields.json', {
+          method: 'POST', headers: H,
+          body: JSON.stringify({ metafield: {
+            namespace: 'dropi', key: '_dropi_product',
+            type: 'json', value: JSON.stringify(nuevo),
+          } }),
+        })
+      : await fetch(API + '/metafields/' + mf.id + '.json', {
+          method: 'PUT', headers: H,
+          body: JSON.stringify({ metafield: { id: mf.id, value: JSON.stringify(nuevo), type: 'json' } }),
+        });
     if (!mW.ok) {
       return respond(mW.status, {
         error: 'Código de barras actualizado pero FALLÓ el metafield: ' + (await mW.text()).slice(0, 160)
