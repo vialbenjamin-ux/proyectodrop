@@ -12045,8 +12045,11 @@ function autoFilesDrop(e){
   refreshAutoFilesPreview();
 }
 
+// Devuelve true solo si la plantilla quedo aplicada al producto. Cancelar o
+// fallar devuelve false: laAplicarLanding lo usa para no marcar el pedido
+// como aplicado cuando no paso nada.
 async function ejecutarAutoShrine(){
-  if (!_autoShrineProduct) return;
+  if (!_autoShrineProduct) return false;
   const status = document.getElementById('bk-auto-shrine-status');
   const goBtn = document.getElementById('bk-auto-shrine-go');
   const masterText = document.getElementById('bkv-respuesta')?.value || '';
@@ -12209,7 +12212,7 @@ async function ejecutarAutoShrine(){
         + '. Pega la respuesta del Master, o recuperala en Mis Landings, y volve a intentar.');
       goBtn.disabled = false;
       goBtn.textContent = 'Generar plantilla y aplicar al producto';
-      return;
+      return false;
     }
     const validation = {
       'Beneficios':         { count: checkChunks.beneficios.length,         expected: 3 },
@@ -12241,7 +12244,7 @@ async function ejecutarAutoShrine(){
       setStatus('⚠️ Cancelado por el usuario. Las imágenes ya están en Shopify Files (no se aplicó plantilla).');
       goBtn.disabled = false;
       goBtn.textContent = '🚀 Generar plantilla y aplicar al producto';
-      return;
+      return false;
     }
 
     // 4. Generar key y subir
@@ -12323,10 +12326,13 @@ async function ejecutarAutoShrine(){
     // En background — no rompe el flow principal si falla. El usuario ve el
     // resultado en el banner.
     crearCarpetasDriveDelProducto(_autoShrineProduct.handle, _autoShrineProduct.title);
+    // Le avisa a laAplicarLanding que esta vez si se aplico.
+    return true;
   } catch (err) {
     const m = err && err.message ? err.message : '?';
     if (status) status.textContent = '⚠️ ' + m;
     showToast('Error: ' + m, '⚠️', 'error');
+    return false;
   } finally {
     goBtn.disabled = false;
     goBtn.textContent = '🚀 Generar plantilla y aplicar al producto';
@@ -19956,8 +19962,11 @@ async function _bkImagenesPreviasDeLaApp(productId){
       const src = String(im.src || '');
       // Las subidas como attachment: main-N-<timestamp>.ext
       // Las puestas por URL desde Landing Auto: <lo-que-sea>-main-N.ext
-      return /\/main-\d+-\d{10,}\.[a-z0-9]+(\?|$)/i.test(src)
-          || /-main-\d+\.[a-z0-9]+(\?|$)/i.test(src);
+      // OJO: cuando la imagen entra por image.src, Shopify le agrega un
+      // sufijo _<uuid> antes de la extension (main-1_5e529fa2-....jpg), asi
+      // que el patron no puede exigir que el numero pegue con el punto.
+      return /\/main-\d+-\d{10,}[-_.]/i.test(src)
+          || /-main-\d+[-_.]/i.test(src);
     });
   } catch(_) { return []; }
 }
@@ -20362,11 +20371,13 @@ async function laAplicarLanding(id){
     }
     _laCargarEnCreador(p);
     showToast('Aplicando la landing…', '🚀', 'info');
-    await ejecutarAutoShrine();
+    const aplicada = await ejecutarAutoShrine();
+    if (!aplicada) return;   // cancelado o fallo: el pedido queda como estaba
     await firebase.firestore().collection(LA_COL).doc(id).update({
       estado: 'aplicada',
       updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
     });
+    renderLandingAuto();
   } catch (e) {
     showToast('No se pudo aplicar: ' + (e.message || 'error'), '⚠️', 'error');
   }
