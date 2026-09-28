@@ -2994,28 +2994,43 @@
         <span style="font-size:10px;font-family:'DM Mono',monospace;background:#2B5FB3;color:#fff;padding:3px 9px;border-radius:10px">EN PRUEBA</span>
       </div>
       <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;line-height:1.6;margin-bottom:18px;max-width:70ch">
-        Dejás el producto acá y la sesión de Videos Auto Drop lo toma: busca los videos, los descarga y elige el ángulo de venta. Cuando vuelve con los textos, se abren en el creador de siempre, ya cargados. Esta pestaña no toca el flujo actual.
+        Elegís el país y pegás el ID de Dropi: el nombre y las fotos salen solos del producto. De ahí la sesión de Videos Auto Drop lo toma, busca los videos, elige el ángulo de venta y corta los GIFs y las fotos. Cuando vuelve, se abre en el creador de siempre con todo cargado. Esta pestaña no toca el flujo actual.
       </div>
 
       <div class="bk-shopify-push" style="border-color:#2B5FB3;display:flex">
         <div class="bk-shopify-push-title" style="color:#2B5FB3">Nuevo pedido</div>
+        <div style="display:flex;flex-direction:column;gap:5px;margin-bottom:4px">
+          <label style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">¿De qué país es el producto? <span style="color:#C0392B">*</span></label>
+          <div style="display:flex;gap:8px">
+            <button type="button" id="la-pais-chile" onclick="laSetPais('chile')" style="flex:1;padding:11px;border-radius:8px;border:2px solid #2B5FB3;background:#2B5FB3;color:#fff;font-size:13px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">🇨🇱 Chile</button>
+            <button type="button" id="la-pais-gt" onclick="laSetPais('gt')" style="flex:1;padding:11px;border-radius:8px;border:2px solid var(--border);background:var(--surface2);color:var(--muted);font-size:13px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">🇬🇹 Guatemala</button>
+          </div>
+        </div>
         <div style="display:flex;gap:10px;flex-wrap:wrap">
-          <div style="display:flex;flex-direction:column;gap:3px;flex:2;min-width:220px">
-            <label style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">Nombre del producto <span style="color:#C0392B">*</span></label>
-            <input type="text" id="la-nombre" placeholder="Triciclo correpasillo plegable" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:9px 11px;border-radius:6px;font-size:13px;font-family:'DM Mono',monospace">
+          <div style="display:flex;flex-direction:column;gap:3px;flex:1;min-width:170px">
+            <label style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">ID de Dropi <span style="color:#C0392B">*</span></label>
+            <input type="number" id="la-dropi" placeholder="66774" oninput="laIdCambio()" onblur="laBuscarProducto()" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:9px 11px;border-radius:6px;font-size:13px;font-family:'DM Mono',monospace">
           </div>
           <div style="display:flex;flex-direction:column;gap:3px;width:130px">
-            <label style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">ID de Dropi <span style="color:#C0392B">*</span></label>
-            <input type="number" id="la-dropi" placeholder="46226" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:9px 11px;border-radius:6px;font-size:13px;font-family:'DM Mono',monospace">
-          </div>
-          <div style="display:flex;flex-direction:column;gap:3px;width:110px">
             <label style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">Sello</label>
             <input type="text" id="la-sello" placeholder="45 o 2x1" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:9px 11px;border-radius:6px;font-size:13px;font-family:'DM Mono',monospace">
           </div>
+          <div style="display:flex;flex-direction:column;gap:3px;justify-content:flex-end">
+            <button type="button" onclick="laBuscarProducto()" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--text);border-radius:6px;padding:9px 15px;font-size:12px;font-family:'DM Mono',monospace;cursor:pointer">🔎 Buscar</button>
+          </div>
         </div>
-        <input type="file" accept="image/*" id="la-foto" class="bk-video-input">
-        <label for="la-foto" class="bk-video-label" id="la-foto-label">Elegir foto de referencia</label>
-        <button id="la-crear-btn" onclick="laCrearPedido()" style="background:#2B5FB3;color:#fff;border:none;border-radius:8px;padding:11px;font-size:13px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">🛰️ Crear pedido</button>
+        <div id="la-preview"></div>
+        <!-- Producto nuevo: todavia no esta en Shopify, asi que el nombre y la
+             foto no se pueden sacar de ningun lado. Se piden aca. -->
+        <div id="la-manual" style="display:none;flex-direction:column;gap:9px;background:var(--surface2);border:1.5px dashed var(--border);border-radius:10px;padding:12px">
+          <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;line-height:1.6">
+            Producto nuevo: cargá el nombre y una foto para que pueda buscar los videos. Cuando lo importes a Shopify, el ID solo va a alcanzar.
+          </div>
+          <input type="text" id="la-nombre" placeholder="Nombre del producto" style="background:var(--surface);border:1.5px solid var(--border);color:var(--text);padding:9px 11px;border-radius:6px;font-size:13px;font-family:'DM Mono',monospace">
+          <input type="file" accept="image/*" id="la-foto" class="bk-video-input">
+          <label for="la-foto" class="bk-video-label" id="la-foto-label">Elegir foto de referencia</label>
+        </div>
+        <button id="la-crear-btn" onclick="laCrearPedido()" disabled style="background:var(--surface2);color:var(--muted);border:none;border-radius:8px;padding:11px;font-size:13px;font-family:'DM Mono',monospace;font-weight:700;cursor:not-allowed">🛰️ Crear pedido</button>
         <div id="la-status" style="font-size:11px;font-family:'DM Mono',monospace;min-height:14px"></div>
       </div>
 
@@ -20012,8 +20027,96 @@ function _laEstado(msg, color){
   if (el) { el.textContent = msg || ''; el.style.color = color || 'var(--muted)'; }
 }
 
-// La foto viaja dentro del documento: se achica primero para no pasarse del
-// limite de Firestore (1 MB por documento).
+// El pais se elige a mano y de entrada. NO se hereda del creador de landing:
+// heredarlo fue lo que mando un producto chileno a la tienda de Guatemala.
+let _laPais = 'chile';
+// Lo que devolvio la ultima busqueda por ID. Sin esto no se crea el pedido.
+let _laProducto = null;
+
+function laSetPais(p){
+  _laPais = (p === 'gt') ? 'gt' : 'chile';
+  const activo = { border: '2px solid #2B5FB3', background: '#2B5FB3', color: '#fff' };
+  const apagado = { border: '2px solid var(--border)', background: 'var(--surface2)', color: 'var(--muted)' };
+  [['la-pais-chile', 'chile'], ['la-pais-gt', 'gt']].forEach(function(par){
+    const el = document.getElementById(par[0]);
+    if (!el) return;
+    const est = (_laPais === par[1]) ? activo : apagado;
+    el.style.border = est.border; el.style.background = est.background; el.style.color = est.color;
+  });
+  // Cambiar de pais invalida lo buscado: el mismo ID es otro producto en la
+  // otra tienda.
+  laIdCambio();
+}
+
+function _laHabilitarCrear(ok){
+  const btn = document.getElementById('la-crear-btn');
+  if (!btn) return;
+  btn.disabled = !ok;
+  btn.style.background = ok ? '#2B5FB3' : 'var(--surface2)';
+  btn.style.color = ok ? '#fff' : 'var(--muted)';
+  btn.style.cursor = ok ? 'pointer' : 'not-allowed';
+}
+
+function laIdCambio(){
+  _laProducto = null;
+  _laHabilitarCrear(false);
+  _laMostrarManual(false);
+  const pv = document.getElementById('la-preview');
+  if (pv) pv.innerHTML = '';
+  _laEstado('');
+}
+
+// Busca el producto por ID de Dropi en la tienda del pais elegido. El nombre
+// y las fotos salen del metafield dropi._dropi_product (la API de Dropi no
+// tiene endpoint de productos).
+async function laBuscarProducto(){
+  const id = String(((document.getElementById('la-dropi') || {}).value) || '').trim();
+  const pv = document.getElementById('la-preview');
+  if (!/^\d{3,}$/.test(id)) { if (pv) pv.innerHTML = ''; return; }
+  if (_laProducto && _laProducto.dropiId === id && _laProducto.tenant === _laPais) return;
+  _laEstado('Buscando el producto en ' + (_laPais === 'gt' ? 'Guatemala' : 'Chile') + '…');
+  if (pv) pv.innerHTML = '';
+  try {
+    const r = await fetch('/.netlify/functions/dropi-producto-por-id?tenant=' + _laPais + '&dropi_id=' + encodeURIComponent(id));
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+    if (!j.encontrado) {
+      // Producto nuevo. No es un error: es el caso normal cuando recien lo
+      // sacaste del catalogo de Dropi. Se pide el nombre y la foto y listo.
+      _laProducto = { encontrado: false, nuevo: true, dropiId: id, tenant: _laPais };
+      _laHabilitarCrear(true);
+      _laMostrarManual(true);
+      if (pv) pv.innerHTML = '<div style="background:var(--surface2);border:1.5px solid #B7791F;border-radius:10px;padding:12px;font-size:11px;font-family:\'DM Mono\',monospace;color:var(--text);line-height:1.6">'
+        + '🆕 El ID <b>' + esc(id) + '</b> todavía no está en Shopify ' + (_laPais === 'gt' ? 'GT' : 'Chile') + '.'
+        + '<br><span style="color:var(--muted)">Acordate de importarlo desde el panel de Dropi (no desde acá): así el metafield sale completo y los pedidos no caen en DROPITEA.</span></div>';
+      _laEstado('');
+      return;
+    }
+    _laProducto = j;
+    _laHabilitarCrear(true);
+    _laMostrarManual(false);
+    _laEstado('');
+    if (pv) {
+      const corto = (j.camposMetafield && j.camposMetafield < 20);
+      pv.innerHTML = '<div style="background:var(--surface2);border:1.5px solid #2B5FB3;border-radius:10px;padding:12px;display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap">'
+        + (j.fotoPrincipal ? '<img src="' + esc(j.fotoPrincipal) + '" style="width:72px;height:72px;object-fit:cover;border-radius:8px;flex:none">' : '')
+        + '<div style="flex:1;min-width:200px">'
+        +   '<div style="font-family:\'Montserrat\',sans-serif;font-weight:800;font-size:13px;color:var(--text)">' + esc(j.titulo || j.nombreDropi) + '</div>'
+        +   '<div style="font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace;margin-top:4px">'
+        +     esc(j.nombreDropi || '') + (j.proveedor ? ' · ' + esc(j.proveedor) : '')
+        +     ' · ' + (j.fotos || []).length + ' fotos · ' + esc(String(j.tipo || '')) + '</div>'
+        +   (corto ? '<div style="font-size:10px;color:#B7791F;font-family:\'DM Mono\',monospace;margin-top:5px">⚠ El metafield tiene solo ' + j.camposMetafield + ' campos: este producto no sincroniza solo con Dropi, los pedidos van a caer en DROPITEA.</div>' : '')
+        + '</div></div>';
+    }
+  } catch (e) {
+    _laProducto = null;
+    _laHabilitarCrear(false);
+    _laEstado('⚠ ' + (e.message || 'error'), 'var(--danger,#E74C3C)');
+  }
+}
+
+// La foto viaja dentro del documento, asi que se achica primero: Firestore
+// no acepta documentos de mas de 1 MB.
 function _laachicarFoto(file){
   return new Promise(function(resolve, reject){
     const fr = new FileReader();
@@ -20036,46 +20139,73 @@ function _laachicarFoto(file){
   });
 }
 
+function _laMostrarManual(mostrar){
+  const box = document.getElementById('la-manual');
+  if (box) box.style.display = mostrar ? 'flex' : 'none';
+  if (!mostrar) {
+    const n = document.getElementById('la-nombre'); if (n) n.value = '';
+    const f = document.getElementById('la-foto'); if (f) f.value = '';
+    const l = document.getElementById('la-foto-label'); if (l) l.textContent = 'Elegir foto de referencia';
+  }
+}
+
 async function laCrearPedido(){
-  const nombre = (document.getElementById('la-nombre') || {}).value || '';
-  const dropiId = (document.getElementById('la-dropi') || {}).value || '';
   const sello = (document.getElementById('la-sello') || {}).value || '';
-  const file = (document.getElementById('la-foto') || {}).files?.[0];
   const btn = document.getElementById('la-crear-btn');
 
-  if (!nombre.trim()) { _laEstado('Falta el nombre del producto', 'var(--danger,#E74C3C)'); return; }
-  if (!/^\d{3,}$/.test(String(dropiId).trim())) { _laEstado('El ID de Dropi tiene que ser numerico', 'var(--danger,#E74C3C)'); return; }
-  if (!file) { _laEstado('Falta la foto de referencia', 'var(--danger,#E74C3C)'); return; }
+  if (!_laProducto) { _laEstado('Buscá primero el producto por su ID de Dropi', 'var(--danger,#E74C3C)'); return; }
   if (typeof firebase === 'undefined' || !firebase.firestore) { _laEstado('Firestore no disponible', 'var(--danger,#E74C3C)'); return; }
 
+  // Producto nuevo: el nombre y la foto los pone el.
+  const nuevo = !_laProducto.encontrado;
+  let nombreManual = '', fotoManual = null;
+  if (nuevo) {
+    nombreManual = String(((document.getElementById('la-nombre') || {}).value) || '').trim();
+    const file = (document.getElementById('la-foto') || {}).files?.[0];
+    if (!nombreManual) { _laEstado('Falta el nombre del producto', 'var(--danger,#E74C3C)'); return; }
+    if (!file) { _laEstado('Falta la foto de referencia', 'var(--danger,#E74C3C)'); return; }
+    _laEstado('Preparando la foto…');
+    try { fotoManual = await _laachicarFoto(file); }
+    catch (e) { _laEstado('⚠ ' + (e.message || 'error'), 'var(--danger,#E74C3C)'); return; }
+  }
+
   if (btn) { btn.disabled = true; btn.textContent = 'Creando…'; }
-  _laEstado('Preparando la foto…');
   try {
-    const foto = await _laachicarFoto(file);
     const db = firebase.firestore();
     await db.collection(LA_COL).add({
-      nombre: nombre.trim(),
-      dropiId: String(dropiId).trim(),
+      nombre: nuevo ? nombreManual : (_laProducto.titulo || _laProducto.nombreDropi || ''),
+      nombreDropi: _laProducto.nombreDropi || '',
+      // true = todavia no existe en Shopify. Hay que importarlo desde el panel
+      // de Dropi antes de aplicarle la landing.
+      sinShopify: nuevo,
+      foto: fotoManual,
+      dropiId: String(_laProducto.dropiId),
       sello: sello.trim() || null,
-      pais: landingTenant(),
-      foto: foto,
+      // El pais es el que se eligio a mano arriba, no el del creador.
+      pais: _laProducto.tenant === 'gt' ? 'gt' : 'chile',
+      shopifyId: _laProducto.shopifyId || null,
+      handle: _laProducto.handle || null,
+      proveedor: _laProducto.proveedor || null,
+      // Las fotos del proveedor: sirven de referencia para buscar los videos
+      // y como imagenes del carrusel (ya estan en el producto).
+      fotoUrl: _laProducto.fotoPrincipal || null,
+      fotosProducto: (_laProducto.fotos || []).slice(0, 8),
       estado: 'pedido',
       creadoPor: (typeof currentUser !== 'undefined' ? currentUser : '') || '',
       createdAt: firebase.firestore.FieldValue.serverTimestamp(),
       updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
     });
-    ['la-nombre', 'la-dropi', 'la-sello'].forEach(function(id){
-      const el = document.getElementById(id); if (el) el.value = '';
-    });
-    const f = document.getElementById('la-foto'); if (f) f.value = '';
-    const lbl = document.getElementById('la-foto-label'); if (lbl) lbl.textContent = 'Elegir foto de referencia';
-    _laEstado('Pedido creado. La sesion local lo va a tomar para buscar los videos.', 'var(--accent)');
+    const el = document.getElementById('la-dropi'); if (el) el.value = '';
+    const se = document.getElementById('la-sello'); if (se) se.value = '';
+    laIdCambio();
+    _laEstado('Pedido creado en ' + (_laPais === 'gt' ? 'Guatemala' : 'Chile') + '. La sesión local lo va a tomar para buscar los videos.', 'var(--accent)');
     showToast('Pedido de landing creado', '🛰️', 'success');
     renderLandingAuto();
   } catch (e) {
     _laEstado('⚠ ' + (e.message || 'error'), 'var(--danger,#E74C3C)');
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = '🛰️ Crear pedido'; }
+    if (btn) { btn.textContent = '🛰️ Crear pedido'; }
+    _laHabilitarCrear(!!_laProducto);
   }
 }
 
@@ -20103,12 +20233,13 @@ async function renderLandingAuto(){
         : '';
       const listo = p.estado === 'master-listo' || p.estado === 'aplicada';
       return '<div style="background:var(--surface);border:1.5px solid var(--border);border-radius:12px;padding:12px;margin-bottom:10px;display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap">'
-        + (p.foto ? '<img src="' + p.foto + '" style="width:64px;height:64px;object-fit:cover;border-radius:8px;flex:none">' : '')
+        + ((p.foto || p.fotoUrl) ? '<img src="' + esc(p.foto || p.fotoUrl) + '" style="width:64px;height:64px;object-fit:cover;border-radius:8px;flex:none">' : '')
         + '<div style="flex:1;min-width:200px">'
         +   '<div style="font-family:\'Montserrat\',sans-serif;font-weight:800;font-size:14px;color:var(--text)">' + esc(p.nombre || '(sin nombre)') + '</div>'
         +   '<div style="font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace;margin-top:3px">Dropi ' + esc(p.dropiId || '?')
-        +     (p.sello ? ' · sello ' + esc(p.sello) : '') + ' · ' + esc(String(p.pais || 'chile').toUpperCase()) + (cuando ? ' · ' + cuando : '') + '</div>'
+        +     (p.sello ? ' · sello ' + esc(p.sello) : '') + ' · ' + (p.pais === 'gt' ? '🇬🇹 GT' : '🇨🇱 CHILE') + (cuando ? ' · ' + cuando : '') + '</div>'
         +   '<div style="font-size:11px;font-family:\'DM Mono\',monospace;margin-top:6px;color:' + est.color + '">● ' + esc(est.txt) + '</div>'
+        +   (p.sinShopify ? '<div style="font-size:10px;color:#B7791F;font-family:\'DM Mono\',monospace;margin-top:4px">🆕 Todavía no está en Shopify — importalo desde el panel de Dropi antes de aplicar la landing</div>' : '')
         +   (p.videosCarpeta ? '<div style="font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace;margin-top:4px">📁 ' + esc(p.videosCarpeta) + '</div>' : '')
         +   (p.angulo ? '<div style="font-size:11px;color:var(--text);margin-top:6px"><b>Ángulo:</b> ' + esc(p.angulo) + '</div>' : '')
         + '</div>'
@@ -20136,7 +20267,9 @@ async function laAbrirEnCreador(id){
     _laAuto = {
       gifs: (p.gifs || []).filter(function(g){ return g && g.shopifyRef; }),
       fotos: (p.fotos || []).filter(function(f){ return f && f.shopifyRef; }),
-      mainDataUrl: p.foto || null,
+      // Solo las creadas a mano traen la foto adentro; las nuevas usan las
+      // imagenes que el producto ya tiene en Shopify.
+      mainDataUrl: (p.foto && String(p.foto).indexOf('data:') === 0) ? p.foto : null,
       nombre: p.nombre || '',
     };
     switchSection('prompts');
@@ -20163,12 +20296,13 @@ async function laBorrarPedido(id){
 }
 
 function initLandingAuto(){
+  laSetPais(_laPais);
   const f = document.getElementById('la-foto');
   if (f && !f._laWired) {
     f._laWired = true;
     f.addEventListener('change', function(){
       const lbl = document.getElementById('la-foto-label');
-      if (lbl) lbl.textContent = f.files && f.files[0] ? ('✓ ' + f.files[0].name) : 'Elegir foto de referencia';
+      if (lbl) lbl.textContent = (f.files && f.files[0]) ? ('✓ ' + f.files[0].name) : 'Elegir foto de referencia';
     });
   }
   renderLandingAuto();
