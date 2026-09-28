@@ -20707,7 +20707,9 @@ async function renderLandingAuto(){
         +   '<div style="font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace;margin-top:3px">Dropi ' + esc(p.dropiId || '?')
         +     (p.sello ? ' · sello ' + esc(p.sello) : '') + ' · ' + (p.pais === 'gt' ? '🇬🇹 GT' : '🇨🇱 CHILE') + (cuando ? ' · ' + cuando : '') + '</div>'
         +   '<div style="font-size:11px;font-family:\'DM Mono\',monospace;margin-top:6px;color:' + est.color + '">● ' + esc(est.txt) + '</div>'
-        +   (p.sinShopify ? '<div style="font-size:10px;color:#C0392B;font-family:\'DM Mono\',monospace;margin-top:4px">⚠ No se pudo crear en Shopify — revisá que Dropi tenga costo y proveedor para ese ID</div>' : '')
+        +   (p.sinShopify ? '<div style="font-size:10px;color:#C0392B;font-family:\'DM Mono\',monospace;margin-top:4px">⚠ No se pudo crear en Shopify — '
+              + esc(p.motivoSinShopify || 'revisá que Dropi tenga costo y proveedor para ese ID') + '</div>' : '')
+        +   (p.sinFoto ? '<div style="font-size:10px;color:#B7791F;font-family:\'DM Mono\',monospace;margin-top:4px">📷 Creado sin foto: Dropi no deja bajar las suyas (pasa con TODO Guatemala). Subile una desde Shopify.</div>' : '')
         +   (p.precio ? '<div style="font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace;margin-top:4px">💲 '
               + ((p.pais === 'gt') ? 'Q' : '$') + Number(p.precio).toLocaleString('es-CL')
               + (p.margen ? ' · margen ' + ((p.pais === 'gt') ? 'Q' : '$') + Number(p.margen).toLocaleString('es-CL') : '')
@@ -20839,7 +20841,9 @@ async function laCrearEnShopify(pedidoId, p){
     if (p.proveedor) cuerpo.user_name = p.proveedor;
     if (!cuerpo.user_id && !cuerpo.user_name) cuerpo.allow_unknown_supplier = true;
     if (!cuerpo.cost) throw new Error('Dropi no dio el costo del producto');
-    if (!cuerpo.image_url) throw new Error('Dropi no dio fotos del producto');
+    // Sin foto ya NO se aborta: el CDN de Dropi devuelve 403 en todo lo de
+    // Guatemala, y por eso ningun producto GT se podia crear. El producto se
+    // crea igual y la tarjeta avisa que hay que subirle la foto a mano.
 
     const r = await fetch('/.netlify/functions/dropi-import-product', {
       method: 'POST',
@@ -20848,6 +20852,10 @@ async function laCrearEnShopify(pedidoId, p){
     });
     const j = await r.json();
     if (!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status));
+
+    // El importador dice cuales fotos pudo bajar. Si no pudo ninguna, el
+    // producto existe pero sin imagen y hay que subirla a mano.
+    const sinFoto = !!j.sin_imagen;
 
     // El precio tambien sale solo: el importador lo deja en 999 de relleno.
     let sug = null;
@@ -20863,6 +20871,7 @@ async function laCrearEnShopify(pedidoId, p){
     } catch(_) { /* si falla, queda en 999 y los botones de activar avisan */ }
 
     await firebase.firestore().collection(LA_COL).doc(pedidoId).update({
+      sinFoto,
       precio: sug ? sug.precio : null,
       precioAntes: sug ? sug.antes : null,
       margen: sug ? sug.margen : null,
@@ -20876,6 +20885,13 @@ async function laCrearEnShopify(pedidoId, p){
               '📦', sug && sug.bajo ? 'warn' : 'success');
     return { shopifyId: String(j.product_id), handle: j.handle || '' };
   } catch (e) {
+    // Guardar el motivo real: la tarjeta decia siempre "revisa que Dropi
+    // tenga costo y proveedor", que casi nunca era lo que fallaba.
+    try {
+      await firebase.firestore().collection(LA_COL).doc(pedidoId).update({
+        motivoSinShopify: String(e.message || 'error').slice(0, 200),
+      });
+    } catch (_) {}
     showToast('No pude crear el producto: ' + (e.message || 'error'), '⚠️', 'error');
     return null;
   }

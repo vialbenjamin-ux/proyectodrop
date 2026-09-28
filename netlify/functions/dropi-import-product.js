@@ -228,8 +228,32 @@ exports.handler = async (event) => {
 
     // 3. Armar el JSON del metafield dropi._dropi_product.
     const galleryList = [];
-    if (imageUrl) galleryList.push({ url: imageUrl });
-    for (const u of extraGallery) galleryList.push({ url: u });
+    // La galeria se llena mas abajo, con las fotos que de verdad se bajaron.
+    const galleryPedida = (imageUrl ? [imageUrl] : []).concat(extraGallery);
+
+    // 3.bis Comprobar que las fotos se pueden bajar ANTES de mandarselas a
+    // Shopify. El CDN de Dropi devuelve 403 en TODO lo de Guatemala
+    // (d39ru7awumhhs2.cloudfront.net/guatemala/...), mientras que lo de Chile
+    // baja normal. Shopify no puede traer esas imagenes, y el producto se
+    // creaba sin foto o fallaba entero -- avisando ademas que "Dropi no tiene
+    // costo o proveedor", que era falso. Comprobado el 28 sep 2026 con tres
+    // productos GT y dos chilenos.
+    const fotosPedidas = galleryPedida;
+    const fotosUtiles = [];
+    const fotosCaidas = [];
+    for (const u of fotosPedidas) {
+      try {
+        // GET con Range: algunos CDN no contestan HEAD pero si un trozo.
+        const r = await fetch(u, { headers: { Range: 'bytes=0-64' } });
+        if (r.ok || r.status === 206) fotosUtiles.push(u);
+        else fotosCaidas.push({ url: u, status: r.status });
+      } catch (err) {
+        fotosCaidas.push({ url: u, status: (err && err.message) || 'sin respuesta' });
+      }
+    }
+
+    for (const u of fotosUtiles) galleryList.push({ url: u });
+
 
     // El metafield sale del producto COMPLETO que devuelve Dropi. Antes se
     // armaba a mano con 9 campos, que era todo lo que se podia cuando se creia
@@ -291,9 +315,8 @@ exports.handler = async (event) => {
         }],
       },
     };
-    if (imageUrl) {
-      productPayload.product.images = [{ src: imageUrl }];
-      for (const u of extraGallery) productPayload.product.images.push({ src: u });
+    if (fotosUtiles.length) {
+      productPayload.product.images = fotosUtiles.map((u) => ({ src: u }));
     }
 
     const createR = await fetch(API + '/products.json', {
@@ -338,6 +361,11 @@ exports.handler = async (event) => {
       storefront_url: 'https://' + domain + '/products/' + created.handle,
       status: created.status,
       variant_id: created.variants && created.variants[0] ? String(created.variants[0].id) : null,
+      // Fotos: cuales se pudieron bajar y cuales no. Sin esto la app mostraba
+      // "revisa que Dropi tenga costo y proveedor", que no era el problema.
+      imagenes_ok: fotosUtiles.length,
+      imagenes_caidas: fotosCaidas,
+      sin_imagen: fotosPedidas.length > 0 && fotosUtiles.length === 0,
       metafield_ok: metafieldOk,
       // De donde salio el metafield: "dropi" es el objeto completo;
       // cualquier "corto-*" avisa que quedo el minimo y hay que pasarle
