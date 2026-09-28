@@ -15,6 +15,7 @@ const RUBROS = {
   auto: ['auto$', 'autos$', 'automovil', 'carro', 'vehicul', 'asiento', 'volante', 'parabris'],
   mascota: ['mascota', 'perro', 'gato$', 'gatos$'],
   belleza: ['crema$', 'cremas$', 'piel', 'facial', 'cabello', 'pestana', 'maquill', 'cosmet', 'blanque', 'depil'],
+  plagas: ['raton', 'ratones', 'roedor', 'plaga', 'insecto', 'mosca', 'mosquito', 'cucaracha', 'repelente', 'ultrasonic', 'ahuyent', 'trampa', 'zancud', 'polilla', 'hormig'],
   bienestar: ['dolor', 'masaj', 'postura', 'cervical', 'cuello', 'espalda', 'rodilla', 'insomnio', 'ronquido', 'ejercit', 'terapia', 'muscul', 'fascia', 'relaj'],
   tecnologia: ['bluetooth', 'audifon', 'parlante', 'cargador', 'usb', 'lampara', 'camara', 'tablet', 'celular'],
   ninos: ['bebe$', 'bebes$', 'nino', 'infantil', 'juguete', 'motriz'],

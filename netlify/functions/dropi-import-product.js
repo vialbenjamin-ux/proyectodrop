@@ -23,6 +23,8 @@ const { cuentaDelToken } = require('./_dropi-tenant');
 // Response:
 //   { ok, product_id, admin_url, storefront_url, tokens_source }
 
+const { pedirProductoDropi, construirMetafield } = require('./_dropi-metafield');
+
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: cors(), body: '' };
   if (event.httpMethod !== 'POST') return respond(405, { error: 'Method not allowed' });
@@ -229,20 +231,41 @@ exports.handler = async (event) => {
     if (imageUrl) galleryList.push({ url: imageUrl });
     for (const u of extraGallery) galleryList.push({ url: u });
 
-    const metafieldDropi = {
-      id: parseInt(dropiId, 10),
-      name: name,
-      type: 'SIMPLE',
-      description: description || name,
-      sale_price: cost,
-      gallery: galleryList,
-      user: {
-        id: userId ? parseInt(userId, 10) : null,
-        name: supplierName,
-      },
-      tokens: dropiTokens,
-      shop_name: dropiShopName,
-    };
+    // El metafield sale del producto COMPLETO que devuelve Dropi. Antes se
+    // armaba a mano con 9 campos, que era todo lo que se podia cuando se creia
+    // que la API de Dropi no exponia productos: Dropi espera bastante mas
+    // (warehouse_product, variations, sku, active, categories...) y sin eso NO
+    // sincroniza el pedido, cae entero en DROPITEA.
+    let metafieldDropi = null;
+    let metafieldFuente = 'dropi';
+    const productoDropi = await pedirProductoDropi(isGT, dropiId);
+    if (productoDropi && !productoDropi.bloqueado) {
+      metafieldDropi = construirMetafield(productoDropi, null, {
+        tokens: dropiTokens, shopName: dropiShopName,
+      });
+      // Las fotos que se subieron a Shopify mandan sobre las de Dropi: son las
+      // mismas, pero ya servidas desde el CDN de la tienda.
+      if (galleryList.length) metafieldDropi.gallery = galleryList;
+    } else {
+      // Red de seguridad: si Dropi no contesta o esta bloqueando, se escribe el
+      // objeto corto de siempre y se avisa, en vez de dejar el producto sin
+      // vinculo. Despues se completa con dropi-completar-metafield.
+      metafieldFuente = productoDropi && productoDropi.bloqueado ? 'corto-dropi-bloqueado' : 'corto-dropi-sin-respuesta';
+      metafieldDropi = {
+        id: parseInt(dropiId, 10),
+        name: name,
+        type: 'SIMPLE',
+        description: description || name,
+        sale_price: cost,
+        gallery: galleryList,
+        user: {
+          id: userId ? parseInt(userId, 10) : null,
+          name: supplierName,
+        },
+        tokens: dropiTokens,
+        shop_name: dropiShopName,
+      };
+    }
 
     // 4. Crear el producto Shopify.
     // Tags: bk-dropi-imported (siempre), envio-gratis (siempre, pedido del user),
@@ -316,6 +339,11 @@ exports.handler = async (event) => {
       status: created.status,
       variant_id: created.variants && created.variants[0] ? String(created.variants[0].id) : null,
       metafield_ok: metafieldOk,
+      // De donde salio el metafield: "dropi" es el objeto completo;
+      // cualquier "corto-*" avisa que quedo el minimo y hay que pasarle
+      // dropi-completar-metafield despues.
+      metafield_fuente: metafieldFuente,
+      metafield_campos: Object.keys(metafieldDropi).length,
       metafield_error: metafieldError,
       tokens_source: tokensSource,
       supplier_is_new: supplierIsNew,
