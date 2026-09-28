@@ -319,14 +319,26 @@ exports.handler = async (event) => {
           if (principalId != null) return c.bodegas.indexOf(principalId) !== -1 ? 'probable' : 'no';
           return '?';
         };
+        // NUNCA un upsell de otra bodega: una orden de Dropi tiene UNA sola, y
+        // si el upsell esta en otra el pedido no se puede crear -- se pierde
+        // entero, no solo el upsell. Por eso se descarta en vez de puntuar
+        // bajo: antes solo restaba y en el Masajeador de 4 Cabezas gano igual
+        // un Cojin Gel de otra bodega, porque el rubro pesaba mas.
+        //
+        // Tampoco pasan los de bodega desconocida. "No se sabe" no es "es la
+        // misma", y el costo de equivocarse es un pedido perdido contra un
+        // upsell menos. (Regla de Benjamin, 28 sep 2026.)
+        const utiles = raw.filter((c) => {
+          const b = bodegaDe(c);
+          return b === 'si' || b === 'probable';
+        });
+
         const puntaje = (c) => {
           const rub = rubrosDe(c.texto).filter((r) => baseRubros.indexOf(r) !== -1);
           const t = normTxt(c.title);
           const pal = kws.reduce((n, k) => n + (t.indexOf(k) >= 0 ? 1 : 0), 0);
           const bod = bodegaDe(c);
-          // Una orden de Dropi tiene UNA bodega: si el upsell esta en otra,
-          // el pedido entero no se puede crear. Eso pesa mas que el parecido.
-          const pesoBodega = bod === 'si' ? 12 : (bod === 'probable' ? 8 : (bod === '?' ? 4 : 0));
+          const pesoBodega = bod === 'si' ? 12 : (bod === 'probable' ? 8 : 4);
           // Un borrador esta oculto en la tienda: como upsell no compite en
           // el catalogo, que es justo para lo que se crean.
           const oculto = c.status === 'draft' ? 1 : 0;
@@ -334,13 +346,13 @@ exports.handler = async (event) => {
                    rubros: rub, palabras: pal, bodega: bod };
         };
         const puntos = new Map();
-        for (const c of raw) puntos.set(c, puntaje(c));
-        raw.sort((a, b) => {
+        for (const c of utiles) puntos.set(c, puntaje(c));
+        utiles.sort((a, b) => {
           const d = puntos.get(b).total - puntos.get(a).total;
           return d !== 0 ? d : ((a.cost || Infinity) - (b.cost || Infinity));
         });
 
-        upsellCandidates = raw.slice(0, 5).map((c) => {
+        upsellCandidates = utiles.slice(0, 5).map((c) => {
           const pu = precioUpsell(c.cost, tenant);
           return {
             product_id: String(c.id),
@@ -363,6 +375,11 @@ exports.handler = async (event) => {
             matchBodega: puntos.get(c).bodega,
           };
         });
+        if (!upsellCandidates.length) {
+          upsellReason = 'sin upsell: ninguno de los ' + raw.length + ' candidatos de "' + (supplier.user_name || 'el proveedor')
+            + '" comparte bodega con el producto base. Una orden de Dropi tiene UNA sola: '
+            + 'con un upsell de otra bodega se pierde el pedido entero, asi que no se pone ninguno.';
+        } else {
         const chosenIdx = Math.min(upsellIndex, upsellCandidates.length - 1);
         const chosen = upsellCandidates[chosenIdx];
         const finalPriceCents = upsellOverridePrice && upsellOverridePrice > 0
@@ -380,8 +397,9 @@ exports.handler = async (event) => {
         partes.push('bodega ' + chosen.matchBodega);
         partes.push('costo Dropi ' + chosen.cost + ' -> venta ' + chosen.price);
         if (baseCosto) partes.push('costo del base ' + baseCosto);
-        partes.push(pool.scanned + ' productos escaneados, ' + raw.length + ' candidatos');
+        partes.push(pool.scanned + ' productos escaneados, ' + utiles.length + ' en bodega compatible de ' + raw.length + ' candidatos');
         upsellReason = partes.join(' | ');
+        }
       }
     }
 
