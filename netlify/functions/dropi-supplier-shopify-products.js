@@ -19,6 +19,8 @@
 //     scanned, matched, truncated }
 
 const { cuentaDelToken } = require('./_dropi-tenant');
+// El rubro vive aparte: lo usa tambien el upsell automatico de Releasit.
+const { rubrosDe, textoDe, esPack } = require('./_rubros');
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: cors(), body: '' };
@@ -209,47 +211,6 @@ exports.handler = async (event) => {
 // 2) que combine con el producto base (mismo rubro), 3) barato, para que
 // sumarlo sea impulso. Los listados "2x1"/"3x1" se excluyen: como upsell el
 // cliente ve "2x1" y Dropi despacha una unidad.
-const RUBROS = {
-  cocina: ['cocina', 'cocin', 'aliment', 'comida', 'refri', 'nevera', 'hervidor', 'olla', 'sarten', 'cuchill', 'tijera', 'rallador', 'pelador', 'picad', 'huevo', 'cafe', 'vaso', 'taza', 'botella', 'termo$', 'termos$', 'bolsa', 'sellador', 'hermetic', 'conserva', 'especia$', 'especias$', 'aceite', 'mezcl', 'batidor', 'licuad', 'exprim', 'jugo', 'balanza', 'horno', 'parrilla', 'asado', 'lavaloza', 'salpicadura', 'masas$', 'amasa', 'tortilla', 'sopaipilla', 'desmenuz'],
-  limpieza: ['limpi', 'lavaloza', 'jabon', 'detergente', 'destap', 'caneria', 'antisarro', 'sarro', 'mancha', 'pelusa', 'escoba', 'trapeador', 'desinfect', 'espuma', 'quita', 'cepillo', 'lavadora'],
-  bano: ['bano', 'ducha', 'inodoro', 'toalla', 'antimoho', 'moho'],
-  organizacion: ['organiz', 'perchero', 'zapatero', 'colgador', 'tendedero', 'estante', 'repisa', 'gancho', 'cajon', 'almacen'],
-  exterior: ['jardin', 'solar', 'guirnalda', 'exterior', 'planta$', 'plantas$', 'riego', 'manguera'],
-  auto: ['auto$', 'autos$', 'automovil', 'carro', 'vehicul', 'asiento', 'volante', 'parabris'],
-  mascota: ['mascota', 'perro', 'gato$', 'gatos$'],
-  belleza: ['crema$', 'cremas$', 'piel', 'facial', 'cabello', 'pestana', 'maquill', 'cosmet', 'blanque', 'depil'],
-  bienestar: ['dolor', 'masaj', 'postura', 'cervical', 'cuello', 'espalda', 'rodilla', 'insomnio', 'ronquido', 'ejercit', 'terapia'],
-  tecnologia: ['bluetooth', 'audifon', 'parlante', 'cargador', 'usb', 'lampara', 'camara', 'tablet', 'celular'],
-  ninos: ['bebe$', 'bebes$', 'nino', 'infantil', 'juguete', 'motriz'],
-};
-
-function normTxt(s) {
-  return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-}
-
-// Cada clave calza al COMIENZO de una palabra ("cocin" -> cocina, cocinar);
-// con "$" al final tiene que ser la palabra exacta. Buscar en cualquier parte
-// daba falsos positivos: "masa" en "masajeadora", "auto" en "automatico".
-function rubrosDe(texto) {
-  const palabras = normTxt(texto).split(/[^a-z0-9]+/).filter(Boolean);
-  const calza = (k) => (k.slice(-1) === '$'
-    ? palabras.indexOf(k.slice(0, -1)) !== -1
-    : palabras.some((w) => w.indexOf(k) === 0));
-  const out = [];
-  for (const r of Object.keys(RUBROS)) if (RUBROS[r].some(calza)) out.push(r);
-  return out;
-}
-
-// El titulo no alcanza para el rubro ("Bolsas Frescura Pro"); la descripcion
-// y las categorias de Dropi, cuando existen, dicen mucho mas.
-function textoDe(meta) {
-  const cats = Array.isArray(meta && meta.categories)
-    ? meta.categories.map((c) => (c && (c.name || c.title)) || (typeof c === 'string' ? c : '')).join(' ')
-    : '';
-  const desc = String((meta && meta.description) || '').replace(/<[^>]+>/g, ' ').slice(0, 1500);
-  return cats + ' ' + desc;
-}
-
 function cuentaDeTokens(tok) {
   try {
     const parts = String(tok || '').split('.');
@@ -264,7 +225,6 @@ function cuentaDeTokens(tok) {
 }
 
 function sugerirUpsells(todos, baseId, baseBodegas, baseInfo, cuentaOk, limit, scanned) {
-  const esPack = (t) => /\b\d\s*x\s*\d\b/i.test(String(t || ''));
   // Bodega principal del proveedor: la mas repetida entre sus productos. Si el
   // base no declara bodegas (todo lo creado con el importador), es la mejor
   // apuesta.

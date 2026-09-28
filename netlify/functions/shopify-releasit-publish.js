@@ -45,6 +45,8 @@ async function fetchShopify(url, opts, intentos) {
   return ultima;
 }
 
+const { rubrosDe, textoDe, esPack, palabrasClave, normTxt } = require('./_rubros');
+
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: cors(), body: '' };
   if (event.httpMethod !== 'POST') return respond(405, { error: 'Method not allowed' });
@@ -109,6 +111,7 @@ exports.handler = async (event) => {
 
     // Extraer supplier del metafield dropi._dropi_product
     let supplier = { user_id: null, user_name: null };
+  let baseTexto = String(product.title || '');
     if (mfProdR.ok) {
       const mfProdJ = await mfProdR.json();
       const mfDropi = (mfProdJ.metafields || []).find(m => m.namespace === 'dropi' && m.key === '_dropi_product');
@@ -119,6 +122,7 @@ exports.handler = async (event) => {
             supplier.user_id = dropiData.user.id || null;
             supplier.user_name = dropiData.user.name || null;
           }
+          baseTexto += ' ' + textoDe(dropiData);
         } catch (_) {}
       }
     }
@@ -289,19 +293,30 @@ exports.handler = async (event) => {
         // Scoring por relacion semantica: palabras clave del producto base
         // presentes en el nombre del candidato. Los que matcheen mas van
         // primero. Ties se rompen por precio ascendente.
-        const STOP = new Set(['de','la','el','y','o','en','a','con','por','para','del','al','un','una','los','las','sin','pack','set','x1','x2','x3','2x1','3x1','oferta','nuevo','pro','plus','max','mini','mega']);
-        const kws = String(product.title || '').toLowerCase()
-          .normalize('NFD').replace(/[̀-ͯ]/g, '')
-          .split(/[^a-z0-9]+/).filter(w => w.length >= 4 && !STOP.has(w));
-        const score = (c) => {
-          const t = String(c.title || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-          return kws.reduce((n, k) => n + (t.includes(k) ? 1 : 0), 0);
+        // Que el upsell se PAREZCA a lo que se esta vendiendo. El rubro sale
+        // de las categorias y la descripcion de Dropi, no del titulo: los
+        // titulos son de marketing ("Revitaluz", "KatanBlade") y casi nunca
+        // comparten palabras. Antes el criterio era solo palabras del titulo
+        // y, como daba 0 para todos, terminaba ganando el MAS BARATO: de ahi
+        // salian los upsells que no pegaban con nada.
+        const baseRubros = rubrosDe(baseTexto);
+        const kws = palabrasClave(product.title);
+        const puntaje = (c) => {
+          const rub = rubrosDe(c._texto || c.title).filter((r) => baseRubros.indexOf(r) !== -1);
+          const t = normTxt(c.title);
+          const pal = kws.reduce((n, k) => n + (t.indexOf(k) >= 0 ? 1 : 0), 0);
+          // Precio de impulso: entre 20% y 55% del base se suma sin pensarlo.
+          // Mas caro que eso compite con el producto en vez de acompanarlo.
+          const rel = parseFloat(c.variantPrice) / price;
+          const banda = (rel >= 0.2 && rel <= 0.55) ? 3 : (rel > 0.55 ? -2 : 1);
+          return { total: rub.length * 10 + pal * 2 + banda, rubros: rub, palabras: pal };
         };
+        const puntos = new Map();
+        for (const c of raw) puntos.set(c, puntaje(c));
         raw.sort((a, b) => {
-          const sd = score(b) - score(a);
-          return sd !== 0 ? sd : (parseFloat(a.variantPrice) - parseFloat(b.variantPrice));
+          const d = puntos.get(b).total - puntos.get(a).total;
+          return d !== 0 ? d : (parseFloat(a.variantPrice) - parseFloat(b.variantPrice));
         });
-
         // Top 5 candidatos con costo (sale_price del metafield dropi).
         upsellCandidates = raw.slice(0, 5).map(c => ({
           product_id: String(c.id),
@@ -314,12 +329,20 @@ exports.handler = async (event) => {
           cost: c.costDropi != null ? Number(c.costDropi) : null,
           imgUrl: c.image || '',
           isDraft: isDraft,
-          matchScore: score(c),
+          matchScore: puntos.get(c).total,
+          matchRubros: puntos.get(c).rubros,
+          matchPalabras: puntos.get(c).palabras,
         }));
         // El upsell efectivo = el candidato elegido (default index 0),
         // con precio pisado si vino upsellOverridePrice (en pesos → *100).
         const chosenIdx = Math.min(upsellIndex, upsellCandidates.length - 1);
         const chosen = upsellCandidates[chosenIdx];
+        if (!chosen.matchRubros.length && !chosen.matchPalabras) {
+          upsellReason = 'sin-parecido: nada del proveedor calza con el rubro del base ('
+            + (rubrosDe(baseTexto).join(', ') || 'rubro no reconocido') + ')';
+        } else if (chosen.matchRubros.length) {
+          upsellReason = 'mismo rubro: ' + chosen.matchRubros.join(', ');
+        }
         const finalPriceCents = upsellOverridePrice && upsellOverridePrice > 0
           ? Math.round(upsellOverridePrice * 100)
           : chosen.price_cents;
@@ -568,6 +591,7 @@ async function buscarUpsellCandidato(API, H, { supplierUserId, excludeProductId,
       if (!mfDropi) continue;
       try {
         const dropiData = JSON.parse(mfDropi.value);
+        if (esPack(p.title)) continue;
         if (dropiData.user && String(dropiData.user.id) === String(supplierUserId)) {
           candidatos.push({
             id: p.id,
@@ -577,12 +601,14 @@ async function buscarUpsellCandidato(API, H, { supplierUserId, excludeProductId,
             image: (p.image && p.image.src) || null,
             // Costo Dropi (sale_price) para mostrar en el UI.
             costDropi: dropiData.sale_price != null ? Number(dropiData.sale_price) : null,
+            // Categorias + descripcion de Dropi: de aca sale el rubro.
+            _texto: (p.title || '') + ' ' + textoDe(dropiData),
           });
         }
       } catch (_) {}
-      if (candidatos.length >= 8) break;
+      if (candidatos.length >= 14) break;
     }
-    if (candidatos.length >= 8 || lookups >= MAX_METAFIELD_LOOKUPS) break;
+    if (candidatos.length >= 14 || lookups >= MAX_METAFIELD_LOOKUPS) break;
     const link = r.headers.get('Link') || '';
     const nx = link.match(/<([^>]+)>;\s*rel="next"/);
     pageUrl = nx ? nx[1] : null;
