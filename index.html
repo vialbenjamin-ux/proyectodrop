@@ -15360,7 +15360,15 @@ function extractFaq(sectionText){
   for (const line of lines) {
     const t = line.trim();
     if (!t) continue;
-    if (/^[🔴🟥🟦🟨🟧🟪🟩🟫📌⚠📦]/.test(t)) continue; // skip section sentinel
+    // Saltar el titulo de la seccion. OJO con la bandera `u`: sin ella la
+    // clase de caracteres se arma con los SUSTITUTOS UTF-16 sueltos, y como
+    // casi todos estos emojis empiezan por D83D, la clase terminaba matcheando
+    // cualquier emoji de ese bloque: 🔋 💦 📏 🔄 se comian como si fueran
+    // titulos y la FAQ perdia preguntas en silencio (7 escritas -> 2 leidas,
+    // Cepillo Limpiador 9 en 1, 28 sep 2026).
+    // Ademas un titulo de seccion nunca lleva "?": si la linea pregunta algo,
+    // es una FAQ aunque arranque con 📌 o 📦.
+    if (/^[🔴🟥🟦🟨🟧🟪🟩🟫📌⚠📦]/u.test(t) && !/\?/.test(t)) continue;
     // Strip leading bullet/number/bold open
     const cleaned = t.replace(/^[-*•]\s*/, '').replace(/^\d+[.)]\s*/, '').replace(/^[PQ]\s*[:.]\s*/i, '').trim();
     const noBold = cleaned.replace(/\*\*/g, '');
