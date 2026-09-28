@@ -10563,7 +10563,10 @@ async function _bkPublicarReleasitGT(productId, handle, title, btn){
     const data = await resp.json();
     if (!resp.ok || !data.applied) throw new Error(data.error || ('error publicando (HTTP ' + resp.status + ')'));
     if (btn) { btn.textContent = '✅ Publicado'; btn.style.background = '#DFF2E8'; btn.style.color = '#166534'; }
-    if (status) status.innerHTML = '✅ Oferta publicada en Releasit GT. Verificá en la <a href="https://benkogt.com/products/' + esc(handle) + '" target="_blank" style="color:#fff;text-decoration:underline;font-weight:700">landing GT</a>.';
+    const antesGT = await _bkGuardarPrecioConAntes(productId, 'gt', price);
+    if (status) status.innerHTML = '✅ Oferta publicada en Releasit GT'
+      + (antesGT ? ' · precio Q' + price + ' con antes de Q' + antesGT : '')
+      + '. Verificá en la <a href="https://benkogt.com/products/' + esc(handle) + '" target="_blank" style="color:#fff;text-decoration:underline;font-weight:700">landing GT</a>.';
     showToast('Oferta publicada en Releasit GT', '🚀', 'ok');
   } catch (err) {
     if (btn) { btn.disabled = false; btn.textContent = '🚀 Publicar Releasit GT'; btn.style.opacity = '1'; }
@@ -10610,6 +10613,50 @@ async function _bkPrecioSinDefinir(productId, tenant){
       + 'Si lo activás ahora, la tienda lo va a mostrar a 999.\n\n'
       + '¿Activar igual?');
   } catch(_) { return false; }
+}
+
+// ── Precio y precio de antes ─────────────────────────────────────────────────
+// El panel de Releasit arma la oferta con el precio que se escribe arriba,
+// pero hasta el 28 sep 2026 NO lo guardaba en el producto: la oferta salia a
+// 199 y la pagina seguia mostrando el precio de relleno del importador.
+//
+// El "antes" tachado sale de la convencion que ya usa Benjamin en sus
+// productos, y es distinta por pais (medida sobre 26 productos publicados):
+//   Chile  - el precio termina en 990 y el antes tambien (34.990, 39.990,
+//            44.990): antes = precio x 1.5 redondeado a 5.000, menos 10.
+//   Guate  - el precio termina en 9 y el antes tambien (299, 319, 349, 399):
+//            antes = precio x 1.6 redondeado a 10, menos 1.
+function _bkPrecioAntes(precio, tenant){
+  const p = Number(precio);
+  if (!p || p <= 0) return null;
+  if (tenant === 'gt') return Math.round(p * 1.6 / 10) * 10 - 1;
+  return Math.round(p * 1.5 / 5000) * 5000 - 10;
+}
+
+// Escribe precio + compare_at_price en el producto. No rompe el publish si
+// falla: la oferta de Releasit ya quedo hecha y esto es el complemento.
+async function _bkGuardarPrecioConAntes(productId, tenant, precio){
+  // Si no se escribio un precio nuevo, se usa el que ya tiene el producto:
+  // igual hay que ponerle el antes.
+  if (!precio) {
+    try {
+      const r0 = await fetch('/.netlify/functions/shopify-products?tenant=' + (tenant || 'chile')
+                             + '&id=' + encodeURIComponent(productId));
+      const d0 = await r0.json();
+      precio = Number((((d0.product || {}).variants) || [{}])[0].price) || 0;
+    } catch(_) { return null; }
+  }
+  const antes = _bkPrecioAntes(precio, tenant);
+  if (!antes) return null;
+  try {
+    const r = await fetch('/.netlify/functions/shopify-products?tenant=' + (tenant || 'chile'), {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: productId, price: Number(precio), compare_at_price: antes }),
+    });
+    if (!r.ok) return null;
+    return antes;
+  } catch(_) { return null; }
 }
 
 // Activa el producto en la tienda GT (draft -> active).
@@ -11415,7 +11462,11 @@ async function confirmarPublicarReleasit(disc2, disc3, nx1, priceOverride, upsel
     }
     const modal = document.getElementById('bk-releasit-modal');
     if (modal) modal.remove();
-    if (status) status.textContent = '✅ Publicado en Releasit. Verificá en la página del producto.';
+    const pid = (typeof _preciosSelectedProduct !== 'undefined' && _preciosSelectedProduct) ? _preciosSelectedProduct.id : null;
+    const antesCL = pid ? await _bkGuardarPrecioConAntes(pid, 'chile', priceOverride) : null;
+    if (status) status.textContent = '✅ Publicado en Releasit'
+      + (antesCL ? ' · antes de $' + antesCL.toLocaleString('es-CL') : '')
+      + '. Verificá en la página del producto.';
     showToast('Oferta publicada en Releasit', '🚀', 'ok');
   } catch (err) {
     if (btn) { btn.disabled = false; btn.textContent = '🚀 Confirmar y publicar'; btn.style.opacity = '1'; }
