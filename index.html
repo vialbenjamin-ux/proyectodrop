@@ -12084,90 +12084,14 @@ async function ejecutarAutoShrine(){
     const mainsAuto = (!_autoShrineMainImgs.length && _laAuto)
       ? (_laAuto.principales || []).filter(x => x && x.url) : [];
 
-    // 0. Subir imagenes principales al CARRUSEL del producto Shopify.
-    //    Van al /products/{id}/images.json como attachment base64.
-    //    (Distinto de Shopify Files: son las que se ven en la pagina del producto.)
-
-    // 0a. El nombre de subida lleva timestamp (main-N-<Date.now()>), asi que
-    //     nunca colisiona: sin este chequeo cada corrida agregaba 4 imagenes
-    //     mas y el producto quedaba con el carrusel duplicado.
-    let _borrarPrevias = [];
+    // 0. El carrusel se arma DESPUES de confirmar (mas abajo). Aca solo se
+    //    cuenta lo que hay, para poder avisarlo en el resumen.
+    //    Antes se subia aca arriba y, si el usuario cancelaba el dialogo, las
+    //    imagenes ya habian quedado puestas.
+    let _imagenesActuales = [];
     if (_autoShrineMainImgs.length || mainsAuto.length) {
-      setStatus('⏳ Revisando imágenes ya subidas…');
-      const previas = await _bkImagenesPreviasDeLaApp(_autoShrineProduct.id);
-      if (previas.length) {
-        const elec = await _bkAskChoice({
-          title: '⚠️ Este producto ya tiene imágenes de BKDROP',
-          html: 'Encontré <b>' + previas.length + '</b> imagen(es) que subió la app en una corrida anterior.<br><br>'
-              + 'Vas a subir <b>' + (_autoShrineMainImgs.length || mainsAuto.length) + '</b> nueva(s).<br><br>'
-              + 'Las que hayas subido a mano en Shopify no se tocan en ninguna opción.',
-          options: [
-            { label: '🔄 Reemplazar — borra las ' + previas.length + ' anteriores', value: 'replace', primary: true },
-            { label: '➕ Agregar igual — quedan las viejas y las nuevas', value: 'append' },
-            { label: '✕ Cancelar', value: null },
-          ],
-        });
-        if (!elec) { setStatus('Cancelado — no se subió nada.'); return; }
-        if (elec === 'replace') _borrarPrevias = previas;
-      }
-    }
-
-    for (let i = 0; i < _borrarPrevias.length; i++) {
-      setStatus('⏳ Borrando imagen anterior ' + (i+1) + '/' + _borrarPrevias.length + '…');
-      const delR = await fetch('/.netlify/functions/shopify-products?_=1' + landingParam(), {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: _autoShrineProduct.id, image_id: _borrarPrevias[i].id }),
-      });
-      if (!delR.ok) {
-        const dj = await delR.json().catch(function(){ return {}; });
-        throw new Error('No pude borrar la imagen anterior: ' + (dj.error || 'HTTP ' + delR.status));
-      }
-    }
-
-    for (let i = 0; i < mainsAuto.length; i++) {
-      setStatus('Poniendo la imagen principal ' + (i+1) + '/' + mainsAuto.length + ' en el carrusel…');
-      const upR = await fetch('/.netlify/functions/shopify-products?_=1' + landingParam(), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: _autoShrineProduct.id,
-          image: {
-            src: mainsAuto[i].url,
-            alt: (_autoShrineProduct.title || 'product') + ' — imagen ' + (i+1),
-            position: i + 1,
-          },
-        }),
-      });
-      const upJ = await upR.json().catch(() => ({}));
-      if (!upR.ok) throw new Error('Fallo poniendo la imagen principal ' + (i+1) + ': ' + (upJ.error || 'HTTP ' + upR.status));
-    }
-
-    for (let i = 0; i < _autoShrineMainImgs.length; i++) {
-      setStatus('⏳ Subiendo imagen principal ' + (i+1) + '/' + _autoShrineMainImgs.length + ' al carrusel…');
-      const f = _autoShrineMainImgs[i];
-      const base64 = await new Promise((resolve, reject) => {
-        const rd = new FileReader();
-        rd.onload = () => resolve(String(rd.result).split(',').pop());
-        rd.onerror = () => reject(new Error('read fail'));
-        rd.readAsDataURL(f);
-      });
-      const ext = (f.name.match(/\.([a-z0-9]+)$/i) || [,'jpg'])[1];
-      const upR = await fetch('/.netlify/functions/shopify-products?_=1' + landingParam(), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: _autoShrineProduct.id,
-          image: {
-            attachment: base64,
-            filename: 'main-' + (i+1) + '-' + Date.now() + '.' + ext,
-            alt: (_autoShrineProduct.title || 'product') + ' — imagen ' + (i+1),
-            position: i + 1,
-          },
-        }),
-      });
-      const upJ = await upR.json().catch(() => ({}));
-      if (!upR.ok) throw new Error('Fallo subiendo imagen principal ' + (i+1) + ': ' + (upJ.error || 'HTTP ' + upR.status));
+      setStatus('Revisando el carrusel del producto…');
+      _imagenesActuales = await _bkImagenesDelProducto(_autoShrineProduct.id);
     }
 
     // 1. Las 6 imágenes (GIFs + fotos testimonios).
@@ -12245,7 +12169,13 @@ async function ejecutarAutoShrine(){
     summaryMsg += '✓ Bullets landing: ' + checkChunks.bullets.length + '\n';
     summaryMsg += '✓ Testimonios extensos: ' + checkChunks.testimoniosExtensos.length + '\n';
     summaryMsg += '✓ FAQ: ' + checkChunks.faq.length + '\n';
-    summaryMsg += '✓ Imágenes subidas: ' + (gifsRefs.length + fotosRefs.length) + '/6\n\n';
+    summaryMsg += '✓ Imágenes subidas: ' + (gifsRefs.length + fotosRefs.length) + '/6\n';
+    const _mainsTotal = _autoShrineMainImgs.length || mainsAuto.length;
+    if (_mainsTotal) {
+      summaryMsg += '✓ Carrusel: queda con las ' + _mainsTotal + ' nuevas'
+        + (_imagenesActuales.length ? ' (se borran las ' + _imagenesActuales.length + ' actuales)' : '') + '\n';
+    }
+    summaryMsg += '\n';
     if (warnings.length) {
       summaryMsg += '⚠️ ATENCIÓN — algunos contadores quedaron bajos:\n' + warnings.join('\n') + '\n\n';
       summaryMsg += '¿Aplicar igual?';
@@ -12257,6 +12187,70 @@ async function ejecutarAutoShrine(){
       goBtn.disabled = false;
       goBtn.textContent = '🚀 Generar plantilla y aplicar al producto';
       return false;
+    }
+
+    // 3.6 EL CARRUSEL: queda SIEMPRE con las principales nuevas y nada mas.
+    //     Regla de Benjamin (28 sep 2026): "siempre 3". Por eso se borran todas
+    //     las que haya, no solo las que subio la app: si quedan las viejas
+    //     abajo, el carrusel crece en cada corrida.
+    for (let i = 0; i < _imagenesActuales.length; i++) {
+      setStatus('Sacando la imagen anterior ' + (i+1) + '/' + _imagenesActuales.length + '…');
+      const delR = await fetch('/.netlify/functions/shopify-products?_=1' + landingParam(), {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: _autoShrineProduct.id, image_id: _imagenesActuales[i].id }),
+      });
+      if (!delR.ok) {
+        const dj = await delR.json().catch(function(){ return {}; });
+        throw new Error('No pude borrar la imagen anterior: ' + (dj.error || 'HTTP ' + delR.status));
+      }
+    }
+
+    // Las de Landing Auto ya estan en Shopify Files: van por URL.
+    for (let i = 0; i < mainsAuto.length; i++) {
+      setStatus('Poniendo la imagen principal ' + (i+1) + '/' + mainsAuto.length + ' en el carrusel…');
+      const upR = await fetch('/.netlify/functions/shopify-products?_=1' + landingParam(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: _autoShrineProduct.id,
+          image: {
+            src: mainsAuto[i].url,
+            alt: (_autoShrineProduct.title || 'product') + ' — imagen ' + (i+1),
+            position: i + 1,
+          },
+        }),
+      });
+      const upJ = await upR.json().catch(() => ({}));
+      if (!upR.ok) throw new Error('Fallo poniendo la imagen principal ' + (i+1) + ': ' + (upJ.error || 'HTTP ' + upR.status));
+    }
+
+    // Las adjuntadas a mano van como base64.
+    for (let i = 0; i < _autoShrineMainImgs.length; i++) {
+      setStatus('⏳ Subiendo imagen principal ' + (i+1) + '/' + _autoShrineMainImgs.length + ' al carrusel…');
+      const f = _autoShrineMainImgs[i];
+      const base64 = await new Promise((resolve, reject) => {
+        const rd = new FileReader();
+        rd.onload = () => resolve(String(rd.result).split(',').pop());
+        rd.onerror = () => reject(new Error('read fail'));
+        rd.readAsDataURL(f);
+      });
+      const ext = (f.name.match(/\.([a-z0-9]+)$/i) || [,'jpg'])[1];
+      const upR = await fetch('/.netlify/functions/shopify-products?_=1' + landingParam(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: _autoShrineProduct.id,
+          image: {
+            attachment: base64,
+            filename: 'main-' + (i+1) + '-' + Date.now() + '.' + ext,
+            alt: (_autoShrineProduct.title || 'product') + ' — imagen ' + (i+1),
+            position: i + 1,
+          },
+        }),
+      });
+      const upJ = await upR.json().catch(() => ({}));
+      if (!upR.ok) throw new Error('Fallo subiendo imagen principal ' + (i+1) + ': ' + (upJ.error || 'HTTP ' + upR.status));
     }
 
     // 4. Generar key y subir
@@ -19976,6 +19970,17 @@ function _bkAskChoice(opts){
 // Imagenes del carrusel que subio la app en corridas anteriores. Se reconocen
 // por el nombre que usa el uploader: main-<N>-<timestamp>.<ext>. Las que
 // subiste a mano en Shopify no matchean y quedan afuera.
+// Todas las imagenes que tiene hoy el producto, sin filtrar por quien las
+// subio: el carrusel se rehace entero en cada corrida.
+async function _bkImagenesDelProducto(productId){
+  try {
+    const r = await fetch('/.netlify/functions/shopify-products?id=' + encodeURIComponent(productId) + landingParam());
+    const d = await r.json();
+    if (!r.ok) return [];
+    return ((d.product && d.product.images) || []);
+  } catch(_) { return []; }
+}
+
 async function _bkImagenesPreviasDeLaApp(productId){
   try {
     const r = await fetch('/.netlify/functions/shopify-products?id=' + encodeURIComponent(productId) + landingParam());
