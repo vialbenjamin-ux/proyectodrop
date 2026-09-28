@@ -461,6 +461,55 @@ exports.handler = async (event) => {
     return Object.entries(uso).sort((a, b) => b[1] - a[1]).map(e => parseInt(e[0], 10));
   }
 
+  // ── ANTES DE CREAR: ver si ya existe ────────────────────────────────────
+  // La funcion manda el pedido a Dropi y despues sigue trabajando. Cuando se
+  // pasa de los 30 s el proxy corta, el cliente ve un error y reintenta... y
+  // el pedido YA estaba creado. El 28 sep 2026 un mismo pedido de Shopify
+  // (#30759) termino cuatro veces en Dropi.
+  //
+  // La nota lleva el numero de Shopify, asi que alcanza con mirarla. De paso
+  // esta misma consulta sirve para la cascada de bodegas, que la necesitaba
+  // igual mas abajo.
+  const nroShopify = (String(dropiBody.notes).match(/#(\d{3,})/) || [])[1] || null;
+  let ordenesRecientes = [];
+  if (nroShopify) {
+    try {
+      const rr = await fetch(
+        'https://api.dropi.cl/integrations/orders/myorders?start=0&result_number=100',
+        { method: 'GET', headers }
+      );
+      if (rr.ok) {
+        const dd = await rr.json();
+        ordenesRecientes = dd.objects || [];
+      }
+    } catch (_) { /* si falla, se sigue: mejor crear que no crear */ }
+
+    const yaCreada = ordenesRecientes.find(
+      (x) => String(x.notes || '').includes('#' + nroShopify)
+    );
+    if (yaCreada) {
+      return respond(200, {
+        ok: true,
+        yaExistia: true,
+        dropiOrderId: yaCreada.id || null,
+        warehouseUsed: yaCreada.warehouse_id != null ? yaCreada.warehouse_id : null,
+        aviso: 'Este pedido de Shopify ya estaba en Dropi (orden ' + (yaCreada.id || '?')
+             + '). No se creo otro.',
+      });
+    }
+
+    // Aprovechar la misma respuesta para la cascada de bodegas.
+    if (!knownWarehouses.length) {
+      const uso = {};
+      for (const x of ordenesRecientes) {
+        if (x.warehouse_id != null) uso[x.warehouse_id] = (uso[x.warehouse_id] || 0) + 1;
+      }
+      const porUso = Object.entries(uso).sort((a, b) => b[1] - a[1]).map(e => parseInt(e[0], 10));
+      for (const wid of porUso) if (!warehousesToTry.includes(wid)) warehousesToTry.push(wid);
+      cascadaCargada = true;
+    }
+  }
+
   let dropiResponse = null;
   let successWarehouse = null;
   const attempts = [];

@@ -5412,7 +5412,7 @@ async function createHuerfanoInDropi(idx) {
       method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify(payload),
     });
-    const data = await resp.json();
+    const data = await _bkLeerJson(resp);
     if (!resp.ok || !data.ok) {
       const errText = data.error || ('HTTP ' + resp.status);
       // Detalle real de Dropi (mensaje descriptivo con motivo del rechazo)
@@ -5533,7 +5533,7 @@ async function createAllHuerfanos() {
         method: 'POST', headers: {'Content-Type':'application/json'},
         body: JSON.stringify(payload),
       });
-      const data = await resp.json();
+      const data = await _bkLeerJson(resp);
       if (!resp.ok || !data.ok) {
         const dropiMsg = _dropiMotivo(data) || data.error || 'unknown';
         log.innerHTML += `<br>❌ ${o.name} · ${o.customer_name || ''}: ${escapeHtml(String(dropiMsg).slice(0, 120))}`;
@@ -20139,6 +20139,32 @@ function _bkAskChoice(opts){
 // subiste a mano en Shopify no matchean y quedan afuera.
 // Todas las imagenes que tiene hoy el producto, sin filtrar por quien las
 // subio: el carrusel se rehace entero en cada corrida.
+// Lee la respuesta de una funcion sin morir si no es JSON.
+//
+// dropi-create-order puede tardar: descubre la bodega probando varias, y Dropi
+// contesta lento o corta con "Too Many Attempts". Cuando se pasa del tiempo de
+// Netlify, la respuesta es una PAGINA HTML de error y `resp.json()` revienta
+// con "Unexpected token '<', \"<HTML> <HE\"... is not valid JSON", que no le
+// dice nada a nadie. Paso el 28 sep 2026 con tres pedidos huerfanos seguidos.
+//
+// Devuelve el objeto ya parseado, o uno con `error` explicando que paso.
+async function _bkLeerJson(resp){
+  const txt = await resp.text();
+  try {
+    return JSON.parse(txt);
+  } catch (_) {
+    const esHtml = /^\s*</.test(txt);
+    if (resp.status === 502 || resp.status === 504 || (esHtml && resp.status >= 500)) {
+      return { ok: false, timeout: true, error:
+        'La funcion tardo demasiado y Netlify la corto (' + resp.status + '). '
+        + 'Suele pasar cuando Dropi responde lento o esta bloqueando por exceso de '
+        + 'consultas. Esperá un momento y reintentá: el pedido NO se creo.' };
+    }
+    return { ok: false, error: 'Respuesta no valida del servidor (HTTP ' + resp.status + '): '
+             + txt.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 160) };
+  }
+}
+
 async function _bkImagenesDelProducto(productId){
   try {
     const r = await fetch('/.netlify/functions/shopify-products?id=' + encodeURIComponent(productId) + landingParam());
