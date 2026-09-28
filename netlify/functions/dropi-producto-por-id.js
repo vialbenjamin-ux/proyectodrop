@@ -41,6 +41,21 @@ exports.handler = async (event) => {
   const dropiId = String(qs.dropi_id || '').trim();
   if (!/^\d+$/.test(dropiId)) return respond(400, { error: 'dropi_id invalido (debe ser numerico)' });
 
+  // ?raw=1 devuelve el objeto de Dropi tal cual. Sirve para ver campos que
+  // esta funcion no expone todavia, como warehouse_product (la bodega), que es
+  // lo que necesita dropi-create-order para no tener que adivinarla.
+  if (qs.raw === '1') {
+    const key = String((isGT ? process.env.DROPI_TOKEN_GT : process.env.DROPI_TOKEN_CL) || '').trim();
+    if (!key) return respond(500, { error: 'Falta la llave de Dropi' });
+    const base = isGT ? 'https://api.dropi.gt' : 'https://api.dropi.cl';
+    const rr = await fetch(base + '/integrations/products/v2/' + encodeURIComponent(dropiId),
+      { headers: { 'dropi-integration-key': key, 'User-Agent': 'BKDROP-Sync/1.0' } });
+    const txt = await rr.text();
+    let j = null; try { j = JSON.parse(txt); } catch (_) {}
+    const o = j && (Array.isArray(j.objects) ? j.objects[0] : j.objects);
+    return respond(200, { status: rr.status, claves: o ? Object.keys(o) : null, objeto: o || txt.slice(0, 600) });
+  }
+
   let desdeDropi = await pedirADropi(isGT, dropiId);
   // Si Dropi esta bloqueando, se sigue con lo de Shopify pero avisando: no es
   // lo mismo "no existe" que "no pude preguntar".
