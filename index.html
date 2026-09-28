@@ -12807,6 +12807,41 @@ async function replicarTemplateAGT(){
 }
 
 // Construye la nueva plantilla sustituyendo settings con contenido del Master
+// Avatares de los testimonios. Sin esto se heredan los de la plantilla base y
+// quedan pegados a nombres que no les corresponden: el 28 sep 2026 un
+// testimonio firmado "Ana Lucia Morales" salio con la cara de un hombre.
+// Estan subidos con el mismo nombre en las dos tiendas.
+const BK_AVATARES = {
+  mujer:  ['shopify://shop_images/bk-avatar-mujer-1.jpg',
+           'shopify://shop_images/bk-avatar-mujer-2.jpg',
+           'shopify://shop_images/bk-avatar-mujer-3.jpg'],
+  hombre: ['shopify://shop_images/bk-avatar-hombre-1.jpg',
+           'shopify://shop_images/bk-avatar-hombre-2.jpg',
+           'shopify://shop_images/bk-avatar-hombre-3.jpg'],
+};
+
+// Nombres que rompen la regla del final: los de hombre terminados en -a y los
+// de mujer que no.
+const BK_NOMBRES_HOMBRE = new Set(['jose','juan','luca','elias','nicolas','matias','tobias',
+  'andrea','jeremias','isaias','zacarias','farias','bautista','agustin','joaquin','sebastian',
+  'ezequiel','ismael','rafael','gabriel','daniel','samuel','emmanuel','abel','noel']);
+const BK_NOMBRES_MUJER = new Set(['carmen','belen','pilar','beatriz','isabel','raquel','soledad',
+  'mercedes','dolores','ines','irene','noemi','ruth','esther','judith','abigail','yaritza',
+  'jazmin','yamileth','maribel','marisol','rosmery','nohemi','flor','luz','paz','mar']);
+
+function _bkGeneroDelNombre(nombre){
+  const n = String(nombre || '').trim().toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .split(/\s+/)[0] || '';
+  if (!n) return 'mujer';
+  if (BK_NOMBRES_HOMBRE.has(n)) return 'hombre';
+  if (BK_NOMBRES_MUJER.has(n)) return 'mujer';
+  // El resto se resuelve por la terminacion, que en espanol acierta casi siempre.
+  if (/a$/.test(n)) return 'mujer';
+  if (/(o|r|n|l|s|e)$/.test(n)) return 'hombre';
+  return 'mujer';
+}
+
 function buildAutoShrineTemplate(base, masterText, gifsRefs, fotosRefs){
   const tpl = JSON.parse(JSON.stringify(base));
   const chunks = parseMasterToChunks(masterText);
@@ -12828,12 +12863,21 @@ function buildAutoShrineTemplate(base, masterText, gifsRefs, fotosRefs){
         }
         // reviews → 🟨 Testimonios breves: cada uno es {text, author}
         if (block.type === 'reviews' && chunks.testimoniosBreves.length) {
+          // Un avatar distinto por testimonio, y del genero que corresponde al
+          // nombre. Se lleva la cuenta por genero para no repetir cara.
+          const usados = { mujer: 0, hombre: 0 };
           for (let i = 0; i < Math.min(3, chunks.testimoniosBreves.length); i++) {
             const t = chunks.testimoniosBreves[i];
             const author = (t && t.author) ? t.author : '';
             const text = (t && t.text) ? t.text : '';
             block.settings['author_' + (i+1)] = '<em>' + escapeHtmlForShrine(author) + '</em>';
             block.settings['text_' + (i+1)] = '<p>' + escapeHtmlForShrine(text) + '</p>';
+            if (author) {
+              const g = _bkGeneroDelNombre(author);
+              const lista = BK_AVATARES[g] || BK_AVATARES.mujer;
+              block.settings['image_' + (i+1)] = lista[usados[g] % lista.length];
+              usados[g]++;
+            }
           }
         }
       }
