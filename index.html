@@ -20467,7 +20467,7 @@ async function laBuscarProducto(){
         +     (j.fotos || []).length + ' fotos · ' + esc(String(j.tipo || '')) + '</div>'
         +   (j.enShopify
               ? '<div style="font-size:10px;color:#2E7D32;font-family:\'DM Mono\',monospace;margin-top:5px">✓ Ya está en Shopify</div>'
-              : '<div style="font-size:10px;color:#B7791F;font-family:\'DM Mono\',monospace;margin-top:5px">🆕 Todavía no está en Shopify — se crea solo al aplicar la landing</div>')
+              : '<div style="font-size:10px;color:#B7791F;font-family:\'DM Mono\',monospace;margin-top:5px">🆕 No está en Shopify — lo creo yo al crear el pedido</div>')
         +   (corto ? '<div style="font-size:10px;color:#B7791F;font-family:\'DM Mono\',monospace;margin-top:5px">⚠ El metafield tiene solo ' + j.camposMetafield + ' campos: los pedidos van a caer en DROPITEA.</div>' : '')
         + '</div></div>';
     }
@@ -20535,7 +20535,7 @@ async function laCrearPedido(){
   if (btn) { btn.disabled = true; btn.textContent = 'Creando…'; }
   try {
     const db = firebase.firestore();
-    await db.collection(LA_COL).add({
+    const ref = await db.collection(LA_COL).add({
       nombre: nuevo ? nombreManual : (_laProducto.nombreDropi || _laProducto.titulo || ''),
       nombreDropi: _laProducto.nombreDropi || '',
       // Datos que trae la API de Dropi: alcanzan para crear el producto en
@@ -20565,9 +20565,30 @@ async function laCrearPedido(){
     const el = document.getElementById('la-dropi'); if (el) el.value = '';
     const se = document.getElementById('la-sello'); if (se) se.value = '';
     laIdCambio();
-    _laEstado('Pedido creado en ' + (_laPais === 'gt' ? 'Guatemala' : 'Chile') + '. La sesión local lo va a tomar para buscar los videos.', 'var(--accent)');
+    _laEstado('Pedido creado en ' + (_laPais === 'gt' ? 'Guatemala' : 'Chile') + '.', 'var(--accent)');
     showToast('Pedido de landing creado', '🛰️', 'success');
     renderLandingAuto();
+
+    // Si el producto todavia no esta en Shopify, se crea ahora mismo con lo
+    // que dio la API de Dropi. Antes esto se hacia a mano desde el panel de
+    // Dropi, o al aplicar la landing; hacerlo aca deja el pedido completo de
+    // entrada y el producto listo para mirarlo.
+    if (!_laProducto.enShopify && !nuevo) {
+      _laEstado('Creando el producto en Shopify…');
+      const creado = await laCrearEnShopify(ref.id, {
+        pais: _laProducto.tenant, dropiId: _laProducto.dropiId,
+        nombreDropi: _laProducto.nombreDropi, sello: sello.trim(),
+        costo: _laProducto.costo, proveedor: _laProducto.proveedor,
+        proveedorId: _laProducto.proveedorId,
+        fotosProducto: (_laProducto.fotos || []).slice(0, 9),
+        descripcionDropi: _laProducto.descripcion || '',
+      });
+      _laEstado(creado
+        ? 'Listo: pedido creado y producto en Shopify. La sesión local va a buscar los videos.'
+        : 'Pedido creado, pero el producto no se pudo crear en Shopify. Revisá la tarjeta.',
+        creado ? 'var(--accent)' : 'var(--danger,#E74C3C)');
+      renderLandingAuto();
+    }
   } catch (e) {
     _laEstado('⚠ ' + (e.message || 'error'), 'var(--danger,#E74C3C)');
   } finally {
@@ -20606,7 +20627,7 @@ async function renderLandingAuto(){
         +   '<div style="font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace;margin-top:3px">Dropi ' + esc(p.dropiId || '?')
         +     (p.sello ? ' · sello ' + esc(p.sello) : '') + ' · ' + (p.pais === 'gt' ? '🇬🇹 GT' : '🇨🇱 CHILE') + (cuando ? ' · ' + cuando : '') + '</div>'
         +   '<div style="font-size:11px;font-family:\'DM Mono\',monospace;margin-top:6px;color:' + est.color + '">● ' + esc(est.txt) + '</div>'
-        +   (p.sinShopify ? '<div style="font-size:10px;color:#B7791F;font-family:\'DM Mono\',monospace;margin-top:4px">🆕 Todavía no está en Shopify — importalo desde el panel de Dropi antes de aplicar la landing</div>' : '')
+        +   (p.sinShopify ? '<div style="font-size:10px;color:#C0392B;font-family:\'DM Mono\',monospace;margin-top:4px">⚠ No se pudo crear en Shopify — revisá que Dropi tenga costo y proveedor para ese ID</div>' : '')
         +   (p.videosCarpeta ? '<div style="font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace;margin-top:4px">📁 ' + esc(p.videosCarpeta) + '</div>' : '')
         +   (p.angulo ? '<div style="font-size:11px;color:var(--text);margin-top:6px"><b>Ángulo:</b> ' + esc(p.angulo) + '</div>' : '')
         + '</div>'
