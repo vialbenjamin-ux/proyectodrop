@@ -12337,7 +12337,8 @@ async function ejecutarAutoShrine(){
     // Crear (idempotente) las 3 carpetas de Drive para el workflow de videos.
     // En background — no rompe el flow principal si falla. El usuario ve el
     // resultado en el banner.
-    crearCarpetasDriveDelProducto(_autoShrineProduct.handle, _autoShrineProduct.title);
+    crearCarpetasDriveDelProducto(_autoShrineProduct.handle, _autoShrineProduct.title,
+      (_laAuto && _laAuto.nombreDropi) || null);
     // Le avisa a laAplicarLanding que esta vez si se aplico.
     return true;
   } catch (err) {
@@ -12361,7 +12362,7 @@ async function ejecutarAutoShrine(){
 // El nombre de la carpeta padre se prefija con MMDD + nombre del producto
 // (ej: "0512 - Cafetera automática"). El día solo afecta la PRIMERA creación;
 // llamadas posteriores reusan la carpeta original por el mapping de Firestore.
-async function crearCarpetasDriveDelProducto(handle, title){
+async function crearCarpetasDriveDelProducto(handle, title, nombreDropi){
   if (!handle) return null;
   try {
     // 1. Verificar mapping existente en Firestore (idempotencia rápida)
@@ -12387,13 +12388,23 @@ async function crearCarpetasDriveDelProducto(handle, title){
       } catch (e) { console.warn('[drive-folders] firestore check failed:', e); }
     }
 
-    // 2. No existe — crear con prefijo de fecha MMDD
+    // 2. No existe — crear con el nombre que usa la cadena de doblaje:
+    //    MMDD (CH|GT) NOMBRE DEL PRODUCTO EN DROPI  →  "0928 (CH) CUCHILLO DE CHEF"
+    //    El nombre es el de Dropi, no el titulo de Shopify: el de Shopify lleva
+    //    el sello y la promesa ("2x1 ... - Ahorra en gasfiter") y no sirve para
+    //    encontrar la carpeta despues.
     const d = new Date();
     const mm = String(d.getMonth() + 1).padStart(2, '0');
     const dd = String(d.getDate()).padStart(2, '0');
     const datePrefix = mm + dd;
-    const baseTitle = (title || handle).trim();
-    const titleWithDate = baseTitle ? `${datePrefix} - ${baseTitle}` : datePrefix;
+    const pais = (typeof landingEsGT === 'function' && landingEsGT()) ? 'GT' : 'CH';
+    const baseTitle = String(nombreDropi || title || handle).trim()
+      .replace(/[\/:*?"<>|]/g, ' ')   // Drive no acepta estos caracteres
+      .replace(/\s+/g, ' ')
+      .toUpperCase();
+    const titleWithDate = baseTitle
+      ? datePrefix + ' (' + pais + ') ' + baseTitle
+      : datePrefix + ' (' + pais + ')';
 
     const resp = await fetch('/.netlify/functions/drive-folders', {
       method: 'POST',
@@ -20496,6 +20507,8 @@ function _laCargarEnCreador(p){
     // Con esto el boton de rehacer puede repetir la hero con ajustes.
     heroPrompt: p.heroPrompt || null,
     heroRefs: (p.heroRefs || []).filter(Boolean),
+    // Para nombrar la carpeta de Drive como la espera la cadena de doblaje.
+    nombreDropi: p.nombreDropi || '',
     principales: (p.principales || []).filter(function(x){ return x && x.shopifyRef; }),
     gifs: (p.gifs || []).filter(function(g){ return g && g.shopifyRef; }),
     fotos: (p.fotos || []).filter(function(f){ return f && f.shopifyRef; }),

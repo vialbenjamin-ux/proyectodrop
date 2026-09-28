@@ -3,7 +3,8 @@
 // Mismo contrato que gemini-image-gen.js a propósito, para que quien llame
 // pueda cambiar de motor cambiando solo la URL:
 //   POST /.netlify/functions/openai-image-gen
-//   Body: { prompt, images?: [{mimeType, data}], model?, quality?, size? }
+//   Body: { prompt, images?: [{mimeType, data}], model?, quality?, size?, background? }
+//   background: 'transparent' devuelve PNG con alfa (para sellos y recortes).
 //   Respuesta: { mimeType, data, modelUsed } o { error }
 //
 // Para qué se usa: Gemini escribe mal el texto en español dentro de la imagen
@@ -36,6 +37,8 @@ exports.handler = async (event) => {
 
   const size = ['1024x1024', '1024x1536', '1536x1024', 'auto'].includes(body.size) ? body.size : '1024x1024';
   const quality = ['low', 'medium', 'high', 'auto'].includes(body.quality) ? body.quality : 'medium';
+  // 'transparent' solo vale con PNG, y es lo que necesitan los sellos.
+  const background = ['transparent', 'opaque', 'auto'].includes(body.background) ? body.background : null;
 
   // En cascada, como gemini-image-gen: si la cuenta no tiene acceso al primero
   // se prueba el siguiente en vez de fallar.
@@ -51,8 +54,8 @@ exports.handler = async (event) => {
   for (const model of MODELOS) {
     try {
       const r = referencias.length
-        ? await conReferencias(apiKey, model, prompt, referencias, size, quality)
-        : await sinReferencias(apiKey, model, prompt, size, quality);
+        ? await conReferencias(apiKey, model, prompt, referencias, size, quality, background)
+        : await sinReferencias(apiKey, model, prompt, size, quality, background);
 
       if (r.ok) return respond(200, { mimeType: 'image/png', data: r.b64, modelUsed: model });
 
@@ -74,13 +77,14 @@ exports.handler = async (event) => {
 };
 
 // Con imágenes de referencia va a /images/edits, que es multipart.
-async function conReferencias(apiKey, model, prompt, referencias, size, quality) {
+async function conReferencias(apiKey, model, prompt, referencias, size, quality, background) {
   const form = new FormData();
   form.append('model', model);
   form.append('prompt', prompt);
   form.append('size', size);
   form.append('quality', quality);
   form.append('n', '1');
+  if (background) { form.append('background', background); form.append('output_format', 'png'); }
   referencias.forEach((img, i) => {
     const bin = Buffer.from(img.data, 'base64');
     const ext = (img.mimeType.split('/')[1] || 'png').replace('jpeg', 'jpg');
@@ -95,11 +99,13 @@ async function conReferencias(apiKey, model, prompt, referencias, size, quality)
   return await leer(resp);
 }
 
-async function sinReferencias(apiKey, model, prompt, size, quality) {
+async function sinReferencias(apiKey, model, prompt, size, quality, background) {
+  const cuerpo = { model, prompt, size, quality, n: 1 };
+  if (background) { cuerpo.background = background; cuerpo.output_format = 'png'; }
   const resp = await fetch('https://api.openai.com/v1/images/generations', {
     method: 'POST',
     headers: { Authorization: 'Bearer ' + apiKey, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model, prompt, size, quality, n: 1 }),
+    body: JSON.stringify(cuerpo),
   });
   return await leer(resp);
 }
