@@ -20439,14 +20439,14 @@ async function laBuscarProducto(){
     const j = await r.json();
     if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
     if (!j.encontrado) {
-      // Producto nuevo. No es un error: es el caso normal cuando recien lo
-      // sacaste del catalogo de Dropi. Se pide el nombre y la foto y listo.
+      // Ni Dropi ni Shopify lo conocen: casi siempre es el ID del otro pais.
+      // Igual se deja crear el pedido a mano, con nombre y foto.
       _laProducto = { encontrado: false, nuevo: true, dropiId: id, tenant: _laPais };
       _laHabilitarCrear(true);
       _laMostrarManual(true);
-      if (pv) pv.innerHTML = '<div style="background:var(--surface2);border:1.5px solid #B7791F;border-radius:10px;padding:12px;font-size:11px;font-family:\'DM Mono\',monospace;color:var(--text);line-height:1.6">'
-        + '🆕 El ID <b>' + esc(id) + '</b> todavía no está en Shopify ' + (_laPais === 'gt' ? 'GT' : 'Chile') + '.'
-        + '<br><span style="color:var(--muted)">Acordate de importarlo desde el panel de Dropi (no desde acá): así el metafield sale completo y los pedidos no caen en DROPITEA.</span></div>';
+      if (pv) pv.innerHTML = '<div style="background:var(--surface2);border:1.5px solid #C0392B;border-radius:10px;padding:12px;font-size:11px;font-family:\'DM Mono\',monospace;color:var(--text);line-height:1.6">'
+        + '⚠ ' + esc(j.motivo || 'No lo encontré') + '<br>'
+        + '<span style="color:var(--muted)">Ojo: el ID de Dropi es por catálogo, así que el mismo producto tiene número distinto en Chile y en Guatemala.</span></div>';
       _laEstado('');
       return;
     }
@@ -20455,15 +20455,20 @@ async function laBuscarProducto(){
     _laMostrarManual(false);
     _laEstado('');
     if (pv) {
-      const corto = (j.camposMetafield && j.camposMetafield < 20);
+      const corto = j.enShopify && j.camposMetafield && j.camposMetafield < 20;
+      const moneda = (_laPais === 'gt') ? 'Q' : '$';
       pv.innerHTML = '<div style="background:var(--surface2);border:1.5px solid #2B5FB3;border-radius:10px;padding:12px;display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap">'
         + (j.fotoPrincipal ? '<img src="' + esc(j.fotoPrincipal) + '" style="width:72px;height:72px;object-fit:cover;border-radius:8px;flex:none">' : '')
         + '<div style="flex:1;min-width:200px">'
-        +   '<div style="font-family:\'Montserrat\',sans-serif;font-weight:800;font-size:13px;color:var(--text)">' + esc(j.titulo || j.nombreDropi) + '</div>'
+        +   '<div style="font-family:\'Montserrat\',sans-serif;font-weight:800;font-size:13px;color:var(--text)">' + esc(j.nombreDropi || j.titulo) + '</div>'
         +   '<div style="font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace;margin-top:4px">'
-        +     esc(j.nombreDropi || '') + (j.proveedor ? ' · ' + esc(j.proveedor) : '')
-        +     ' · ' + (j.fotos || []).length + ' fotos · ' + esc(String(j.tipo || '')) + '</div>'
-        +   (corto ? '<div style="font-size:10px;color:#B7791F;font-family:\'DM Mono\',monospace;margin-top:5px">⚠ El metafield tiene solo ' + j.camposMetafield + ' campos: este producto no sincroniza solo con Dropi, los pedidos van a caer en DROPITEA.</div>' : '')
+        +     (j.costo ? 'costo ' + moneda + j.costo + ' · ' : '')
+        +     (j.proveedor ? esc(j.proveedor) + ' · ' : '')
+        +     (j.fotos || []).length + ' fotos · ' + esc(String(j.tipo || '')) + '</div>'
+        +   (j.enShopify
+              ? '<div style="font-size:10px;color:#2E7D32;font-family:\'DM Mono\',monospace;margin-top:5px">✓ Ya está en Shopify</div>'
+              : '<div style="font-size:10px;color:#B7791F;font-family:\'DM Mono\',monospace;margin-top:5px">🆕 Todavía no está en Shopify — se crea solo al aplicar la landing</div>')
+        +   (corto ? '<div style="font-size:10px;color:#B7791F;font-family:\'DM Mono\',monospace;margin-top:5px">⚠ El metafield tiene solo ' + j.camposMetafield + ' campos: los pedidos van a caer en DROPITEA.</div>' : '')
         + '</div></div>';
     }
   } catch (e) {
@@ -20531,11 +20536,15 @@ async function laCrearPedido(){
   try {
     const db = firebase.firestore();
     await db.collection(LA_COL).add({
-      nombre: nuevo ? nombreManual : (_laProducto.titulo || _laProducto.nombreDropi || ''),
+      nombre: nuevo ? nombreManual : (_laProducto.nombreDropi || _laProducto.titulo || ''),
       nombreDropi: _laProducto.nombreDropi || '',
-      // true = todavia no existe en Shopify. Hay que importarlo desde el panel
-      // de Dropi antes de aplicarle la landing.
-      sinShopify: nuevo,
+      // Datos que trae la API de Dropi: alcanzan para crear el producto en
+      // Shopify sin que nadie los dicte a mano.
+      costo: _laProducto.costo || null,
+      proveedorId: _laProducto.proveedorId || null,
+      tipo: _laProducto.tipo || null,
+      // true = todavia no existe en Shopify. Se crea al aplicar la landing.
+      sinShopify: !_laProducto.enShopify,
       foto: fotoManual,
       dropiId: String(_laProducto.dropiId),
       sello: sello.trim() || null,
@@ -20674,7 +20683,14 @@ async function laAplicarLanding(id){
     const p = doc.data();
     if (!p) throw new Error('No encontre el pedido');
     if (!p.master) throw new Error('Todavia no hay textos para este producto');
-    if (!p.shopifyId) throw new Error('Este producto todavia no esta en Shopify: importalo desde el panel de Dropi primero');
+    if (!p.shopifyId) {
+      // Se crea solo, con el costo, el proveedor y las fotos que dio Dropi.
+      showToast('Creando el producto en Shopify…', '📦', 'info');
+      const creado = await laCrearEnShopify(id, p);
+      if (!creado) throw new Error('No pude crear el producto en Shopify');
+      p.shopifyId = creado.shopifyId;
+      p.handle = creado.handle;
+    }
     if (((p.gifs || []).length !== 3) || ((p.fotos || []).length !== 3)) {
       throw new Error('Todavia no estan las 9 imagenes de este pedido');
     }
@@ -20690,6 +20706,55 @@ async function laAplicarLanding(id){
     renderLandingAuto();
   } catch (e) {
     showToast('No se pudo aplicar: ' + (e.message || 'error'), '⚠️', 'error');
+  }
+}
+
+// Crea el producto en Shopify con lo que devolvio la API de Dropi. Devuelve
+// { shopifyId, handle } o null.
+//
+// El titulo lleva el sello adelante, que es el formato de la tienda
+// ("2x1 Cepillo ...", "45% OFF ..."). El precio queda en el de relleno: lo
+// define Benjamin despues, y los botones de activar avisan si sigue en 999.
+async function laCrearEnShopify(pedidoId, p){
+  try {
+    const tenant = (p.pais === 'gt') ? 'gt' : 'chile';
+    const sello = String(p.sello || '').trim();
+    const prefijo = /^\d+$/.test(sello) ? (sello + '% OFF ') : (sello ? sello + ' ' : '');
+    const nombre = p.nombreDropi || p.nombre || '';
+    const cuerpo = {
+      tenant,
+      dropi_id: String(p.dropiId),
+      name: (prefijo + nombre).slice(0, 255),
+      image_url: (p.fotosProducto || [])[0] || p.fotoUrl || null,
+      gallery_urls: (p.fotosProducto || []).slice(1, 9),
+      cost: Number(p.costo) || 0,
+      description: p.descripcionDropi || '',
+    };
+    if (p.proveedorId) cuerpo.user_id = String(p.proveedorId);
+    if (p.proveedor) cuerpo.user_name = p.proveedor;
+    if (!cuerpo.user_id && !cuerpo.user_name) cuerpo.allow_unknown_supplier = true;
+    if (!cuerpo.cost) throw new Error('Dropi no dio el costo del producto');
+    if (!cuerpo.image_url) throw new Error('Dropi no dio fotos del producto');
+
+    const r = await fetch('/.netlify/functions/dropi-import-product', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(cuerpo),
+    });
+    const j = await r.json();
+    if (!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status));
+
+    await firebase.firestore().collection(LA_COL).doc(pedidoId).update({
+      shopifyId: String(j.product_id),
+      handle: j.handle || '',
+      sinShopify: false,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    });
+    showToast('Producto creado en Shopify', '📦', 'success');
+    return { shopifyId: String(j.product_id), handle: j.handle || '' };
+  } catch (e) {
+    showToast('No pude crear el producto: ' + (e.message || 'error'), '⚠️', 'error');
+    return null;
   }
 }
 
