@@ -68,15 +68,26 @@ exports.handler = async (event) => {
 
     const detalle = [];
     let reparados = 0;
+    let bloqueado = false;
     for (const o of objetivos) {
       const r = await repararUno(API, H, isGT, String(o.id), dryRun);
       detalle.push(r);
       if (r.reparado) reparados++;
-      // Un respiro entre productos: Dropi bloquea por rafaga.
-      if (objetivos.length > 1) await new Promise((s) => setTimeout(s, 350));
+      // Dropi aguanta unas siete consultas seguidas y despues corta con "Too
+      // Many Attempts". Seguir intentando no sirve de nada: la primera corrida
+      // de 19 productos quemo 12 contra la pared. Se para en seco y se avisa
+      // cuantos quedaron, para volver mas tarde.
+      if (String(r.error || '').indexOf('Too Many Attempts') >= 0) { bloqueado = true; break; }
+      if (objetivos.length > 1) await new Promise((s) => setTimeout(s, 1200));
     }
 
-    return respond(200, { ok: true, tenant, dryRun, revisados: detalle.length, reparados, detalle });
+    const quedan = objetivos.length - detalle.length;
+    return respond(200, {
+      ok: true, tenant, dryRun, revisados: detalle.length, reparados, bloqueado,
+      ...(bloqueado ? { nota: 'Dropi corto por exceso de consultas. Quedaron ' + (quedan + 1)
+        + ' sin revisar de esta tanda: volve a correrlo en un rato.' } : {}),
+      detalle,
+    });
   } catch (err) {
     return respond(502, { error: err.message || 'error desconocido' });
   }
