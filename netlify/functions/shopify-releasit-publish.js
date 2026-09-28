@@ -46,6 +46,7 @@ async function fetchShopify(url, opts, intentos) {
 }
 
 const { rubrosDe, textoDe, esPack, palabrasClave, normTxt } = require('./_rubros');
+const { escanearProveedor, precioUpsell } = require('./_upsell-pool');
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: cors(), body: '' };
@@ -271,87 +272,116 @@ exports.handler = async (event) => {
     } else if (!supplier.user_id) {
       upsellReason = 'no-supplier';
     } else {
-      let raw = await buscarUpsellCandidato(API, H, {
-        supplierUserId: supplier.user_id,
-        excludeProductId: productId,
-        basePrice: price,
-        status: 'draft',
-      });
-      let isDraft = true;
-      if (!raw.length) {
-        raw = await buscarUpsellCandidato(API, H, {
-          supplierUserId: supplier.user_id,
-          excludeProductId: productId,
-          basePrice: price,
-          status: 'active',
-        });
-        isDraft = false;
+      // El pool: todo el catalogo del proveedor, de una consulta GraphQL.
+      // Antes esto recorria /products.json pidiendo el metafield producto por
+      // producto con techo de 120 consultas, y llegaba con 1 o 2 candidatos.
+      let pool = null;
+      try {
+        pool = await escanearProveedor({ domain, token, supplierId: supplier.user_id, baseId: productId });
+      } catch (err) {
+        upsellReason = 'no pude escanear el catalogo del proveedor: ' + (err.message || 'error');
       }
+      const baseBodegas = (pool && pool.base && pool.base.bodegas) || [];
+      const baseCosto = (pool && pool.base && pool.base.costo) || null;
+      // Bodega principal del proveedor: la mas repetida. El producto base
+      // suele no declarar bodegas (el metafield que escribe el importador de
+      // BKDROP no las trae), y ahi es la mejor apuesta.
+      const uso = {};
+      for (const p of (pool ? pool.productos : [])) for (const w of (p.bodegas || [])) uso[w] = (uso[w] || 0) + 1;
+      const principal = Object.keys(uso).sort((a, b) => uso[b] - uso[a])[0];
+      const principalId = principal != null ? Number(principal) : null;
+
+      const raw = (pool ? pool.productos : []).filter((c) => {
+        if (esPack(c.title)) return false;          // el cliente ve 2x1 y Dropi manda 1
+        if (c.cost == null || c.cost <= 0) return false;
+        const pu = precioUpsell(c.cost, tenant);
+        // Pasada la mitad del precio base ya no es un agregado: compite.
+        return pu != null && pu <= price * 0.5;
+      });
+
       if (!raw.length) {
-        upsellReason = 'no-candidates';
+        if (upsellReason === 'ok' && pool) {
+          upsellReason = 'sin candidatos: ningun producto de '
+            + (supplier.user_name || 'el proveedor')
+            + ' queda bajo la mitad del precio base';
+        }
       } else {
-        // Scoring por relacion semantica: palabras clave del producto base
-        // presentes en el nombre del candidato. Los que matcheen mas van
-        // primero. Ties se rompen por precio ascendente.
         // Que el upsell se PAREZCA a lo que se esta vendiendo. El rubro sale
         // de las categorias y la descripcion de Dropi, no del titulo: los
-        // titulos son de marketing ("Revitaluz", "KatanBlade") y casi nunca
-        // comparten palabras. Antes el criterio era solo palabras del titulo
-        // y, como daba 0 para todos, terminaba ganando el MAS BARATO: de ahi
-        // salian los upsells que no pegaban con nada.
-        const baseRubros = rubrosDe(baseTexto);
+        // titulos son de marketing y casi nunca comparten palabras, asi que
+        // el criterio viejo daba 0 para todos y desempataba por precio -- de
+        // ahi salian los upsells que no pegaban con nada.
+        const baseRubros = rubrosDe(baseTexto + ' ' + ((pool.base && pool.base.texto) || ''));
         const kws = palabrasClave(product.title);
+        const bodegaDe = (c) => {
+          if (!c.bodegas || !c.bodegas.length) return '?';
+          if (baseBodegas.length) return c.bodegas.some((w) => baseBodegas.indexOf(w) !== -1) ? 'si' : 'no';
+          if (principalId != null) return c.bodegas.indexOf(principalId) !== -1 ? 'probable' : 'no';
+          return '?';
+        };
         const puntaje = (c) => {
-          const rub = rubrosDe(c._texto || c.title).filter((r) => baseRubros.indexOf(r) !== -1);
+          const rub = rubrosDe(c.texto).filter((r) => baseRubros.indexOf(r) !== -1);
           const t = normTxt(c.title);
           const pal = kws.reduce((n, k) => n + (t.indexOf(k) >= 0 ? 1 : 0), 0);
-          // Precio de impulso: entre 20% y 55% del base se suma sin pensarlo.
-          // Mas caro que eso compite con el producto en vez de acompanarlo.
-          const rel = parseFloat(c.variantPrice) / price;
-          const banda = (rel >= 0.2 && rel <= 0.55) ? 3 : (rel > 0.55 ? -2 : 1);
-          return { total: rub.length * 10 + pal * 2 + banda, rubros: rub, palabras: pal };
+          const bod = bodegaDe(c);
+          // Una orden de Dropi tiene UNA bodega: si el upsell esta en otra,
+          // el pedido entero no se puede crear. Eso pesa mas que el parecido.
+          const pesoBodega = bod === 'si' ? 12 : (bod === 'probable' ? 8 : (bod === '?' ? 4 : 0));
+          // Un borrador esta oculto en la tienda: como upsell no compite en
+          // el catalogo, que es justo para lo que se crean.
+          const oculto = c.status === 'draft' ? 1 : 0;
+          return { total: pesoBodega + rub.length * 10 + pal * 2 + oculto,
+                   rubros: rub, palabras: pal, bodega: bod };
         };
         const puntos = new Map();
         for (const c of raw) puntos.set(c, puntaje(c));
         raw.sort((a, b) => {
           const d = puntos.get(b).total - puntos.get(a).total;
-          return d !== 0 ? d : (parseFloat(a.variantPrice) - parseFloat(b.variantPrice));
+          return d !== 0 ? d : ((a.cost || Infinity) - (b.cost || Infinity));
         });
-        // Top 5 candidatos con costo (sale_price del metafield dropi).
-        upsellCandidates = raw.slice(0, 5).map(c => ({
-          product_id: String(c.id),
-          variant_id: String(c.variantId),
-          name: c.title,
-          price: parseFloat(c.variantPrice),
-          // Releasit espera price en CENTAVOS siempre (aunque CLP no los use).
-          // Sin *100, muestra $100 en vez de $9.990.
-          price_cents: Math.round(parseFloat(c.variantPrice) * 100),
-          cost: c.costDropi != null ? Number(c.costDropi) : null,
-          imgUrl: c.image || '',
-          isDraft: isDraft,
-          matchScore: puntos.get(c).total,
-          matchRubros: puntos.get(c).rubros,
-          matchPalabras: puntos.get(c).palabras,
-        }));
-        // El upsell efectivo = el candidato elegido (default index 0),
-        // con precio pisado si vino upsellOverridePrice (en pesos → *100).
+
+        upsellCandidates = raw.slice(0, 5).map((c) => {
+          const pu = precioUpsell(c.cost, tenant);
+          return {
+            product_id: String(c.id),
+            variant_id: String(c.variantId),
+            name: c.title,
+            // El precio propuesto sale del costo, no del precio de lista: el
+            // borrador que se usa de upsell suele tener precio de relleno ($1).
+            price: pu,
+            // Releasit espera price en CENTAVOS siempre (aunque CLP no los use).
+            // Sin *100, muestra $100 en vez de $9.990.
+            price_cents: Math.round(pu * 100),
+            cost: c.cost,
+            precioLista: c.price,
+            imgUrl: c.image || '',
+            isDraft: c.status === 'draft',
+            bodegas: c.bodegas,
+            matchScore: puntos.get(c).total,
+            matchRubros: puntos.get(c).rubros,
+            matchPalabras: puntos.get(c).palabras,
+            matchBodega: puntos.get(c).bodega,
+          };
+        });
         const chosenIdx = Math.min(upsellIndex, upsellCandidates.length - 1);
         const chosen = upsellCandidates[chosenIdx];
-        if (!chosen.matchRubros.length && !chosen.matchPalabras) {
-          upsellReason = 'sin-parecido: nada del proveedor calza con el rubro del base ('
-            + (rubrosDe(baseTexto).join(', ') || 'rubro no reconocido') + ')';
-        } else if (chosen.matchRubros.length) {
-          upsellReason = 'mismo rubro: ' + chosen.matchRubros.join(', ');
-        }
         const finalPriceCents = upsellOverridePrice && upsellOverridePrice > 0
           ? Math.round(upsellOverridePrice * 100)
           : chosen.price_cents;
         upsell = {
           ...chosen,
-          price: finalPriceCents / 100, // display en pesos
-          price_cents: finalPriceCents,  // lo que va al metafield
+          price: finalPriceCents / 100,
+          price_cents: finalPriceCents,
         };
-        if (!isDraft) upsellReason = 'ok-active-warning';
+        const partes = [];
+        partes.push(chosen.matchRubros.length
+          ? 'mismo rubro: ' + chosen.matchRubros.join(', ')
+          : 'sin rubro en comun (base: ' + (baseRubros.join(', ') || 'no reconocido') + ')');
+        partes.push('bodega ' + chosen.matchBodega);
+        partes.push('costo Dropi ' + chosen.cost + ' -> venta ' + chosen.price);
+        if (baseCosto) partes.push('costo del base ' + baseCosto);
+        partes.push(pool.scanned + ' productos escaneados, ' + raw.length + ' candidatos');
+        upsellReason = partes.join(' | ');
       }
     }
 
@@ -552,71 +582,6 @@ exports.handler = async (event) => {
     return respond(502, { error: err.message || 'unknown' });
   }
 };
-
-// Busca productos DRAFT del mismo supplier user_id con precio <= 40% del base.
-// Retorna sorted por precio ascendente (el mas barato primero como default).
-async function buscarUpsellCandidato(API, H, { supplierUserId, excludeProductId, basePrice, status }) {
-  // 60% del base para tener mas pool de candidatos (antes 40%). Ajuste
-  // basado en que muchos productos base tienen precio bajo (~$27.990) y
-  // el cap 40% dejaba muy pocos candidatos disponibles.
-  const maxUpsellPrice = basePrice * 0.6;
-  const PAGE_SIZE = 250;
-  const MAX_PAGES = 2; // hasta 500 productos escaneados (antes 250)
-  const MAX_METAFIELD_LOOKUPS = 120; // antes 60
-  const candidatos = [];
-  let lookups = 0;
-  const statusFilter = (status && ['draft', 'active', 'archived', 'any'].includes(status)) ? status : 'draft';
-  let pageUrl = API + '/products.json?limit=' + PAGE_SIZE + '&status=' + statusFilter + '&fields=id,title,status,variants,image';
-  let pages = 0;
-
-  while (pageUrl && pages < MAX_PAGES) {
-    const r = await fetchShopify(pageUrl, { headers: H });
-    if (!r.ok) break;
-    const j = await r.json();
-    const products = j.products || [];
-    for (const p of products) {
-      if (String(p.id) === String(excludeProductId)) continue;
-      const v0 = (p.variants || [])[0];
-      if (!v0) continue;
-      const vPrice = parseFloat(v0.price || 0);
-      if (!vPrice || vPrice <= 0 || vPrice > maxUpsellPrice) continue;
-      if (lookups >= MAX_METAFIELD_LOOKUPS) break;
-      // Ir a por hasta 8 candidatos (antes 5) para poblar top 5 mostrando 5 opciones.
-      // Filtro por supplier: leer metafield dropi._dropi_product
-      lookups++;
-      const mfR = await fetchShopify(API + '/products/' + p.id + '/metafields.json?namespace=dropi', { headers: H });
-      if (!mfR.ok) continue;
-      const mfJ = await mfR.json();
-      const mfDropi = (mfJ.metafields || []).find(m => m.namespace === 'dropi' && m.key === '_dropi_product');
-      if (!mfDropi) continue;
-      try {
-        const dropiData = JSON.parse(mfDropi.value);
-        if (esPack(p.title)) continue;
-        if (dropiData.user && String(dropiData.user.id) === String(supplierUserId)) {
-          candidatos.push({
-            id: p.id,
-            title: p.title,
-            variantId: v0.id,
-            variantPrice: v0.price,
-            image: (p.image && p.image.src) || null,
-            // Costo Dropi (sale_price) para mostrar en el UI.
-            costDropi: dropiData.sale_price != null ? Number(dropiData.sale_price) : null,
-            // Categorias + descripcion de Dropi: de aca sale el rubro.
-            _texto: (p.title || '') + ' ' + textoDe(dropiData),
-          });
-        }
-      } catch (_) {}
-      if (candidatos.length >= 14) break;
-    }
-    if (candidatos.length >= 14 || lookups >= MAX_METAFIELD_LOOKUPS) break;
-    const link = r.headers.get('Link') || '';
-    const nx = link.match(/<([^>]+)>;\s*rel="next"/);
-    pageUrl = nx ? nx[1] : null;
-    pages++;
-  }
-  candidatos.sort((a, b) => parseFloat(a.variantPrice) - parseFloat(b.variantPrice));
-  return candidatos;
-}
 
 function cors() {
   return {
