@@ -10591,9 +10591,34 @@ async function _bkInstalarColoresGT(btn){
   }
 }
 
+// El importador crea los productos con un precio de relleno (999) porque el
+// precio real lo define Benjamin despues. Activar con ese precio publica la
+// tienda con un numero inventado; paso el 28 sep 2026 con el cepillo de
+// silicona, que salio a GTQ 999 cuando iba a 199.
+// Devuelve true si hay que frenar.
+async function _bkPrecioSinDefinir(productId, tenant){
+  try {
+    const r = await fetch('/.netlify/functions/shopify-products?tenant=' + (tenant || 'chile')
+                          + '&id=' + encodeURIComponent(productId));
+    const d = await r.json();
+    if (!r.ok) return false;                       // ante la duda, no estorbar
+    const vs = ((d.product || {}).variants) || [];
+    if (!vs.length) return false;
+    const relleno = vs.every(function(v){ return Number(v.price) === 999; });
+    if (!relleno) return false;
+    return !confirm('⚠️ Este producto todavía tiene el precio de relleno (999).\n\n'
+      + 'Si lo activás ahora, la tienda lo va a mostrar a 999.\n\n'
+      + '¿Activar igual?');
+  } catch(_) { return false; }
+}
+
 // Activa el producto en la tienda GT (draft -> active).
 async function _bkActivarProductoGT(productId, handle, btn){
   const status = document.getElementById('bk-releasit-gt-status');
+  if (await _bkPrecioSinDefinir(productId, 'gt')) {
+    if (status) status.textContent = 'Cancelado: ponele el precio antes de activar.';
+    return;
+  }
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Activando…'; btn.style.opacity = '0.6'; }
   try {
     const resp = await fetch('/.netlify/functions/shopify-products?tenant=gt', {
@@ -10643,6 +10668,10 @@ async function _bkActivarDesdePreciosPanel(btn){
   const p = _preciosSelectedProduct;
   const status = document.getElementById('bk-activar-status');
   if (!p || !p.id) { if (status) status.textContent = '⚠️ Seleccioná un producto primero'; return; }
+  if (await _bkPrecioSinDefinir(p.id, 'chile')) {
+    if (status) status.textContent = 'Cancelado: ponele el precio antes de activar.';
+    return;
+  }
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Activando…'; btn.style.opacity = '0.6'; }
   try {
     const resp = await fetch('/.netlify/functions/shopify-products?tenant=chile', {
@@ -10671,6 +10700,7 @@ async function _bkActivarDesdePreciosPanel(btn){
 // Cambia el status del producto a 'active' (activar landing).
 async function activarProductoDropi(productId, btn){
   if (!productId) return;
+  if (await _bkPrecioSinDefinir(productId, 'chile')) return;
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Activando…'; btn.style.opacity = '0.6'; }
   try {
     const resp = await fetch('/.netlify/functions/shopify-products?tenant=chile', {
