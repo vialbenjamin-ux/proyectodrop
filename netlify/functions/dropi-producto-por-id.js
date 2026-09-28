@@ -41,7 +41,11 @@ exports.handler = async (event) => {
   const dropiId = String(qs.dropi_id || '').trim();
   if (!/^\d+$/.test(dropiId)) return respond(400, { error: 'dropi_id invalido (debe ser numerico)' });
 
-  const desdeDropi = await pedirADropi(isGT, dropiId);
+  let desdeDropi = await pedirADropi(isGT, dropiId);
+  // Si Dropi esta bloqueando, se sigue con lo de Shopify pero avisando: no es
+  // lo mismo "no existe" que "no pude preguntar".
+  const dropiBloqueado = !!(desdeDropi && desdeDropi.bloqueado);
+  if (dropiBloqueado) desdeDropi = null;
 
   // El barcode de un producto con variantes es `<producto>-<variacion>`, asi
   // que se buscan las dos formas.
@@ -84,7 +88,7 @@ exports.handler = async (event) => {
       // No esta en Shopify, pero si Dropi lo conoce alcanza para crearlo.
       if (desdeDropi) {
         return respond(200, {
-          encontrado: true, enDropi: true, enShopify: false,
+          encontrado: true, enDropi: true, dropiBloqueado, enShopify: false,
           tenant, dropiId,
           shopifyId: null, handle: null, status: null,
           titulo: desdeDropi.nombre,
@@ -102,8 +106,10 @@ exports.handler = async (event) => {
         });
       }
       return respond(200, {
-        encontrado: false, enDropi: false, enShopify: false, tenant, dropiId,
-        motivo: 'Ni Dropi ni Shopify ' + (isGT ? 'GT' : 'Chile') + ' conocen el ID ' + dropiId
+        encontrado: false, enDropi: false, enShopify: false, dropiBloqueado, tenant, dropiId,
+        motivo: dropiBloqueado
+          ? 'Dropi esta bloqueando las consultas (Too Many Attempts). Espera un rato y reintenta.'
+          : 'Ni Dropi ni Shopify ' + (isGT ? 'GT' : 'Chile') + ' conocen el ID ' + dropiId
               + '. Revisa que sea el ID del catalogo de ese pais.',
       });
     }
@@ -131,6 +137,7 @@ exports.handler = async (event) => {
     return respond(200, {
       encontrado: true,
       enDropi: !!desdeDropi,
+      dropiBloqueado,
       enShopify: true,
       tenant, dropiId,
       shopifyId: p.legacyResourceId || null,
@@ -164,7 +171,13 @@ async function pedirADropi(isGT, dropiId) {
     const r = await fetch(base + '/integrations/products/v2/' + encodeURIComponent(dropiId), {
       headers: { 'dropi-integration-key': key, 'User-Agent': 'BKDROP-Sync/1.0' },
     });
-    if (!r.ok) return null;
+    if (!r.ok) {
+      // 429 = "Too Many Attempts". Dropi corta por horas y devolver null aca
+      // hace que el producto parezca inexistente: una auditoria de 100
+      // consultas seguidas marcaba como rotos productos que estaban bien.
+      if (r.status === 429) return { bloqueado: true };
+      return null;
+    }
     const j = await r.json();
     const o = j.objects || j.object || null;
     const p = Array.isArray(o) ? o[0] : o;

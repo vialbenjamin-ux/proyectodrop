@@ -10615,6 +10615,48 @@ async function _bkPrecioSinDefinir(productId, tenant){
   } catch(_) { return false; }
 }
 
+// ── Precio de venta sugerido ─────────────────────────────────────────────────
+// Medido el 28 sep 2026 sobre 78 productos publicados (38 en Chile, 40 en GT).
+// El hallazgo: el precio NO sale de un multiplicador sobre el costo. El
+// multiplicador va de 2.5x a 20x y no dice nada. Lo que Benjamin mantiene
+// constante es el MARGEN ABSOLUTO, y despues redondea a un precio psicologico
+// de una escala corta.
+//   Chile: margen ~$23.000 (rango real 19.000-26.000), precios 24.990-29.990
+//   Guate: margen ~Q140    (rango real 124-176),       precios 169-319
+// La regla acierta el precio exacto en el 53% de los casos (Chile) y queda a un
+// solo escalon en el 82%. Lo que no predice es cuanto "vale" el producto a ojo:
+// con el mismo costo a veces puso 24.990 y otras 27.990. Por eso se PROPONE y
+// se puede corregir, no se impone.
+const BK_ESCALA_PRECIO = {
+  chile: [24990, 25990, 27990, 29990, 34990, 39990, 44990, 49990, 59990],
+  gt:    [169, 179, 189, 199, 219, 229, 249, 259, 279, 299, 319, 349, 399, 459, 499, 549],
+};
+const BK_MARGEN_TIPICO = { chile: 23000, gt: 150 };
+// Piso: por barato que salga el producto, no se vende bajo esto. En GT hay
+// productos de Q22 de costo vendidos a Q189, o sea que la regla del margen
+// sola los dejaria demasiado abajo.
+const BK_PRECIO_MINIMO = { chile: 24990, gt: 189 };
+// Debajo de esto el producto no paga el trabajo: se avisa.
+const BK_MARGEN_MINIMO = { chile: 19000, gt: 120 };
+
+function _bkPrecioSugerido(costo, tenant){
+  const t = (tenant === 'gt') ? 'gt' : 'chile';
+  const c = Number(costo);
+  if (!c || c <= 0) return null;
+  const escala = BK_ESCALA_PRECIO[t];
+  const objetivo = c + BK_MARGEN_TIPICO[t];
+  let precio = escala.reduce((a, b) => Math.abs(b - objetivo) < Math.abs(a - objetivo) ? b : a);
+  // Si el costo es tan alto que la escala se queda corta, se sale de ella
+  // antes que vender con margen flaco.
+  if (precio - c < BK_MARGEN_MINIMO[t]) {
+    const arriba = escala.filter(p => p - c >= BK_MARGEN_TIPICO[t]);
+    precio = arriba.length ? arriba[0] : Math.round((c + BK_MARGEN_TIPICO[t]) / 10) * 10 - (t === 'gt' ? 1 : 10);
+  }
+  if (precio < BK_PRECIO_MINIMO[t]) precio = BK_PRECIO_MINIMO[t];
+  return { precio, antes: _bkPrecioAntes(precio, t), margen: precio - c,
+           bajo: (precio - c) < BK_MARGEN_MINIMO[t] };
+}
+
 // ── Precio y precio de antes ─────────────────────────────────────────────────
 // El panel de Releasit arma la oferta con el precio que se escribe arriba,
 // pero hasta el 28 sep 2026 NO lo guardaba en el producto: la oferta salia a
@@ -20628,6 +20670,10 @@ async function renderLandingAuto(){
         +     (p.sello ? ' · sello ' + esc(p.sello) : '') + ' · ' + (p.pais === 'gt' ? '🇬🇹 GT' : '🇨🇱 CHILE') + (cuando ? ' · ' + cuando : '') + '</div>'
         +   '<div style="font-size:11px;font-family:\'DM Mono\',monospace;margin-top:6px;color:' + est.color + '">● ' + esc(est.txt) + '</div>'
         +   (p.sinShopify ? '<div style="font-size:10px;color:#C0392B;font-family:\'DM Mono\',monospace;margin-top:4px">⚠ No se pudo crear en Shopify — revisá que Dropi tenga costo y proveedor para ese ID</div>' : '')
+        +   (p.precio ? '<div style="font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace;margin-top:4px">💲 '
+              + ((p.pais === 'gt') ? 'Q' : '$') + Number(p.precio).toLocaleString('es-CL')
+              + (p.margen ? ' · margen ' + ((p.pais === 'gt') ? 'Q' : '$') + Number(p.margen).toLocaleString('es-CL') : '')
+              + ' · propuesto, cambialo en Shopify si no te cuadra</div>' : '')
         +   (p.videosCarpeta ? '<div style="font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace;margin-top:4px">📁 ' + esc(p.videosCarpeta) + '</div>' : '')
         +   (p.angulo ? '<div style="font-size:11px;color:var(--text);margin-top:6px"><b>Ángulo:</b> ' + esc(p.angulo) + '</div>' : '')
         + '</div>'
@@ -20765,13 +20811,31 @@ async function laCrearEnShopify(pedidoId, p){
     const j = await r.json();
     if (!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status));
 
+    // El precio tambien sale solo: el importador lo deja en 999 de relleno.
+    let sug = null;
+    try {
+      sug = _bkPrecioSugerido(cuerpo.cost, tenant);
+      if (sug) {
+        await fetch('/.netlify/functions/shopify-products?tenant=' + tenant, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: j.product_id, price: sug.precio, compare_at_price: sug.antes }),
+        });
+      }
+    } catch(_) { /* si falla, queda en 999 y los botones de activar avisan */ }
+
     await firebase.firestore().collection(LA_COL).doc(pedidoId).update({
+      precio: sug ? sug.precio : null,
+      precioAntes: sug ? sug.antes : null,
+      margen: sug ? sug.margen : null,
       shopifyId: String(j.product_id),
       handle: j.handle || '',
       sinShopify: false,
       updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
     });
-    showToast('Producto creado en Shopify', '📦', 'success');
+    const simbolo = (tenant === 'gt') ? 'Q' : '$';
+    showToast('Producto creado' + (sug ? ' a ' + simbolo + sug.precio.toLocaleString('es-CL') : ''),
+              '📦', sug && sug.bajo ? 'warn' : 'success');
     return { shopifyId: String(j.product_id), handle: j.handle || '' };
   } catch (e) {
     showToast('No pude crear el producto: ' + (e.message || 'error'), '⚠️', 'error');
