@@ -1512,6 +1512,10 @@
     📤 Manager
   </button>
 
+  <button class="tab-btn ng-standalone" data-section="landing-auto" onclick="switchSection('landing-auto')" style="border:1.5px dashed #2B5FB3;color:#2B5FB3">
+    🛰️ Landing Auto <span style="font-size:9px;opacity:.75">TEST</span>
+  </button>
+
   <button class="tab-btn ng-standalone" data-section="campanias" onclick="switchSection('campanias')">
     📆 ADS CALENDAR
   </button>
@@ -2979,6 +2983,47 @@
         <div id="gt-acciones" style="display:none;align-items:center;gap:10px;flex-wrap:wrap;background:var(--surface);border:1.5px solid var(--border);border-radius:12px;padding:10px 14px;margin-bottom:12px;font-family:'DM Mono',monospace"></div>
         <div id="gt-list"></div>
       </div>
+    </div>
+  </div>
+
+  <!-- LANDING AUTO (prueba): cola entre la app y la sesion local de videos -->
+  <div id="section-landing-auto" class="section">
+    <div style="max-width:900px;margin:0 auto">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;flex-wrap:wrap">
+        <div style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:22px;color:var(--text)">🛰️ Landing Auto</div>
+        <span style="font-size:10px;font-family:'DM Mono',monospace;background:#2B5FB3;color:#fff;padding:3px 9px;border-radius:10px">EN PRUEBA</span>
+      </div>
+      <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;line-height:1.6;margin-bottom:18px;max-width:70ch">
+        Dejás el producto acá y la sesión de Videos Auto Drop lo toma: busca los videos, los descarga y elige el ángulo de venta. Cuando vuelve con los textos, se abren en el creador de siempre, ya cargados. Esta pestaña no toca el flujo actual.
+      </div>
+
+      <div class="bk-shopify-push" style="border-color:#2B5FB3;display:flex">
+        <div class="bk-shopify-push-title" style="color:#2B5FB3">Nuevo pedido</div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <div style="display:flex;flex-direction:column;gap:3px;flex:2;min-width:220px">
+            <label style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">Nombre del producto <span style="color:#C0392B">*</span></label>
+            <input type="text" id="la-nombre" placeholder="Triciclo correpasillo plegable" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:9px 11px;border-radius:6px;font-size:13px;font-family:'DM Mono',monospace">
+          </div>
+          <div style="display:flex;flex-direction:column;gap:3px;width:130px">
+            <label style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">ID de Dropi <span style="color:#C0392B">*</span></label>
+            <input type="number" id="la-dropi" placeholder="46226" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:9px 11px;border-radius:6px;font-size:13px;font-family:'DM Mono',monospace">
+          </div>
+          <div style="display:flex;flex-direction:column;gap:3px;width:110px">
+            <label style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">Sello</label>
+            <input type="text" id="la-sello" placeholder="45 o 2x1" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:9px 11px;border-radius:6px;font-size:13px;font-family:'DM Mono',monospace">
+          </div>
+        </div>
+        <input type="file" accept="image/*" id="la-foto" class="bk-video-input">
+        <label for="la-foto" class="bk-video-label" id="la-foto-label">Elegir foto de referencia</label>
+        <button id="la-crear-btn" onclick="laCrearPedido()" style="background:#2B5FB3;color:#fff;border:none;border-radius:8px;padding:11px;font-size:13px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">🛰️ Crear pedido</button>
+        <div id="la-status" style="font-size:11px;font-family:'DM Mono',monospace;min-height:14px"></div>
+      </div>
+
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin:22px 0 10px;flex-wrap:wrap">
+        <div style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:15px;color:var(--text)">Pedidos</div>
+        <button onclick="renderLandingAuto()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:7px 13px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer">🔄 Actualizar</button>
+      </div>
+      <div id="la-lista"></div>
     </div>
   </div>
 
@@ -4655,6 +4700,7 @@ function switchSection(s, silent){
     if (!_landingGTPendiente) setLandingTenant('chile');
     _landingGTPendiente = false;
   }
+  if(s==='landing-auto') initLandingAuto();
   if(s==='campanias') initCampanias();
   if(s==='guatemala') initGuatemala();
   // Sección Personal/bkfit removida del nav
@@ -16213,6 +16259,7 @@ const ALL_SECTIONS = [
   {id:'videos-prod',   label:'Videos'},
   {id:'manager',       label:'Manager'},
   {id:'campanias',     label:'Ads Calendar'},
+  {id:'landing-auto',  label:'Landing Auto (prueba)'},
   {id:'guatemala',     label:'Guatemala'},
   // soloPermiso: gobierna un bloque dentro de otra seccion, no tiene
   // pestaña ni <div id="section-...">. Todo lo que recorra ALL_SECTIONS
@@ -19912,6 +19959,186 @@ async function _bkEjecutarCopysAds(){
 // y se puede editar (se guarda en productTasks.<handle>.campaignName<Plat>).
 
 let _campMesOffset = 0;   // 0 = mes actual
+
+// ── LANDING AUTO (prueba) ────────────────────────────────────────────────────
+// Tablero y cola entre la app y la sesion local de Videos Auto Drop.
+//
+// La app NO puede buscar los videos: eso necesita un Chrome con la sesion de
+// TikTok y una extension, y las funciones del servidor mueren a los 10 s. Asi
+// que aca se deja el PEDIDO (nombre + id de Dropi + foto) y la sesion local lo
+// toma, busca, descarga y devuelve el angulo y el master escritos. Cuando eso
+// llega, desde aca se pasa al creador de landing de siempre, ya cargado.
+//
+// No pisa nada del flujo actual: coleccion propia y seccion propia.
+const LA_COL = 'bkdrop_landing_auto';
+
+const LA_ESTADOS = {
+  'pedido':        { txt: 'Esperando que la sesion local lo tome', color: 'var(--muted)' },
+  'buscando':      { txt: 'Buscando videos', color: '#B7791F' },
+  'videos-listos': { txt: 'Videos descargados', color: '#2B5FB3' },
+  'master-listo':  { txt: 'Angulo y textos listos', color: '#2E7D32' },
+  'aplicada':      { txt: 'Landing aplicada', color: '#2E7D32' },
+};
+
+function _laEstado(msg, color){
+  const el = document.getElementById('la-status');
+  if (el) { el.textContent = msg || ''; el.style.color = color || 'var(--muted)'; }
+}
+
+// La foto viaja dentro del documento: se achica primero para no pasarse del
+// limite de Firestore (1 MB por documento).
+function _laachicarFoto(file){
+  return new Promise(function(resolve, reject){
+    const fr = new FileReader();
+    fr.onerror = function(){ reject(new Error('No pude leer la foto')); };
+    fr.onload = function(){
+      const img = new Image();
+      img.onerror = function(){ reject(new Error('El archivo no es una imagen')); };
+      img.onload = function(){
+        const max = 900;
+        const escala = Math.min(1, max / Math.max(img.width, img.height));
+        const c = document.createElement('canvas');
+        c.width = Math.round(img.width * escala);
+        c.height = Math.round(img.height * escala);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        resolve(c.toDataURL('image/jpeg', 0.82));
+      };
+      img.src = fr.result;
+    };
+    fr.readAsDataURL(file);
+  });
+}
+
+async function laCrearPedido(){
+  const nombre = (document.getElementById('la-nombre') || {}).value || '';
+  const dropiId = (document.getElementById('la-dropi') || {}).value || '';
+  const sello = (document.getElementById('la-sello') || {}).value || '';
+  const file = (document.getElementById('la-foto') || {}).files?.[0];
+  const btn = document.getElementById('la-crear-btn');
+
+  if (!nombre.trim()) { _laEstado('Falta el nombre del producto', 'var(--danger,#E74C3C)'); return; }
+  if (!/^\d{3,}$/.test(String(dropiId).trim())) { _laEstado('El ID de Dropi tiene que ser numerico', 'var(--danger,#E74C3C)'); return; }
+  if (!file) { _laEstado('Falta la foto de referencia', 'var(--danger,#E74C3C)'); return; }
+  if (typeof firebase === 'undefined' || !firebase.firestore) { _laEstado('Firestore no disponible', 'var(--danger,#E74C3C)'); return; }
+
+  if (btn) { btn.disabled = true; btn.textContent = 'Creando…'; }
+  _laEstado('Preparando la foto…');
+  try {
+    const foto = await _laachicarFoto(file);
+    const db = firebase.firestore();
+    await db.collection(LA_COL).add({
+      nombre: nombre.trim(),
+      dropiId: String(dropiId).trim(),
+      sello: sello.trim() || null,
+      pais: landingTenant(),
+      foto: foto,
+      estado: 'pedido',
+      creadoPor: (typeof currentUser !== 'undefined' ? currentUser : '') || '',
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    });
+    ['la-nombre', 'la-dropi', 'la-sello'].forEach(function(id){
+      const el = document.getElementById(id); if (el) el.value = '';
+    });
+    const f = document.getElementById('la-foto'); if (f) f.value = '';
+    const lbl = document.getElementById('la-foto-label'); if (lbl) lbl.textContent = 'Elegir foto de referencia';
+    _laEstado('Pedido creado. La sesion local lo va a tomar para buscar los videos.', 'var(--accent)');
+    showToast('Pedido de landing creado', '🛰️', 'success');
+    renderLandingAuto();
+  } catch (e) {
+    _laEstado('⚠ ' + (e.message || 'error'), 'var(--danger,#E74C3C)');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '🛰️ Crear pedido'; }
+  }
+}
+
+async function renderLandingAuto(){
+  const cont = document.getElementById('la-lista');
+  if (!cont) return;
+  if (typeof firebase === 'undefined' || !firebase.firestore) {
+    cont.innerHTML = '<div style="font-size:12px;color:var(--muted)">Firestore no disponible.</div>';
+    return;
+  }
+  cont.innerHTML = '<div style="font-size:12px;color:var(--muted);padding:10px">Cargando…</div>';
+  try {
+    const snap = await firebase.firestore().collection(LA_COL)
+      .orderBy('createdAt', 'desc').limit(25).get();
+    const docs = [];
+    snap.forEach(function(d){ docs.push({ id: d.id, ...d.data() }); });
+    if (!docs.length) {
+      cont.innerHTML = '<div style="background:var(--surface);border:1px dashed var(--border);border-radius:12px;padding:28px;text-align:center;color:var(--muted);font-size:13px">Todavia no hay pedidos. Cargá el primero arriba.</div>';
+      return;
+    }
+    cont.innerHTML = docs.map(function(p){
+      const est = LA_ESTADOS[p.estado] || { txt: p.estado || '?', color: 'var(--muted)' };
+      const cuando = p.createdAt && p.createdAt.toDate
+        ? p.createdAt.toDate().toLocaleString('es-CL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+        : '';
+      const listo = p.estado === 'master-listo' || p.estado === 'aplicada';
+      return '<div style="background:var(--surface);border:1.5px solid var(--border);border-radius:12px;padding:12px;margin-bottom:10px;display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap">'
+        + (p.foto ? '<img src="' + p.foto + '" style="width:64px;height:64px;object-fit:cover;border-radius:8px;flex:none">' : '')
+        + '<div style="flex:1;min-width:200px">'
+        +   '<div style="font-family:\'Montserrat\',sans-serif;font-weight:800;font-size:14px;color:var(--text)">' + esc(p.nombre || '(sin nombre)') + '</div>'
+        +   '<div style="font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace;margin-top:3px">Dropi ' + esc(p.dropiId || '?')
+        +     (p.sello ? ' · sello ' + esc(p.sello) : '') + ' · ' + esc(String(p.pais || 'chile').toUpperCase()) + (cuando ? ' · ' + cuando : '') + '</div>'
+        +   '<div style="font-size:11px;font-family:\'DM Mono\',monospace;margin-top:6px;color:' + est.color + '">● ' + esc(est.txt) + '</div>'
+        +   (p.videosCarpeta ? '<div style="font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace;margin-top:4px">📁 ' + esc(p.videosCarpeta) + '</div>' : '')
+        +   (p.angulo ? '<div style="font-size:11px;color:var(--text);margin-top:6px"><b>Ángulo:</b> ' + esc(p.angulo) + '</div>' : '')
+        + '</div>'
+        + '<div style="display:flex;flex-direction:column;gap:6px">'
+        +   (listo
+              ? '<button onclick="laAbrirEnCreador(\'' + esc(p.id) + '\')" style="background:#111111;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:11px;font-family:\'DM Mono\',monospace;font-weight:700;cursor:pointer;white-space:nowrap">→ Abrir en el creador</button>'
+              : '<span style="font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace;white-space:nowrap">esperando</span>')
+        +   '<button onclick="laBorrarPedido(\'' + esc(p.id) + '\')" style="background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:6px 12px;font-size:10px;font-family:\'DM Mono\',monospace;cursor:pointer">Descartar</button>'
+        + '</div>'
+        + '</div>';
+    }).join('');
+  } catch (e) {
+    cont.innerHTML = '<div style="font-size:12px;color:var(--danger,#E74C3C);padding:10px">⚠ ' + esc(e.message || 'error') + '</div>';
+  }
+}
+
+// El master que dejo la sesion local se carga en el creador de siempre. No se
+// duplica el motor de landing: se reusa el que ya funciona.
+async function laAbrirEnCreador(id){
+  try {
+    const doc = await firebase.firestore().collection(LA_COL).doc(id).get();
+    const p = doc.data();
+    if (!p) throw new Error('No encontre el pedido');
+    if (!p.master) throw new Error('Todavia no hay textos para este producto');
+    switchSection('prompts');
+    setLandingTenant(p.pais === 'gt' ? 'gt' : 'chile');
+    setTimeout(function(){
+      const ta = document.getElementById('bkv-respuesta');
+      if (ta) { ta.value = p.master; ta.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+      showToast('Textos cargados. Seguí con el creador como siempre.', '✨', 'success');
+    }, 300);
+  } catch (e) {
+    _laEstado('⚠ ' + (e.message || 'error'), 'var(--danger,#E74C3C)');
+  }
+}
+
+async function laBorrarPedido(id){
+  if (!confirm('¿Descartar este pedido? No borra los videos ya descargados.')) return;
+  try {
+    await firebase.firestore().collection(LA_COL).doc(id).delete();
+    renderLandingAuto();
+  } catch (e) {
+    _laEstado('⚠ ' + (e.message || 'error'), 'var(--danger,#E74C3C)');
+  }
+}
+
+function initLandingAuto(){
+  const f = document.getElementById('la-foto');
+  if (f && !f._laWired) {
+    f._laWired = true;
+    f.addEventListener('change', function(){
+      const lbl = document.getElementById('la-foto-label');
+      if (lbl) lbl.textContent = f.files && f.files[0] ? ('✓ ' + f.files[0].name) : 'Elegir foto de referencia';
+    });
+  }
+  renderLandingAuto();
+}
 
 async function initCampanias(forzar){
   const grid = document.getElementById('camp-grid');
