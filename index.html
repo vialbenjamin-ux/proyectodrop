@@ -11959,11 +11959,28 @@ function refreshAutoFilesPreview(){
   const preview = document.getElementById('bk-auto-files-preview');
   const goBtn = document.getElementById('bk-auto-shrine-go');
   if (!preview || !goBtn) return;
-  const all = [..._autoShrineMainImgs.map((f,i) => ({f,role:'main',idx:i})),
-               ..._autoShrineGifs.map((f,i) => ({f,role:'gif',idx:i})),
-               ..._autoShrineFotos.map((f,i) => ({f,role:'foto',idx:i}))];
+  // Los que vienen de Landing Auto ya estan en Shopify Files: se muestran por
+  // URL y no se pueden arrastrar (no hace falta, ya vienen en orden).
+  const auto = (rol) => {
+    if (!_laAuto) return [];
+    const lista = rol === 'main' ? (_laAuto.principales || [])
+                : rol === 'gif' ? (_laAuto.gifs || []) : (_laAuto.fotos || []);
+    return lista.filter(x => x && x.url).map((x, i) => ({ url: x.url, role: rol, idx: i, auto: true }));
+  };
+  const all = [...(_autoShrineMainImgs.length ? _autoShrineMainImgs.map((f,i) => ({f,role:'main',idx:i})) : auto('main')),
+               ...(_autoShrineGifs.length  ? _autoShrineGifs.map((f,i) => ({f,role:'gif',idx:i}))   : auto('gif')),
+               ...(_autoShrineFotos.length ? _autoShrineFotos.map((f,i) => ({f,role:'foto',idx:i})) : auto('foto'))];
   preview.innerHTML = all.map(item => {
-    const url = URL.createObjectURL(item.f);
+    const url = item.auto ? item.url : URL.createObjectURL(item.f);
+    if (item.auto) {
+      const tagA = item.role === 'main' ? 'MAIN' : item.role === 'gif' ? 'GIF' : 'FOTO';
+      const colorA = item.role === 'main' ? '#8A5A2A' : item.role === 'gif' ? '#4F65D8' : '#D85B95';
+      return '<div style="position:relative">'
+        + '<img src="' + url + '" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:6px;border:1.5px solid #2B5FB3">'
+        + '<div style="position:absolute;top:2px;left:2px;background:' + colorA + ';color:#fff;font-size:9px;padding:2px 6px;border-radius:3px;font-family:\'DM Mono\',monospace;font-weight:700">' + tagA + ' ' + (item.idx + 1) + '</div>'
+        + '<div style="position:absolute;bottom:2px;right:2px;background:#2B5FB3;color:#fff;font-size:8px;padding:1px 5px;border-radius:3px;font-family:\'DM Mono\',monospace">AUTO</div>'
+        + '</div>';
+    }
     const tag = item.role === 'main' ? 'MAIN' : item.role === 'gif' ? 'GIF' : 'FOTO';
     const color = item.role === 'main' ? '#8A5A2A' : item.role === 'gif' ? '#4F65D8' : '#D85B95';
     return '<div draggable="true" data-role="' + item.role + '" data-idx="' + item.idx + '" '+
@@ -11978,7 +11995,11 @@ function refreshAutoFilesPreview(){
       '<div style="position:absolute;top:2px;left:2px;background:' + color + ';color:#fff;font-size:9px;padding:2px 6px;border-radius:3px;font-family:\'DM Mono\',monospace;font-weight:700;pointer-events:none;user-select:none">' + tag + ' ' + (item.idx + 1) + '</div>'+
     '</div>';
   }).join('');
-  goBtn.disabled = !(_autoShrineProduct && _autoShrineGifs.length === 3 && _autoShrineFotos.length === 3);
+  // Alcanza con tenerlos de un lado o del otro: adjuntados a mano, o los que
+  // dejo Landing Auto ya subidos.
+  const gifsOk  = _autoShrineGifs.length === 3  || ((_laAuto && (_laAuto.gifs  || []).length) === 3);
+  const fotosOk = _autoShrineFotos.length === 3 || ((_laAuto && (_laAuto.fotos || []).length) === 3);
+  goBtn.disabled = !(_autoShrineProduct && gifsOk && fotosOk);
 }
 
 // Reorden por drag de los archivos cargados (GIFs y fotos) en Auto Shrine.
@@ -12038,11 +12059,15 @@ async function ejecutarAutoShrine(){
     // 0-. Landing Auto: la foto de referencia del pedido entra como imagen
     //     principal sin que el usuario adjunte nada. Si el adjunto algo a
     //     mano, eso manda y esto no corre.
-    if (_laAuto && _laAuto.mainDataUrl && !_autoShrineMainImgs.length) {
+    if (_laAuto && _laAuto.mainDataUrl && !_autoShrineMainImgs.length && !(_laAuto.principales || []).length) {
       setStatus('Tomando la imagen principal del pedido...');
       const blob = await (await fetch(_laAuto.mainDataUrl)).blob();
       _autoShrineMainImgs = [new File([blob], 'principal.jpg', { type: blob.type || 'image/jpeg' })];
     }
+    // Las principales de Landing Auto ya estan en Shopify Files: al carrusel
+    // van por URL (image.src), sin volver a subir los bytes.
+    const mainsAuto = (!_autoShrineMainImgs.length && _laAuto)
+      ? (_laAuto.principales || []).filter(x => x && x.url) : [];
 
     // 0. Subir imagenes principales al CARRUSEL del producto Shopify.
     //    Van al /products/{id}/images.json como attachment base64.
@@ -12052,14 +12077,14 @@ async function ejecutarAutoShrine(){
     //     nunca colisiona: sin este chequeo cada corrida agregaba 4 imagenes
     //     mas y el producto quedaba con el carrusel duplicado.
     let _borrarPrevias = [];
-    if (_autoShrineMainImgs.length) {
+    if (_autoShrineMainImgs.length || mainsAuto.length) {
       setStatus('⏳ Revisando imágenes ya subidas…');
       const previas = await _bkImagenesPreviasDeLaApp(_autoShrineProduct.id);
       if (previas.length) {
         const elec = await _bkAskChoice({
           title: '⚠️ Este producto ya tiene imágenes de BKDROP',
           html: 'Encontré <b>' + previas.length + '</b> imagen(es) que subió la app en una corrida anterior.<br><br>'
-              + 'Vas a subir <b>' + _autoShrineMainImgs.length + '</b> nueva(s).<br><br>'
+              + 'Vas a subir <b>' + (_autoShrineMainImgs.length || mainsAuto.length) + '</b> nueva(s).<br><br>'
               + 'Las que hayas subido a mano en Shopify no se tocan en ninguna opción.',
           options: [
             { label: '🔄 Reemplazar — borra las ' + previas.length + ' anteriores', value: 'replace', primary: true },
@@ -12083,6 +12108,24 @@ async function ejecutarAutoShrine(){
         const dj = await delR.json().catch(function(){ return {}; });
         throw new Error('No pude borrar la imagen anterior: ' + (dj.error || 'HTTP ' + delR.status));
       }
+    }
+
+    for (let i = 0; i < mainsAuto.length; i++) {
+      setStatus('Poniendo la imagen principal ' + (i+1) + '/' + mainsAuto.length + ' en el carrusel…');
+      const upR = await fetch('/.netlify/functions/shopify-products?_=1' + landingParam(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: _autoShrineProduct.id,
+          image: {
+            src: mainsAuto[i].url,
+            alt: (_autoShrineProduct.title || 'product') + ' — imagen ' + (i+1),
+            position: i + 1,
+          },
+        }),
+      });
+      const upJ = await upR.json().catch(() => ({}));
+      if (!upR.ok) throw new Error('Fallo poniendo la imagen principal ' + (i+1) + ': ' + (upJ.error || 'HTTP ' + upR.status));
     }
 
     for (let i = 0; i < _autoShrineMainImgs.length; i++) {
@@ -12118,6 +12161,7 @@ async function ejecutarAutoShrine(){
     let gifsRefs = [];
     if (!_autoShrineGifs.length && _laAuto && (_laAuto.gifs || []).length) {
       setStatus('Usando los ' + _laAuto.gifs.length + ' GIFs que ya salieron de los videos…');
+      // buildAutoShrineTemplate solo mira shopifyRef.
       gifsRefs = _laAuto.gifs.slice(0, 3);
     }
     for (let i = 0; i < _autoShrineGifs.length; i++) {
@@ -19909,7 +19953,11 @@ async function _bkImagenesPreviasDeLaApp(productId){
     const d = await r.json();
     if (!r.ok) return [];
     return ((d.product && d.product.images) || []).filter(function(im){
-      return /\/main-\d+-\d{10,}\.[a-z0-9]+(\?|$)/i.test(String(im.src || ''));
+      const src = String(im.src || '');
+      // Las subidas como attachment: main-N-<timestamp>.ext
+      // Las puestas por URL desde Landing Auto: <lo-que-sea>-main-N.ext
+      return /\/main-\d+-\d{10,}\.[a-z0-9]+(\?|$)/i.test(src)
+          || /-main-\d+\.[a-z0-9]+(\?|$)/i.test(src);
     });
   } catch(_) { return []; }
 }
@@ -20245,7 +20293,8 @@ async function renderLandingAuto(){
         + '</div>'
         + '<div style="display:flex;flex-direction:column;gap:6px">'
         +   (listo
-              ? '<button onclick="laAbrirEnCreador(\'' + esc(p.id) + '\')" style="background:#111111;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:11px;font-family:\'DM Mono\',monospace;font-weight:700;cursor:pointer;white-space:nowrap">→ Abrir en el creador</button>'
+              ? '<button onclick="laAplicarLanding(\'' + esc(p.id) + '\')" style="background:#2B5FB3;color:#fff;border:none;border-radius:8px;padding:9px 14px;font-size:11px;font-family:\'DM Mono\',monospace;font-weight:700;cursor:pointer;white-space:nowrap">🚀 Aplicar landing</button>'
+              + '<button onclick="laAbrirEnCreador(\'' + esc(p.id) + '\')" style="background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:6px 12px;font-size:10px;font-family:\'DM Mono\',monospace;cursor:pointer;white-space:nowrap">Abrir y revisar</button>'
               : '<span style="font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace;white-space:nowrap">esperando</span>')
         +   '<button onclick="laBorrarPedido(\'' + esc(p.id) + '\')" style="background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:6px 12px;font-size:10px;font-family:\'DM Mono\',monospace;cursor:pointer">Descartar</button>'
         + '</div>'
@@ -20264,24 +20313,62 @@ async function laAbrirEnCreador(id){
     const p = doc.data();
     if (!p) throw new Error('No encontre el pedido');
     if (!p.master) throw new Error('Todavia no hay textos para este producto');
-    _laAuto = {
-      gifs: (p.gifs || []).filter(function(g){ return g && g.shopifyRef; }),
-      fotos: (p.fotos || []).filter(function(f){ return f && f.shopifyRef; }),
-      // Solo las creadas a mano traen la foto adentro; las nuevas usan las
-      // imagenes que el producto ya tiene en Shopify.
-      mainDataUrl: (p.foto && String(p.foto).indexOf('data:') === 0) ? p.foto : null,
-      nombre: p.nombre || '',
-    };
-    switchSection('prompts');
-    setLandingTenant(p.pais === 'gt' ? 'gt' : 'chile');
-    setTimeout(function(){
-      const ta = document.getElementById('bkv-respuesta');
-      if (ta) { ta.value = p.master; ta.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
-      const n = _laAuto.gifs.length + _laAuto.fotos.length + (_laAuto.mainDataUrl ? 1 : 0);
-      showToast('Textos y ' + n + ' imágenes cargados. Elegí el producto y dale generar.', '✨', 'success');
-    }, 300);
+    _laCargarEnCreador(p);
   } catch (e) {
     _laEstado('⚠ ' + (e.message || 'error'), 'var(--danger,#E74C3C)');
+  }
+}
+
+// Deja el creador listo: textos, producto y las 9 imagenes en el panel.
+function _laCargarEnCreador(p){
+  _laAuto = {
+    principales: (p.principales || []).filter(function(x){ return x && x.shopifyRef; }),
+    gifs: (p.gifs || []).filter(function(g){ return g && g.shopifyRef; }),
+    fotos: (p.fotos || []).filter(function(f){ return f && f.shopifyRef; }),
+    // Solo los pedidos cargados a mano traen la foto adentro.
+    mainDataUrl: (p.foto && String(p.foto).indexOf('data:') === 0) ? p.foto : null,
+    nombre: p.nombre || '',
+  };
+  // Los adjuntos manuales de una corrida anterior no deben pisar estos.
+  _autoShrineMainImgs = []; _autoShrineGifs = []; _autoShrineFotos = [];
+  switchSection('prompts');
+  setLandingTenant(p.pais === 'gt' ? 'gt' : 'chile');
+  const ta = document.getElementById('bkv-respuesta');
+  if (ta) ta.value = p.master || '';
+  const panel = document.getElementById('bk-auto-shrine');
+  if (panel) panel.style.display = 'flex';
+  if (p.shopifyId) {
+    _autoShrineProduct = { id: Number(p.shopifyId), title: p.nombre || '', handle: p.handle || '' };
+    const files = document.getElementById('bk-auto-shrine-files');
+    if (files) files.style.display = 'flex';
+    const st = document.getElementById('bk-auto-shrine-status');
+    if (st) st.textContent = '✓ Producto: ' + (p.nombre || p.shopifyId);
+  }
+  refreshAutoFilesPreview();
+  if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+// Un solo click: carga todo y aplica la landing. Lo unico que queda a mano
+// despues es el precio.
+async function laAplicarLanding(id){
+  try {
+    const doc = await firebase.firestore().collection(LA_COL).doc(id).get();
+    const p = doc.data();
+    if (!p) throw new Error('No encontre el pedido');
+    if (!p.master) throw new Error('Todavia no hay textos para este producto');
+    if (!p.shopifyId) throw new Error('Este producto todavia no esta en Shopify: importalo desde el panel de Dropi primero');
+    if (((p.gifs || []).length !== 3) || ((p.fotos || []).length !== 3)) {
+      throw new Error('Todavia no estan las 9 imagenes de este pedido');
+    }
+    _laCargarEnCreador(p);
+    showToast('Aplicando la landing…', '🚀', 'info');
+    await ejecutarAutoShrine();
+    await firebase.firestore().collection(LA_COL).doc(id).update({
+      estado: 'aplicada',
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    });
+  } catch (e) {
+    showToast('No se pudo aplicar: ' + (e.message || 'error'), '⚠️', 'error');
   }
 }
 
