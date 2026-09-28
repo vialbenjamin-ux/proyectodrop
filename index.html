@@ -1734,6 +1734,18 @@
                 </div>
               </div>
               <div id="bk-auto-files-preview" style="display:grid;grid-template-columns:repeat(6,1fr);gap:4px"></div>
+              <!-- Rehacer la hero con comentarios. Solo aparece si el producto
+                   vino de Landing Auto y trae guardado el prompt. -->
+              <div id="bk-hero-rehacer" style="display:none;flex-direction:column;gap:7px;background:var(--surface2);border:1.5px solid #2B5FB3;border-radius:10px;padding:12px">
+                <div style="font-size:11px;font-family:'DM Mono',monospace;color:#2B5FB3;font-weight:700">🎨 Rehacer la imagen principal</div>
+                <div style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;line-height:1.5">
+                  Decile qué cambiar y la vuelve a generar con el mismo formato. No reemplaza nada hasta que la aceptes.
+                </div>
+                <textarea id="bk-hero-comentarios" rows="2" placeholder="la cinta roja más abajo, el producto más grande, otro título…" style="background:var(--surface);border:1.5px solid var(--border);color:var(--text);padding:9px 11px;border-radius:6px;font-size:12px;font-family:'DM Mono',monospace;resize:vertical"></textarea>
+                <button id="bk-hero-btn" onclick="rehacerHero()" style="background:#2B5FB3;color:#fff;border:none;border-radius:8px;padding:9px;font-size:12px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">🎨 Rehacer hero</button>
+                <div id="bk-hero-status" style="font-size:11px;font-family:'DM Mono',monospace;min-height:14px"></div>
+                <div id="bk-hero-preview"></div>
+              </div>
               <button id="bk-auto-shrine-go" onclick="ejecutarAutoShrine()" disabled style="background:#dc2626;color:#fff;border:none;border-radius:8px;padding:11px;font-size:12px;font-family:'DM Mono',monospace;cursor:pointer;font-weight:700">🚀 Generar plantilla y aplicar al producto</button>
             </div>
 
@@ -20069,6 +20081,154 @@ let _campMesOffset = 0;   // 0 = mes actual
 // llega, desde aca se pasa al creador de landing de siempre, ya cargado.
 //
 // No pisa nada del flujo actual: coleccion propia y seccion propia.
+// ── Rehacer la imagen HERO con comentarios ───────────────────────────────────
+// La hero es la que lleva el titulo, el sello y las etiquetas, asi que es la
+// que a veces hay que repetir: un titulo que no convence, la cinta muy arriba,
+// el producto chico. En vez de volver a la sesion local, se rehace desde acá.
+//
+// El prompt original quedo guardado en el pedido (heroPrompt) junto con las
+// referencias que se usaron (heroRefs: la foto del producto y dos anuncios
+// propios como referencia de estilo). Acá se le pega abajo lo que pida el
+// usuario y se vuelve a pedir la imagen. Va por OpenAI y no por Gemini porque
+// el problema de Gemini es justo el texto en espanol dentro de la imagen.
+//
+// La imagen nueva NO reemplaza nada hasta que el usuario la acepta.
+
+let _heroNueva = null;   // { b64, mimeType } pendiente de aceptar
+
+function _heroPanel(){ return document.getElementById('bk-hero-rehacer'); }
+
+function _heroEstado(msg, color){
+  const el = document.getElementById('bk-hero-status');
+  if (el) { el.textContent = msg || ''; el.style.color = color || 'var(--muted)'; }
+}
+
+// Las referencias viven en el CDN de Shopify: hay que bajarlas y pasarlas en
+// base64, que es lo que espera la funcion.
+async function _heroRefsBase64(urls){
+  const out = [];
+  for (const u of (urls || [])) {
+    try {
+      const r = await fetch(u);
+      if (!r.ok) continue;
+      const blob = await r.blob();
+      const b64 = await new Promise((res, rej) => {
+        const rd = new FileReader();
+        rd.onload = () => res(String(rd.result).split(',').pop());
+        rd.onerror = () => rej(new Error('read fail'));
+        rd.readAsDataURL(blob);
+      });
+      out.push({ mimeType: blob.type || 'image/jpeg', data: b64 });
+    } catch (_) { /* si una referencia falla, se sigue con las demas */ }
+  }
+  return out;
+}
+
+async function rehacerHero(){
+  if (!_laAuto || !_laAuto.heroPrompt) {
+    showToast('Este producto no tiene guardado el prompt de la hero', '⚠️', 'warn');
+    return;
+  }
+  const caja = document.getElementById('bk-hero-comentarios');
+  const comentarios = (caja && caja.value || '').trim();
+  if (!comentarios) { _heroEstado('Escribí qué querés cambiar', 'var(--danger,#E74C3C)'); return; }
+
+  const btn = document.getElementById('bk-hero-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Generando…'; }
+  _heroEstado('Bajando las referencias…');
+
+  try {
+    const imgs = await _heroRefsBase64(_laAuto.heroRefs);
+    _heroEstado('Generando la imagen… (unos 20 segundos)');
+
+    // Los ajustes van AL FINAL y mandan sobre lo de arriba: asi se corrige sin
+    // perder el formato que ya esta aprobado.
+    const prompt = _laAuto.heroPrompt
+      + '\n\nADJUSTMENTS REQUESTED BY THE CLIENT. Keep everything above exactly as it is and change ONLY this. '
+      + 'If an instruction here contradicts something above, this wins:\n'
+      + comentarios;
+
+    const r = await fetch('/.netlify/functions/openai-image-gen', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      // low + gpt-image-2 es lo que entra en el corte de 26 s de Netlify:
+      // medium se pasa de los 30 s y devuelve 504.
+      body: JSON.stringify({ prompt, images: imgs, model: 'gpt-image-2', quality: 'low', size: '1024x1024' }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.data) throw new Error(j.error || ('HTTP ' + r.status));
+
+    _heroNueva = { b64: j.data, mimeType: j.mimeType || 'image/png' };
+    const prev = document.getElementById('bk-hero-preview');
+    if (prev) {
+      prev.innerHTML = '<img src="data:' + _heroNueva.mimeType + ';base64,' + _heroNueva.b64 + '" '
+        + 'style="width:100%;max-width:300px;border-radius:8px;border:2px solid #2B5FB3;display:block">'
+        + '<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">'
+        + '<button onclick="aceptarHero()" style="background:#2E7D32;color:#fff;border:none;border-radius:8px;padding:9px 15px;font-size:12px;font-family:\'DM Mono\',monospace;font-weight:700;cursor:pointer">✓ Usar esta</button>'
+        + '<button onclick="rehacerHero()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:9px 15px;font-size:12px;font-family:\'DM Mono\',monospace;cursor:pointer">🔄 Otra vez</button>'
+        + '<button onclick="descartarHero()" style="background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:9px 15px;font-size:12px;font-family:\'DM Mono\',monospace;cursor:pointer">Descartar</button>'
+        + '</div>';
+    }
+    _heroEstado('Mirala y decidí. Todavía no reemplazó nada.', 'var(--accent)');
+  } catch (e) {
+    const m = e.message || 'error';
+    // El 504 es el corte de Netlify, no un fallo de OpenAI: conviene decirlo.
+    _heroEstado('⚠ ' + (/504|timeout|Gateway/i.test(m) ? 'Se pasó del tiempo de Netlify. Probá de nuevo con menos ajustes.' : m),
+                'var(--danger,#E74C3C)');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '🎨 Rehacer hero'; }
+  }
+}
+
+// Recien acá se sube a Shopify Files y se pisa la principal del pedido.
+async function aceptarHero(){
+  if (!_heroNueva) return;
+  _heroEstado('Subiendo a Shopify Files…');
+  try {
+    const bin = atob(_heroNueva.b64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    const file = new File([bytes], 'hero.png', { type: _heroNueva.mimeType });
+
+    const subida = await uploadToShopifyFiles(file, 'hero', landingParam());
+
+    _laAuto.principales = _laAuto.principales || [];
+    _laAuto.principales[0] = { shopifyRef: subida.shopifyRef, url: subida.cdnUrl || '', filename: subida.filename };
+
+    // Dejarlo en el pedido para que no se pierda si recarga la pagina.
+    if (_laAuto.pedidoId && typeof firebase !== 'undefined' && firebase.firestore) {
+      await firebase.firestore().collection(LA_COL).doc(_laAuto.pedidoId).update({
+        principales: _laAuto.principales,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      });
+    }
+
+    _heroNueva = null;
+    const prev = document.getElementById('bk-hero-preview'); if (prev) prev.innerHTML = '';
+    const caja = document.getElementById('bk-hero-comentarios'); if (caja) caja.value = '';
+    refreshAutoFilesPreview();
+    _heroEstado('Listo: la hero nueva quedó como imagen principal.', 'var(--accent)');
+    showToast('Hero reemplazada', '🎨', 'success');
+  } catch (e) {
+    _heroEstado('⚠ ' + (e.message || 'error'), 'var(--danger,#E74C3C)');
+  }
+}
+
+function descartarHero(){
+  _heroNueva = null;
+  const prev = document.getElementById('bk-hero-preview'); if (prev) prev.innerHTML = '';
+  _heroEstado('');
+}
+
+// El panel solo aparece cuando el producto vino de Landing Auto y trae el
+// prompt guardado; en el flujo manual de siempre no molesta.
+function _heroMostrarPanel(){
+  const p = _heroPanel();
+  if (!p) return;
+  const hay = !!(_laAuto && _laAuto.heroPrompt);
+  p.style.display = hay ? 'flex' : 'none';
+}
+
 const LA_COL = 'bkdrop_landing_auto';
 
 const LA_ESTADOS = {
@@ -20322,6 +20482,7 @@ async function laAbrirEnCreador(id){
     const p = doc.data();
     if (!p) throw new Error('No encontre el pedido');
     if (!p.master) throw new Error('Todavia no hay textos para este producto');
+    p.id = id;
     _laCargarEnCreador(p);
   } catch (e) {
     _laEstado('⚠ ' + (e.message || 'error'), 'var(--danger,#E74C3C)');
@@ -20331,6 +20492,10 @@ async function laAbrirEnCreador(id){
 // Deja el creador listo: textos, producto y las 9 imagenes en el panel.
 function _laCargarEnCreador(p){
   _laAuto = {
+    pedidoId: p.id || null,
+    // Con esto el boton de rehacer puede repetir la hero con ajustes.
+    heroPrompt: p.heroPrompt || null,
+    heroRefs: (p.heroRefs || []).filter(Boolean),
     principales: (p.principales || []).filter(function(x){ return x && x.shopifyRef; }),
     gifs: (p.gifs || []).filter(function(g){ return g && g.shopifyRef; }),
     fotos: (p.fotos || []).filter(function(f){ return f && f.shopifyRef; }),
@@ -20354,6 +20519,7 @@ function _laCargarEnCreador(p){
     if (st) st.textContent = '✓ Producto: ' + (p.nombre || p.shopifyId);
   }
   refreshAutoFilesPreview();
+  _heroMostrarPanel();
   if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
@@ -20369,6 +20535,7 @@ async function laAplicarLanding(id){
     if (((p.gifs || []).length !== 3) || ((p.fotos || []).length !== 3)) {
       throw new Error('Todavia no estan las 9 imagenes de este pedido');
     }
+    p.id = id;
     _laCargarEnCreador(p);
     showToast('Aplicando la landing…', '🚀', 'info');
     const aplicada = await ejecutarAutoShrine();
