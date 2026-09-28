@@ -12493,7 +12493,15 @@ async function crearCarpetasDriveDelProducto(handle, title, nombreDropi){
         const doc = await fdb.collection('bkdrop_drive_product_folders').doc(handle).get();
         if (doc.exists) {
           const existing = doc.data();
-          if (existing.productFolderId && existing.brutosId && existing.testeoId && existing.escaladoId) {
+          // Un registro que apunta a una carpeta "NO APLICA" NO sirve: lo
+          // escribio una corrida vieja donde el nombre de Dropi venia vacio,
+          // y decenas de productos terminaron compartiendo esa misma carpeta.
+          // Reusarlo hacia que la seccion de videos mostrara la carpeta
+          // equivocada para siempre, porque este atajo nunca lo revisaba
+          // (paso con la Malla Anti Pelos, 28 sep 2026). Se recrea.
+          const tituloSirve = String(existing.title || "").trim()
+            && !/^NO APLICA/i.test(String(existing.title).trim());
+          if (tituloSirve && existing.productFolderId && existing.brutosId && existing.testeoId && existing.escaladoId) {
             showToast('📁 Carpetas Drive ya existen — reusando', '☁️', 'success');
             return {
               productFolder: { id: existing.productFolderId, name: existing.title },
