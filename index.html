@@ -18531,10 +18531,34 @@ function renderVideosProdList(){
   filterVideosProdList();
 }
 
+// La URL de la landing del producto. El pais NO viene en el registro de
+// Drive (bkdrop_drive_product_folders solo guarda handle, title y los ids),
+// asi que sale del marcador que la app le pone al nombre de la carpeta:
+// "0929 (GT) BANDA PARA LA PAPADA". Sin marcador se asume Chile, que es el
+// tenant por defecto en el resto de la app.
+// Las carpetas sueltas no son productos y no llevan link.
+function vpUrlTienda(p){
+  if (p.loose) return null;
+  const handle = p.handle || p.id;
+  if (!handle) return null;
+  const dominio = /\(\s*GT\s*\)/i.test(String(p.title || '')) ? 'benkogt.com' : 'benkotienda.com';
+  return 'https://' + dominio + '/products/' + handle;
+}
+
+// Copia la URL de la landing: es lo que despues se pega en el manager.
+function vpCopiarUrlTienda(url){
+  navigator.clipboard.writeText(url).then(() => {
+    if (typeof showToast === 'function') showToast('Link copiado', '🔗', 'ok');
+  }).catch(() => {
+    prompt('Copia esto (Ctrl+A + Ctrl+C):', url);
+  });
+}
+
 function renderVideosProdCard(p){
   const handle = p.handle || p.id;
   const title  = p.title || handle;
   const driveUrl = p.productFolderId ? 'https://drive.google.com/drive/folders/' + p.productFolderId : null;
+  const webUrl = vpUrlTienda(p);
   const task = window._vpData.productTasks[handle] || {};
   const status = task.status || 'not_started';
   const cfg = VP_TASK_STATES[status] || VP_TASK_STATES.not_started;
@@ -18654,6 +18678,8 @@ function renderVideosProdCard(p){
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0">
           <div style="display:flex;gap:6px;align-items:center">
+            ${webUrl ? `<a href="${webUrl}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="${esc(webUrl)}" style="background:#111111;color:#fff;text-decoration:none;border-radius:6px;padding:5px 10px;font-size:10px;font-family:'DM Mono',monospace">↗ Web</a>` : ''}
+            ${webUrl ? `<button onclick="event.stopPropagation(); vpCopiarUrlTienda('${esc(webUrl)}')" title="Copiar el link para el manager" style="background:transparent;color:var(--muted);border:1px solid var(--border);border-radius:6px;padding:5px 8px;font-size:10px;font-family:'DM Mono',monospace;cursor:pointer">⧉</button>` : ''}
             ${driveUrl ? `<a href="${driveUrl}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="background:#4285F4;color:#fff;text-decoration:none;border-radius:6px;padding:5px 10px;font-size:10px;font-family:'DM Mono',monospace">↗ Drive</a>` : ''}
             <span class="vp-chevron" style="font-size:18px;color:var(--muted);transition:transform 0.2s">▾</span>
           </div>
