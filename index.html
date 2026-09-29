@@ -12309,7 +12309,26 @@ async function ejecutarAutoShrine(){
     } else {
       summaryMsg += '¿Aplicar al producto "' + _autoShrineProduct.title + '"?';
     }
-    if (!confirm(summaryMsg)) {
+    // El confirm() es NATIVO del navegador, y un Chrome manejado por
+    // automatizacion lo descarta solo: "Aplicar landing" siempre terminaba en
+    // "Cancelado por el usuario" y habia que tocar el boton a mano
+    // (Esterilizador dental, 28 sep 2026). Cuando el pedido viene de Landing
+    // Auto ya paso por sus propias validaciones -- master, 3 GIFs, 3 fotos --
+    // asi que ahi no se pregunta y se aplica derecho.
+    //
+    // Los contadores bajos SI siguen frenando, venga de donde venga: aplicar
+    // una landing a la que le faltan bullets o FAQ es peor que no aplicarla.
+    // En el flujo automatico no se puede preguntar, asi que se corta con el
+    // detalle a la vista en vez de pedir confirmacion.
+    const desdeLandingAuto = !!(_laAuto && _laAuto.pedidoId);
+    if (warnings.length && desdeLandingAuto) {
+      setStatus('⚠️ No se aplicó: faltan elementos en el master. ' + warnings.join('  ')
+        + ' — completá el master y volvé a darle.');
+      goBtn.disabled = false;
+      goBtn.textContent = '🚀 Generar plantilla y aplicar al producto';
+      return false;
+    }
+    if (!desdeLandingAuto && !confirm(summaryMsg)) {
       setStatus('⚠️ Cancelado por el usuario. Las imágenes ya están en Shopify Files (no se aplicó plantilla).');
       goBtn.disabled = false;
       goBtn.textContent = '🚀 Generar plantilla y aplicar al producto';
