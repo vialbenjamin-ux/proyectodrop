@@ -1364,7 +1364,11 @@
   .stock-bell-foot{padding:8px 16px;border-top:1px solid var(--border);background:var(--surface2);font-size:9px;color:var(--muted2);font-family:'DM Mono',monospace;text-align:center}
 
   #splash{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:999;transition:opacity .6s ease, visibility .6s ease}
-  #splash.hidden{opacity:0;visibility:hidden}
+  /* pointer-events:none ademas de esconderlo: el splash es fixed con inset:0 y
+     z-index 999, asi que si por lo que sea la transicion no llega a aplicar
+     visibility:hidden, se queda tragandose TODOS los clicks de la pagina. Paso
+     el 29 sep 2026: la pagina se veia bien pero ningun boton respondia. */
+  #splash.hidden{opacity:0;visibility:hidden;pointer-events:none}
   #splash-logo{font-family:'Montserrat',sans-serif;font-weight:800;font-size:42px;letter-spacing:-2px;color:var(--accent);opacity:0;transform:translateY(10px);transition:opacity .7s ease, transform .7s ease}
   #splash-logo span{color:var(--text)}
   #splash-sub{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);letter-spacing:3px;margin-top:10px;opacity:0;transition:opacity .7s ease .3s}
@@ -17263,7 +17267,13 @@ function bkfitGenerarCalendario(){
     if (logo) logo.classList.add('show');
     if (sub) sub.classList.add('show');
   });
-  setTimeout(()=>{ if (splash) splash.classList.add('hidden'); }, 1600);
+  setTimeout(()=>{
+    if (!splash) return;
+    splash.classList.add('hidden');
+    // Y fuera del DOM cuando termina la transicion: asi no puede volver a
+    // tapar la pagina aunque el CSS de .hidden no se aplique.
+    setTimeout(()=>{ splash.style.display = 'none'; }, 800);
+  }, 1600);
 })();
 
 // ── DATOS INICIALES (importados desde CSV) ────────────────────────────────────
