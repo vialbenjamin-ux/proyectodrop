@@ -18,7 +18,20 @@
 //   shop_name  -> idem
 //   gallery    -> el formato de fotos que ya leian otras partes de BKDROP
 
+// Dropi sirve los archivos de cada pais desde un CloudFront DISTINTO. Hasta el
+// 29 sep 2026 se usaba el de Chile para los dos, y por eso TODA foto de
+// Guatemala daba 403 AccessDenied: la llave (urlS3) existe, pero en el otro
+// bucket. Con el host correcto la misma llave devuelve 200 image/jpeg.
 const CDN_DROPI = 'https://d39ru7awumhhs2.cloudfront.net/';
+const CDN_DROPI_GT = 'https://d2ob47cxeawi8a.cloudfront.net/';
+
+// El pais sale de la propia llave ("guatemala/products/..."), asi que no hay
+// que arrastrar el tenant hasta aca: cualquier llamador acierta el host.
+function urlFoto(urlS3) {
+  const k = String(urlS3 || '');
+  const host = /^guatemala\//i.test(k) ? CDN_DROPI_GT : CDN_DROPI;
+  return host + k.split('/').map(encodeURIComponent).join('/');
+}
 
 // Pide el producto a Dropi. Devuelve el objeto, { bloqueado: true } si Dropi
 // esta cortando por exceso de consultas, o null si no lo conoce.
@@ -51,7 +64,7 @@ function galeriaDe(producto) {
     .sort((a, b) => (b.main ? 1 : 0) - (a.main ? 1 : 0));
   for (const g of pics) {
     let u = g.url || null;
-    if (!u && g.urlS3) u = CDN_DROPI + String(g.urlS3).split('/').map(encodeURIComponent).join('/');
+    if (!u && g.urlS3) u = urlFoto(g.urlS3);
     if (u && !out.some((x) => x.url === u)) out.push({ url: u });
   }
   return out;
@@ -88,4 +101,4 @@ function construirMetafield(producto, previo, extra) {
   return meta;
 }
 
-module.exports = { pedirProductoDropi, construirMetafield, galeriaDe, CDN_DROPI };
+module.exports = { pedirProductoDropi, construirMetafield, galeriaDe, CDN_DROPI, CDN_DROPI_GT, urlFoto };

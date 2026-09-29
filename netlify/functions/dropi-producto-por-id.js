@@ -25,7 +25,8 @@
 //     descripcion, fotos: [url], costo, proveedor, proveedorId, tipo,
 //     variaciones, stock, shopifyId, handle, camposMetafield }
 
-const CDN_DROPI = 'https://d39ru7awumhhs2.cloudfront.net/';
+// El host del CDN depende del pais y sale de la propia llave urlS3.
+const { urlFoto } = require('./_dropi-metafield');
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: cors(), body: '' };
@@ -205,7 +206,7 @@ async function pedirADropi(isGT, dropiId) {
     for (const g of pics) {
       let u = g.url || null;
       if (!u && g.urlS3) {
-        u = CDN_DROPI + String(g.urlS3).split('/').map(encodeURIComponent).join('/');
+        u = urlFoto(g.urlS3);
       }
       if (u && !fotos.includes(u)) fotos.push(u);
     }

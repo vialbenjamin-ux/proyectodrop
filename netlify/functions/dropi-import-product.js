@@ -232,12 +232,16 @@ exports.handler = async (event) => {
     const galleryPedida = (imageUrl ? [imageUrl] : []).concat(extraGallery);
 
     // 3.bis Comprobar que las fotos se pueden bajar ANTES de mandarselas a
-    // Shopify. El CDN de Dropi devuelve 403 en TODO lo de Guatemala
-    // (d39ru7awumhhs2.cloudfront.net/guatemala/...), mientras que lo de Chile
-    // baja normal. Shopify no puede traer esas imagenes, y el producto se
-    // creaba sin foto o fallaba entero -- avisando ademas que "Dropi no tiene
-    // costo o proveedor", que era falso. Comprobado el 28 sep 2026 con tres
-    // productos GT y dos chilenos.
+    // Shopify: si Shopify no puede traerlas, el producto se crea sin foto o
+    // falla entero -- avisando ademas que "Dropi no tiene costo o proveedor",
+    // que es falso.
+    //
+    // El 403 masivo de Guatemala ya no deberia pasar: era que armabamos la URL
+    // con el CloudFront de Chile para los dos paises. Dropi tiene uno por pais
+    // (d39ru7awumhhs2 para chile/, d2ob47cxeawi8a para guatemala/) y ahora el
+    // host sale de la propia llave (urlFoto en _dropi-metafield). Corregido el
+    // 29 sep 2026; la comprobacion se deja igual, que sirve para cualquier
+    // foto caida.
     const fotosPedidas = galleryPedida;
     const fotosUtiles = [];
     const fotosCaidas = [];
