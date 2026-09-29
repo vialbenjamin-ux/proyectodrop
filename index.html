@@ -20734,8 +20734,19 @@ async function renderLandingAuto(){
         +   '<div style="font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace;margin-top:3px">Dropi ' + esc(p.dropiId || '?')
         +     (p.sello ? ' · sello ' + esc(p.sello) : '') + ' · ' + (p.pais === 'gt' ? '🇬🇹 GT' : '🇨🇱 CHILE') + (cuando ? ' · ' + cuando : '') + '</div>'
         +   '<div style="font-size:11px;font-family:\'DM Mono\',monospace;margin-top:6px;color:' + est.color + '">● ' + esc(est.txt) + '</div>'
-        +   (p.sinShopify ? '<div style="font-size:10px;color:#C0392B;font-family:\'DM Mono\',monospace;margin-top:4px">⚠ No se pudo crear en Shopify — '
-              + esc(p.motivoSinShopify || 'revisá que Dropi tenga costo y proveedor para ese ID') + '</div>' : '')
+        // "sinShopify" se pone al CREAR el pedido y solo quiere decir que el
+        // producto todavia no existe: se crea al aplicar la landing. Pintarlo
+        // de rojo como un fallo asustaba de gratis y mandaba a revisar el
+        // costo y el proveedor en Dropi, que casi nunca era el problema
+        // (Banda para la papada, 28 sep 2026: Dropi tenia los dos y el
+        // producto se creo sin tocar nada). El rojo queda solo cuando hubo un
+        // intento real que fallo, que es cuando existe motivoSinShopify.
+        +   (p.sinShopify && p.motivoSinShopify
+              ? '<div style="font-size:10px;color:#C0392B;font-family:\'DM Mono\',monospace;margin-top:4px">⚠ No se pudo crear en Shopify — '
+                + esc(p.motivoSinShopify) + '</div>'
+              : (p.sinShopify
+                  ? '<div style="font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace;margin-top:4px">📦 Todavía no está en Shopify: se crea solo al aplicar la landing.</div>'
+                  : ''))
         +   (p.sinFoto ? '<div style="font-size:10px;color:#B7791F;font-family:\'DM Mono\',monospace;margin-top:4px">📷 Creado sin foto: Dropi no deja bajar las suyas (pasa con TODO Guatemala). Subile una desde Shopify.</div>' : '')
         +   (p.precio ? '<div style="font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace;margin-top:4px">💲 '
               + ((p.pais === 'gt') ? 'Q' : '$') + Number(p.precio).toLocaleString('es-CL')
