@@ -20715,13 +20715,24 @@ async function renderLandingAuto(){
   try {
     const snap = await firebase.firestore().collection(LA_COL)
       .orderBy('createdAt', 'desc').limit(25).get();
-    const docs = [];
-    snap.forEach(function(d){ docs.push({ id: d.id, ...d.data() }); });
+    const todos = [];
+    snap.forEach(function(d){ todos.push({ id: d.id, ...d.data() }); });
+    // Los archivados no se muestran salvo que se pida verlos. Se guardan
+    // enteros, asi que se pueden desarchivar cuando haga falta.
+    const archivados = todos.filter(function(p){ return p.archivado; }).length;
+    const docs = _laVerArchivados ? todos : todos.filter(function(p){ return !p.archivado; });
+    const barra = archivados
+      ? '<div style="margin-bottom:10px"><button onclick="laVerArchivados(' + (_laVerArchivados ? 'false' : 'true')
+        + ')" style="background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:6px 12px;font-size:10px;font-family:\'DM Mono\',monospace;cursor:pointer">'
+        + (_laVerArchivados ? 'Ocultar archivados' : '📦 Ver ' + archivados + ' archivado' + (archivados === 1 ? '' : 's'))
+        + '</button></div>'
+      : '';
     if (!docs.length) {
-      cont.innerHTML = '<div style="background:var(--surface);border:1px dashed var(--border);border-radius:12px;padding:28px;text-align:center;color:var(--muted);font-size:13px">Todavia no hay pedidos. Cargá el primero arriba.</div>';
+      cont.innerHTML = barra + '<div style="background:var(--surface);border:1px dashed var(--border);border-radius:12px;padding:28px;text-align:center;color:var(--muted);font-size:13px">'
+        + (archivados ? 'Todo archivado. No queda nada pendiente.' : 'Todavia no hay pedidos. Cargá el primero arriba.') + '</div>';
       return;
     }
-    cont.innerHTML = docs.map(function(p){
+    cont.innerHTML = barra + docs.map(function(p){
       const est = LA_ESTADOS[p.estado] || { txt: p.estado || '?', color: 'var(--muted)' };
       const cuando = p.createdAt && p.createdAt.toDate
         ? p.createdAt.toDate().toLocaleString('es-CL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
@@ -20760,6 +20771,13 @@ async function renderLandingAuto(){
               ? '<button onclick="laAplicarLanding(\'' + esc(p.id) + '\')" style="background:#2B5FB3;color:#fff;border:none;border-radius:8px;padding:9px 14px;font-size:11px;font-family:\'DM Mono\',monospace;font-weight:700;cursor:pointer;white-space:nowrap">🚀 Aplicar landing</button>'
               + '<button onclick="laAbrirEnCreador(\'' + esc(p.id) + '\')" style="background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:6px 12px;font-size:10px;font-family:\'DM Mono\',monospace;cursor:pointer;white-space:nowrap">Abrir y revisar</button>'
               : '<span style="font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace;white-space:nowrap">esperando</span>')
+        // Archivar saca la tarjeta del panel pero CONSERVA el pedido: el
+        // master, el angulo y el heroPrompt siguen ahi, asi que se puede
+        // volver a aplicar la landing o rehacer la hero. Descartar, en
+        // cambio, borra el documento y eso se pierde.
+        +   (p.archivado
+              ? '<button onclick="laArchivarPedido(\'' + esc(p.id) + '\', false)" style="background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:6px 12px;font-size:10px;font-family:\'DM Mono\',monospace;cursor:pointer">Desarchivar</button>'
+              : '<button onclick="laArchivarPedido(\'' + esc(p.id) + '\', true)" style="background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:6px 12px;font-size:10px;font-family:\'DM Mono\',monospace;cursor:pointer">📦 Archivar</button>')
         +   '<button onclick="laBorrarPedido(\'' + esc(p.id) + '\')" style="background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:6px 12px;font-size:10px;font-family:\'DM Mono\',monospace;cursor:pointer">Descartar</button>'
         + '</div>'
         + '</div>';
@@ -20935,8 +20953,31 @@ async function laCrearEnShopify(pedidoId, p){
   }
 }
 
+// Archivar = sacarlo del panel sin perder nada. Pedido de Benjamin el
+// 28 sep 2026: los productos ya entregados llenaban la lista, pero
+// descartarlos borra el master y el prompt de la hero y despues no se puede
+// ni rehacer la imagen ni volver a aplicar la landing.
+let _laVerArchivados = false;
+
+function laVerArchivados(ver){
+  _laVerArchivados = !!ver;
+  renderLandingAuto();
+}
+
+async function laArchivarPedido(id, archivar){
+  try {
+    await firebase.firestore().collection(LA_COL).doc(id).update({
+      archivado: !!archivar,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    });
+    renderLandingAuto();
+  } catch (e) {
+    _laEstado('⚠ ' + (e.message || 'error'), 'var(--danger,#E74C3C)');
+  }
+}
+
 async function laBorrarPedido(id){
-  if (!confirm('¿Descartar este pedido? No borra los videos ya descargados.')) return;
+  if (!confirm('¿Descartar este pedido? Se borra el master y el prompt de la hero, y despues no se puede rehacer la imagen ni volver a aplicar la landing. Si solo querés sacarlo del panel, usá Archivar. Los videos ya descargados no se tocan.')) return;
   try {
     await firebase.firestore().collection(LA_COL).doc(id).delete();
     renderLandingAuto();
