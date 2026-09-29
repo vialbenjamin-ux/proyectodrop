@@ -73,6 +73,8 @@ exports.handler = async (event) => {
   // buscador manual del modal cuando el user quiere elegir uno especifico).
   //   { product_id, variant_id, name, imgUrl }
   const upsellManual = body.upsell_manual && body.upsell_manual.product_id ? body.upsell_manual : null;
+  // sin_upsell: publica la oferta por cantidad y deja el upsell vacio.
+  const sinUpsell = body.sin_upsell === true;
   const dryRun = body.dry_run !== false; // default true por seguridad
   const tenant = String(body.tenant || 'chile').toLowerCase();
 
@@ -254,8 +256,14 @@ exports.handler = async (event) => {
     let upsellCandidates = [];
     let upsellReason = 'ok';
 
-    // Si vino upsell_manual, saltamos la busqueda automatica y usamos ese.
-    if (upsellManual) {
+    // Regla de Benjamin: cuando no hay una opcion de upsell ATRACTIVA no se
+    // usa ninguna. El scorer siempre devuelve el mejor de la bodega aunque no
+    // pegue con nada -- al Repelente de Raton le propuso un dispensador de
+    // lavaloza (28 sep 2026). Con {"sin_upsell": true} se publica la oferta
+    // sola en vez de forzar cualquier cosa.
+    if (sinUpsell) {
+      upsellReason = 'sin upsell: pedido a proposito (no habia una opcion que pegara con el producto)';
+    } else if (upsellManual) {
       const finalPriceCents = upsellOverridePrice && upsellOverridePrice > 0
         ? Math.round(upsellOverridePrice * 100)
         : 0;
