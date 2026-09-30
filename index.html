@@ -19749,10 +19749,38 @@ async function setVideoRank(fileId, rank, handle, fileName){
   }
 }
 
+// Al pasar un video de TESTEO al MANAGER se copia sola la URL de la landing:
+// es lo primero que se necesita despues, al armar el anuncio. Devuelve true
+// si alcanzo a escribir el portapapeles, para que el toast lo diga.
+//
+// Se usa writeText SIN await a proposito: esta funcion la llama
+// setVideoReadyForAds antes de guardar en Firestore, y esperar aca retrasaria
+// el guardado. Si el navegador rechaza el permiso no se avisa: el video igual
+// queda marcado y el link sigue estando en el boton ⧉ de la tarjeta.
+function vpCopiarLinkDelProducto(handle){
+  try {
+    const productos = (window._vpData && window._vpData.products) || [];
+    const p = productos.find(function(x){ return (x.handle || x.id) === handle; });
+    if (!p) return false;
+    const url = vpUrlTienda(p);
+    if (!url) return false;
+    if (!navigator.clipboard || !navigator.clipboard.writeText) return false;
+    navigator.clipboard.writeText(url).catch(function(){});
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
 // ── Workflow editor → subidor ────────────────────────────────────────────────
 // Editor marca un video de carpeta TESTEO como "listo para ads".
 // Subidor lo ve en la sección "Subir a ads" y marca "ya subido" cuando termina.
 async function setVideoReadyForAds(fileId, ready, handle, fileName){
+  // El link se copia ANTES de tocar Firestore: navigator.clipboard necesita
+  // que el gesto del click siga vigente, y despues de un await puede haberse
+  // perdido. Es lo que despues se pega en el manager de ads.
+  let linkCopiado = false;
+  if (ready) linkCopiado = vpCopiarLinkDelProducto(handle);
   try {
     if (typeof firebase === 'undefined' || !firebase.firestore) throw new Error('Firestore no disponible');
     const db = firebase.firestore();
@@ -19766,7 +19794,8 @@ async function setVideoReadyForAds(fileId, ready, handle, fileName){
     };
     await db.collection('bkdrop_video_rankings').doc(fileId).set(update, { merge: true });
     window._vpData.rankings[fileId] = { ...prev, ...update };
-    showToast(ready ? 'Marcado listo para ads' : 'Desmarcado', ready ? '📤' : '↩', 'success');
+    showToast(ready ? (linkCopiado ? 'Listo para ads · link copiado' : 'Marcado listo para ads') : 'Desmarcado',
+              ready ? '📤' : '↩', 'success');
     // Re-render del folder testeo de ese producto
     const contents = window._vpData.folderContents[handle] || {};
     if (contents.testeo) {
@@ -21375,11 +21404,80 @@ function gtRenderProblemas(){
         + (items ? '<br>' + items : '')
       + '</div>'
       + '<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">'
+        + (gtTieneBarcode(o)
+            ? '<button id="gt-crear-' + i + '" onclick="gtCrearEnDropi(' + i + ')" style="background:#166534;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:11px;font-family:\'DM Mono\',monospace;font-weight:700;cursor:pointer">⚡ Crear en Dropi GT</button>'
+            : '')
         + '<button onclick="gtCopiarProblema(' + i + ')" style="background:#0284C7;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:11px;font-family:\'DM Mono\',monospace;font-weight:700;cursor:pointer">📋 Copiar datos</button>'
-        + '<a href="https://app.dropi.gt" target="_blank" rel="noopener" style="background:transparent;border:1.5px solid var(--border);color:var(--text);border-radius:6px;padding:5px 12px;font-size:11px;font-family:\'DM Mono\',monospace;font-weight:700;text-decoration:none">↗ Crear en Dropi GT</a>'
+        + '<a href="https://app.dropi.gt" target="_blank" rel="noopener" style="background:transparent;border:1.5px solid var(--border);color:var(--text);border-radius:6px;padding:5px 12px;font-size:11px;font-family:\'DM Mono\',monospace;font-weight:700;text-decoration:none">↗ Abrir Dropi GT</a>'
       + '</div>'
       + '</div>';
   }).join('');
+}
+
+// El boton de crear por API solo aparece cuando TODOS los items traen
+// barcode. Con barcode el match es directo contra el id de Dropi; sin el,
+// dropi-create-order tiene que adivinar el producto buscandolo en el
+// historial de ordenes de la cuenta, y en GT casi ningun producto lo tiene.
+// En ese caso queda el flujo de siempre: copiar los datos y pegarlos a mano.
+function gtTieneBarcode(o){
+  const items = (o && o.items) || [];
+  return items.length > 0 && items.every(function(it){
+    return it && /^\d+(-\d+)?$/.test(String(it.barcode || '').trim());
+  });
+}
+
+async function gtCrearEnDropi(i){
+  const o = _gtHuer[i];
+  if (!o) return;
+  const btn = document.getElementById('gt-crear-' + i);
+  const money = Number(o.total || 0).toLocaleString('es-GT');
+  const ok = confirm('Crear pedido en Dropi GT:\n\n'
+    + (o.name || '') + ' · ' + (o.customer_name || '(sin nombre)') + '\n'
+    + 'Tel: ' + (o.phone_raw || o.phone) + '\n'
+    + (o.city || '') + ' · ' + (o.province || '') + '\n'
+    + 'Monto: Q' + money + '\n\n'
+    + 'Se creará en PENDIENTE CONFIRMACION.\n¿Confirmar?');
+  if (!ok) return;
+  if (btn) { btn.disabled = true; btn.textContent = 'Creando…'; btn.style.opacity = '0.6'; }
+  try {
+    const resp = await fetch('/.netlify/functions/dropi-create-order', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        tenant: 'gt',
+        name: o.customer_name || 'Cliente',
+        phone: o.phone_raw || o.phone,
+        email: o.email || '',
+        dir: o.address,
+        city: o.city,
+        state: o.province,
+        items: (o.items || []).map(function(it){
+          return { sku: it.sku, name: it.name, qty: it.qty, price: it.price, barcode: it.barcode };
+        }),
+        total: o.total,
+        notes: 'Creado desde BKDROP · Shopify ' + o.name,
+      }),
+    });
+    const data = await resp.json().catch(function(){ return {}; });
+    if (!resp.ok || !data.ok) {
+      const motivo = (typeof _dropiMotivo === 'function' ? _dropiMotivo(data) : '') || data.error || ('HTTP ' + resp.status);
+      throw new Error(motivo);
+    }
+    // Se anota igual que en Chile para que el buscador no lo vuelva a ofrecer.
+    try {
+      await firebase.firestore().collection('bkdrop_huerfanos_created')
+        .doc(String(o.name || '').replace(/^#/, '')).set({
+          shopifyName: o.name, dropiOrderId: data.dropiOrderId || null,
+          warehouseUsed: data.warehouseUsed || null, tenant: 'gt',
+          customerName: o.customer_name, total: o.total,
+          createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true });
+    } catch (_) { /* si Firestore falla el pedido ya esta creado igual */ }
+    if (btn) { btn.textContent = '✅ Creado'; btn.style.background = '#DFF2E8'; btn.style.color = '#166534'; btn.style.opacity = '1'; }
+    showToast('Pedido creado en Dropi GT', '🚀', 'ok');
+  } catch (e) {
+    if (btn) { btn.disabled = false; btn.textContent = '⚡ Reintentar'; btn.style.opacity = '1'; }
+    alert('❌ No se pudo crear en Dropi GT\n\n' + (e.message || 'error'));
+  }
 }
 
 async function gtCopiarProblema(i){
