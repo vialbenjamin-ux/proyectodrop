@@ -1,3 +1,5 @@
+const { dropiTenant } = require('./_dropi-tenant');
+
 // Crea ordenes en Dropi automaticamente para pedidos huerfanos de Shopify.
 // Auto-descubre product_id + warehouse_id + shop_id buscando por SKU/nombre
 // en las ultimas 200 ordenes cacheadas en Dropi (fetch en tiempo real, un
@@ -5,12 +7,19 @@
 //
 // Body esperado:
 //   {
+//     tenant,                            // 'chile' (default) | 'gt'
 //     name, surname, phone, email,       // cliente
 //     dir, city, state,                  // envio (city + state en MAYUSCULAS formato Dropi)
 //     items: [{ sku, name, qty, price }],  // productos Shopify
 //     total,                             // monto total
 //     notes                              // opcional
 //   }
+//
+// MULTI-TENANT (30 sep 2026): sin `tenant` se comporta igual que siempre y va
+// a Chile. Con 'gt' cambia el host, el token, el shop por defecto (2132 en vez
+// de 152458), el codigo de pais que se le saca al telefono (502 en vez de 56)
+// y NO traduce el nombre de la region: el mapa REGIONES_DROPI es de Chile y
+// en Guatemala son departamentos con otros nombres.
 //
 // Respuesta:
 //   { ok, dropiOrderId, warehouseUsed, productsMatched, dropiResponse }
@@ -40,9 +49,14 @@ const REGIONES_DROPI = {
 
 // Compara sin tildes, sin apostrofos y sin espacios de mas: asi
 // "O'Higgins", "OHIGGINS" y "ohiggins" llegan todos a la misma entrada.
-function regionDropi(valor) {
+//
+// El mapa es de REGIONES DE CHILE: en Guatemala son departamentos con otros
+// nombres, asi que alla se manda el valor tal cual en mayusculas y no se
+// traduce nada.
+function regionDropi(valor, isGT) {
   const crudo = String(valor || '').trim();
   if (!crudo) return crudo;
+  if (isGT) return crudo.toUpperCase();
   const clave = crudo
     .toUpperCase()
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
@@ -60,12 +74,15 @@ exports.handler = async (event) => {
     return respond(405, { error: 'Method not allowed' });
   }
 
-  const token = process.env.DROPI_TOKEN_CL;
-  if (!token) return respond(500, { error: 'Falta DROPI_TOKEN_CL' });
-
   let body;
   try { body = JSON.parse(event.body || '{}'); }
   catch { return respond(400, { error: 'JSON invalido' }); }
+
+  // El tenant viaja en el body, asi que esto va DESPUES de parsearlo.
+  // Sin `tenant` se comporta igual que siempre: Chile.
+  const T = dropiTenant(event.queryStringParameters, body);
+  const token = T.token;
+  if (!token) return respond(500, { error: 'Falta ' + T.envName });
 
   // Validar campos minimos
   const requiredFields = ['name', 'phone', 'dir', 'city', 'state', 'items', 'total'];
@@ -97,7 +114,7 @@ exports.handler = async (event) => {
 
   // 1. Fetch ultimas 500 ordenes Dropi para descubrir warehouse_id + shop_id.
   //    SKIP si vino forcedProductId manual O si TODOS los items ya tienen
-  //    barcode (product_id) - en ese caso usamos defaults 79/152458.
+  //    barcode (product_id) - en ese caso usamos los defaults del pais.
   //    Este skip es CRITICO para batch: cada create hace 5 fetches Dropi
   //    y en batches gatilla rate limit "Too Many Attempts".
   let dropiOrders = [];
@@ -106,7 +123,7 @@ exports.handler = async (event) => {
     try {
       for (let start = 0; start < 500; start += 100) {
         const listResp = await fetch(
-          'https://api.dropi.cl/integrations/orders/myorders?start=' + start + '&result_number=100',
+          T.base + '/integrations/orders/myorders?start=' + start + '&result_number=100',
           { method: 'GET', headers }
         );
         if (!listResp.ok) break;
@@ -169,8 +186,8 @@ exports.handler = async (event) => {
         price: it.price || 0,
       });
     }
-    warehouseUsed = forcedWarehouseId || 79;  // default RVG si no viene
-    shopUsed = forcedShopId || 152458;
+    warehouseUsed = forcedWarehouseId || (T.isGT ? null : 79);  // default RVG en Chile
+    shopUsed = forcedShopId || (T.isGT ? 2132 : 152458);
   } else {
     // Cache in-request de variantes por product_id (evitar consultas duplicadas en batch)
     const variantsCache = {};
@@ -185,9 +202,9 @@ exports.handler = async (event) => {
         // (camara 173462, 30 sep 2026). La ruta v2 es la misma que usa
         // dropi-producto-por-id y devuelve las variaciones en `variations`.
         const urls = [
-          'https://api.dropi.cl/integrations/products/v2/' + pid,
-          'https://api.dropi.cl/integrations/products/' + pid,
-          'https://api.dropi.cl/integrations/products/get/' + pid,
+          T.base + '/integrations/products/v2/' + pid,
+          T.base + '/integrations/products/' + pid,
+          T.base + '/integrations/products/get/' + pid,
         ];
         for (const url of urls) {
           try {
@@ -311,7 +328,8 @@ exports.handler = async (event) => {
   const warehouseFromCache = !!warehouseUsed;
   const shopFromCache = !!shopUsed;
   if (!warehouseUsed) warehouseUsed = null;
-  if (!shopUsed) shopUsed = 152458;   // shop default
+  // shop por defecto de cada tienda, sacado de las ordenes ya aceptadas
+  if (!shopUsed) shopUsed = T.isGT ? 2132 : 152458;
 
   // FIX descuentos/combos: Shopify manda line_items[].price que puede estar
   // mal para varios casos:
@@ -363,11 +381,11 @@ exports.handler = async (event) => {
   const dropiBody = {
     name: String(body.name || '').split(' ')[0] || 'Cliente',
     surname: String(body.name || '').split(' ').slice(1).join(' ') || '',
-    phone: normalizePhone(body.phone),
+    phone: normalizePhone(body.phone, T.isGT),
     client_email: String(body.email || ''),
     dir: String(body.dir || '').slice(0, 200),
     city: String(body.city || '').toUpperCase(),
-    state: regionDropi(body.state),
+    state: regionDropi(body.state, T.isGT),
     zip_code: null,
     colonia: null,
     notes: String(body.notes || 'Creada via BKDROP desde huerfano Shopify').slice(0, 300),
@@ -456,7 +474,7 @@ exports.handler = async (event) => {
     const uso = {};
     try {
       const r = await fetch(
-        'https://api.dropi.cl/integrations/orders/myorders?start=0&result_number=100',
+        T.base + '/integrations/orders/myorders?start=0&result_number=100',
         { method: 'GET', headers }
       );
       if (!r.ok) return [];
@@ -484,7 +502,7 @@ exports.handler = async (event) => {
   if (nroShopify) {
     try {
       const rr = await fetch(
-        'https://api.dropi.cl/integrations/orders/myorders?start=0&result_number=100',
+        T.base + '/integrations/orders/myorders?start=0&result_number=100',
         { method: 'GET', headers }
       );
       if (rr.ok) {
@@ -526,7 +544,7 @@ exports.handler = async (event) => {
     const tryWh = warehousesToTry[wIdx];
     const attemptBody = { ...dropiBody, warehouse_id: tryWh };
     try {
-      const createResp = await fetch('https://api.dropi.cl/integrations/orders/myorders', {
+      const createResp = await fetch(T.base + '/integrations/orders/myorders', {
         method: 'POST', headers, body: JSON.stringify(attemptBody)
       });
       const txt = await createResp.text();
@@ -595,10 +613,15 @@ function normalize(s) {
   return String(s || '').toLowerCase().trim().replace(/\s+/g, ' ').replace(/[^\w\s]/g, '');
 }
 
-function normalizePhone(p) {
+function normalizePhone(p, isGT) {
   if (!p) return '';
   let s = String(p).replace(/\D/g, '');
-  if (s.startsWith('56') && s.length >= 11) s = s.slice(2);
+  // Se saca el codigo de pais: Shopify lo guarda y Dropi lo quiere sin el.
+  if (isGT) {
+    if (s.startsWith('502') && s.length >= 11) s = s.slice(3);
+  } else if (s.startsWith('56') && s.length >= 11) {
+    s = s.slice(2);
+  }
   return s;
 }
 
