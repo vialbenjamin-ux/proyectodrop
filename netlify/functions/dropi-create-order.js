@@ -177,8 +177,15 @@ exports.handler = async (event) => {
     async function fetchDropiVariants(pid) {
       if (variantsCache[pid] !== undefined) return variantsCache[pid];
       try {
-        // Endpoints candidatos para obtener variantes con stock de un producto Dropi
+        // Endpoints candidatos para obtener variantes con stock de un producto
+        // Dropi. El PRIMERO es el unico que responde de verdad: los otros dos
+        // dan 400/404 desde siempre, asi que el auto-variant de mas abajo
+        // nunca llego a elegir nada y todo producto Variable importado como
+        // simple rebotaba con "no posee stock en ninguna de sus bodegas"
+        // (camara 173462, 30 sep 2026). La ruta v2 es la misma que usa
+        // dropi-producto-por-id y devuelve las variaciones en `variations`.
         const urls = [
+          'https://api.dropi.cl/integrations/products/v2/' + pid,
           'https://api.dropi.cl/integrations/products/' + pid,
           'https://api.dropi.cl/integrations/products/get/' + pid,
         ];
@@ -190,8 +197,10 @@ exports.handler = async (event) => {
             // Formatos comunes: { attributes: [...] } | { variants: [...] } |
             // { object: { attributes: [...] } } | array directo
             let variants = null;
-            if (Array.isArray(d.attributes)) variants = d.attributes;
+            if (Array.isArray(d.variations)) variants = d.variations;
+            else if (Array.isArray(d.attributes)) variants = d.attributes;
             else if (Array.isArray(d.variants)) variants = d.variants;
+            else if (d.object && Array.isArray(d.object.variations)) variants = d.object.variations;
             else if (d.object && Array.isArray(d.object.attributes)) variants = d.object.attributes;
             else if (d.object && Array.isArray(d.object.variants)) variants = d.object.variants;
             if (variants) {
