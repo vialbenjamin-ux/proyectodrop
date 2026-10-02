@@ -70,7 +70,7 @@ exports.handler = async (event) => {
     let reparados = 0;
     let bloqueado = false;
     for (const o of objetivos) {
-      const r = await repararUno(API, H, isGT, String(o.id), dryRun);
+      const r = await repararUno(API, H, isGT, String(o.id), dryRun, minimo);
       detalle.push(r);
       if (r.reparado) reparados++;
       // Dropi aguanta unas siete consultas seguidas y despues corta con "Too
@@ -94,7 +94,7 @@ exports.handler = async (event) => {
 };
 
 // Un producto: lee su metafield, le pide el objeto a Dropi y lo reescribe.
-async function repararUno(API, H, isGT, productId, dryRun) {
+async function repararUno(API, H, isGT, productId, dryRun, minimo) {
   const mfR = await fetch(API + '/products/' + encodeURIComponent(productId) + '/metafields.json?namespace=dropi', { headers: H });
   if (!mfR.ok) return { productId, error: 'no pude leer los metafields: ' + mfR.status };
   const mf = ((await mfR.json()).metafields || []).find((m) => m.key === '_dropi_product');
@@ -129,7 +129,13 @@ async function repararUno(API, H, isGT, productId, dryRun) {
 
   // Si el metafield ya venia completo no se toca: reescribirlo por reescribirlo
   // solo arriesga perder algo que la app de Dropi haya puesto.
-  if (campoAntes >= campoDespues && campoAntes >= MINIMO_SANO) {
+  //
+  // El corte usa `minimo` y no la constante: tras un relink el metafield queda
+  // con MUCHOS campos pero del producto viejo (bodega, costo y proveedor del
+  // anterior), y contarlos lo daba por sano. Subiendo `minimo` por encima de
+  // los campos que tiene se lo puede forzar a traer el del producto correcto.
+  const corte = Number(minimo) > 0 ? Number(minimo) : MINIMO_SANO;
+  if (campoAntes >= campoDespues && campoAntes >= corte) {
     return { productId, dropiId, campoAntes, campoDespues, reparado: false, nota: 'ya estaba completo' };
   }
   // Sin tokens el pedido no se despacha: mejor avisar que escribir un metafield
