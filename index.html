@@ -1532,6 +1532,10 @@
     ⚡ DROPITEA
   </button>
 
+  <button class="tab-btn ng-standalone" data-section="benstocky" onclick="switchSection('benstocky')">
+    📈 BENSTOCKY
+  </button>
+
   <div style="flex:1"></div>
 
   <!-- Stock alert bell -->
@@ -3056,6 +3060,106 @@
       </div>
       <div id="la-lista"></div>
     </div>
+  </div>
+
+  <!-- BENSTOCKY: que se esta moviendo en el catalogo de Dropi. Los datos los
+       publica `node publicar.mjs` desde Desktop\benstocky (coleccion benstocky). -->
+  <div id="section-benstocky" class="section">
+    <style>
+      #section-benstocky{--bs-serie:#2B5FB3;--bs-mia:#B7791F}
+      html[data-theme="dark"] #section-benstocky{--bs-serie:#7FB0F0;--bs-mia:#E5B84D}
+      .bs-mono{font-family:'DM Mono',monospace}
+      .bs-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px}
+      .bs-tile{flex:1;min-width:150px}
+      .bs-tile b{display:block;font-family:'Montserrat',sans-serif;font-weight:800;font-size:22px;color:var(--text);line-height:1.2}
+      .bs-tile span{font-size:10px;color:var(--muted);font-family:'DM Mono',monospace}
+      .bs-in{background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:7px 9px;border-radius:6px;font-size:12px;font-family:'DM Mono',monospace}
+      .bs-seg{display:inline-flex;border:1.5px solid var(--border);border-radius:8px;overflow:hidden}
+      .bs-seg button{background:var(--surface2);border:none;color:var(--muted);padding:8px 13px;font-size:12px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer}
+      .bs-seg button.on{background:var(--bs-serie);color:#fff}
+      html[data-theme="dark"] .bs-seg button.on{color:#15171C}
+      .bs-tabla{width:100%;border-collapse:collapse;font-size:12px}
+      .bs-tabla th{text-align:right;font-family:'DM Mono',monospace;font-size:10px;font-weight:400;color:var(--muted);padding:6px 8px;border-bottom:1px solid var(--border);white-space:nowrap}
+      .bs-tabla th.izq,.bs-tabla td.izq{text-align:left}
+      .bs-tabla td{text-align:right;padding:7px 8px;border-bottom:1px solid var(--border);color:var(--text);font-family:'DM Mono',monospace;font-variant-numeric:tabular-nums;vertical-align:middle}
+      .bs-tabla tr.bs-fila{cursor:pointer}
+      .bs-tabla tr.bs-fila:hover td{background:var(--surface2)}
+      .bs-tag{display:inline-block;font-size:9px;font-family:'DM Mono',monospace;border:1px solid var(--border2);color:var(--muted);border-radius:8px;padding:1px 6px;margin-left:4px}
+      .bs-hbar{display:grid;grid-template-columns:minmax(70px,34%) 1fr 52px;gap:8px;align-items:center;font-size:11px;font-family:'DM Mono',monospace;color:var(--text);margin:5px 0}
+      .bs-hbar i{display:block;height:10px;border-radius:0 4px 4px 0;background:var(--bs-serie);min-width:2px}
+      .bs-hbar span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted)}
+      .bs-hbar span:last-child{text-align:right}
+      #bs-tip{position:fixed;z-index:9999;pointer-events:none;background:var(--text);color:var(--bg);font-size:11px;font-family:'DM Mono',monospace;padding:6px 9px;border-radius:6px;display:none;max-width:260px;line-height:1.5;white-space:pre-line}
+    </style>
+    <div style="max-width:1280px;margin:0 auto">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px;flex-wrap:wrap">
+        <div style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:22px;color:var(--text)">📈 BENSTOCKY</div>
+        <div class="bs-seg" id="bs-pais">
+          <button type="button" data-v="cl" onclick="bsSetPais('cl')">🇨🇱 Chile</button>
+          <button type="button" data-v="gt" onclick="bsSetPais('gt')">🇬🇹 Guatemala</button>
+        </div>
+        <button onclick="bsCargar(true)" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:7px 13px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer">🔄 Actualizar</button>
+      </div>
+      <div id="bs-info" class="bs-mono" style="font-size:11px;color:var(--muted);line-height:1.6;margin-bottom:14px"></div>
+
+      <div id="bs-tiles" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px"></div>
+
+      <div class="bs-card" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px">
+        <div style="display:flex;flex-direction:column;gap:3px;flex:1;min-width:170px">
+          <label class="bs-mono" style="font-size:10px;color:var(--muted)">Buscar por ID o nombre</label>
+          <input class="bs-in" id="bs-q" placeholder="96077 o luz solar" oninput="bsFiltrar()">
+        </div>
+        <div style="display:flex;flex-direction:column;gap:3px">
+          <label class="bs-mono" style="font-size:10px;color:var(--muted)">Categoría</label>
+          <select class="bs-in" id="bs-cat" onchange="bsFiltrar()"></select>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:3px">
+          <label class="bs-mono" style="font-size:10px;color:var(--muted)">Proveedor</label>
+          <select class="bs-in" id="bs-prov" onchange="bsFiltrar()" style="max-width:190px"></select>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:3px">
+          <label class="bs-mono" style="font-size:10px;color:var(--muted)">Costo desde / hasta</label>
+          <div style="display:flex;gap:5px">
+            <input class="bs-in" id="bs-pmin" type="number" placeholder="0" oninput="bsFiltrar()" style="width:84px">
+            <input class="bs-in" id="bs-pmax" type="number" placeholder="∞" oninput="bsFiltrar()" style="width:84px">
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:3px">
+          <label class="bs-mono" style="font-size:10px;color:var(--muted)">Stock mínimo</label>
+          <input class="bs-in" id="bs-smin" type="number" value="20" oninput="bsFiltrar()" style="width:84px">
+        </div>
+        <label class="bs-mono" style="font-size:11px;color:var(--text);display:flex;align-items:center;gap:6px;padding-bottom:8px;cursor:pointer">
+          <input type="checkbox" id="bs-sinmasivos" onchange="bsFiltrar()"> Ocultar masivos
+        </label>
+        <button onclick="bsLimpiar()" style="background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:8px 12px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer">Limpiar</button>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:10px;margin-bottom:14px">
+        <div class="bs-card"><div class="bs-mono" style="font-size:11px;color:var(--muted);margin-bottom:8px">Unidades por día, entre fotos</div><div id="bs-g-dia"></div></div>
+        <div class="bs-card"><div class="bs-mono" style="font-size:11px;color:var(--muted);margin-bottom:8px">Unidades por categoría (ventana)</div><div id="bs-g-cat"></div></div>
+        <div class="bs-card"><div class="bs-mono" style="font-size:11px;color:var(--muted);margin-bottom:8px">Unidades por proveedor (ventana)</div><div id="bs-g-prov"></div></div>
+      </div>
+
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
+        <div class="bs-seg" id="bs-vista">
+          <button type="button" data-v="acel" onclick="bsSetVista('acel')">🚀 Aceleran</button>
+          <button type="button" data-v="top" onclick="bsSetVista('top')">🏆 Más vendidos</button>
+          <button type="button" data-v="const" onclick="bsSetVista('const')">📏 Constantes</button>
+          <button type="button" data-v="mias" onclick="bsSetVista('mias')">🧾 Los míos</button>
+        </div>
+        <div class="bs-seg" id="bs-ventana">
+          <button type="button" data-v="3" onclick="bsSetVentana(3)">3 días</button>
+          <button type="button" data-v="5" onclick="bsSetVentana(5)">5 días</button>
+          <button type="button" data-v="7" onclick="bsSetVentana(7)">7 días</button>
+          <button type="button" data-v="15" onclick="bsSetVentana(15)">15 días</button>
+          <button type="button" data-v="30" onclick="bsSetVentana(30)">30 días</button>
+        </div>
+      </div>
+      <div id="bs-aviso" class="bs-mono" style="font-size:11px;color:var(--muted);line-height:1.6;margin-bottom:8px"></div>
+      <div class="bs-card" style="padding:0;overflow-x:auto"><div id="bs-lista"></div></div>
+      <div id="bs-mas" style="text-align:center;margin:12px 0"></div>
+    </div>
+    <div id="bs-tip"></div>
   </div>
 
   <div id="section-campanias" class="section">
@@ -4732,6 +4836,7 @@ function switchSection(s, silent){
     _landingGTPendiente = false;
   }
   if(s==='landing-auto') initLandingAuto();
+  if(s==='benstocky') initBenstocky();
   if(s==='campanias') initCampanias();
   if(s==='guatemala') initGuatemala();
   // Sección Personal/bkfit removida del nav
@@ -16585,6 +16690,7 @@ const ALL_SECTIONS = [
   // esperando una seccion debe saltearlo.
   {id:'guatemala-pedidos', label:'Guatemala · confirmar pedidos', soloPermiso:true},
   {id:'dropitea',      label:'DROPITEA'},
+  {id:'benstocky',     label:'BENSTOCKY'},
   {id:'calendario',    label:'Calendario'},
 ];
 
@@ -21049,6 +21155,351 @@ async function laBorrarPedido(id){
   } catch (e) {
     _laEstado('⚠ ' + (e.message || 'error'), 'var(--danger,#E74C3C)');
   }
+}
+
+// ── BENSTOCKY ────────────────────────────────────────────────────────────────
+// Que se esta moviendo en el catalogo de Dropi. La venta no se ve: se infiere
+// de lo que baja el stock entre una foto del catalogo y la siguiente. Las
+// fotos se sacan a mano (la sesion de Dropi dura 4 h) y `publicar.mjs` sube a
+// la coleccion `benstocky` el stock de cada foto; aca se calcula todo lo
+// demas, asi cambiar la ventana no obliga a republicar.
+//
+// Fila publicada: { i:id, n:nombre, pr:proveedor, c:[categorias], p:costo,
+//   ps:sugerido, im:imagen, v:variantes, s:[stock por foto|null],
+//   m:[mis unidades por tramo] }
+
+const BS_DIA = 86400000;
+const BS_CDN = { cl: 'https://d39ru7awumhhs2.cloudfront.net/', gt: 'https://d2ob47cxeawi8a.cloudfront.net/' };
+const BS_DROPI = { cl: 'https://app.dropi.cl', gt: 'https://app.dropi.gt' };
+// Mismos umbrales que analizar.mjs.
+const BS_MIN_VENTA = 3, BS_MIN_ACEL = 1.5;
+let _bs = { pais: 'cl', vista: 'acel', ventana: 3, datos: {}, limite: 50, abierto: null, filas: [] };
+
+const _bsN = (x, d) => (x == null || isNaN(x)) ? '–' : Number(x).toLocaleString('es-CL', { maximumFractionDigits: d == null ? 0 : d, minimumFractionDigits: d == null ? 0 : d });
+const _bsFecha = (t) => new Date(t).toLocaleDateString('es-CL', { day: '2-digit', month: 'short' });
+const _bsHora = (t) => new Date(t).toLocaleString('es-CL', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+
+function initBenstocky(){
+  const sec = document.getElementById('section-benstocky');
+  if (sec && !sec._bsWired) {
+    sec._bsWired = true;
+    const tip = document.getElementById('bs-tip');
+    sec.addEventListener('mousemove', function(e){
+      const el = e.target.closest && e.target.closest('[data-tip]');
+      if (!el) { tip.style.display = 'none'; return; }
+      tip.textContent = el.getAttribute('data-tip');
+      tip.style.display = 'block';
+      const w = tip.offsetWidth, x = Math.min(e.clientX + 14, window.innerWidth - w - 8);
+      tip.style.left = x + 'px'; tip.style.top = (e.clientY + 16) + 'px';
+    });
+    sec.addEventListener('mouseleave', function(){ tip.style.display = 'none'; });
+  }
+  _bsMarcar();
+  bsCargar(false);
+}
+
+function _bsMarcar(){
+  [['bs-pais', _bs.pais], ['bs-vista', _bs.vista], ['bs-ventana', String(_bs.ventana)]].forEach(function(par){
+    const c = document.getElementById(par[0]);
+    if (c) c.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.getAttribute('data-v') === par[1]));
+  });
+}
+
+function bsSetPais(p){ _bs.pais = p; _bs.abierto = null; _bs.limite = 50; _bsMarcar(); bsCargar(false); }
+function bsSetVista(v){ _bs.vista = v; _bs.abierto = null; _bs.limite = 50; _bsMarcar(); bsRender(); }
+function bsSetVentana(n){ _bs.ventana = n; _bs.abierto = null; _bsMarcar(); bsRender(); }
+function bsFiltrar(){ _bs.limite = 50; _bs.abierto = null; bsRender(); }
+function bsLimpiar(){
+  ['bs-q', 'bs-pmin', 'bs-pmax'].forEach(id => { const e = document.getElementById(id); if (e) e.value = ''; });
+  ['bs-cat', 'bs-prov'].forEach(id => { const e = document.getElementById(id); if (e) e.value = ''; });
+  const s = document.getElementById('bs-smin'); if (s) s.value = '20';
+  const m = document.getElementById('bs-sinmasivos'); if (m) m.checked = false;
+  bsFiltrar();
+}
+
+async function bsCargar(forzar){
+  const pais = _bs.pais;
+  const info = document.getElementById('bs-info');
+  if (_bs.datos[pais] && !forzar) { _bsLlenarFiltros(); bsRender(); return; }
+  if (info) info.textContent = 'Cargando…';
+  try {
+    const col = firebase.firestore().collection('benstocky');
+    const ms = await col.doc(pais + '-meta').get();
+    if (!ms.exists) throw new Error('Todavía no hay datos publicados de este país. Corré publicar.mjs.');
+    const meta = JSON.parse(ms.data().json);
+    const partes = await Promise.all(Array.from({ length: meta.trozos }, (_, i) => col.doc(pais + '-' + i).get()));
+    const prods = [];
+    partes.forEach(p => { if (p.exists) JSON.parse(p.data().json).forEach(x => prods.push(x)); });
+    meta.T = meta.fotos.map(f => new Date(f.t).getTime());
+    _bs.datos[pais] = { meta, prods };
+    if (pais !== _bs.pais) return;   // cambio de pais mientras cargaba
+    _bsLlenarFiltros();
+    bsRender();
+  } catch (e) {
+    if (info) info.textContent = '⚠ ' + (e.message || 'No se pudo cargar');
+    ['bs-tiles', 'bs-lista', 'bs-g-dia', 'bs-g-cat', 'bs-g-prov', 'bs-aviso', 'bs-mas'].forEach(id => { const el = document.getElementById(id); if (el) el.innerHTML = ''; });
+  }
+}
+
+function _bsLlenarFiltros(){
+  const d = _bs.datos[_bs.pais]; if (!d) return;
+  const cuenta = (f) => { const m = new Map(); d.prods.forEach(p => f(p).forEach(k => { if (k) m.set(k, (m.get(k) || 0) + 1); })); return [...m].sort((a, b) => b[1] - a[1]); };
+  const llenar = (id, lista, todos) => {
+    const el = document.getElementById(id); if (!el) return;
+    const prev = el.value;
+    el.innerHTML = '<option value="">' + todos + '</option>' + lista.map(x => '<option value="' + esc(x[0]) + '">' + esc(x[0]) + ' (' + x[1] + ')</option>').join('');
+    el.value = lista.some(x => x[0] === prev) ? prev : '';
+  };
+  llenar('bs-cat', cuenta(p => p.c || []), 'Todas');
+  llenar('bs-prov', cuenta(p => [p.pr]), 'Todos');
+}
+
+// Tramos de un producto: entre fotos consecutivas en que aparece. Una baja de
+// mas de la mitad del stock (y de 100 o mas) en un tramo no es venta sino el
+// proveedor corrigiendo inventario: ese tramo no suma.
+function _bsTramos(p, T){
+  const tr = [];
+  let prev = -1;
+  for (let i = 0; i < p.s.length; i++) {
+    if (p.s[i] == null) continue;
+    if (prev >= 0) {
+      const dias = Math.max(0.25, (T[i] - T[prev]) / BS_DIA);
+      const baja = p.s[prev] - p.s[i];
+      const reajuste = baja >= 100 && baja >= p.s[prev] * 0.5;
+      let mias = 0;
+      if (p.m) for (let k = prev + 1; k <= i; k++) mias += p.m[k] || 0;
+      tr.push({ a: T[prev], b: T[i], dias, venta: (baja > 0 && !reajuste) ? baja : 0, reajuste, repuso: baja < 0, mias, s0: p.s[prev], s1: p.s[i] });
+    }
+    prev = i;
+  }
+  return tr;
+}
+
+// Unidades y dias cubiertos de los tramos que caen dentro de [desde, hasta].
+function _bsEnVentana(tr, desde, hasta){
+  let u = 0, dias = 0, mias = 0, reajuste = false, repuso = false, n = 0, todos = true;
+  tr.forEach(t => {
+    const ov = Math.min(t.b, hasta) - Math.max(t.a, desde);
+    if (ov <= 0) return;
+    const frac = ov / (t.b - t.a);
+    u += t.venta * frac; mias += t.mias * frac; dias += ov / BS_DIA; n++;
+    if (t.reajuste) reajuste = true;
+    if (t.repuso) repuso = true;
+    if (!t.venta) todos = false;
+  });
+  return { u, dias, mias, reajuste, repuso, n, todos };
+}
+
+function _bsCalcular(){
+  const d = _bs.datos[_bs.pais];
+  const T = d.meta.T, fin = T[T.length - 1], N = _bs.ventana * BS_DIA;
+  const out = d.prods.map(p => {
+    const tr = _bsTramos(p, T);
+    const rec = _bsEnVentana(tr, fin - N, fin);
+    const ant = _bsEnVentana(tr, fin - 2 * N, fin - N);
+    const vRec = rec.dias > 0 ? rec.u / rec.dias : 0;
+    // Con menos de un dia medido antes de la ventana no hay con que comparar.
+    const vAnt = ant.dias >= 1 ? ant.u / ant.dias : null;
+    return {
+      p, tr, rec, vRec, vAnt,
+      acel: vAnt == null ? null : vRec / Math.max(vAnt, 0.5),
+      stock: p.s[p.s.length - 1],
+      miasTotal: tr.reduce((a, t) => a + t.mias, 0),
+    };
+  });
+  // "Ya lo venden todos": el 2% que mas vendio en la ventana.
+  const orden = out.map(x => x.rec.u).filter(u => u > 0).sort((a, b) => b - a);
+  const corte = orden.length ? orden[Math.floor(orden.length * 0.02)] : Infinity;
+  out.forEach(x => { x.masivo = x.rec.u > 0 && x.rec.u >= corte; });
+  return out;
+}
+
+function _bsPasaFiltros(x){
+  const g = (id) => { const e = document.getElementById(id); return e ? e.value : ''; };
+  const q = g('bs-q').trim().toLowerCase();
+  if (q && !(String(x.p.i) === q || String(x.p.n || '').toLowerCase().includes(q) || String(x.p.i).startsWith(q))) return false;
+  const cat = g('bs-cat'); if (cat && !(x.p.c || []).includes(cat)) return false;
+  const prov = g('bs-prov'); if (prov && x.p.pr !== prov) return false;
+  const pmin = parseFloat(g('bs-pmin')), pmax = parseFloat(g('bs-pmax'));
+  if (!isNaN(pmin) && !(x.p.p >= pmin)) return false;
+  if (!isNaN(pmax) && !(x.p.p <= pmax)) return false;
+  // Lo propio se muestra aunque este sin stock: es justo lo que hay que ver.
+  if (_bs.vista !== 'mias') {
+    const smin = parseFloat(g('bs-smin'));
+    if (!isNaN(smin) && !(x.stock >= smin)) return false;
+    const sm = document.getElementById('bs-sinmasivos');
+    if (sm && sm.checked && x.masivo) return false;
+  }
+  return true;
+}
+
+function _bsHBars(id, items, vacio){
+  const el = document.getElementById(id); if (!el) return;
+  if (!items.length) { el.innerHTML = '<div class="bs-mono" style="font-size:11px;color:var(--muted)">' + (vacio || 'Sin datos') + '</div>'; return; }
+  const max = Math.max.apply(null, items.map(x => x.v)) || 1;
+  el.innerHTML = items.map(x => '<div class="bs-hbar" data-tip="' + esc(x.k + '\n' + _bsN(x.v) + ' unidades') + '"><span>' + esc(x.k) + '</span><div><i style="width:' + Math.max(1, x.v / max * 100) + '%"></i></div><span>' + _bsN(x.v) + '</span></div>').join('');
+}
+
+// Barras verticales en SVG. items: [{ k: etiqueta, v: valor, tip }]
+function _bsBarras(items, alto, color){
+  if (!items.length) return '<div class="bs-mono" style="font-size:11px;color:var(--muted)">Hacen falta dos fotos para medir</div>';
+  const W = 320, H = alto || 130, pl = 34, pb = 20, pt = 8, pr = 6;
+  const max = Math.max.apply(null, items.map(x => x.v)) || 1;
+  const paso = (W - pl - pr) / items.length, bw = Math.min(24, paso * 0.62);
+  const y = (v) => pt + (H - pt - pb) * (1 - v / max);
+  let s = '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:auto;display:block" role="img">';
+  [0, 0.5, 1].forEach(f => {
+    const yy = y(max * f);
+    s += '<line x1="' + pl + '" x2="' + (W - pr) + '" y1="' + yy + '" y2="' + yy + '" stroke="var(--border)" stroke-width="1"/>'
+       + '<text x="' + (pl - 5) + '" y="' + (yy + 3) + '" text-anchor="end" font-size="9" font-family="DM Mono,monospace" fill="var(--muted)">' + _bsN(max * f) + '</text>';
+  });
+  const cada = Math.ceil(items.length / 8);
+  items.forEach((x, i) => {
+    const cx = pl + paso * i + paso / 2, yy = y(x.v), h = Math.max(1, H - pb - yy);
+    s += '<g data-tip="' + esc(x.tip || (x.k + '\n' + _bsN(x.v, 1))) + '">'
+       + '<rect x="' + (cx - paso / 2) + '" y="' + pt + '" width="' + paso + '" height="' + (H - pt - pb) + '" fill="transparent"/>'
+       + '<path d="M' + (cx - bw / 2) + ' ' + (H - pb) + ' v' + (-(h - Math.min(3, h))) + ' q0 ' + (-Math.min(3, h)) + ' ' + Math.min(3, bw / 2) + ' ' + (-Math.min(3, h)) + ' h' + (bw - 2 * Math.min(3, bw / 2)) + ' q' + Math.min(3, bw / 2) + ' 0 ' + Math.min(3, bw / 2) + ' ' + Math.min(3, h) + ' v' + (h - Math.min(3, h)) + ' z" fill="' + (color || 'var(--bs-serie)') + '"/></g>';
+    if (i % cada === 0) s += '<text x="' + cx + '" y="' + (H - 6) + '" text-anchor="middle" font-size="9" font-family="DM Mono,monospace" fill="var(--muted)">' + esc(x.k) + '</text>';
+  });
+  return s + '</svg>';
+}
+
+function _bsLinea(puntos, alto){
+  if (puntos.length < 2) return '';
+  const W = 320, H = alto || 130, pl = 40, pb = 20, pt = 10, pr = 10;
+  const vs = puntos.map(p => p.v), max = Math.max.apply(null, vs), min = Math.min(0, Math.min.apply(null, vs));
+  const x = (i) => pl + (W - pl - pr) * (i / (puntos.length - 1));
+  const y = (v) => pt + (H - pt - pb) * (1 - (v - min) / ((max - min) || 1));
+  let s = '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:auto;display:block" role="img">';
+  [0, 0.5, 1].forEach(f => {
+    const v = min + (max - min) * f, yy = y(v);
+    s += '<line x1="' + pl + '" x2="' + (W - pr) + '" y1="' + yy + '" y2="' + yy + '" stroke="var(--border)" stroke-width="1"/>'
+       + '<text x="' + (pl - 5) + '" y="' + (yy + 3) + '" text-anchor="end" font-size="9" font-family="DM Mono,monospace" fill="var(--muted)">' + _bsN(v) + '</text>';
+  });
+  s += '<polyline fill="none" stroke="var(--bs-serie)" stroke-width="2" stroke-linejoin="round" points="' + puntos.map((p, i) => x(i) + ',' + y(p.v)).join(' ') + '"/>';
+  const cada = Math.ceil(puntos.length / 6);
+  puntos.forEach((p, i) => {
+    s += '<g data-tip="' + esc(p.k + '\nStock ' + _bsN(p.v)) + '"><circle cx="' + x(i) + '" cy="' + y(p.v) + '" r="11" fill="transparent"/>'
+       + '<circle cx="' + x(i) + '" cy="' + y(p.v) + '" r="4" fill="var(--bs-serie)" stroke="var(--surface)" stroke-width="2"/></g>';
+    if (i % cada === 0) s += '<text x="' + x(i) + '" y="' + (H - 6) + '" text-anchor="middle" font-size="9" font-family="DM Mono,monospace" fill="var(--muted)">' + esc(p.k) + '</text>';
+  });
+  return s + '</svg>';
+}
+
+function _bsDetalle(x){
+  const d = _bs.datos[_bs.pais], T = d.meta.T;
+  const stock = [];
+  x.p.s.forEach((v, i) => { if (v != null) stock.push({ k: _bsFecha(T[i]), v }); });
+  const ventas = x.tr.map(t => ({ k: _bsFecha(t.b), v: t.venta / t.dias,
+    tip: _bsFecha(t.a) + ' → ' + _bsFecha(t.b) + '\n' + _bsN(t.venta) + ' unidades en ' + _bsN(t.dias, 1) + ' días\n' + _bsN(t.venta / t.dias, 1) + ' por día'
+      + (t.mias ? '\nMías: ' + _bsN(t.mias) : '') + (t.reajuste ? '\nReajuste de inventario: no cuenta' : '') + (t.repuso ? '\nRepuso stock' : '') }));
+  const slug = String(x.p.n || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  const notas = [];
+  if (x.tr.some(t => t.reajuste)) notas.push('Hubo un reajuste de inventario (baja de más de la mitad del stock en un tramo): ese tramo no se cuenta como venta.');
+  if (x.tr.some(t => t.repuso)) notas.push('Repuso stock en algún tramo: ahí la venta no se puede medir y cuenta como cero.');
+  if (x.p.v) notas.push('Producto con ' + x.p.v + ' variantes: el stock es la suma de todas.');
+  return '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;padding:12px 8px;text-align:left">'
+    + '<div><div class="bs-mono" style="font-size:10px;color:var(--muted);margin-bottom:6px">Stock en cada foto</div>' + (_bsLinea(stock) || '<div class="bs-mono" style="font-size:11px;color:var(--muted)">Una sola foto</div>') + '</div>'
+    + '<div><div class="bs-mono" style="font-size:10px;color:var(--muted);margin-bottom:6px">Unidades por día en cada tramo</div>' + _bsBarras(ventas) + '</div>'
+    + '<div class="bs-mono" style="font-size:11px;color:var(--muted);line-height:1.7">'
+    +   '<div style="color:var(--text);font-weight:700;margin-bottom:4px">' + esc(x.p.n) + '</div>'
+    +   'ID ' + x.p.i + ' · ' + esc(x.p.pr || 'sin proveedor') + '<br>' + esc((x.p.c || []).join(' / ')) + '<br>'
+    +   'Costo ' + _bsN(x.p.p) + ' · sugerido ' + _bsN(x.p.ps) + '<br>'
+    +   (x.miasTotal ? 'Mías en el período: ' + _bsN(x.miasTotal) + '<br>' : '')
+    +   '<a href="' + BS_DROPI[_bs.pais] + '/dashboard/product-details/' + x.p.i + '/' + slug + '" target="_blank" rel="noopener" style="color:var(--bs-serie)">Abrir en Dropi ↗</a>'
+    +   (notas.length ? '<div style="margin-top:8px">' + notas.map(n => '• ' + esc(n)).join('<br>') + '</div>' : '')
+    + '</div></div>';
+}
+
+function bsAbrir(id){ _bs.abierto = (_bs.abierto === id) ? null : id; _bsTabla(); }
+function bsMas(){ _bs.limite += 50; _bsTabla(); }
+
+function _bsTabla(){
+  const el = document.getElementById('bs-lista'); if (!el) return;
+  const filas = _bs.filas;
+  if (!filas.length) { el.innerHTML = '<div class="bs-mono" style="padding:22px;font-size:12px;color:var(--muted);text-align:center">Nada pasa los filtros en esta vista.</div>'; document.getElementById('bs-mas').innerHTML = ''; return; }
+  const mias = _bs.vista === 'mias';
+  let h = '<table class="bs-tabla"><thead><tr><th class="izq">#</th><th class="izq" colspan="2">Producto</th><th>Costo</th><th>Stock</th>'
+    + '<th>Unidades<br>(ventana)</th><th>Por día</th><th>Por día<br>antes</th><th>Acel.</th><th>Mías</th>' + (mias ? '<th>Mi parte</th>' : '') + '<th class="izq">Tramos</th></tr></thead><tbody>';
+  filas.slice(0, _bs.limite).forEach((x, i) => {
+    const maxv = Math.max.apply(null, x.tr.map(t => t.venta / t.dias).concat([0.01]));
+    const spark = '<span style="display:inline-flex;align-items:flex-end;gap:2px;height:22px">' + x.tr.slice(-14).map(t => '<i style="display:block;width:5px;border-radius:2px 2px 0 0;background:var(--bs-serie);height:' + Math.max(1, (t.venta / t.dias) / maxv * 22) + 'px" data-tip="' + esc(_bsFecha(t.a) + ' → ' + _bsFecha(t.b) + '\n' + _bsN(t.venta / t.dias, 1) + ' por día') + '"></i>').join('') + '</span>';
+    const img = x.p.im ? '<img loading="lazy" src="' + BS_CDN[_bs.pais] + encodeURI(x.p.im) + '" style="width:38px;height:38px;object-fit:cover;border-radius:6px;display:block;background:var(--surface2)" onerror="this.style.visibility=\'hidden\'">' : '';
+    const parte = (x.rec.u > 0 && x.rec.mias > 0) ? Math.round(x.rec.mias / x.rec.u * 100) + '%' : '–';
+    h += '<tr class="bs-fila" onclick="bsAbrir(' + x.p.i + ')"><td class="izq" style="color:var(--muted)">' + (i + 1) + '</td><td class="izq" style="width:46px">' + img + '</td>'
+      + '<td class="izq" style="max-width:320px"><div style="font-family:\'DM Sans\',sans-serif;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(x.p.n) + '</div>'
+      + '<div style="font-size:10px;color:var(--muted)">' + x.p.i + ' · ' + esc(x.p.pr || '') + (x.masivo ? '<span class="bs-tag">masivo</span>' : '') + (x.rec.repuso ? '<span class="bs-tag">repuso</span>' : '') + (x.rec.reajuste ? '<span class="bs-tag">reajuste</span>' : '') + '</div></td>'
+      + '<td>' + _bsN(x.p.p) + '</td><td>' + _bsN(x.stock) + '</td><td>' + _bsN(x.rec.u) + '</td><td>' + _bsN(x.vRec, 1) + '</td><td>' + (x.vAnt == null ? '–' : _bsN(x.vAnt, 1)) + '</td>'
+      + '<td>' + (x.acel == null ? '–' : '×' + _bsN(x.acel, 1)) + '</td><td>' + (x.rec.mias ? _bsN(x.rec.mias) : '–') + '</td>' + (mias ? '<td>' + parte + '</td>' : '') + '<td class="izq">' + spark + '</td></tr>';
+    if (_bs.abierto === x.p.i) h += '<tr><td colspan="' + (mias ? 12 : 11) + '" style="background:var(--surface2)">' + _bsDetalle(x) + '</td></tr>';
+  });
+  el.innerHTML = h + '</tbody></table>';
+  const mas = document.getElementById('bs-mas');
+  mas.innerHTML = filas.length > _bs.limite
+    ? '<button onclick="bsMas()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px 16px;font-size:11px;font-family:\'DM Mono\',monospace;cursor:pointer">Ver 50 más (' + (filas.length - _bs.limite) + ' restantes)</button>' : '';
+}
+
+function bsRender(){
+  const d = _bs.datos[_bs.pais]; if (!d) return;
+  const meta = d.meta, T = meta.T, fin = T[T.length - 1];
+  const diasHist = (fin - T[0]) / BS_DIA;
+  const todo = _bsCalcular();
+  const base = todo.filter(_bsPasaFiltros);
+
+  const info = document.getElementById('bs-info');
+  if (info) info.innerHTML = meta.fotos.length + ' foto' + (meta.fotos.length === 1 ? '' : 's') + ' del catálogo · de ' + _bsHora(T[0]) + ' a ' + _bsHora(fin)
+    + ' (' + _bsN(diasHist, 1) + ' días)<br>Catálogo de ' + _bsN(meta.catalogo) + ' productos · ' + _bsN(meta.fuera) + ' fuera por salud y belleza · ' + _bsN(meta.publicados) + ' con movimiento. La venta se infiere de la baja de stock entre fotos.';
+
+  // Candidatos: mismos criterios que la vista "Aceleran".
+  const esCand = (x) => x.acel != null && x.vRec >= BS_MIN_VENTA && x.acel >= BS_MIN_ACEL && !x.rec.reajuste;
+  const hayAntes = todo.some(x => x.vAnt != null);
+  const vendidas = base.reduce((a, x) => a + x.rec.u, 0);
+  const diasVent = Math.min(_bs.ventana, Math.max(diasHist, 0.01));
+  const tiles = [
+    [_bsN(base.filter(x => x.rec.u > 0).length), 'productos con venta en la ventana'],
+    [_bsN(vendidas / diasVent), 'unidades por día (lo filtrado)'],
+    [hayAntes ? _bsN(base.filter(esCand).length) : '–', hayAntes ? 'aceleran (≥' + BS_MIN_VENTA + '/día y ×' + BS_MIN_ACEL + ')' : 'aceleran: falta historia'],
+    [_bsN(todo.filter(x => x.rec.mias > 0).length), 'productos míos con venta'],
+  ];
+  document.getElementById('bs-tiles').innerHTML = tiles.map(t => '<div class="bs-card bs-tile"><b>' + t[0] + '</b><span>' + t[1] + '</span></div>').join('');
+
+  // Unidades por dia en cada tramo entre fotos, sobre lo filtrado.
+  const porTramo = [];
+  for (let i = 1; i < T.length; i++) {
+    let u = 0;
+    base.forEach(x => x.tr.forEach(t => { if (t.b === T[i]) u += t.venta * Math.min(1, (T[i] - T[i - 1]) / (t.b - t.a)); }));
+    const dias = Math.max(0.25, (T[i] - T[i - 1]) / BS_DIA);
+    porTramo.push({ k: _bsFecha(T[i]), v: u / dias, tip: _bsFecha(T[i - 1]) + ' → ' + _bsFecha(T[i]) + '\n' + _bsN(u) + ' unidades en ' + _bsN(dias, 1) + ' días\n' + _bsN(u / dias) + ' por día' });
+  }
+  document.getElementById('bs-g-dia').innerHTML = _bsBarras(porTramo);
+
+  // Un producto con varias categorias cuenta en la primera, para no duplicar.
+  const agrupa = (f) => { const m = new Map(); base.forEach(x => { if (x.rec.u > 0) { const k = f(x) || 'Sin dato'; m.set(k, (m.get(k) || 0) + x.rec.u); } }); return [...m].map(a => ({ k: a[0], v: a[1] })).sort((a, b) => b.v - a.v).slice(0, 8); };
+  _bsHBars('bs-g-cat', agrupa(x => (x.p.c || [])[0]), 'Sin ventas en la ventana');
+  _bsHBars('bs-g-prov', agrupa(x => x.p.pr), 'Sin ventas en la ventana');
+
+  let filas, aviso = '';
+  if (_bs.vista === 'acel') {
+    if (hayAntes) {
+      filas = base.filter(x => esCand(x)).sort((a, b) => (b.vRec - b.vAnt) * Math.min(b.acel, 5) - (a.vRec - a.vAnt) * Math.min(a.acel, 5));
+      aviso = 'Venden ' + BS_MIN_VENTA + ' o más por día en los últimos ' + _bs.ventana + ' días, y eso es al menos ×' + BS_MIN_ACEL + ' de lo que vendían en los ' + _bs.ventana + ' días anteriores.';
+    } else {
+      filas = base.filter(x => x.vRec >= BS_MIN_VENTA && !x.rec.reajuste).sort((a, b) => b.vRec - a.vRec);
+      aviso = '⚠ Todavía no se puede medir aceleración con ventana de ' + _bs.ventana + ' días: hay ' + _bsN(diasHist, 1) + ' días de historia y hacen falta más de ' + (_bs.ventana + 1) + '. Por ahora esto es solo lo que más se mueve.';
+    }
+  } else if (_bs.vista === 'top') {
+    filas = base.filter(x => x.rec.u > 0).sort((a, b) => b.rec.u - a.rec.u);
+    aviso = 'Los que más unidades movieron en los últimos ' + _bs.ventana + ' días.';
+  } else if (_bs.vista === 'const') {
+    filas = base.filter(x => x.rec.n >= 3 && x.rec.todos && !x.rec.reajuste).sort((a, b) => b.vRec - a.vRec);
+    aviso = 'Vendieron en todos los tramos de la ventana (mínimo 3 tramos medidos).' + (meta.fotos.length < 4 ? ' Hacen falta al menos 4 fotos.' : '');
+  } else {
+    filas = base.filter(x => x.miasTotal > 0).sort((a, b) => b.rec.mias - a.rec.mias);
+    aviso = 'Mis ventas de Shopify al lado de lo que bajó el stock en Dropi. "Mi parte" es cuánto de ese movimiento soy yo. Si es más de 100%, Dropi todavía no descontó algún pedido.';
+  }
+  _bs.filas = filas;
+  document.getElementById('bs-aviso').textContent = aviso + ' · ' + filas.length + ' producto' + (filas.length === 1 ? '' : 's') + '.';
+  _bsTabla();
 }
 
 function initLandingAuto(){
