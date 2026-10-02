@@ -19863,12 +19863,19 @@ async function setVideoRank(fileId, rank, handle, fileName){
 // setVideoReadyForAds antes de guardar en Firestore, y esperar aca retrasaria
 // el guardado. Si el navegador rechaza el permiso no se avisa: el video igual
 // queda marcado y el link sigue estando en el boton ⧉ de la tarjeta.
-function vpCopiarLinkDelProducto(handle){
+function vpLinkDelProducto(handle){
   try {
     const productos = (window._vpData && window._vpData.products) || [];
     const p = productos.find(function(x){ return (x.handle || x.id) === handle; });
-    if (!p) return false;
-    const url = vpUrlTienda(p);
+    return p ? (vpUrlTienda(p) || '') : '';
+  } catch (_) {
+    return '';
+  }
+}
+
+function vpCopiarLinkDelProducto(handle){
+  try {
+    const url = vpLinkDelProducto(handle);
     if (!url) return false;
     if (!navigator.clipboard || !navigator.clipboard.writeText) return false;
     navigator.clipboard.writeText(url).catch(function(){});
@@ -19900,7 +19907,28 @@ async function setVideoReadyForAds(fileId, ready, handle, fileName){
     };
     await db.collection('bkdrop_video_rankings').doc(fileId).set(update, { merge: true });
     window._vpData.rankings[fileId] = { ...prev, ...update };
-    showToast(ready ? (linkCopiado ? 'Listo para ads · link copiado' : 'Marcado listo para ads') : 'Desmarcado',
+
+    // El link tiene que VIAJAR con el producto, no quedarse en el portapapeles:
+    // el subidor abre MANAGER y necesita el boton "↗ Abrir" ya puesto. Se
+    // escribe solo si el campo esta vacio, para no pisar un link cargado a mano.
+    let linkGuardado = false;
+    if (ready) {
+      const tareas = window._vpData.productTasks || {};
+      const task = tareas[handle] || {};
+      if (!String(task.landingUrl || '').trim()) {
+        const url = vpLinkDelProducto(handle);
+        if (url) {
+          const upd = { handle, landingUrl: url, updatedAt: Date.now() };
+          await db.collection('bkdrop_video_product_tasks').doc(handle).set(upd, { merge: true });
+          if (!window._vpData.productTasks) window._vpData.productTasks = {};
+          window._vpData.productTasks[handle] = { ...task, ...upd };
+          linkGuardado = true;
+          if (typeof renderAdsQueue === 'function') renderAdsQueue();
+        }
+      }
+    }
+
+    showToast(ready ? ((linkGuardado || linkCopiado) ? 'Listo para ads · link del producto listo' : 'Marcado listo para ads') : 'Desmarcado',
               ready ? '📤' : '↩', 'success');
     // Re-render del folder testeo de ese producto
     const contents = window._vpData.folderContents[handle] || {};
