@@ -61,6 +61,15 @@ exports.handler = async (event) => {
   const pack3Disc = Number(body.pack3_disc);
   // nx1 = unidades por 'pack' del producto base (1 normal, 2 si es 2x1, 3 si 3x1).
   const nx1 = Math.max(1, Math.min(6, parseInt(body.nx1, 10) || 1));
+  // udsPorUnidad: cuantas unidades REALES trae cada unidad que se le pide a
+  // Dropi. No es lo mismo que nx1. Un producto que en Dropi YA es el pack
+  // ("Pack x4 RenovaMuebles") se despacha con qty 1 -- nx1 queda en 1 para no
+  // pedir cuatro packs -- pero el formulario tiene que decir "4 unidades",
+  // que es lo que el cliente recibe y lo que promete el sello 4X1.
+  // Solo cambia el TEXTO de los tramos; la cantidad que va al carrito sigue
+  // siendo nx1 * k. Benjamin, 3 oct 2026: "la cantidad es uno, pero se
+  // promociona que vienen 4".
+  const udsPorUnidad = Math.max(1, Math.min(24, parseInt(body.uds_por_unidad, 10) || 1));
   // price_override: si viene, se usa como precio base en vez del price del
   // producto Shopify. Permite armar la oferta con un precio distinto al que
   // esta publicado en Shopify (util cuando queres testear antes de actualizar).
@@ -149,6 +158,9 @@ exports.handler = async (event) => {
     const fmt = n => currencySymbol + Math.round(n).toLocaleString(currencyLocale);
     const fmtPerUnit = n => 'SÓLO ' + fmt(n) + ' POR UNIDAD!';
     const unitLabel = qty => qty === 1 ? 'unidad' : 'unidades';
+    // Lo que se ESCRIBE en el tramo: las unidades reales que recibe el
+    // cliente. Con uds_por_unidad = 1 (lo normal) es identico a antes.
+    const udsTexto = qty => qty * udsPorUnidad;
 
     // Releasit SOLO soporta ds.t='percentage' o 'none' (confirmado leyendo
     // los items manuales de la tienda). El intento con 'amount' fallo:
@@ -227,26 +239,28 @@ exports.handler = async (event) => {
     // Plaque del tramo 1 (va DESPUES de p1Real: depende de el).
     //  - Si nx1 = 1  → "PRECIO OFERTA HOY!" (el precio SIN dividir; es solo la unidad base)
     //  - Si nx1 > 1 → "SÓLO $X POR UNIDAD!" (dividimos el precio entre las unidades reales)
-    const plaque1 = (nx1 === 1) ? 'PRECIO OFERTA HOY!' : fmtPerUnit(p1Real / uds1);
+    const plaque1 = (nx1 === 1 && udsPorUnidad === 1)
+      ? 'PRECIO OFERTA HOY!'
+      : fmtPerUnit(p1Real / udsTexto(uds1));
 
     const ofertas = [
       {
-        pos: 1, title: '¡Llevo ' + uds1 + ' ' + unitLabel(uds1) + '! (' + OFF_BASE + '% OFF)', qty: uds1,
+        pos: 1, title: '¡Llevo ' + udsTexto(uds1) + ' ' + unitLabel(udsTexto(uds1)) + '! (' + OFF_BASE + '% OFF)', qty: uds1,
         ds: { t: 'percentage', v: dsV1 },
-        priceTotal: p1Real, perUnit: Math.round(p1Real / uds1),
+        priceTotal: p1Real, perUnit: Math.round(p1Real / udsTexto(uds1)),
         plaque: plaque1, plaqueBgC: COLOR_1,
       },
       {
-        pos: 2, title: '¡Llevo ' + uds2 + ' ' + unitLabel(uds2) + '! (' + combinedOff(pack2Disc) + '% OFF)', qty: uds2,
+        pos: 2, title: '¡Llevo ' + udsTexto(uds2) + ' ' + unitLabel(udsTexto(uds2)) + '! (' + combinedOff(pack2Disc) + '% OFF)', qty: uds2,
         ds: { t: 'percentage', v: dsV2 },
-        priceTotal: p2Real, perUnit: Math.round(p2Real / uds2),
-        plaque: fmtPerUnit(p2Real / uds2), plaqueBgC: COLOR_2,
+        priceTotal: p2Real, perUnit: Math.round(p2Real / udsTexto(uds2)),
+        plaque: fmtPerUnit(p2Real / udsTexto(uds2)), plaqueBgC: COLOR_2,
       },
       {
-        pos: 3, title: '¡Llevo ' + uds3 + ' ' + unitLabel(uds3) + '! · PRECIO MAYORISTA', qty: uds3,
+        pos: 3, title: '¡Llevo ' + udsTexto(uds3) + ' ' + unitLabel(udsTexto(uds3)) + '! · PRECIO MAYORISTA', qty: uds3,
         ds: { t: 'percentage', v: dsV3 },
-        priceTotal: p3Real, perUnit: Math.round(p3Real / uds3),
-        plaque: fmtPerUnit(p3Real / uds3), plaqueBgC: COLOR_3,
+        priceTotal: p3Real, perUnit: Math.round(p3Real / udsTexto(uds3)),
+        plaque: fmtPerUnit(p3Real / udsTexto(uds3)), plaqueBgC: COLOR_3,
       },
     ];
 
