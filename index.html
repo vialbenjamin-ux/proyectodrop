@@ -21326,9 +21326,21 @@ function _bsLlenarFiltros(){
   llenar('bs-prov', cuenta(p => [p.pr]), 'Todos');
 }
 
-// Tramos de un producto: entre fotos consecutivas en que aparece. Una baja de
-// mas de la mitad del stock (y de 100 o mas) en un tramo no es venta sino el
-// proveedor corrigiendo inventario: ese tramo no suma.
+// Tramos de un producto: entre fotos consecutivas en que aparece. Lo que se
+// mide son PEDIDOS: Dropi descuenta el stock al crear el pedido y lo devuelve
+// si se cancela. Cada cambio de stock se lee asi (mismas reglas que
+// analizar.mjs; medido el 5 oct 2026 sobre 77.000 comparaciones):
+//   baja normal            -> pedidos
+//   baja de mas de la mitad del stock y de 100 o mas -> el proveedor corrigio
+//                             inventario: el tramo no se mide
+//   subida de hasta 10     -> cancelaciones que devolvieron stock: se RESTAN.
+//                             (el 69% de las subidas son de 1 a 5 unidades;
+//                             antes se trataban como reposicion y se botaba
+//                             el tramo entero)
+//   subida de mas de 10    -> reposicion: el tramo no se mide
+// `r` es el stock reservado para otros vendedores. Lo que baja junto con el
+// reservado lo vendio alguien con stock apartado, no el publico.
+const BS_CANCEL_MAX = 10;
 function _bsTramos(p, T){
   const tr = [];
   let prev = -1;
@@ -21338,9 +21350,17 @@ function _bsTramos(p, T){
       const dias = Math.max(0.25, (T[i] - T[prev]) / BS_DIA);
       const baja = p.s[prev] - p.s[i];
       const reajuste = baja >= 100 && baja >= p.s[prev] * 0.5;
+      const repuso = baja < -BS_CANCEL_MAX;
+      const medible = !reajuste && !repuso;
+      const bajaRes = p.r ? (p.r[prev] || 0) - (p.r[i] || 0) : 0;
       let mias = 0;
       if (p.m) for (let k = prev + 1; k <= i; k++) mias += p.m[k] || 0;
-      tr.push({ a: T[prev], b: T[i], dias, venta: (baja > 0 && !reajuste) ? baja : 0, reajuste, repuso: baja < 0, mias, s0: p.s[prev], s1: p.s[i] });
+      tr.push({ a: T[prev], b: T[i], dias, reajuste, repuso, mias, s0: p.s[prev], s1: p.s[i],
+        // neto puede ser negativo (solo cancelaciones); venta es lo que se dibuja.
+        neto: medible ? baja : 0,
+        venta: medible ? Math.max(0, baja) : 0,
+        cancel: (medible && baja < 0) ? -baja : 0,
+        res: (medible && baja > 0 && bajaRes > 0) ? Math.min(bajaRes, baja) : 0 });
     }
     prev = i;
   }
@@ -21349,7 +21369,7 @@ function _bsTramos(p, T){
 
 // Unidades y dias cubiertos de los tramos que caen dentro de [desde, hasta].
 function _bsEnVentana(tr, desde, hasta){
-  let u = 0, dias = 0, mias = 0, reajuste = false, repuso = false, n = 0, todos = true;
+  let u = 0, dias = 0, mias = 0, res = 0, cancel = 0, reajuste = false, repuso = false, n = 0, todos = true;
   tr.forEach(t => {
     const ov = Math.min(t.b, hasta) - Math.max(t.a, desde);
     if (ov <= 0) return;
@@ -21357,13 +21377,15 @@ function _bsEnVentana(tr, desde, hasta){
     // Un tramo en que repuso stock o hubo reajuste no es "cero ventas": no se
     // sabe cuanto vendio, asi que no suma dias. Contarlo como cero hacia
     // aparecer acelerando x138 a lo que venia de una reposicion.
-    u += t.venta * frac; mias += t.mias * frac; n++;
+    u += t.neto * frac; mias += t.mias * frac; res += t.res * frac; cancel += t.cancel * frac; n++;
     if (!t.repuso && !t.reajuste) dias += ov / BS_DIA;
     if (t.reajuste) reajuste = true;
     if (t.repuso) repuso = true;
-    if (!t.venta) todos = false;
+    if (t.neto <= 0) todos = false;
   });
-  return { u, dias, mias, reajuste, repuso, n, todos };
+  // Mas cancelaciones que pedidos en la ventana: no es venta negativa, es cero.
+  // `res` nunca puede superar lo vendido neto: las cancelaciones ya lo bajaron.
+  return { u: Math.max(0, u), dias, mias, res: Math.min(res, Math.max(0, u)), cancel, reajuste, repuso, n, todos };
 }
 
 function _bsCalcular(){
@@ -21379,7 +21401,11 @@ function _bsCalcular(){
     return {
       p, tr, rec, vRec, vAnt,
       acel: vAnt == null ? null : vRec / Math.max(vAnt, 0.5),
-      stock: p.s[p.s.length - 1],
+      // `stock` es lo que se puede vender: el total menos lo reservado para
+      // otros. El roscador 129440 mostraba 63 y eran las 63 reservadas.
+      stockTotal: p.s[p.s.length - 1],
+      reservado: p.r ? (p.r[p.r.length - 1] || 0) : 0,
+      stock: p.s[p.s.length - 1] == null ? null : Math.max(0, p.s[p.s.length - 1] - (p.r ? (p.r[p.r.length - 1] || 0) : 0)),
       miasTotal: tr.reduce((a, t) => a + t.mias, 0),
     };
   });
@@ -21468,11 +21494,14 @@ function _bsDetalle(x){
   x.p.s.forEach((v, i) => { if (v != null) stock.push({ k: _bsFecha(T[i]), v }); });
   const ventas = x.tr.map(t => ({ k: _bsFecha(t.b), v: t.venta / t.dias,
     tip: _bsFecha(t.a) + ' → ' + _bsFecha(t.b) + '\n' + _bsN(t.venta) + ' unidades en ' + _bsN(t.dias, 1) + ' días\n' + _bsN(t.venta / t.dias, 1) + ' por día'
-      + (t.mias ? '\nMías: ' + _bsN(t.mias) : '') + (t.reajuste ? '\nReajuste de inventario: no cuenta' : '') + (t.repuso ? '\nRepuso stock' : '') }));
+      + (t.mias ? '\nMías: ' + _bsN(t.mias) : '') + (t.reajuste ? '\nReajuste de inventario: no cuenta' : '') + (t.repuso ? '\nRepuso stock: tramo sin medir' : '') + (t.cancel ? '\nCancelados: ' + _bsN(t.cancel) : '') + (t.res ? '\nCon stock reservado: ' + _bsN(t.res) : '') }));
   const slug = String(x.p.n || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
   const notas = [];
   if (x.tr.some(t => t.reajuste)) notas.push('Hubo un reajuste de inventario (baja de más de la mitad del stock en un tramo): ese tramo no se cuenta como venta.');
-  if (x.tr.some(t => t.repuso)) notas.push('Repuso stock en algún tramo: ahí la venta no se puede medir y cuenta como cero.');
+  if (x.tr.some(t => t.repuso)) notas.push('Repuso stock en algún tramo (subida de más de ' + BS_CANCEL_MAX + ' unidades): ahí no se puede medir cuánto vendió y el tramo no cuenta.');
+  if (x.rec.cancel > 0) notas.push(_bsN(x.rec.cancel) + ' unidades volvieron al stock en la ventana (pedidos cancelados): ya están restadas.');
+  if (x.rec.res > 0) notas.push(_bsN(x.rec.res) + ' de las ' + _bsN(x.rec.u) + ' unidades de la ventana salieron de stock reservado para otro vendedor.');
+  if (x.reservado) notas.push('Stock total ' + _bsN(x.stockTotal) + ', de los cuales ' + _bsN(x.reservado) + ' están reservados: disponibles para ti ' + _bsN(x.stock) + '.');
   if (x.p.v) notas.push('Producto con ' + x.p.v + ' variantes: el stock es la suma de todas.');
   const foto = _bsImg(x.p);
   return '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;padding:12px 8px;text-align:left">'
@@ -21513,7 +21542,7 @@ function _bsTabla(){
   const filas = _bs.filas;
   if (!filas.length) { el.innerHTML = '<div class="bs-mono" style="padding:22px;font-size:12px;color:var(--muted);text-align:center">Nada pasa los filtros en esta vista.</div>'; document.getElementById('bs-mas').innerHTML = ''; return; }
   const mias = _bs.vista === 'mias';
-  let h = '<table class="bs-tabla"><thead><tr><th class="izq">#</th><th class="izq" colspan="2">Producto</th><th>Costo</th><th>Stock</th>'
+  let h = '<table class="bs-tabla"><thead><tr><th class="izq">#</th><th class="izq" colspan="2">Producto</th><th>Costo</th><th>Stock<br>disp.</th>'
     + '<th>Unidades<br>(ventana)</th><th>Por día</th><th>Por día<br>antes</th><th>Acel.</th><th>Mías</th>' + (mias ? '<th>Mi parte</th>' : '') + '<th class="izq">Tramos</th></tr></thead><tbody>';
   filas.slice(0, _bs.limite).forEach((x, i) => {
     const maxv = Math.max.apply(null, x.tr.map(t => t.venta / t.dias).concat([0.01]));
@@ -21522,8 +21551,8 @@ function _bsTabla(){
     const parte = (x.rec.u > 0 && x.rec.mias > 0) ? Math.round(x.rec.mias / x.rec.u * 100) + '%' : '–';
     h += '<tr class="bs-fila" id="bs-fila-' + x.p.i + '" onclick="bsAbrir(' + x.p.i + ')"><td class="izq" style="color:var(--muted)">' + (i + 1) + '</td><td class="izq" style="width:46px">' + img + '</td>'
       + '<td class="izq" style="max-width:320px"><div style="font-family:\'DM Sans\',sans-serif;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(x.p.n) + '</div>'
-      + '<div style="font-size:10px;color:var(--muted)">' + x.p.i + ' · ' + esc(x.p.pr || '') + (x.masivo ? '<span class="bs-tag">masivo</span>' : '') + (x.rec.repuso ? '<span class="bs-tag">repuso</span>' : '') + (x.rec.reajuste ? '<span class="bs-tag">reajuste</span>' : '') + '</div></td>'
-      + '<td>' + _bsN(x.p.p) + '</td><td>' + _bsN(x.stock) + '</td><td>' + _bsN(x.rec.u) + '</td><td>' + _bsN(x.vRec, 1) + '</td><td>' + (x.vAnt == null ? '–' : _bsN(x.vAnt, 1)) + '</td>'
+      + '<div style="font-size:10px;color:var(--muted)">' + x.p.i + ' · ' + esc(x.p.pr || '') + (x.masivo ? '<span class="bs-tag">masivo</span>' : '') + (x.rec.repuso ? '<span class="bs-tag">repuso</span>' : '') + ((x.rec.u > 0 && x.rec.res / x.rec.u >= 0.5) ? '<span class="bs-tag" data-tip="' + esc('La mayor parte de lo vendido salió de stock reservado para un vendedor') + '">reservado</span>' : '') + (x.rec.reajuste ? '<span class="bs-tag">reajuste</span>' : '') + '</div></td>'
+      + '<td>' + _bsN(x.p.p) + '</td><td' + (x.reservado ? ' data-tip="' + esc('Total ' + _bsN(x.stockTotal) + ' · reservado para otros ' + _bsN(x.reservado)) + '"' : '') + '>' + _bsN(x.stock) + '</td><td>' + _bsN(x.rec.u) + '</td><td>' + _bsN(x.vRec, 1) + '</td><td>' + (x.vAnt == null ? '–' : _bsN(x.vAnt, 1)) + '</td>'
       + '<td>' + (x.acel == null ? '–' : '×' + _bsN(x.acel, 1)) + '</td><td>' + (x.rec.mias ? _bsN(x.rec.mias) : '–') + '</td>' + (mias ? '<td>' + parte + '</td>' : '') + '<td class="izq">' + spark + '</td></tr>';
     if (_bs.abierto === x.p.i) h += '<tr><td colspan="' + (mias ? 12 : 11) + '" style="background:var(--surface2)">' + _bsDetalle(x) + '</td></tr>';
   });
