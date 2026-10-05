@@ -21310,7 +21310,11 @@ function _bsEnVentana(tr, desde, hasta){
     const ov = Math.min(t.b, hasta) - Math.max(t.a, desde);
     if (ov <= 0) return;
     const frac = ov / (t.b - t.a);
-    u += t.venta * frac; mias += t.mias * frac; dias += ov / BS_DIA; n++;
+    // Un tramo en que repuso stock o hubo reajuste no es "cero ventas": no se
+    // sabe cuanto vendio, asi que no suma dias. Contarlo como cero hacia
+    // aparecer acelerando x138 a lo que venia de una reposicion.
+    u += t.venta * frac; mias += t.mias * frac; n++;
+    if (!t.repuso && !t.reajuste) dias += ov / BS_DIA;
     if (t.reajuste) reajuste = true;
     if (t.repuso) repuso = true;
     if (!t.venta) todos = false;
