@@ -3068,6 +3068,15 @@
     <style>
       #section-benstocky{--bs-serie:#2B5FB3;--bs-mia:#B7791F}
       html[data-theme="dark"] #section-benstocky{--bs-serie:#7FB0F0;--bs-mia:#E5B84D}
+      /* Ocho colores para el grafico de lineas. Orden fijo, validado contra
+         los dos fondos; el 9 y el 10 repiten el 1 y el 2 con linea punteada. */
+      #section-benstocky{--bs-c1:#2a78d6;--bs-c2:#eb6834;--bs-c3:#1baf7a;--bs-c4:#eda100;--bs-c5:#e87ba4;--bs-c6:#008300;--bs-c7:#4a3aa7;--bs-c8:#e34948}
+      html[data-theme="dark"] #section-benstocky{--bs-c1:#3987e5;--bs-c2:#d95926;--bs-c3:#199e70;--bs-c4:#c98500;--bs-c5:#d55181;--bs-c6:#008300;--bs-c7:#9085e9;--bs-c8:#e66767}
+      .bs-ley{display:inline-flex;align-items:center;gap:6px;background:transparent;border:1px solid var(--border);border-radius:14px;padding:3px 9px;margin:3px 4px 0 0;font-size:10px;font-family:'DM Mono',monospace;color:var(--text);cursor:pointer;max-width:230px}
+      .bs-ley span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .bs-ley.off{opacity:.4;text-decoration:line-through}
+      .bs-btn{background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 11px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer}
+      .bs-btn:disabled{opacity:.4;cursor:default}
       .bs-mono{font-family:'DM Mono',monospace}
       .bs-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px}
       .bs-tile{flex:1;min-width:150px}
@@ -3156,6 +3165,20 @@
         </div>
       </div>
       <div id="bs-aviso" class="bs-mono" style="font-size:11px;color:var(--muted);line-height:1.6;margin-bottom:8px"></div>
+      <div class="bs-card" style="margin-bottom:10px">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px">
+          <div id="bs-top-titulo" style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:14px;color:var(--text);flex:1;min-width:200px"></div>
+          <button class="bs-btn" id="bs-top-prev" onclick="bsTopPag(-1)">‹ Anteriores</button>
+          <button class="bs-btn" id="bs-top-next" onclick="bsTopPag(1)">Siguientes ›</button>
+          <button class="bs-btn" id="bs-top-todas" onclick="bsTopTodas()">Ocultar todas</button>
+        </div>
+        <div id="bs-g-top"></div>
+        <div id="bs-top-ley" style="margin-top:6px"></div>
+      </div>
+      <div class="bs-card" style="margin-bottom:10px">
+        <div id="bs-acel-titulo" class="bs-mono" style="font-size:11px;color:var(--muted);margin-bottom:8px"></div>
+        <div id="bs-g-acel"></div>
+      </div>
       <div class="bs-card" style="padding:0;overflow-x:auto"><div id="bs-lista"></div></div>
       <div id="bs-mas" style="text-align:center;margin:12px 0"></div>
     </div>
@@ -21201,7 +21224,7 @@ const BS_CDN = { cl: 'https://d39ru7awumhhs2.cloudfront.net/', gt: 'https://d2ob
 const BS_DROPI = { cl: 'https://app.dropi.cl', gt: 'https://app.dropi.gt' };
 // Mismos umbrales que analizar.mjs.
 const BS_MIN_VENTA = 3, BS_MIN_ACEL = 1.5;
-let _bs = { pais: 'cl', vista: 'acel', ventana: 3, datos: {}, limite: 50, abierto: null, filas: [] };
+let _bs = { pais: 'cl', vista: 'acel', ventana: 3, datos: {}, limite: 50, abierto: null, filas: [], topPag: 0, ocultas: new Set() };
 
 const _bsN = (x, d) => (x == null || isNaN(x)) ? '–' : Number(x).toLocaleString('es-CL', { maximumFractionDigits: d == null ? 0 : d, minimumFractionDigits: d == null ? 0 : d });
 const _bsFecha = (t) => new Date(t).toLocaleDateString('es-CL', { day: '2-digit', month: 'short' });
@@ -21233,10 +21256,11 @@ function _bsMarcar(){
   });
 }
 
-function bsSetPais(p){ _bs.pais = p; _bs.abierto = null; _bs.limite = 50; _bsMarcar(); bsCargar(false); }
-function bsSetVista(v){ _bs.vista = v; _bs.abierto = null; _bs.limite = 50; _bsMarcar(); bsRender(); }
-function bsSetVentana(n){ _bs.ventana = n; _bs.abierto = null; _bsMarcar(); bsRender(); }
-function bsFiltrar(){ _bs.limite = 50; _bs.abierto = null; bsRender(); }
+function _bsTopReset(){ _bs.topPag = 0; _bs.ocultas = new Set(); }
+function bsSetPais(p){ _bs.pais = p; _bs.abierto = null; _bs.limite = 50; _bsTopReset(); _bsMarcar(); bsCargar(false); }
+function bsSetVista(v){ _bs.vista = v; _bs.abierto = null; _bs.limite = 50; _bsTopReset(); _bsMarcar(); bsRender(); }
+function bsSetVentana(n){ _bs.ventana = n; _bs.abierto = null; _bsTopReset(); _bsMarcar(); bsRender(); }
+function bsFiltrar(){ _bs.limite = 50; _bs.abierto = null; _bsTopReset(); bsRender(); }
 function bsLimpiar(){
   ['bs-q', 'bs-pmin', 'bs-pmax'].forEach(id => { const e = document.getElementById(id); if (e) e.value = ''; });
   ['bs-cat', 'bs-prov'].forEach(id => { const e = document.getElementById(id); if (e) e.value = ''; });
@@ -21265,7 +21289,7 @@ async function bsCargar(forzar){
     bsRender();
   } catch (e) {
     if (info) info.textContent = '⚠ ' + (e.message || 'No se pudo cargar');
-    ['bs-tiles', 'bs-lista', 'bs-g-dia', 'bs-g-cat', 'bs-g-prov', 'bs-aviso', 'bs-mas'].forEach(id => { const el = document.getElementById(id); if (el) el.innerHTML = ''; });
+    ['bs-tiles', 'bs-lista', 'bs-g-dia', 'bs-g-cat', 'bs-g-prov', 'bs-aviso', 'bs-mas', 'bs-g-top', 'bs-top-ley', 'bs-top-titulo', 'bs-g-acel', 'bs-acel-titulo'].forEach(id => { const el = document.getElementById(id); if (el) el.innerHTML = ''; });
   }
 }
 
@@ -21471,6 +21495,131 @@ function _bsTabla(){
     ? '<button onclick="bsMas()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px 16px;font-size:11px;font-family:\'DM Mono\',monospace;cursor:pointer">Ver 50 más (' + (filas.length - _bs.limite) + ' restantes)</button>' : '';
 }
 
+// ── Top 10 en lineas ─────────────────────────────────────────────────────────
+// Los diez primeros de la vista actual (ya filtrada), una linea por producto:
+// unidades por dia en cada tramo entre fotos. El color lo da la posicion en la
+// pagina y no cambia al ocultar otros. Un tramo con reposicion o reajuste no
+// se dibuja como cero: corta la linea, porque ahi no se sabe cuanto vendio.
+// Las lineas van rectas a proposito: suavizarlas dibuja subidas que no pasaron.
+function bsTopPag(d){ _bs.topPag = Math.max(0, _bs.topPag + d); _bs.ocultas = new Set(); _bsTop(); }
+function bsTopToggle(id){ if (_bs.ocultas.has(id)) _bs.ocultas.delete(id); else _bs.ocultas.add(id); _bsTop(); }
+function bsTopTodas(){
+  const lista = _bs.filas.slice(_bs.topPag * 10, _bs.topPag * 10 + 10);
+  _bs.ocultas = (_bs.ocultas.size >= lista.length) ? new Set() : new Set(lista.map(x => x.p.i));
+  _bsTop();
+}
+
+function _bsTop(){
+  const el = document.getElementById('bs-g-top'); if (!el) return;
+  const d = _bs.datos[_bs.pais]; if (!d) return;
+  const T = d.meta.T;
+  const maxPag = Math.max(0, Math.ceil(_bs.filas.length / 10) - 1);
+  if (_bs.topPag > maxPag) _bs.topPag = maxPag;
+  const ini = _bs.topPag * 10;
+  const lista = _bs.filas.slice(ini, ini + 10);
+  const nombreVista = { acel: 'Aceleran', top: 'Más vendidos', const: 'Constantes', mias: 'Los míos' }[_bs.vista];
+  document.getElementById('bs-top-titulo').textContent = lista.length
+    ? 'Top ' + (ini + 1) + '–' + (ini + lista.length) + ' · ' + nombreVista + ' · unidades por día' : 'Top · ' + nombreVista;
+  document.getElementById('bs-top-prev').disabled = _bs.topPag === 0;
+  document.getElementById('bs-top-next').disabled = _bs.topPag >= maxPag;
+  const btnTodas = document.getElementById('bs-top-todas');
+  btnTodas.textContent = (lista.length && _bs.ocultas.size >= lista.length) ? 'Mostrar todas' : 'Ocultar todas';
+  btnTodas.disabled = !lista.length;
+
+  const ley = document.getElementById('bs-top-ley');
+  if (!lista.length || T.length < 2) {
+    el.innerHTML = '<div class="bs-mono" style="font-size:11px;color:var(--muted);padding:18px 0">' + (T.length < 2 ? 'Hacen falta dos fotos para dibujar.' : 'Nada que mostrar en esta vista.') + '</div>';
+    ley.innerHTML = ''; _bsAcelBars([]); return;
+  }
+
+  const series = lista.map((x, i) => {
+    const segs = []; let seg = [];
+    x.tr.forEach(t => {
+      if (t.reajuste || t.repuso) { if (seg.length) segs.push(seg); seg = []; return; }
+      seg.push({ t: t.b, v: t.venta / t.dias, tr: t });
+    });
+    if (seg.length) segs.push(seg);
+    return { x, i, id: x.p.i, color: 'var(--bs-c' + (i % 8 + 1) + ')', dash: i >= 8, segs, oculta: _bs.ocultas.has(x.p.i) };
+  });
+  const visibles = series.filter(s => !s.oculta);
+
+  const W = 1000, H = 300, pl = 44, pr = 14, pt = 12, pb = 26;
+  const t0 = T[1], t1 = T[T.length - 1];
+  const xDe = (t) => t1 === t0 ? (pl + (W - pl - pr) / 2) : pl + (W - pl - pr) * (t - t0) / (t1 - t0);
+  let max = 0;
+  visibles.forEach(s => s.segs.forEach(g => g.forEach(p => { if (p.v > max) max = p.v; })));
+  // Tope redondo: 1, 2 o 5 por una potencia de 10.
+  const paso = (() => { const b = Math.pow(10, Math.floor(Math.log10(Math.max(max, 1) / 4))); const r = Math.max(max, 1) / 4 / b; return (r <= 1 ? 1 : r <= 2 ? 2 : r <= 5 ? 5 : 10) * b; })();
+  const tope = Math.max(paso, Math.ceil(max / paso) * paso);
+  const yDe = (v) => pt + (H - pt - pb) * (1 - v / tope);
+  const corto = (s, n) => { s = String(s || ''); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
+
+  let s = '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:auto;display:block" role="img" aria-label="Unidades por día de los productos del top">';
+  for (let v = 0; v <= tope + 1e-9; v += paso) {
+    const yy = yDe(v);
+    s += '<line x1="' + pl + '" x2="' + (W - pr) + '" y1="' + yy + '" y2="' + yy + '" stroke="var(--border)" stroke-width="1"/>'
+       + '<text x="' + (pl - 6) + '" y="' + (yy + 3) + '" text-anchor="end" font-size="10" font-family="DM Mono,monospace" fill="var(--muted)">' + _bsN(v) + '</text>';
+  }
+  const cada = Math.ceil((T.length - 1) / 12);
+  for (let i = 1; i < T.length; i++) {
+    if ((i - 1) % cada === 0 || i === T.length - 1) s += '<text x="' + xDe(T[i]) + '" y="' + (H - 8) + '" text-anchor="middle" font-size="10" font-family="DM Mono,monospace" fill="var(--muted)">' + esc(_bsFecha(T[i])) + '</text>';
+  }
+
+  // Una franja por foto: al pasar el mouse lista todas las series en esa fecha.
+  for (let i = 1; i < T.length; i++) {
+    const x = xDe(T[i]);
+    const izq = i > 1 ? (xDe(T[i - 1]) + x) / 2 : pl, der = i < T.length - 1 ? (x + xDe(T[i + 1])) / 2 : W - pr;
+    const filasTip = [];
+    visibles.forEach(sr => sr.segs.forEach(g => g.forEach(p => { if (p.t === T[i]) filasTip.push([p.v, '#' + (ini + sr.i + 1) + ' ' + corto(sr.x.p.n, 26)]); })));
+    filasTip.sort((a, b) => b[0] - a[0]);
+    const tip = _bsFecha(T[i - 1]) + ' → ' + _bsFecha(T[i]) + (filasTip.length ? '\n' + filasTip.map(f => _bsN(f[0], 1) + ' · ' + f[1]).join('\n') : '\nSin datos medibles');
+    s += '<rect x="' + izq + '" y="' + pt + '" width="' + Math.max(1, der - izq) + '" height="' + (H - pt - pb) + '" fill="transparent" data-tip="' + esc(tip) + '"/>';
+  }
+
+  visibles.forEach(sr => {
+    sr.segs.forEach(g => {
+      if (g.length > 1) s += '<path d="' + g.map((p, k) => (k ? 'L' : 'M') + xDe(p.t).toFixed(1) + ' ' + yDe(p.v).toFixed(1)).join(' ') + '" fill="none" stroke="' + sr.color + '" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"' + (sr.dash ? ' stroke-dasharray="6 4"' : '') + ' pointer-events="none"/>';
+    });
+  });
+  visibles.forEach(sr => {
+    sr.segs.forEach(g => g.forEach(p => {
+      const tip = '#' + (ini + sr.i + 1) + ' ' + sr.x.p.n + '\n' + _bsFecha(p.tr.a) + ' → ' + _bsFecha(p.tr.b) + '\n' + _bsN(p.v, 1) + ' por día (' + _bsN(p.tr.venta) + ' en ' + _bsN(p.tr.dias, 1) + ' días)';
+      s += '<circle cx="' + xDe(p.t).toFixed(1) + '" cy="' + yDe(p.v).toFixed(1) + '" r="4" fill="' + sr.color + '" stroke="var(--surface)" stroke-width="2" data-tip="' + esc(tip) + '"/>';
+    }));
+  });
+  el.innerHTML = s + '</svg>';
+
+  ley.innerHTML = series.map(sr =>
+    '<button type="button" class="bs-ley' + (sr.oculta ? ' off' : '') + '" onclick="bsTopToggle(' + sr.id + ')" data-tip="' + esc(sr.x.p.n + '\nID ' + sr.id + ' · ' + (sr.x.p.pr || '')) + '">'
+    + '<svg width="18" height="8" style="flex:none"><line x1="1" x2="17" y1="4" y2="4" stroke="' + sr.color + '" stroke-width="3" stroke-linecap="round"' + (sr.dash ? ' stroke-dasharray="4 3"' : '') + '/></svg>'
+    + '<span>#' + (ini + sr.i + 1) + ' ' + esc(corto(sr.x.p.n, 30)) + '</span></button>').join('');
+
+  _bsAcelBars(series);
+}
+
+// "Valor de crecimiento": cuanto mas vende cada uno del top frente a la
+// ventana anterior. Si todavia no hay historia para comparar, muestra las
+// unidades por dia y lo dice.
+function _bsAcelBars(series){
+  const el = document.getElementById('bs-g-acel'), tit = document.getElementById('bs-acel-titulo');
+  if (!el) return;
+  if (!series.length) { el.innerHTML = ''; tit.textContent = ''; return; }
+  const conAcel = series.some(s => s.x.acel != null);
+  tit.textContent = conAcel
+    ? 'Crecimiento del top: venta por día de la ventana frente a la ventana anterior'
+    : 'Unidades por día del top (todavía sin ventana anterior para comparar)';
+  const val = (s) => conAcel ? (s.x.acel == null ? 0 : s.x.acel) : s.x.vRec;
+  const max = Math.max.apply(null, series.map(val)) || 1;
+  el.innerHTML = series.map(s => {
+    const v = val(s);
+    const txt = conAcel ? (s.x.acel == null ? '–' : '×' + _bsN(v, 1)) : _bsN(v, 1);
+    const tip = s.x.p.n + '\nAhora ' + _bsN(s.x.vRec, 1) + ' por día' + (s.x.vAnt == null ? '' : '\nAntes ' + _bsN(s.x.vAnt, 1) + ' por día');
+    return '<div class="bs-hbar" style="grid-template-columns:minmax(90px,30%) 1fr 58px;' + (s.oculta ? 'opacity:.4' : '') + '" data-tip="' + esc(tip) + '">'
+      + '<span style="color:var(--text)">#' + (_bs.topPag * 10 + s.i + 1) + ' ' + esc(s.x.p.n) + '</span>'
+      + '<div><i style="width:' + Math.max(1, v / max * 100) + '%;background:' + s.color + '"></i></div><span>' + txt + '</span></div>';
+  }).join('');
+}
+
 function bsRender(){
   const d = _bs.datos[_bs.pais]; if (!d) return;
   const meta = d.meta, T = meta.T, fin = T[T.length - 1];
@@ -21530,6 +21679,7 @@ function bsRender(){
     aviso = 'Mis ventas de Shopify al lado de lo que bajó el stock en Dropi. "Mi parte" es cuánto de ese movimiento soy yo. Si es más de 100%, Dropi todavía no descontó algún pedido.';
   }
   _bs.filas = filas;
+  _bsTop();
   document.getElementById('bs-aviso').textContent = aviso + ' · ' + filas.length + ' producto' + (filas.length === 1 ? '' : 's') + '.';
   _bsTabla();
 }
