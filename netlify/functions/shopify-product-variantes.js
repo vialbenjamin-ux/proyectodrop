@@ -20,6 +20,8 @@
 //   dry_run?
 // }
 
+const { pedirProductoDropi, construirMetafield } = require('./_dropi-metafield');
+
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: cors(), body: '' };
   if (event.httpMethod !== 'POST') return respond(405, { error: 'Método no permitido' });
@@ -81,11 +83,20 @@ exports.handler = async (event) => {
     const parent = String(meta.id != null ? meta.id : (vActual.barcode || '')).split('-')[0];
     if (!/^\d+$/.test(parent)) return respond(400, { error: 'No pude determinar el id del producto en Dropi' });
 
+    // El producto tal como lo tiene Dropi: de ahi salen el SKU de cada
+    // variacion y el metafield completo. Si Dropi no contesta se sigue con el
+    // armado minimo de siempre (y despues hay que correr dropi-completar-metafield).
+    const enDropi = await pedirProductoDropi(isGT, parent);
+    const productoDropi = (enDropi && !enDropi.bloqueado) ? enDropi : null;
+    const skuDropi = new Map(((productoDropi && productoDropi.variations) || [])
+      .filter((v) => v.sku).map((v) => [String(v.id), String(v.sku)]));
+
     const precioBase = vActual.price;
     const nuevasVariantes = variaciones.map((v, i) => ({
       option1: String(v.nombre).trim(),
       price: (v.precio != null && String(v.precio) !== '') ? String(v.precio) : String(precioBase),
-      sku: String(product.title || '').slice(0, 60) + '-' + String(v.nombre).trim().toLowerCase(),
+      sku: skuDropi.get(String(v.variation_id))
+        || (String(product.title || '').slice(0, 60) + '-' + String(v.nombre).trim().toLowerCase()),
       barcode: parent + '-' + String(v.variation_id),
       // Dropi despacha: Shopify no debe frenar la venta por stock propio.
       inventory_management: null,
@@ -118,7 +129,14 @@ exports.handler = async (event) => {
     const actualizado = (await uR.json()).product;
 
     // 3. Metafield: pasa a VARIABLE con sus variaciones, como los que funcionan.
-    const metaNuevo = Object.assign({}, meta, {
+    // Con el objeto de Dropi en la mano el metafield queda como el que escribe
+    // su app (variaciones completas, attributes, chose_variations). El armado
+    // minimo de abajo no sincronizaba: la camara 173462 reboto 15 de 15.
+    const idsElegidos = variaciones.map((v) => String(v.variation_id));
+    const metaNuevo = productoDropi ? Object.assign(construirMetafield(productoDropi, {
+      tokens: meta.tokens, shop_name: meta.shop_name,
+      variationstoimport: idsElegidos, chose_variations: idsElegidos,
+    }, {}), { type: 'VARIABLE' }) : Object.assign({}, meta, {
       type: 'VARIABLE',
       variations: variaciones.map((v) => ({
         id: Number(v.variation_id),

@@ -143,9 +143,15 @@ async function repararUno(API, H, isGT, productId, dryRun, minimo) {
   const avisos = [];
   if (!nuevo.tokens) avisos.push('el producto no tenia tokens: Dropi no va a poder despachar hasta que se le copien de otro producto');
 
+  // En un VARIABLE la app de Dropi deja en cada variante de Shopify el SKU de
+  // la variacion de Dropi. Las que arma BKDROP llevan un SKU inventado con el
+  // titulo: se alinean, usando el barcode <producto>-<variacion> para saber
+  // cual es cual.
+  const skus = await planDeSkus(API, H, productId, dropiId, nuevo);
+
   if (dryRun) {
     return { productId, dropiId, campoAntes, campoDespues, reparado: false, dryRun: true,
-      nuevosCampos: Object.keys(nuevo).filter((k) => !previo || !(k in previo)), avisos };
+      nuevosCampos: Object.keys(nuevo).filter((k) => !previo || !(k in previo)), skus, avisos };
   }
 
   const cuerpo = { metafield: { namespace: 'dropi', key: '_dropi_product', value: JSON.stringify(nuevo), type: 'json' } };
@@ -158,8 +164,34 @@ async function repararUno(API, H, isGT, productId, dryRun, minimo) {
   }
   if (!wR.ok) return { productId, dropiId, campoAntes, error: 'no pude escribir el metafield: ' + (await wR.text()).slice(0, 200) };
 
+  for (const s of skus) {
+    const sR = await fetch(API + '/variants/' + s.variantId + '.json', {
+      method: 'PUT', headers: H, body: JSON.stringify({ variant: { id: Number(s.variantId), sku: s.despues } }),
+    });
+    s.aplicado = sR.ok;
+    if (!sR.ok) avisos.push('no pude cambiar el SKU de la variante ' + s.variantId + ': ' + sR.status);
+  }
+
   return { productId, dropiId, campoAntes, campoDespues, reparado: true,
-    nuevosCampos: Object.keys(nuevo).filter((k) => !previo || !(k in previo)), avisos };
+    nuevosCampos: Object.keys(nuevo).filter((k) => !previo || !(k in previo)), skus, avisos };
+}
+
+// Que variantes de Shopify tienen un SKU distinto al de su variacion en Dropi.
+// Solo para productos VARIABLE; en un simple devuelve [].
+async function planDeSkus(API, H, productId, dropiId, meta) {
+  if (String(meta.type || '').toUpperCase() !== 'VARIABLE') return [];
+  const skuDropi = new Map((meta.variations || []).filter((v) => v.sku).map((v) => [String(v.id), String(v.sku)]));
+  if (!skuDropi.size) return [];
+  const pR = await fetch(API + '/products/' + encodeURIComponent(productId) + '.json?fields=id,variants', { headers: H });
+  if (!pR.ok) return [];
+  const plan = [];
+  for (const v of (((await pR.json()).product || {}).variants || [])) {
+    const m = String(v.barcode || '').trim().match(/^(\d+)-(\d+)$/);
+    if (!m || m[1] !== String(dropiId)) continue;
+    const esperado = skuDropi.get(m[2]);
+    if (esperado && esperado !== v.sku) plan.push({ variantId: String(v.id), variante: v.title, antes: v.sku, despues: esperado });
+  }
+  return plan;
 }
 
 // Los productos cuyo metafield tiene menos de `minimo` campos. Se recorre con

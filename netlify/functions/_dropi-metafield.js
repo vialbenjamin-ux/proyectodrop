@@ -70,6 +70,49 @@ function galeriaDe(producto) {
   return out;
 }
 
+// Deja la parte de variantes como la escribe la app de Dropi al importar.
+//
+// Los productos VARIABLE armados desde BKDROP no sincronizaban ni uno: la
+// camara 173462 reboto 15 de 15 pedidos con "Esta orden no tiene productos
+// dropi", igual que el triciclo 46226, aunque el resto del metafield era el
+// mismo que el de productos simples que si pasan. Comparado contra uno
+// importado por la app (Cubre Colchon 28879), diferian tres cosas, y aca se
+// igualan las tres porque no hay forma de probar cual es la que mira Dropi:
+//   attributes        -> la lista de atributos del producto. La API v2 no la
+//                        manda suelta, pero viene anidada en cada variacion.
+//   attribute_values  -> la app guarda `attribute_name` al lado del valor.
+//   chose_variations  -> [{ "54040": null }], no ["54040"].
+function formaDeLaAppDropi(meta) {
+  const atributos = new Map();
+  for (const v of (meta.variations || [])) {
+    for (const av of (v.attribute_values || [])) {
+      const attr = av.attribute || {};
+      const attrId = av.attribute_id != null ? av.attribute_id : attr.id;
+      if (av.attribute_name == null && attr.description != null) av.attribute_name = attr.description;
+      if (attrId == null) continue;
+      if (!atributos.has(attrId)) {
+        atributos.set(attrId, {
+          id: attrId,
+          description: av.attribute_name != null ? av.attribute_name : null,
+          product_id: attr.product_id != null ? attr.product_id : meta.id,
+          isVariation: attr.isVariation != null ? attr.isVariation : true,
+          deleted_at: null,
+          values: [],
+        });
+      }
+      const valores = atributos.get(attrId).values;
+      if (av.id != null && !valores.some((x) => x.id === av.id)) {
+        valores.push({ id: av.id, value: av.value, attribute_id: attrId,
+          attribute_name: av.attribute_name != null ? av.attribute_name : null, deleted_at: null });
+      }
+    }
+  }
+  if (!(meta.attributes && meta.attributes.length) && atributos.size) meta.attributes = [...atributos.values()];
+
+  meta.chose_variations = (meta.chose_variations || []).map((x) =>
+    (x && typeof x === 'object') ? x : { [String(x)]: null });
+}
+
 // El metafield final. `previo` es el metafield que ya tiene el producto: de ahi
 // salen tokens y shop_name, y se respeta la eleccion de variaciones que haya
 // hecho alguien a mano (variationstoimport / chose_variations).
@@ -90,10 +133,11 @@ function construirMetafield(producto, previo, extra) {
   // toman todas las que Dropi declara.
   if (String(meta.type || '').toUpperCase() === 'VARIABLE') {
     const ids = (meta.variations || []).map((v) => String(v.id)).filter(Boolean);
-    meta.variationstoimport = (p.variationstoimport && p.variationstoimport.length)
-      ? p.variationstoimport : ids;
+    meta.variationstoimport = ((p.variationstoimport && p.variationstoimport.length)
+      ? p.variationstoimport : ids).map((x) => String(x));
     meta.chose_variations = (p.chose_variations && p.chose_variations.length)
       ? p.chose_variations : ids;
+    formaDeLaAppDropi(meta);
   }
 
   // Nunca dejar el metafield sin la cuenta: sin tokens el pedido no se despacha.
