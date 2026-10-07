@@ -3158,7 +3158,7 @@
       </div>
 
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:10px;margin-bottom:14px">
-        <div class="bs-card"><div class="bs-mono" style="font-size:11px;color:var(--muted);margin-bottom:8px">Unidades por día, entre fotos</div><div id="bs-g-dia"></div></div>
+        <div class="bs-card"><div class="bs-mono" style="font-size:11px;color:var(--muted);margin-bottom:8px">Unidades por día</div><div id="bs-g-dia"></div></div>
         <div class="bs-card"><div class="bs-mono" style="font-size:11px;color:var(--muted);margin-bottom:8px">Unidades por categoría (ventana)</div><div id="bs-g-cat"></div></div>
         <div class="bs-card"><div class="bs-mono" style="font-size:11px;color:var(--muted);margin-bottom:8px">Unidades por proveedor (ventana)</div><div id="bs-g-prov"></div></div>
       </div>
@@ -21405,9 +21405,37 @@ function _bsEnVentana(tr, desde, hasta){
   return { u: Math.max(0, u), dias, mias, res: Math.min(res, Math.max(0, u)), cancel, reajuste, repuso, n, todos, med, con, mayor };
 }
 
+// Dias calendario (hora local) que cubren las fotos. Los graficos van por DIA
+// y no por foto: con varias fotos el mismo dia, una barra por foto repetia la
+// fecha ("07-oct" dos veces) y no se podian comparar entre si.
+function _bsDiasCal(T){
+  const dias = [];
+  const ini = new Date(T[0]); ini.setHours(0, 0, 0, 0);
+  for (let a = ini.getTime(); a < T[T.length - 1]; ) {
+    const sig = new Date(a); sig.setDate(sig.getDate() + 1);
+    dias.push({ a, b: sig.getTime(), k: _bsFecha(a) });
+    a = sig.getTime();
+  }
+  return dias;
+}
+
+// Lo de un producto en cada dia calendario. `cob` es la parte del dia que de
+// verdad quedo medida; con menos de 4 horas el dia no se dibuja (un par de
+// unidades en una hora se leeria como decenas por dia). `v` es el ritmo del
+// dia: lo vendido llevado a 24 horas, para que un dia a medias sea comparable.
+function _bsPorDia(tr, dias){
+  return dias.map(dd => {
+    const q = _bsEnVentana(tr, dd.a, dd.b);
+    const medible = q.dias >= 4 / 24;
+    return { a: dd.a, b: dd.b, k: dd.k, u: q.u, cob: q.dias, medible, v: medible ? q.u / q.dias : 0,
+      cancel: q.cancel, res: q.res, mias: q.mias, repuso: q.repuso, reajuste: q.reajuste };
+  });
+}
+
 function _bsCalcular(){
   const d = _bs.datos[_bs.pais];
   const T = d.meta.T, fin = T[T.length - 1], N = _bs.ventana * BS_DIA;
+  if (!d.dias) d.dias = _bsDiasCal(T);
   const out = d.prods.map(p => {
     const tr = _bsTramos(p, T);
     const rec = _bsEnVentana(tr, fin - N, fin);
@@ -21415,8 +21443,14 @@ function _bsCalcular(){
     const vRec = rec.dias > 0 ? rec.u / rec.dias : 0;
     // Con menos de un dia medido antes de la ventana no hay con que comparar.
     const vAnt = ant.dias >= 1 ? ant.u / ant.dias : null;
+    const dia = _bsPorDia(tr, d.dias);
+    // Constancia por dias y no por fotos: en cuantos dias de la ventana vendio.
+    const dv = dia.filter(q => q.b > fin - N && q.medible);
+    rec.med = dv.length;
+    rec.con = dv.filter(q => q.u > 0).length;
+    rec.mayor = dv.reduce((a, q) => Math.max(a, q.u), 0);
     return {
-      p, tr, rec, vRec, vAnt,
+      p, tr, dia, rec, vRec, vAnt,
       acel: vAnt == null ? null : vRec / Math.max(vAnt, 0.5),
       // `stock` es lo que se puede vender: el total menos lo reservado para
       // otros. El roscador 129440 mostraba 63 y eran las 63 reservadas.
@@ -21508,10 +21542,10 @@ function _bsLinea(puntos, alto){
 function _bsDetalle(x){
   const d = _bs.datos[_bs.pais], T = d.meta.T;
   const stock = [];
-  x.p.s.forEach((v, i) => { if (v != null) stock.push({ k: _bsFecha(T[i]), v }); });
-  const ventas = x.tr.map(t => ({ k: _bsFecha(t.b), v: t.venta / t.dias,
-    tip: _bsFecha(t.a) + ' → ' + _bsFecha(t.b) + '\n' + _bsN(t.venta) + ' unidades en ' + _bsN(t.dias, 1) + ' días\n' + _bsN(t.venta / t.dias, 1) + ' por día'
-      + (t.mias ? '\nMías: ' + _bsN(t.mias) : '') + (t.reajuste ? '\nReajuste de inventario: no cuenta' : '') + (t.repuso ? '\nRepuso stock: tramo sin medir' : '') + (t.cancel ? '\nCancelados: ' + _bsN(t.cancel) : '') + (t.res ? '\nCon stock reservado: ' + _bsN(t.res) : '') }));
+  x.p.s.forEach((v, i) => { if (v != null) stock.push({ k: _bsHora(T[i]), v }); });
+  const ventas = x.dia.filter(q => q.cob > 0).map(q => ({ k: q.k, v: q.v,
+    tip: q.k + '\n' + (q.medible ? _bsN(q.v, 1) + ' por día (' + _bsN(q.u) + ' unidades en ' + _bsN(q.cob * 24) + ' h medidas)' : 'Menos de 4 horas medidas: no se dibuja')
+      + (q.mias ? '\nMías: ' + _bsN(q.mias) : '') + (q.reajuste ? '\nHubo un reajuste de inventario' : '') + (q.repuso ? '\nRepuso stock' : '') + (q.cancel ? '\nCancelados: ' + _bsN(q.cancel) : '') + (q.res ? '\nCon stock reservado: ' + _bsN(q.res) : '') }));
   const slug = String(x.p.n || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
   const notas = [];
   if (x.tr.some(t => t.reajuste)) notas.push('Hubo un reajuste de inventario (baja de más de la mitad del stock en un tramo): ese tramo no se cuenta como venta.');
@@ -21524,7 +21558,7 @@ function _bsDetalle(x){
   return '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;padding:12px 8px;text-align:left">'
     + (foto ? '<div><a href="' + esc(foto) + '" target="_blank" rel="noopener"><img loading="lazy" src="' + esc(foto) + '" alt="" style="display:block;width:100%;max-width:240px;aspect-ratio:1;object-fit:cover;border-radius:10px;background:var(--surface)" onerror="this.parentNode.parentNode.remove()"></a></div>' : '')
     + '<div><div class="bs-mono" style="font-size:10px;color:var(--muted);margin-bottom:6px">Stock en cada foto</div>' + (_bsLinea(stock) || '<div class="bs-mono" style="font-size:11px;color:var(--muted)">Una sola foto</div>') + '</div>'
-    + '<div><div class="bs-mono" style="font-size:10px;color:var(--muted);margin-bottom:6px">Unidades por día en cada tramo</div>' + _bsBarras(ventas) + '</div>'
+    + '<div><div class="bs-mono" style="font-size:10px;color:var(--muted);margin-bottom:6px">Unidades por día</div>' + _bsBarras(ventas) + '</div>'
     + '<div class="bs-mono" style="font-size:11px;color:var(--muted);line-height:1.7">'
     +   '<div style="color:var(--text);font-weight:700;margin-bottom:4px">' + esc(x.p.n) + '</div>'
     +   'ID ' + x.p.i + ' · ' + esc(x.p.pr || 'sin proveedor') + '<br>' + esc((x.p.c || []).join(' / ')) + '<br>'
@@ -21560,15 +21594,16 @@ function _bsTabla(){
   if (!filas.length) { el.innerHTML = '<div class="bs-mono" style="padding:22px;font-size:12px;color:var(--muted);text-align:center">Nada pasa los filtros en esta vista.</div>'; document.getElementById('bs-mas').innerHTML = ''; return; }
   const mias = _bs.vista === 'mias';
   let h = '<table class="bs-tabla"><thead><tr><th class="izq">#</th><th class="izq" colspan="2">Producto</th><th>Costo</th><th>Stock<br>disp.</th>'
-    + '<th>Unidades<br>(ventana)</th><th>Por día</th><th>Por día<br>antes</th><th>Acel.</th><th>Mías</th>' + (mias ? '<th>Mi parte</th>' : '') + '<th class="izq">Tramos</th></tr></thead><tbody>';
+    + '<th>Unidades<br>(ventana)</th><th>Por día</th><th>Por día<br>antes</th><th>Acel.</th><th>Mías</th>' + (mias ? '<th>Mi parte</th>' : '') + '<th class="izq">Días</th></tr></thead><tbody>';
   filas.slice(0, _bs.limite).forEach((x, i) => {
-    const maxv = Math.max.apply(null, x.tr.map(t => t.venta / t.dias).concat([0.01]));
-    const spark = '<span style="display:inline-flex;align-items:flex-end;gap:2px;height:22px">' + x.tr.slice(-14).map(t => '<i style="display:block;width:5px;border-radius:2px 2px 0 0;background:var(--bs-serie);height:' + Math.max(1, (t.venta / t.dias) / maxv * 22) + 'px" data-tip="' + esc(_bsFecha(t.a) + ' → ' + _bsFecha(t.b) + '\n' + _bsN(t.venta / t.dias, 1) + ' por día') + '"></i>').join('') + '</span>';
+    const dd = x.dia.filter(q => q.medible).slice(-14);
+    const maxv = Math.max.apply(null, dd.map(q => q.v).concat([0.01]));
+    const spark = '<span style="display:inline-flex;align-items:flex-end;gap:2px;height:22px">' + dd.map(q => '<i style="display:block;width:5px;border-radius:2px 2px 0 0;background:var(--bs-serie);height:' + Math.max(1, q.v / maxv * 22) + 'px" data-tip="' + esc(q.k + '\n' + _bsN(q.v, 1) + ' por día') + '"></i>').join('') + '</span>';
     const img = x.p.im ? '<img loading="lazy" src="' + BS_CDN[_bs.pais] + encodeURI(x.p.im) + '" style="width:38px;height:38px;object-fit:cover;border-radius:6px;display:block;background:var(--surface2)" onerror="this.style.visibility=\'hidden\'">' : '';
     const parte = (x.rec.u > 0 && x.rec.mias > 0) ? Math.round(x.rec.mias / x.rec.u * 100) + '%' : '–';
     h += '<tr class="bs-fila" id="bs-fila-' + x.p.i + '" onclick="bsAbrir(' + x.p.i + ')"><td class="izq" style="color:var(--muted)">' + (i + 1) + '</td><td class="izq" style="width:46px">' + img + '</td>'
       + '<td class="izq" style="max-width:320px"><div style="font-family:\'DM Sans\',sans-serif;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(x.p.n) + '</div>'
-      + (_bs.vista === 'test' ? '<div style="font-size:10px;color:var(--text)">De ' + _bsN(x.vAnt, 1) + ' a ' + _bsN(x.vRec, 1) + ' por día · vendió en ' + x.rec.con + ' de ' + x.rec.med + ' tramos</div>' : '')
+      + (_bs.vista === 'test' ? '<div style="font-size:10px;color:var(--text)">De ' + _bsN(x.vAnt, 1) + ' a ' + _bsN(x.vRec, 1) + ' por día · vendió en ' + x.rec.con + ' de ' + x.rec.med + ' días</div>' : '')
       + '<div style="font-size:10px;color:var(--muted)">' + x.p.i + ' · ' + esc(x.p.pr || '') + (x.masivo ? '<span class="bs-tag">masivo</span>' : '') + (x.rec.repuso ? '<span class="bs-tag">repuso</span>' : '') + ((x.rec.u > 0 && x.rec.res / x.rec.u >= 0.5) ? '<span class="bs-tag" data-tip="' + esc('La mayor parte de lo vendido salió de stock reservado para un vendedor') + '">reservado</span>' : '') + (x.rec.reajuste ? '<span class="bs-tag">reajuste</span>' : '') + '</div></td>'
       + '<td>' + _bsN(x.p.p) + '</td><td' + (x.reservado ? ' data-tip="' + esc('Total ' + _bsN(x.stockTotal) + ' · reservado para otros ' + _bsN(x.reservado)) + '"' : '') + '>' + _bsN(x.stock) + '</td><td>' + _bsN(x.rec.u) + '</td><td>' + _bsN(x.vRec, 1) + '</td><td>' + (x.vAnt == null ? '–' : _bsN(x.vAnt, 1)) + '</td>'
       + '<td>' + (x.acel == null ? '–' : '×' + _bsN(x.acel, 1)) + '</td><td>' + (x.rec.mias ? _bsN(x.rec.mias) : '–') + '</td>' + (mias ? '<td>' + parte + '</td>' : '') + '<td class="izq">' + spark + '</td></tr>';
@@ -21627,11 +21662,12 @@ function _bsTop(){
     ley.innerHTML = ''; _bsAcelBars([]); return;
   }
 
+  const dias = d.dias || _bsDiasCal(T);
   const series = lista.map((x, i) => {
     const segs = []; let seg = [];
-    x.tr.forEach(t => {
-      if (t.reajuste || t.repuso) { if (seg.length) segs.push(seg); seg = []; return; }
-      seg.push({ t: t.b, v: t.venta / t.dias, tr: t });
+    x.dia.forEach((q, di) => {
+      if (!q.medible) { if (seg.length) segs.push(seg); seg = []; return; }
+      seg.push({ t: di, v: q.v, q });
     });
     if (seg.length) segs.push(seg);
     return { x, i, id: x.p.i, color: 'var(--bs-c' + (i % 8 + 1) + ')', dash: i >= 8, segs, oculta: _bs.ocultas.has(x.p.i) };
@@ -21639,8 +21675,8 @@ function _bsTop(){
   const visibles = series.filter(s => !s.oculta);
 
   const W = 1000, H = 300, pl = 44, pr = 14, pt = 12, pb = 26;
-  const t0 = T[1], t1 = T[T.length - 1];
-  const xDe = (t) => t1 === t0 ? (pl + (W - pl - pr) / 2) : pl + (W - pl - pr) * (t - t0) / (t1 - t0);
+  // El eje X son los dias calendario, repartidos parejo.
+  const xDe = (di) => dias.length < 2 ? (pl + (W - pl - pr) / 2) : pl + (W - pl - pr) * di / (dias.length - 1);
   let max = 0;
   visibles.forEach(s => s.segs.forEach(g => g.forEach(p => { if (p.v > max) max = p.v; })));
   // Tope redondo: 1, 2 o 5 por una potencia de 10.
@@ -21655,21 +21691,21 @@ function _bsTop(){
     s += '<line x1="' + pl + '" x2="' + (W - pr) + '" y1="' + yy + '" y2="' + yy + '" stroke="var(--border)" stroke-width="1"/>'
        + '<text x="' + (pl - 6) + '" y="' + (yy + 3) + '" text-anchor="end" font-size="10" font-family="DM Mono,monospace" fill="var(--muted)">' + _bsN(v) + '</text>';
   }
-  const cada = Math.ceil((T.length - 1) / 12);
-  for (let i = 1; i < T.length; i++) {
-    if ((i - 1) % cada === 0 || i === T.length - 1) s += '<text x="' + xDe(T[i]) + '" y="' + (H - 8) + '" text-anchor="middle" font-size="10" font-family="DM Mono,monospace" fill="var(--muted)">' + esc(_bsFecha(T[i])) + '</text>';
-  }
+  const cada = Math.ceil(dias.length / 12);
+  dias.forEach((dd, di) => {
+    if (di % cada === 0 || di === dias.length - 1) s += '<text x="' + xDe(di) + '" y="' + (H - 8) + '" text-anchor="middle" font-size="10" font-family="DM Mono,monospace" fill="var(--muted)">' + esc(dd.k) + '</text>';
+  });
 
-  // Una franja por foto: al pasar el mouse lista todas las series en esa fecha.
-  for (let i = 1; i < T.length; i++) {
-    const x = xDe(T[i]);
-    const izq = i > 1 ? (xDe(T[i - 1]) + x) / 2 : pl, der = i < T.length - 1 ? (x + xDe(T[i + 1])) / 2 : W - pr;
+  // Una franja por dia: al pasar el mouse lista todas las series de ese dia.
+  dias.forEach((dd, di) => {
+    const x = xDe(di);
+    const izq = di > 0 ? (xDe(di - 1) + x) / 2 : pl, der = di < dias.length - 1 ? (x + xDe(di + 1)) / 2 : W - pr;
     const filasTip = [];
-    visibles.forEach(sr => sr.segs.forEach(g => g.forEach(p => { if (p.t === T[i]) filasTip.push([p.v, '#' + (ini + sr.i + 1) + ' ' + corto(sr.x.p.n, 26)]); })));
+    visibles.forEach(sr => sr.segs.forEach(g => g.forEach(p => { if (p.t === di) filasTip.push([p.v, '#' + (ini + sr.i + 1) + ' ' + corto(sr.x.p.n, 26)]); })));
     filasTip.sort((a, b) => b[0] - a[0]);
-    const tip = _bsFecha(T[i - 1]) + ' → ' + _bsFecha(T[i]) + (filasTip.length ? '\n' + filasTip.map(f => _bsN(f[0], 1) + ' · ' + f[1]).join('\n') : '\nSin datos medibles');
+    const tip = dd.k + (filasTip.length ? '\n' + filasTip.map(f => _bsN(f[0], 1) + ' · ' + f[1]).join('\n') : '\nSin datos medibles');
     s += '<rect x="' + izq + '" y="' + pt + '" width="' + Math.max(1, der - izq) + '" height="' + (H - pt - pb) + '" fill="transparent" data-tip="' + esc(tip) + '"/>';
-  }
+  });
 
   visibles.forEach(sr => {
     sr.segs.forEach(g => {
@@ -21680,7 +21716,7 @@ function _bsTop(){
   });
   visibles.forEach(sr => {
     sr.segs.forEach(g => g.forEach(p => {
-      const tip = '#' + (ini + sr.i + 1) + ' ' + sr.x.p.n + '\n' + _bsFecha(p.tr.a) + ' → ' + _bsFecha(p.tr.b) + '\n' + _bsN(p.v, 1) + ' por día (' + _bsN(p.tr.venta) + ' en ' + _bsN(p.tr.dias, 1) + ' días)';
+      const tip = '#' + (ini + sr.i + 1) + ' ' + sr.x.p.n + '\n' + p.q.k + '\n' + _bsN(p.v, 1) + ' por día (' + _bsN(p.q.u) + ' unidades en ' + _bsN(p.q.cob * 24) + ' h medidas)';
       s += '<circle cx="' + xDe(p.t).toFixed(1) + '" cy="' + yDe(p.v).toFixed(1) + '" r="4" fill="' + sr.color + '" stroke="var(--surface)" stroke-width="2" style="cursor:pointer" onclick="bsIr(' + sr.id + ')" data-img="' + esc(_bsImg(sr.x.p)) + '" data-tip="' + esc(tip + '\nClic para ver su ficha') + '"/>';
     }));
   });
@@ -21741,14 +21777,17 @@ function bsRender(){
   ];
   document.getElementById('bs-tiles').innerHTML = tiles.map(t => '<div class="bs-card bs-tile"><b>' + t[0] + '</b><span>' + t[1] + '</span></div>').join('');
 
-  // Unidades por dia en cada tramo entre fotos, sobre lo filtrado.
+  // Unidades por dia calendario sobre lo filtrado: una barra por dia, aunque
+  // ese dia tenga varias fotos. `cob` es la parte del dia entre la primera y
+  // la ultima foto; un dia a medias se lleva a 24 horas para poder compararlo.
   const porTramo = [];
-  for (let i = 1; i < T.length; i++) {
+  d.dias.forEach((dd, di) => {
+    const cob = Math.max(0, Math.min(dd.b, fin) - Math.max(dd.a, T[0])) / BS_DIA;
+    if (cob < 4 / 24) return;
     let u = 0;
-    base.forEach(x => x.tr.forEach(t => { if (t.b === T[i]) u += t.venta * Math.min(1, (T[i] - T[i - 1]) / (t.b - t.a)); }));
-    const dias = Math.max(0.25, (T[i] - T[i - 1]) / BS_DIA);
-    porTramo.push({ k: _bsFecha(T[i]), v: u / dias, tip: _bsFecha(T[i - 1]) + ' → ' + _bsFecha(T[i]) + '\n' + _bsN(u) + ' unidades en ' + _bsN(dias, 1) + ' días\n' + _bsN(u / dias) + ' por día' });
-  }
+    base.forEach(x => { u += x.dia[di].u; });
+    porTramo.push({ k: dd.k, v: u / cob, tip: dd.k + '\n' + _bsN(u / cob) + ' por día' + (cob < 0.98 ? '\n(' + _bsN(u) + ' unidades en ' + _bsN(cob * 24) + ' h medidas)' : '') });
+  });
   document.getElementById('bs-g-dia').innerHTML = _bsBarras(porTramo);
 
   // Un producto con varias categorias cuenta en la primera, para no duplicar.
@@ -21776,7 +21815,7 @@ function bsRender(){
     filas = base.filter(pasa).sort((a, b) => puntos(b) - puntos(a) || b.vRec - a.vRec);
     const muyFuertes = base.filter(x => x.vRec > tope).length;
     aviso = hayAntes
-      ? 'Empiezan a venderse y todavía no están saturados: entre ' + BS_MIN_VENTA + ' y ' + _bsN(tope) + ' por día, creciendo al menos ×' + BS_MIN_ACEL + ', con venta en 2 o más tramos, 30 o más disponibles, y que no vendes tú. Fuera por vender demasiado fuerte: ' + muyFuertes + '.'
+      ? 'Empiezan a venderse y todavía no están saturados: entre ' + BS_MIN_VENTA + ' y ' + _bsN(tope) + ' por día, creciendo al menos ×' + BS_MIN_ACEL + ', con venta en 2 o más días, 30 o más disponibles, y que no vendes tú. Fuera por vender demasiado fuerte: ' + muyFuertes + '.'
       : '⚠ Todavía no hay historia para comparar con ventana de ' + _bs.ventana + ' días.';
   } else if (_bs.vista === 'acel') {
     if (hayAntes) {
@@ -21790,8 +21829,8 @@ function bsRender(){
     filas = base.filter(x => x.rec.u > 0).sort((a, b) => b.rec.u - a.rec.u);
     aviso = 'Los que más unidades movieron en los últimos ' + _bs.ventana + ' días.';
   } else if (_bs.vista === 'const') {
-    filas = base.filter(x => x.rec.n >= 3 && x.rec.todos && !x.rec.reajuste).sort((a, b) => b.vRec - a.vRec);
-    aviso = 'Vendieron en todos los tramos de la ventana (mínimo 3 tramos medidos).' + (meta.fotos.length < 4 ? ' Hacen falta al menos 4 fotos.' : '');
+    filas = base.filter(x => x.rec.med >= 3 && x.rec.con === x.rec.med && !x.rec.reajuste).sort((a, b) => b.vRec - a.vRec);
+    aviso = 'Vendieron todos los días de la ventana (mínimo 3 días medidos).';
   } else {
     filas = base.filter(x => x.miasTotal > 0).sort((a, b) => b.rec.mias - a.rec.mias);
     aviso = 'Mis ventas de Shopify al lado de lo que bajó el stock en Dropi. "Mi parte" es cuánto de ese movimiento soy yo. Si es más de 100%, Dropi todavía no descontó algún pedido.';
