@@ -262,6 +262,12 @@
   .ng-standalone{padding:10px 16px;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent}
   .ng-standalone:hover{color:var(--text)}
   .ng-standalone.active{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
+  /* Botones destacados del nav (creadores de landing, Landing Auto, BENSTOCKY).
+     Van todos del mismo porte: los creadores quedaban mas altos solo porque su
+     texto parte en dos lineas, asi que se fija el alto y el ancho minimos y el
+     resto se centra. El color de cada uno va inline. */
+  .ng-cta{padding:7px 14px;min-width:126px;min-height:50px;border-radius:10px;border-style:solid;border-width:2px;display:inline-flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;line-height:1.3;font-weight:700;letter-spacing:1px}
+  .ng-cta.active{border-bottom-color:inherit}
   @media (max-width: 780px){
     #nav .nav-group{ display:none }
   }
@@ -1455,6 +1461,68 @@
   <button id="hamburger" onclick="openMobileMenu()" aria-label="Menú">
     <span></span><span></span><span></span>
   </button>
+  <div class="nav-group" data-group="reportes">
+    <button class="tab-group-btn" onclick="toggleNavGroup('reportes', event)">
+      📊 Reportes <span class="ng-arrow">▾</span>
+    </button>
+    <div class="nav-dropdown">
+      <button class="tab-btn ng-item" data-section="reportes" onclick="switchSection('reportes')">
+        📊 Reportes
+      </button>
+      <button class="tab-btn ng-item" data-section="campanas" onclick="switchSection('campanas')">
+        🎯 Campañas Vivo
+      </button>
+    </div>
+  </div>
+
+  <button class="tab-btn ng-standalone ng-cta" data-section="prompts" onclick="irACrearLandingCH()" style="border-color:var(--accent);background:#111111;color:var(--accent);box-shadow:0 2px 6px rgba(212,165,66,.3)">
+    ✨ Creador landing CH
+  </button>
+
+  <button class="tab-btn ng-standalone ng-cta" id="nav-landing-gt" onclick="irACrearLandingGT()" style="border-color:#16A34A;background:#15803D;color:#fff;box-shadow:0 2px 6px rgba(22,163,74,.35)">
+    ✨ Creador landing GT
+  </button>
+
+  <button class="tab-btn ng-standalone" data-section="videos-prod" onclick="switchSection('videos-prod')">
+    🎞️ Videos
+  </button>
+
+  <div class="nav-group" data-group="manager">
+    <button class="tab-group-btn" onclick="toggleNavGroup('manager', event)">
+      📤 Manager <span class="ng-arrow">▾</span>
+    </button>
+    <div class="nav-dropdown">
+      <button class="tab-btn ng-item" data-section="manager" onclick="switchSection('manager')">
+        📤 Subir a Manager
+      </button>
+      <button class="tab-btn ng-item" data-section="campanias" onclick="switchSection('campanias')">
+        📆 Ads Calendar
+      </button>
+    </div>
+  </div>
+
+  <button class="tab-btn ng-standalone ng-cta" data-section="landing-auto" onclick="switchSection('landing-auto')" style="border-color:#60A5FA;background:#1D4ED8;color:#fff;box-shadow:0 0 0 3px rgba(37,99,235,.22),0 3px 10px rgba(29,78,216,.45)">
+    🛰️ Landing Auto
+  </button>
+
+  <div class="nav-group" data-group="dropitea">
+    <button class="tab-group-btn" onclick="toggleNavGroup('dropitea', event)">
+      ⚡ DROPITEA <span class="ng-arrow">▾</span>
+    </button>
+    <div class="nav-dropdown">
+      <button class="tab-btn ng-item" data-section="dropitea" onclick="switchSection('dropitea')">
+        ⚡ Dropitea
+      </button>
+      <button class="tab-btn ng-item" data-section="guatemala" onclick="switchSection('guatemala')">
+        🇬🇹 Guatemala
+      </button>
+    </div>
+  </div>
+
+  <button class="tab-btn ng-standalone ng-cta" data-section="benstocky" onclick="switchSection('benstocky')" style="border-color:#EA580C;background:#C2410C;color:#fff;box-shadow:0 2px 6px rgba(234,88,12,.35)">
+    📈 BENSTOCKY
+  </button>
+
   <div class="nav-group" data-group="operacion">
     <button class="tab-group-btn" onclick="toggleNavGroup('operacion', event)">
       📦 Operación <span class="ng-arrow">▾</span>
@@ -1477,68 +1545,6 @@
       </button>
     </div>
   </div>
-
-  <div class="nav-group" data-group="reportes">
-    <button class="tab-group-btn" onclick="toggleNavGroup('reportes', event)">
-      📊 Reportes <span class="ng-arrow">▾</span>
-    </button>
-    <div class="nav-dropdown">
-      <button class="tab-btn ng-item" data-section="reportes" onclick="switchSection('reportes')">
-        📊 Reportes
-      </button>
-      <button class="tab-btn ng-item" data-section="campanas" onclick="switchSection('campanas')">
-        🎯 Campañas Vivo
-      </button>
-    </div>
-  </div>
-
-  <button class="tab-btn ng-standalone" data-section="prompts" onclick="irACrearLandingCH()" style="border:2px solid var(--accent);background:#111111;color:var(--accent);font-weight:700;box-shadow:0 2px 6px rgba(212,165,66,.3)">
-    ✨ Creador landing CH
-  </button>
-
-  <button class="tab-btn ng-standalone" id="nav-landing-gt" onclick="irACrearLandingGT()" style="border:2px solid #16A34A;background:#15803D;color:#fff;font-weight:700;box-shadow:0 2px 6px rgba(22,163,74,.35)">
-    ✨ Creador landing GT
-  </button>
-
-  <button class="tab-btn ng-standalone" data-section="videos-prod" onclick="switchSection('videos-prod')">
-    🎞️ Videos
-  </button>
-
-  <div class="nav-group" data-group="manager">
-    <button class="tab-group-btn" onclick="toggleNavGroup('manager', event)">
-      📤 Manager <span class="ng-arrow">▾</span>
-    </button>
-    <div class="nav-dropdown">
-      <button class="tab-btn ng-item" data-section="manager" onclick="switchSection('manager')">
-        📤 Subir a Manager
-      </button>
-      <button class="tab-btn ng-item" data-section="campanias" onclick="switchSection('campanias')">
-        📆 Ads Calendar
-      </button>
-    </div>
-  </div>
-
-  <button class="tab-btn ng-standalone" data-section="landing-auto" onclick="switchSection('landing-auto')" style="border:1.5px dashed #2B5FB3;color:#2B5FB3">
-    🛰️ Landing Auto <span style="font-size:9px;opacity:.75">TEST</span>
-  </button>
-
-  <div class="nav-group" data-group="dropitea">
-    <button class="tab-group-btn" onclick="toggleNavGroup('dropitea', event)">
-      ⚡ DROPITEA <span class="ng-arrow">▾</span>
-    </button>
-    <div class="nav-dropdown">
-      <button class="tab-btn ng-item" data-section="dropitea" onclick="switchSection('dropitea')">
-        ⚡ Dropitea
-      </button>
-      <button class="tab-btn ng-item" data-section="guatemala" onclick="switchSection('guatemala')">
-        🇬🇹 Guatemala
-      </button>
-    </div>
-  </div>
-
-  <button class="tab-btn ng-standalone" data-section="benstocky" onclick="switchSection('benstocky')" style="border:2px solid #EA580C;background:#C2410C;color:#fff;font-weight:700;box-shadow:0 2px 6px rgba(234,88,12,.35)">
-    📈 BENSTOCKY
-  </button>
 
   <div style="flex:1"></div>
 
