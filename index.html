@@ -3140,6 +3140,10 @@
         <label class="bs-mono" style="font-size:11px;color:var(--text);display:flex;align-items:center;gap:6px;padding-bottom:8px;cursor:pointer">
           <input type="checkbox" id="bs-sinmasivos" onchange="bsFiltrar()"> Ocultar masivos
         </label>
+        <div id="bs-tope-caja" style="display:flex;flex-direction:column;gap:3px">
+          <label class="bs-mono" style="font-size:10px;color:var(--muted)" for="bs-tope">Tope venta/día (Para testear)</label>
+          <input class="bs-in" id="bs-tope" type="number" value="40" min="1" oninput="bsFiltrar()" style="width:84px">
+        </div>
         <button onclick="bsLimpiar()" style="background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:8px 12px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer">Limpiar</button>
       </div>
 
@@ -3151,6 +3155,7 @@
 
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
         <div class="bs-seg" id="bs-vista">
+          <button type="button" data-v="test" onclick="bsSetVista('test')">🎯 Para testear</button>
           <button type="button" data-v="acel" onclick="bsSetVista('acel')">🚀 Aceleran</button>
           <button type="button" data-v="top" onclick="bsSetVista('top')">🏆 Más vendidos</button>
           <button type="button" data-v="const" onclick="bsSetVista('const')">📏 Constantes</button>
@@ -21225,7 +21230,7 @@ const BS_CDN = { cl: 'https://d39ru7awumhhs2.cloudfront.net/', gt: 'https://d2ob
 const BS_DROPI = { cl: 'https://app.dropi.cl', gt: 'https://app.dropi.gt' };
 // Mismos umbrales que analizar.mjs.
 const BS_MIN_VENTA = 3, BS_MIN_ACEL = 1.5;
-let _bs = { pais: 'cl', vista: 'acel', ventana: 3, datos: {}, limite: 50, abierto: null, filas: [], topPag: 0, ocultas: new Set() };
+let _bs = { pais: 'cl', vista: 'test', ventana: 3, datos: {}, limite: 50, abierto: null, filas: [], topPag: 0, ocultas: new Set() };
 
 const _bsN = (x, d) => (x == null || isNaN(x)) ? '–' : Number(x).toLocaleString('es-CL', { maximumFractionDigits: d == null ? 0 : d, minimumFractionDigits: d == null ? 0 : d });
 const _bsFecha = (t) => new Date(t).toLocaleDateString('es-CL', { day: '2-digit', month: 'short' });
@@ -21370,6 +21375,7 @@ function _bsTramos(p, T){
 // Unidades y dias cubiertos de los tramos que caen dentro de [desde, hasta].
 function _bsEnVentana(tr, desde, hasta){
   let u = 0, dias = 0, mias = 0, res = 0, cancel = 0, reajuste = false, repuso = false, n = 0, todos = true;
+  let med = 0, con = 0, mayor = 0;   // tramos medidos, con venta, y el tramo mas grande
   tr.forEach(t => {
     const ov = Math.min(t.b, hasta) - Math.max(t.a, desde);
     if (ov <= 0) return;
@@ -21382,10 +21388,11 @@ function _bsEnVentana(tr, desde, hasta){
     if (t.reajuste) reajuste = true;
     if (t.repuso) repuso = true;
     if (t.neto <= 0) todos = false;
+    if (!t.repuso && !t.reajuste) { med++; if (t.neto > 0) { con++; mayor = Math.max(mayor, t.neto * frac); } }
   });
   // Mas cancelaciones que pedidos en la ventana: no es venta negativa, es cero.
   // `res` nunca puede superar lo vendido neto: las cancelaciones ya lo bajaron.
-  return { u: Math.max(0, u), dias, mias, res: Math.min(res, Math.max(0, u)), cancel, reajuste, repuso, n, todos };
+  return { u: Math.max(0, u), dias, mias, res: Math.min(res, Math.max(0, u)), cancel, reajuste, repuso, n, todos, med, con, mayor };
 }
 
 function _bsCalcular(){
@@ -21551,6 +21558,7 @@ function _bsTabla(){
     const parte = (x.rec.u > 0 && x.rec.mias > 0) ? Math.round(x.rec.mias / x.rec.u * 100) + '%' : '–';
     h += '<tr class="bs-fila" id="bs-fila-' + x.p.i + '" onclick="bsAbrir(' + x.p.i + ')"><td class="izq" style="color:var(--muted)">' + (i + 1) + '</td><td class="izq" style="width:46px">' + img + '</td>'
       + '<td class="izq" style="max-width:320px"><div style="font-family:\'DM Sans\',sans-serif;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(x.p.n) + '</div>'
+      + (_bs.vista === 'test' ? '<div style="font-size:10px;color:var(--text)">De ' + _bsN(x.vAnt, 1) + ' a ' + _bsN(x.vRec, 1) + ' por día · vendió en ' + x.rec.con + ' de ' + x.rec.med + ' tramos</div>' : '')
       + '<div style="font-size:10px;color:var(--muted)">' + x.p.i + ' · ' + esc(x.p.pr || '') + (x.masivo ? '<span class="bs-tag">masivo</span>' : '') + (x.rec.repuso ? '<span class="bs-tag">repuso</span>' : '') + ((x.rec.u > 0 && x.rec.res / x.rec.u >= 0.5) ? '<span class="bs-tag" data-tip="' + esc('La mayor parte de lo vendido salió de stock reservado para un vendedor') + '">reservado</span>' : '') + (x.rec.reajuste ? '<span class="bs-tag">reajuste</span>' : '') + '</div></td>'
       + '<td>' + _bsN(x.p.p) + '</td><td' + (x.reservado ? ' data-tip="' + esc('Total ' + _bsN(x.stockTotal) + ' · reservado para otros ' + _bsN(x.reservado)) + '"' : '') + '>' + _bsN(x.stock) + '</td><td>' + _bsN(x.rec.u) + '</td><td>' + _bsN(x.vRec, 1) + '</td><td>' + (x.vAnt == null ? '–' : _bsN(x.vAnt, 1)) + '</td>'
       + '<td>' + (x.acel == null ? '–' : '×' + _bsN(x.acel, 1)) + '</td><td>' + (x.rec.mias ? _bsN(x.rec.mias) : '–') + '</td>' + (mias ? '<td>' + parte + '</td>' : '') + '<td class="izq">' + spark + '</td></tr>';
@@ -21585,7 +21593,7 @@ function _bsTop(){
   if (_bs.topPag > maxPag) _bs.topPag = maxPag;
   const ini = _bs.topPag * 10;
   const lista = _bs.filas.slice(ini, ini + 10);
-  const nombreVista = { acel: 'Aceleran', top: 'Más vendidos', const: 'Constantes', mias: 'Los míos' }[_bs.vista];
+  const nombreVista = { test: 'Para testear', acel: 'Aceleran', top: 'Más vendidos', const: 'Constantes', mias: 'Los míos' }[_bs.vista];
   document.getElementById('bs-top-titulo').textContent = lista.length
     ? 'Top ' + (ini + 1) + '–' + (ini + lista.length) + ' · ' + nombreVista + ' · unidades por día' : 'Top · ' + nombreVista;
   // Rangos de a diez, como en Stocky: 1-10, 11-20, 21-30... hasta donde llegue la vista.
@@ -21739,7 +21747,28 @@ function bsRender(){
   _bsHBars('bs-g-prov', agrupa(x => x.p.pr), 'Sin ventas en la ventana');
 
   let filas, aviso = '';
-  if (_bs.vista === 'acel') {
+  const topeEl = document.getElementById('bs-tope-caja');
+  if (topeEl) topeEl.style.display = _bs.vista === 'test' ? 'flex' : 'none';
+  if (_bs.vista === 'test') {
+    // Ventana de oportunidad: algo que EMPIEZA a venderse y todavia no esta
+    // lleno de competencia. Se queda afuera lo que ya vende muy fuerte (tope
+    // por dia, ajustable; 40 lo fijo Benjamin el 6 oct 2026: sobre eso no
+    // vale la pena meterse), lo que
+    // vendio en un solo tramo (una compra grande no es demanda), lo que se
+    // vende con stock reservado de otro, lo propio y lo que no tiene stock
+    // para probar. Ordena por constancia y despues por cuanto crecio.
+    const tope = Math.max(1, parseFloat((document.getElementById('bs-tope') || {}).value) || 40);
+    const pasa = (x) => x.acel != null && x.vRec >= BS_MIN_VENTA && x.vRec <= tope && x.acel >= BS_MIN_ACEL
+      && !x.rec.reajuste && x.stock >= 30 && !x.miasTotal
+      && x.rec.con >= 2 && x.rec.mayor <= x.rec.u * 0.7
+      && !(x.rec.u > 0 && x.rec.res / x.rec.u >= 0.5);
+    const puntos = (x) => (x.rec.con / Math.max(1, x.rec.med)) * Math.min(x.acel, 8);
+    filas = base.filter(pasa).sort((a, b) => puntos(b) - puntos(a) || b.vRec - a.vRec);
+    const muyFuertes = base.filter(x => x.vRec > tope).length;
+    aviso = hayAntes
+      ? 'Empiezan a venderse y todavía no están saturados: entre ' + BS_MIN_VENTA + ' y ' + _bsN(tope) + ' por día, creciendo al menos ×' + BS_MIN_ACEL + ', con venta en 2 o más tramos, 30 o más disponibles, y que no vendes tú. Fuera por vender demasiado fuerte: ' + muyFuertes + '.'
+      : '⚠ Todavía no hay historia para comparar con ventana de ' + _bs.ventana + ' días.';
+  } else if (_bs.vista === 'acel') {
     if (hayAntes) {
       filas = base.filter(x => esCand(x)).sort((a, b) => (b.vRec - b.vAnt) * Math.min(b.acel, 5) - (a.vRec - a.vAnt) * Math.min(a.acel, 5));
       aviso = 'Venden ' + BS_MIN_VENTA + ' o más por día en los últimos ' + _bs.ventana + ' días, y eso es al menos ×' + BS_MIN_ACEL + ' de lo que vendían en los ' + _bs.ventana + ' días anteriores.';
