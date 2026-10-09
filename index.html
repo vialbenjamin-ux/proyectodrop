@@ -3166,6 +3166,7 @@
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
         <div class="bs-seg" id="bs-vista">
           <button type="button" data-v="test" onclick="bsSetVista('test')">🎯 Para testear</button>
+          <button type="button" data-v="brechas" onclick="bsSetVista('brechas')">🧩 Brechas</button>
           <button type="button" data-v="acel" onclick="bsSetVista('acel')">🚀 Aceleran</button>
           <button type="button" data-v="top" onclick="bsSetVista('top')">🏆 Más vendidos</button>
           <button type="button" data-v="const" onclick="bsSetVista('const')">📏 Constantes</button>
@@ -3180,7 +3181,7 @@
         </div>
       </div>
       <div id="bs-aviso" class="bs-mono" style="font-size:11px;color:var(--muted);line-height:1.6;margin-bottom:8px"></div>
-      <div class="bs-card" style="margin-bottom:10px">
+      <div class="bs-card" id="bs-top-caja" style="margin-bottom:10px">
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px">
           <div id="bs-top-titulo" style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:14px;color:var(--text);flex:1;min-width:200px"></div>
           <select class="bs-in" id="bs-top-rango" onchange="bsTopRango(this.value)" aria-label="Rango del top"></select>
@@ -3191,7 +3192,7 @@
         <div id="bs-g-top"></div>
         <div id="bs-top-ley" style="margin-top:6px"></div>
       </div>
-      <div class="bs-card" style="margin-bottom:10px">
+      <div class="bs-card" id="bs-acel-caja" style="margin-bottom:10px">
         <div id="bs-acel-titulo" class="bs-mono" style="font-size:11px;color:var(--muted);margin-bottom:8px"></div>
         <div id="bs-g-acel"></div>
       </div>
@@ -21240,7 +21241,7 @@ const BS_CDN = { cl: 'https://d39ru7awumhhs2.cloudfront.net/', gt: 'https://d2ob
 const BS_DROPI = { cl: 'https://app.dropi.cl', gt: 'https://app.dropi.gt' };
 // Mismos umbrales que analizar.mjs.
 const BS_MIN_VENTA = 3, BS_MIN_ACEL = 1.5;
-let _bs = { pais: 'cl', vista: 'test', ventana: 3, datos: {}, limite: 50, abierto: null, filas: [], topPag: 0, ocultas: new Set() };
+let _bs = { pais: 'cl', vista: 'test', ventana: 3, datos: {}, limite: 50, abierto: null, filas: [], topPag: 0, ocultas: new Set(), brechasAbiertas: new Set() };
 
 const _bsN = (x, d) => (x == null || isNaN(x)) ? '–' : Number(x).toLocaleString('es-CL', { maximumFractionDigits: d == null ? 0 : d, minimumFractionDigits: d == null ? 0 : d });
 const _bsFecha = (t) => new Date(t).toLocaleDateString('es-CL', { day: '2-digit', month: 'short' });
@@ -21318,7 +21319,12 @@ async function bsCargar(forzar){
     const prods = [];
     partes.forEach(p => { if (p.exists) JSON.parse(p.data().json).forEach(x => prods.push(x)); });
     meta.T = meta.fotos.map(f => new Date(f.t).getTime());
-    _bs.datos[pais] = { meta, prods };
+    // Alternativas: productos que resuelven lo mismo que algo que se vende y
+    // que nunca se movieron. Solo las usa la vista Brechas.
+    const partesAlt = await Promise.all(Array.from({ length: meta.trozosAlt || 0 }, (_, i) => col.doc(pais + '-alt-' + i).get()));
+    const alt = [];
+    partesAlt.forEach(p => { if (p.exists) JSON.parse(p.data().json).forEach(x => alt.push(x)); });
+    _bs.datos[pais] = { meta, prods, alt };
     if (pais !== _bs.pais) return;   // cambio de pais mientras cargaba
     _bsLlenarFiltros();
     bsRender();
@@ -21564,6 +21570,7 @@ function _bsDetalle(x){
     +   'ID ' + x.p.i + ' · ' + esc(x.p.pr || 'sin proveedor') + '<br>' + esc((x.p.c || []).join(' / ')) + '<br>'
     +   'Costo ' + _bsN(x.p.p) + ' · sugerido ' + _bsN(x.p.ps) + '<br>'
     +   (x.miasTotal ? 'Mías en el período: ' + _bsN(x.miasTotal) + '<br>' : '')
+    +   ((x.p.d && (d.meta.dolores || {})[x.p.d]) ? 'Resuelve: ' + esc(d.meta.dolores[x.p.d]) + ' · <a href="#" onclick="bsVerBrecha(' + "'" + x.p.d + "'" + ');return false" style="color:var(--bs-serie)">ver otros que resuelven lo mismo</a><br>' : '')
     +   '<a href="' + BS_DROPI[_bs.pais] + '/dashboard/product-details/' + x.p.i + '/' + slug + '" target="_blank" rel="noopener" style="color:var(--bs-serie)">Abrir en Dropi ↗</a>'
     +   (notas.length ? '<div style="margin-top:8px">' + notas.map(n => '• ' + esc(n)).join('<br>') + '</div>' : '')
     + '</div></div>';
@@ -21638,7 +21645,7 @@ function _bsTop(){
   if (_bs.topPag > maxPag) _bs.topPag = maxPag;
   const ini = _bs.topPag * 10;
   const lista = _bs.filas.slice(ini, ini + 10);
-  const nombreVista = { test: 'Para testear', acel: 'Aceleran', top: 'Más vendidos', const: 'Constantes', mias: 'Los míos' }[_bs.vista];
+  const nombreVista = { test: 'Para testear', brechas: 'Brechas', acel: 'Aceleran', top: 'Más vendidos', const: 'Constantes', mias: 'Los míos' }[_bs.vista];
   document.getElementById('bs-top-titulo').textContent = lista.length
     ? 'Top ' + (ini + 1) + '–' + (ini + lista.length) + ' · ' + nombreVista + ' · unidades por día' : 'Top · ' + nombreVista;
   // Rangos de a diez, como en Stocky: 1-10, 11-20, 21-30... hasta donde llegue la vista.
@@ -21753,6 +21760,115 @@ function _bsAcelBars(series){
   }).join('');
 }
 
+// ── Brechas ──────────────────────────────────────────────────────────────────
+// Un "dolor" (ver dolores.mjs) con demanda probada: algo de ese grupo se vende
+// fuerte o viene acelerando. Al lado, los productos del catalogo que resuelven
+// lo mismo y que no vende nadie. La apuesta es que parte de esa demanda se
+// puede llevar a un producto sin competencia.
+//
+// Se ordena por lo que mas vende, porque asi lo pidio Benjamin: la brecha se
+// mira "en consideracion con los que mas estan vendiendo y acelerando".
+function _bsLinkDropi(id, nombre){
+  const slug = String(nombre || '').toLowerCase().normalize('NFD').replace(/[^a-z0-9 ]+/g, ' ').trim().replace(/ +/g, '-');
+  return BS_DROPI[_bs.pais] + '/dashboard/product-details/' + id + '/' + slug;
+}
+function bsBrechaMas(id){ if (_bs.brechasAbiertas.has(id)) _bs.brechasAbiertas.delete(id); else _bs.brechasAbiertas.add(id); bsRender(); }
+// Desde una brecha: abre la ficha completa de un producto que si se vende.
+function bsVerProducto(id){
+  const q = document.getElementById('bs-q'), sm = document.getElementById('bs-smin');
+  if (q) q.value = String(id);
+  if (sm) sm.value = '0';
+  _bs.vista = 'top'; _bs.limite = 50; _bsTopReset(); _bsMarcar(); bsRender();
+  bsIr(id);
+}
+// Desde la ficha de un producto: salta a la brecha de su dolor.
+function bsVerBrecha(dolor){
+  const q = document.getElementById('bs-q'); if (q) q.value = '';
+  _bs.vista = 'brechas'; _bs.abierto = null; _bsMarcar(); bsRender();
+  const c = document.getElementById('bs-brecha-' + dolor);
+  if (c) window.scrollTo(0, window.scrollY + c.getBoundingClientRect().top - 120);
+}
+
+function _bsBrechas(todo){
+  const d = _bs.datos[_bs.pais];
+  const nombres = d.meta.dolores || {};
+  const g = (id) => { const e = document.getElementById(id); return e ? e.value : ''; };
+  const q = g('bs-q').trim().toLowerCase();
+  const pmin = parseFloat(g('bs-pmin')), pmax = parseFloat(g('bs-pmax')), smin = parseFloat(g('bs-smin'));
+  const pasaAlt = (a) => (isNaN(pmin) || a.p >= pmin) && (isNaN(pmax) || a.p <= pmax) && (isNaN(smin) || a.s >= smin);
+
+  const grupos = new Map();
+  const grupo = (id) => { if (!grupos.has(id)) grupos.set(id, { id, nombre: nombres[id] || id, lideres: [], quietos: [], v: 0, vAnt: 0, hayAnt: false }); return grupos.get(id); };
+  todo.forEach(x => {
+    if (!x.p.d) return;
+    const gr = grupo(x.p.d);
+    gr.v += x.vRec;
+    if (x.vAnt != null) { gr.vAnt += x.vAnt; gr.hayAnt = true; }
+    if (x.vRec >= 1) gr.lideres.push(x);
+    // Se movio alguna vez pero hoy casi no vende: tambien es brecha.
+    else if (x.vRec < 0.5 && x.stock >= 30 && !x.miasTotal && pasaAlt({ p: x.p.p, s: x.stock })) gr.quietos.push({ i: x.p.i, n: x.p.n, pr: x.p.pr, p: x.p.p, ps: x.p.ps, im: x.p.im, s: x.stock, casi: true });
+  });
+  (d.alt || []).forEach(a => { if (grupos.has(a.d) && pasaAlt(a)) grupos.get(a.d).quietos.push(a); });
+
+  let lista = [...grupos.values()].filter(gr => gr.quietos.length && gr.lideres.some(x => x.vRec >= 5));
+  if (q) lista = lista.filter(gr => gr.nombre.toLowerCase().includes(q) || gr.lideres.some(x => String(x.p.i) === q || String(x.p.n).toLowerCase().includes(q)) || gr.quietos.some(a => String(a.i) === q || String(a.n).toLowerCase().includes(q)));
+  lista.sort((a, b) => b.v - a.v);
+
+  const el = document.getElementById('bs-lista');
+  document.getElementById('bs-mas').innerHTML = '';
+  document.getElementById('bs-aviso').textContent = 'Dolores donde ya hay algo vendiéndose (5 o más por día), con productos que resuelven lo mismo y que nadie vende. Ordenados por lo que más vende. Los filtros de costo y stock aplican a las alternativas. · ' + lista.length + ' dolor' + (lista.length === 1 ? '' : 'es') + '.';
+  if (!lista.length) { el.innerHTML = '<div class="bs-mono" style="padding:22px;font-size:12px;color:var(--muted);text-align:center">' + ((d.alt || []).length ? 'Ninguna brecha pasa los filtros.' : 'Todavía no hay alternativas publicadas. Corre guardar-foto.bat.') + '</div>'; return; }
+
+  const foto = (im) => im ? '<img loading="lazy" src="' + BS_CDN[_bs.pais] + encodeURI(im) + '" alt="" style="width:40px;height:40px;object-fit:cover;border-radius:6px;flex:none;background:var(--surface2)" onerror="this.style.visibility=' + "'hidden'" + '">' : '<span style="width:40px;height:40px;flex:none"></span>';
+  const fila = 'display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border)';
+  const rot = 'font-size:10px;font-family:' + "'DM Mono'" + ',monospace;color:var(--muted);letter-spacing:.04em;margin-bottom:4px';
+
+  // Palabras con contenido de un nombre, para saber si una alternativa es el
+  // MISMO producto que algo que ya se vende (otro proveedor u otro pack) o una
+  // forma DISTINTA de resolver el dolor. Las distintas son la brecha de verdad
+  // y van primero.
+  const VACIAS = new Set('para con pack unidades unidad unid combo promo oferta nuevo nueva premium mini inalambrico inalambrica electrico electrica recargable portatil multiuso multifuncional profesional original'.split(' '));
+  const palabras = (n) => new Set(String(n || '').toLowerCase().normalize('NFD').replace(/[^a-z0-9 ]+/g, ' ').split(/ +/).filter(w => w.length > 3 && !VACIAS.has(w)));
+
+  el.innerHTML = '<div style="padding:12px">' + lista.map(gr => {
+    gr.lideres.sort((a, b) => b.vRec - a.vRec);
+    const delLider = gr.lideres.slice(0, 8).map(x => palabras(x.p.n));
+    gr.quietos.forEach(a => {
+      const w = palabras(a.n);
+      // Igual = comparte dos palabras con algo que se vende, o comparte una y
+      // esa es la mitad o mas de su nombre ("Antena para TV HD" es una antena).
+      a.igual = delLider.some(L => { let c = 0; w.forEach(k => { if (L.has(k)) c++; }); return c >= 2 || (c >= 1 && c / Math.max(1, w.size) >= 0.5); });
+    });
+    gr.quietos.sort((a, b) => (a.igual ? 1 : 0) - (b.igual ? 1 : 0) || b.s - a.s);
+    const distintas = gr.quietos.filter(a => !a.igual).length;
+    const abierta = _bs.brechasAbiertas.has(gr.id);
+    const crece = gr.hayAnt ? gr.v / Math.max(gr.vAnt, 0.5) : null;
+    const lid = gr.lideres.slice(0, abierta ? 12 : 4).map(x =>
+      '<div style="' + fila + ';cursor:pointer" onclick="bsVerProducto(' + x.p.i + ')" data-img="' + esc(_bsImg(x.p)) + '" data-tip="' + esc(x.p.n + '\nClic para ver su ficha') + '">' + foto(x.p.im)
+      + '<div style="min-width:0;flex:1"><div style="font-size:12px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(x.p.n) + '</div>'
+      + '<div class="bs-mono" style="font-size:10px;color:var(--muted)">' + x.p.i + ' · ' + esc(x.p.pr || '') + '</div></div>'
+      + '<div class="bs-mono" style="font-size:12px;color:var(--text);text-align:right;white-space:nowrap">' + _bsN(x.vRec, 1) + ' por día' + (x.acel != null && x.acel >= BS_MIN_ACEL ? '<div style="font-size:10px;color:var(--muted)">acelera ×' + _bsN(x.acel, 1) + '</div>' : '') + '</div></div>').join('');
+    const qui = gr.quietos.slice(0, abierta ? 60 : 5).map(a =>
+      '<div style="' + fila + '" data-img="' + esc(a.im ? BS_CDN[_bs.pais] + encodeURI(a.im) : '') + '" data-tip="' + esc(a.n + (a.casi ? '\nSe movió alguna vez, hoy casi no vende' : '\nSin ninguna venta desde que medimos')) + '">' + foto(a.im)
+      + '<div style="min-width:0;flex:1"><div style="font-size:12px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(a.n) + '</div>'
+      + '<div class="bs-mono" style="font-size:10px;color:var(--muted)">' + a.i + ' · ' + esc(a.pr || '') + ' · costo ' + _bsN(a.p) + ' · stock ' + _bsN(a.s) + '<span class="bs-tag">' + (a.igual ? 'mismo producto' : 'otra solución') + '</span></div></div>'
+      + '<a href="' + esc(_bsLinkDropi(a.i, a.n)) + '" target="_blank" rel="noopener" class="bs-mono" style="font-size:11px;color:var(--bs-serie);white-space:nowrap">Dropi ↗</a></div>').join('');
+    const hayMas = gr.lideres.length > 4 || gr.quietos.length > 5;
+    return '<div class="bs-card" id="bs-brecha-' + gr.id + '" style="margin-bottom:10px">'
+      + '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap">'
+      +   '<div style="font-family:' + "'Montserrat'" + ',sans-serif;font-weight:800;font-size:15px;color:var(--text)">' + esc(gr.nombre) + '</div>'
+      +   '<div class="bs-mono" style="font-size:11px;color:var(--muted)">' + _bsN(gr.v) + ' unidades por día entre ' + gr.lideres.length + ' producto' + (gr.lideres.length === 1 ? '' : 's')
+      +     (crece != null ? ' · antes ' + _bsN(gr.vAnt) + ' (×' + _bsN(crece, 1) + ')' : '') + '</div>'
+      + '</div>'
+      + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px;margin-top:10px">'
+      +   '<div><div style="' + rot + '">LO QUE SE ESTÁ VENDIENDO</div>' + lid + '</div>'
+      +   '<div><div style="' + rot + '">RESUELVEN LO MISMO Y NADIE LOS VENDE (' + distintas + ' DISTINTOS, ' + (gr.quietos.length - distintas) + ' IGUALES)</div>' + qui + '</div>'
+      + '</div>'
+      + (hayMas ? '<div style="margin-top:10px"><button class="bs-btn" onclick="bsBrechaMas(' + "'" + gr.id + "'" + ')">' + (abierta ? 'Ver menos' : 'Ver todos') + '</button></div>' : '')
+      + '</div>';
+  }).join('') + '</div>';
+}
+
 function bsRender(){
   const d = _bs.datos[_bs.pais]; if (!d) return;
   const meta = d.meta, T = meta.T, fin = T[T.length - 1];
@@ -21798,6 +21914,8 @@ function bsRender(){
   let filas, aviso = '';
   const topeEl = document.getElementById('bs-tope-caja');
   if (topeEl) topeEl.style.display = _bs.vista === 'test' ? 'flex' : 'none';
+  ['bs-top-caja', 'bs-acel-caja'].forEach(id => { const e = document.getElementById(id); if (e) e.style.display = _bs.vista === 'brechas' ? 'none' : ''; });
+  if (_bs.vista === 'brechas') { _bs.filas = []; _bsBrechas(todo); return; }
   if (_bs.vista === 'test') {
     // Ventana de oportunidad: algo que EMPIEZA a venderse y todavia no esta
     // lleno de competencia. Se queda afuera lo que ya vende muy fuerte (tope
