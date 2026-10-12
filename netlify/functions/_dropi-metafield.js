@@ -113,6 +113,66 @@ function formaDeLaAppDropi(meta) {
     (x && typeof x === 'object') ? x : { [String(x)]: null });
 }
 
+// Los campos que la app de Dropi escribe y la API v2 NO devuelve.
+//
+// 11 oct 2026. En 7 dias NINGUNA orden con barcode de variante entro a Dropi:
+// 42 de 42 rebotaron con "Esta orden no tiene productos dropi" (Rueda
+// Abdominal 28052, Camara 173462, Parche de Cuero GT 16114). Comparando
+// contra el Cubre Colchon 28879 -- VARIABLE importado con la app de Dropi,
+// que si sincroniza -- la unica diferencia que quedaba era el tamano del
+// objeto: 33 campos el de la app, 24 el nuestro. La API v2 simplemente no
+// manda estos 14, asi que hay que ponerlos nosotros.
+//
+// A nivel de variacion faltaban dos mas: `stock` y
+// `private_product_inventories_rest`. El de la app los trae en cada
+// variacion; los nuestros traian `created_at`/`updated_at` y ningun stock.
+//
+// No se sabe cual de todos es el que Dropi mira. Se igualan todos porque
+// probar de a uno cuesta un pedido real cada vez.
+function camposDeLaAppDropi(meta) {
+  const sumaBodegas = (lista) => (lista || [])
+    .reduce((a, w) => a + Number((w && w.stock) || 0), 0);
+
+  // Stock por variacion: la API v2 lo deja solo dentro de
+  // warehouse_product_variation, no como campo suelto.
+  for (const v of (meta.variations || [])) {
+    if (v.stock == null) v.stock = sumaBodegas(v.warehouse_product_variation);
+    if (v.private_product_inventories_rest == null) v.private_product_inventories_rest = 0;
+  }
+
+  const esVariable = String(meta.type || '').toUpperCase() === 'VARIABLE';
+  if (meta.stock == null) {
+    meta.stock = esVariable
+      ? (meta.variations || []).reduce((a, v) => a + Number(v.stock || 0), 0)
+      : sumaBodegas(meta.warehouse_product);
+  }
+
+  if (meta.suggested_price_to_show == null) {
+    const pr = meta.suggested_price != null ? meta.suggested_price : meta.sale_price;
+    meta.suggested_price_to_show = pr != null ? Number(pr).toFixed(2) : null;
+  }
+
+  const porDefecto = {
+    productaction: 'NEW',
+    external_id: null,
+    import_list: [],
+    add_stock_in_return: null,
+    dropi_percent_product_supplier: null,
+    dropi_product_supplier_increment_fixed: false,
+    dropi_percent_product_drops: null,
+    // Los sob_* son "sobreescribir": que campos manda el proveedor y cuales
+    // el vendedor. Copiados tal cual del metafield de referencia.
+    sob_nombre: true,
+    sob_descripcion: true,
+    sob_precio: false,
+    sob_barcode: false,
+    sob_images: true,
+  };
+  for (const k of Object.keys(porDefecto)) {
+    if (meta[k] === undefined || meta[k] === null) meta[k] = porDefecto[k];
+  }
+}
+
 // El metafield final. `previo` es el metafield que ya tiene el producto: de ahi
 // salen tokens y shop_name, y se respeta la eleccion de variaciones que haya
 // hecho alguien a mano (variationstoimport / chose_variations).
@@ -140,9 +200,12 @@ function construirMetafield(producto, previo, extra) {
     formaDeLaAppDropi(meta);
   }
 
+  // Va para los dos tipos: al SIMPLE tambien le faltaban los 14 campos.
+  camposDeLaAppDropi(meta);
+
   // Nunca dejar el metafield sin la cuenta: sin tokens el pedido no se despacha.
   for (const k of Object.keys(meta)) if (meta[k] === undefined) delete meta[k];
   return meta;
 }
 
-module.exports = { pedirProductoDropi, construirMetafield, galeriaDe, CDN_DROPI, CDN_DROPI_GT, urlFoto };
+module.exports = { pedirProductoDropi, construirMetafield, camposDeLaAppDropi, galeriaDe, CDN_DROPI, CDN_DROPI_GT, urlFoto };

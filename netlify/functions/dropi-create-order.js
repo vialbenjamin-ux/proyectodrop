@@ -421,9 +421,20 @@ exports.handler = async (event) => {
   // (warehouse_product). Adivinarlas desde el historial de ordenes falla con
   // proveedores sin ventas recientes: al dispensador 30925 se le probaron 7
   // bodegas y ninguna era la suya. Una consulta GraphQL por barcode las trae.
+  // 11 oct 2026 -- dos fallas que dejaban esta funcion devolviendo [] siempre:
+  //
+  // 1. Estaba cableada a SHOPIFY_DOMAIN/SHOPIFY_TOKEN, o sea a la tienda de
+  //    CHILE. En Guatemala preguntaba por barcodes guatemaltecos a la tienda
+  //    chilena, no encontraba nada y se quedaba sin bodegas: de ahi el
+  //    "ningun warehouse acepto la orden" de los pedidos del Parche de Cuero.
+  // 2. Solo miraba `meta.warehouse_product`, la bodega del producto. En un
+  //    producto VARIABLE esa lista viene VACIA y las bodegas estan una por
+  //    variacion, en `variations[].warehouse_product_variation`. Por eso
+  //    tampoco funcionaba en Chile con la Rueda Abdominal, que tenia su
+  //    bodega 264 con 299 unidades ahi adentro, sin que nadie la leyera.
   async function bodegasDesdeShopify(codigos) {
-    const dom = process.env.SHOPIFY_DOMAIN;
-    const tok = process.env.SHOPIFY_TOKEN;
+    const dom = isGT ? process.env.SHOPIFY_DOMAIN_GT : process.env.SHOPIFY_DOMAIN;
+    const tok = isGT ? process.env.SHOPIFY_TOKEN_GT  : process.env.SHOPIFY_TOKEN;
     if (!dom || !tok || !codigos.length) return [];
     const filtro = codigos.map(function (c) { return 'barcode:' + c; }).join(' OR ');
     const query = 'query($q: String!) { productVariants(first: 30, query: $q) { edges { node { barcode product { metafield(namespace: "dropi", key: "_dropi_product") { value } } } } } }';
@@ -442,9 +453,17 @@ exports.handler = async (event) => {
         if (!mv) continue;
         let meta;
         try { meta = JSON.parse(mv); } catch (_) { continue; }
-        for (const w of (meta.warehouse_product || [])) {
-          if (w && w.warehouse_id != null) {
-            porStock.push({ id: Number(w.warehouse_id), stock: Number(w.stock || 0) });
+        const listas = [meta.warehouse_product || []];
+        // VARIABLE: la bodega vive dentro de cada variacion.
+        for (const v of (meta.variations || [])) {
+          if (Array.isArray(v.warehouse_product_variation)) listas.push(v.warehouse_product_variation);
+          if (Array.isArray(v.warehouse_product)) listas.push(v.warehouse_product);
+        }
+        for (const lista of listas) {
+          for (const w of lista) {
+            if (w && w.warehouse_id != null) {
+              porStock.push({ id: Number(w.warehouse_id), stock: Number(w.stock || 0) });
+            }
           }
         }
       }
