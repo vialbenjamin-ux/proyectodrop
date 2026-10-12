@@ -433,8 +433,8 @@ exports.handler = async (event) => {
   //    tampoco funcionaba en Chile con la Rueda Abdominal, que tenia su
   //    bodega 264 con 299 unidades ahi adentro, sin que nadie la leyera.
   async function bodegasDesdeShopify(codigos) {
-    const dom = isGT ? process.env.SHOPIFY_DOMAIN_GT : process.env.SHOPIFY_DOMAIN;
-    const tok = isGT ? process.env.SHOPIFY_TOKEN_GT  : process.env.SHOPIFY_TOKEN;
+    const dom = T.isGT ? process.env.SHOPIFY_DOMAIN_GT : process.env.SHOPIFY_DOMAIN;
+    const tok = T.isGT ? process.env.SHOPIFY_TOKEN_GT  : process.env.SHOPIFY_TOKEN;
     if (!dom || !tok || !codigos.length) return [];
     const filtro = codigos.map(function (c) { return 'barcode:' + c; }).join(' OR ');
     const query = 'query($q: String!) { productVariants(first: 30, query: $q) { edges { node { barcode product { metafield(namespace: "dropi", key: "_dropi_product") { value } } } } } }';
