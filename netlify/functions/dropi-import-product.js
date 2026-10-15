@@ -195,14 +195,26 @@ exports.handler = async (event) => {
     // Orden de prioridad: env explicita > cuenta del token de la API > mayoria.
     // La mayoria entre ~14 muestras elegia la cuenta vieja: asi nacieron en
     // 116407 los productos creados entre el 6 y el 10 de septiembre.
-    const forzada = String(process.env.DROPI_CUENTA_ESPERADA || '').trim()
-      || cuentaDelToken(isGT) || '';
-    let cuentaOk = forzada;
-    if (!cuentaOk) {
+    //
+    // 15 oct 2026: el `sub` del token de la API NO tiene por que ser el de la
+    // cuenta duena. Un token CHATCENTER -- que es el tipo que pide Dropi para
+    // esta integracion -- lleva el id del usuario chatcenter. En Chile el
+    // DROPI_TOKEN_CL daba sub 357617 mientras TODOS los productos de la tienda
+    // tienen tokens de 116407, y la importacion quedo bloqueada entera: ningun
+    // producto nuevo se podia crear. No era que la tienda estuviera mal, era el
+    // token de otro tipo. Asi que la cuenta del token solo manda si ALGUN
+    // producto de la tienda la tiene; si no aparece en ninguno, se cae a la
+    // mayoria de los metafields, que es la cuenta que de verdad despacha. La
+    // env explicita sigue mandando sobre todo, para poder forzar una migracion.
+    const mayoritaria = (() => {
       const conteo = {};
       for (const c of candidatos) if (c.cuenta) conteo[c.cuenta] = (conteo[c.cuenta] || 0) + 1;
-      cuentaOk = (Object.entries(conteo).sort((a, b) => b[1] - a[1])[0] || [null])[0];
-    }
+      return (Object.entries(conteo).sort((a, b) => b[1] - a[1])[0] || [null])[0];
+    })();
+    const enLaTienda = (c) => !!c && candidatos.some((x) => x.cuenta === c);
+    const porEnv = String(process.env.DROPI_CUENTA_ESPERADA || '').trim();
+    const porToken = cuentaDelToken(isGT) || '';
+    const cuentaOk = porEnv || (enLaTienda(porToken) ? porToken : mayoritaria);
 
     const elegido = candidatos.find(c => c.cuenta && c.cuenta === cuentaOk);
     if (!elegido) {
