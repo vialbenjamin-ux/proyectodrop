@@ -2,7 +2,7 @@
 // - GET  ?q=texto      → busca productos por título (devuelve {id,title,handle,image})
 // - GET  ?id=123       → trae 1 producto completo
 // - GET  ?scopes=1     → diagnostico: lista los scopes del token (no expone el token)
-// - PUT  body { id, body_html, title?, tags?, status? } → actualiza producto
+// - PUT  body { id, body_html, title?, handle?, tags?, status? } → actualiza producto
 //        status:'active' publica ademas en el canal "Tienda online"
 // - POST body { id, image:{filename,attachment(base64),alt?,position?} } → sube imagen
 // - DELETE body { id, image_id } → borra UNA imagen del producto (por id explicito)
@@ -235,6 +235,12 @@ async function updateProduct(domain, headers, body) {
   if (typeof body.body_html === 'string')       update.body_html       = body.body_html;
   if (typeof body.title === 'string')           update.title           = body.title;
   if (typeof body.template_suffix === 'string') update.template_suffix = body.template_suffix;
+  // OJO: cambiar el handle cambia la URL del producto y Shopify NO crea el
+  // redirect 301 cuando el cambio viene por API (si lo crea desde el admin,
+  // con la casilla marcada). El token no tiene write_url_redirects, asi que
+  // la URL vieja queda en 404: usarlo solo en productos sin trafico, o
+  // crear el redirect a mano despues.
+  if (typeof body.handle === 'string' && body.handle.trim()) update.handle = body.handle.trim();
   if (typeof body.status === 'string' && ['active','draft','archived'].includes(body.status)) update.status = body.status;
 
   // Activar un producto NO lo publica en el canal "Tienda online": en Shopify

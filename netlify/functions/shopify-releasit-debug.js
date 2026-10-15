@@ -4,6 +4,7 @@
 //
 // GET /.netlify/functions/shopify-releasit-debug?product_id=8945311121650
 // GET /.netlify/functions/shopify-releasit-debug (devuelve TODOS los items)
+// GET /.netlify/functions/shopify-releasit-debug?tenant=gt  -> tienda de Guatemala
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: cors(), body: '' };
@@ -11,9 +12,14 @@ exports.handler = async (event) => {
   const qs = event.queryStringParameters || {};
   const productId = String(qs.product_id || '').trim();
 
-  const token = process.env.SHOPIFY_TOKEN;
-  const domain = process.env.SHOPIFY_DOMAIN;
-  if (!token || !domain) return respond(500, { error: 'Faltan credenciales Shopify' });
+  // El tenant decide la tienda. Antes esto leia SIEMPRE SHOPIFY_DOMAIN, asi
+  // que ?tenant=gt devolvia los metafields de Chile: una oferta publicada en
+  // Guatemala se veia como "0 tramos" y parecia que el publish habia fallado
+  // (espejo retrovisor GT, 14 oct 2026).
+  const isGT = String(qs.tenant || '').trim().toLowerCase() === 'gt';
+  const token = isGT ? process.env.SHOPIFY_TOKEN_GT : process.env.SHOPIFY_TOKEN;
+  const domain = isGT ? process.env.SHOPIFY_DOMAIN_GT : process.env.SHOPIFY_DOMAIN;
+  if (!token || !domain) return respond(500, { error: 'Faltan credenciales Shopify' + (isGT ? ' GT' : '') });
 
   const H = { 'X-Shopify-Access-Token': token, 'Accept': 'application/json' };
   const API = 'https://' + domain + '/admin/api/2024-10';
