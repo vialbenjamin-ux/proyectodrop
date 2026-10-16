@@ -261,6 +261,7 @@ async function updateProduct(domain, headers, body) {
     body.compare_at_price !== undefined ||
     body.inventory_policy !== undefined ||
     body.taxable !== undefined ||
+    body.barcode !== undefined ||
     body.cost !== undefined ||
     body.mark_all_locations === true;
 
@@ -276,13 +277,32 @@ async function updateProduct(domain, headers, body) {
     if (!variants.length) {
       return respond(400, { error: 'El producto no tiene variants' });
     }
-    if (body.price !== undefined || body.compare_at_price !== undefined || body.inventory_policy !== undefined || body.taxable !== undefined) {
+    // El barcode es el vinculo con Dropi y decide a que producto -- y a que
+    // VARIACION -- entra el pedido. En un producto Variable tiene que ser
+    // `<id producto>-<id variacion>`, y el importador no lo sabe: crea el
+    // producto simple con solo el id y Dropi rebota la orden entera. Hasta
+    // hoy la unica forma de arreglarlo era el convertidor de variantes, que
+    // exige 2 variaciones o mas; cuando las "variaciones" de Dropi son
+    // presentaciones del proveedor (unidad / 2x1) y al cliente hay que
+    // mostrarle una sola, no habia salida. Por eso se puede fijar por PUT.
+    //
+    // Se aplica solo cuando el producto tiene UNA variante: con varias, el
+    // mismo barcode en todas las dejaria apuntando a la misma variacion de
+    // Dropi, que es justo el error que esto viene a evitar.
+    if (body.barcode !== undefined && variants.length !== 1) {
+      return respond(400, {
+        error: 'barcode por PUT solo en productos de UNA variante (este tiene '
+             + variants.length + '). Para varias, usar shopify-product-variantes.',
+      });
+    }
+    if (body.price !== undefined || body.compare_at_price !== undefined || body.inventory_policy !== undefined || body.taxable !== undefined || body.barcode !== undefined) {
       update.variants = variants.map(v => {
         const u = { id: v.id };
         if (body.price !== undefined)            u.price            = String(body.price);
         if (body.compare_at_price !== undefined) u.compare_at_price = body.compare_at_price ? String(body.compare_at_price) : null;
         if (body.inventory_policy !== undefined) u.inventory_policy = body.inventory_policy; // 'continue' = vender sin stock
         if (body.taxable !== undefined)          u.taxable          = !!body.taxable;        // cobrar impuesto: nunca en estos productos
+        if (body.barcode !== undefined)          u.barcode          = String(body.barcode).trim();
         return u;
       });
     }
