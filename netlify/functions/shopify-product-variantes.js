@@ -104,6 +104,15 @@ exports.handler = async (event) => {
       taxable: false,
       position: i + 1,
     }));
+    // Piso de precio (regla del 16 oct 2026, ver shopify-products.js): en un
+    // producto ya activo no se crean variantes bajo el piso o con el 999 de
+    // relleno. En borrador se deja, porque activarlo despues ya lo frena.
+    const pisoMalo = (p) => { const n = Number(p); return isGT ? (n < 169 || n === 999) : n < 24990; };
+    const conPrecioMalo = nuevasVariantes.find((v) => pisoMalo(v.price));
+    if (product.status === 'active' && conPrecioMalo) {
+      return respond(400, { error: 'Precio ' + conPrecioMalo.price + ' no permitido en un producto activo: '
+        + (isGT ? 'mínimo Q169 y nunca el 999 de relleno.' : 'en Chile nunca bajo $24.990.'), piso: true });
+    }
 
     const plan = {
       producto: { id: String(product.id), title: product.title, variantesActuales: (product.variants || []).length },

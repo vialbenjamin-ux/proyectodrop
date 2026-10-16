@@ -46,7 +46,7 @@ exports.handler = async function (event) {
       try { body = JSON.parse(event.body || '{}'); }
       catch { return respond(400, { error: 'JSON inválido' }); }
       if (!body.id) return respond(400, { error: 'Falta id del producto' });
-      return await updateProduct(domain, headers, body);
+      return await updateProduct(domain, headers, body, isGT);
     }
 
     if (event.httpMethod === 'POST') {
@@ -229,7 +229,31 @@ async function addProductImage(domain, headers, body) {
   return respond(200, { image: data.image, ok: true });
 }
 
-async function updateProduct(domain, headers, body) {
+// Piso de precio. REGLA de Benjamin (16 oct 2026): "No puede nunca existir un
+// precio publicado menor a 24.990". La Broca sierra salio a $999 (el relleno
+// del importador) con campañas corriendo en Meta y TikTok, y entraron pedidos
+// a ese precio. El aviso del panel era un confirm() y se puede saltar, asi que
+// el freno va aca: ningun PUT puede poner un precio bajo el piso ni activar
+// un producto que tenga una variante bajo el piso. En Guatemala el relleno
+// (999) queda POR ENCIMA de cualquier precio real, asi que ahi se frena el 999
+// tal cual ademas del piso.
+const PISO_PRECIO = { chile: 24990, gt: 169 };
+function precioInvalido(precio, isGT) {
+  const n = Number(precio);
+  if (!isFinite(n)) return false;
+  if (isGT) return n < PISO_PRECIO.gt || n === 999;
+  return n < PISO_PRECIO.chile;
+}
+function msgPrecio(precio, isGT) {
+  return 'Precio ' + precio + ' no permitido: ' + (isGT
+    ? 'en Guatemala el minimo es Q' + PISO_PRECIO.gt + ' y 999 es el precio de relleno del importador.'
+    : 'en Chile nunca se publica bajo $24.990 (999 es el precio de relleno del importador).');
+}
+
+async function updateProduct(domain, headers, body, isGT) {
+  if (body.price !== undefined && body.price !== null && body.price !== '' && precioInvalido(body.price, isGT)) {
+    return respond(400, { error: msgPrecio(body.price, isGT), piso: true });
+  }
   const url = `https://${domain}/admin/api/2024-10/products/${encodeURIComponent(body.id)}.json`;
   const update = { id: body.id };
   if (typeof body.body_html === 'string')       update.body_html       = body.body_html;
@@ -257,6 +281,7 @@ async function updateProduct(domain, headers, body) {
   // el producto). Hacemos fetch del producto para conseguir los IDs.
   let variants = [];
   const needsVariantFetch =
+    wantsPublish ||
     body.price !== undefined ||
     body.compare_at_price !== undefined ||
     body.inventory_policy !== undefined ||
@@ -289,6 +314,12 @@ async function updateProduct(domain, headers, body) {
     // Se aplica solo cuando el producto tiene UNA variante: con varias, el
     // mismo barcode en todas las dejaria apuntando a la misma variacion de
     // Dropi, que es justo el error que esto viene a evitar.
+    // Activar con un precio bajo el piso (tipicamente el 999 de relleno) se
+    // frena, salvo que en este mismo PUT venga un precio valido.
+    if (wantsPublish && body.price === undefined) {
+      const mala = variants.find(v => precioInvalido(v.price, isGT));
+      if (mala) return respond(400, { error: 'No se activa: ' + msgPrecio(mala.price, isGT) + ' Defini el precio primero.', piso: true });
+    }
     if (body.barcode !== undefined && variants.length !== 1) {
       return respond(400, {
         error: 'barcode por PUT solo en productos de UNA variante (este tiene '
