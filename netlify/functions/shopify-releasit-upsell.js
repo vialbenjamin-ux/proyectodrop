@@ -30,9 +30,9 @@ exports.handler = async (event) => {
   const upsellId  = String(body.upsell_id || '').trim();
   const action    = String(body.action || '').toLowerCase();
   const dryRun    = body.dry_run === true;
-  if (!productId) return respond(400, { error: 'Falta product_id' });
-  if (['off', 'on', 'delete', 'set'].indexOf(action) === -1) {
-    return respond(400, { error: 'action debe ser "off", "on", "delete" o "set"' });
+  if (!productId && action !== 'fix_disc') return respond(400, { error: 'Falta product_id' });
+  if (['off', 'on', 'delete', 'set', 'fix_disc'].indexOf(action) === -1) {
+    return respond(400, { error: 'action debe ser "off", "on", "delete", "set" o "fix_disc"' });
   }
   // set: cambia QUE producto ofrece el upsell, conservando su diseño (colores,
   // borde, texto "Agrega {title} por solo {price}"). Titulo, variante e imagen
@@ -58,6 +58,39 @@ exports.handler = async (event) => {
     try { lista = JSON.parse(mfUP.value); }
     catch { return respond(500, { error: 'tick_upsells_json no es JSON válido' }); }
     if (!Array.isArray(lista)) return respond(500, { error: 'tick_upsells_json no es una lista' });
+
+    // fix_disc: recalcula connDisc en TODOS los upsells. Releasit cobra el precio
+    // de la variante conectada MENOS connDisc (centavos); `price` solo es lo que
+    // muestra. Con connDisc 0 el cliente ve "por solo $7.990" y el pedido entra
+    // a precio completo (#32117, 17 oct 2026: Llave a $27.990). Si la variante
+    // vale menos que lo ofrecido no hay descuento que sirva: se informa aparte.
+    if (action === 'fix_disc') {
+      const vids = [...new Set(lista.map(u => String(u.connV || '')).filter(Boolean))];
+      const precioV = {};
+      for (let i = 0; i < vids.length; i += 50) {
+        const q = vids.slice(i, i + 50).map(id => 'gid://shopify/ProductVariant/' + id);
+        const g = await fetch(API + '/graphql.json', { method: 'POST', headers: H,
+          body: JSON.stringify({ query: 'query($ids:[ID!]!){nodes(ids:$ids){... on ProductVariant{id price product{status}}}}', variables: { ids: q } }) });
+        const gj = await g.json();
+        for (const n of ((gj.data || {}).nodes || [])) if (n && n.id) precioV[n.id.split('/').pop()] = { price: Number(n.price), status: n.product && n.product.status };
+      }
+      const cambiosFix = [], problemas = [];
+      const nuevaFix = lista.map(u => {
+        const v = precioV[String(u.connV)];
+        if (!v || !(u.price > 0)) { problemas.push({ id: u.id, name: u.name, motivo: v ? 'sin price' : 'variante no encontrada' }); return u; }
+        const disc = Math.round(v.price * 100) - Number(u.price);
+        if (disc < 0) { problemas.push({ id: u.id, name: u.name, motivo: 'la variante vale ' + v.price + ' y se ofrece a ' + (u.price / 100), status: v.status, isActive: u.isActive }); return u; }
+        if (Number(u.connDisc || 0) === disc) return u;
+        cambiosFix.push({ id: u.id, name: u.name, isActive: u.isActive, precioVariante: v.price, ofrecido: u.price / 100, connDiscAntes: u.connDisc, connDisc: disc });
+        return Object.assign({}, u, { connDisc: disc });
+      });
+      if (!dryRun && cambiosFix.length) {
+        const w = await fetch(API + '/metafields/' + mfUP.id + '.json', { method: 'PUT', headers: H,
+          body: JSON.stringify({ metafield: { id: mfUP.id, value: JSON.stringify(nuevaFix), type: 'json' } }) });
+        if (!w.ok) return respond(502, { error: 'No pude escribir tick_upsells_json: ' + (await w.text()).slice(0, 300) });
+      }
+      return respond(200, { ok: true, applied: !dryRun && cambiosFix.length > 0, total: lista.length, cambios: cambiosFix, problemas });
+    }
 
     const esDelProducto = (u) => (u && Array.isArray(u.prods) ? u.prods.map(String) : []).indexOf(productId) !== -1;
     const objetivo = (u) => esDelProducto(u) && (!upsellId || String(u.id) === upsellId);
@@ -93,6 +126,8 @@ exports.handler = async (event) => {
         imgUrl: (prod.image && prod.image.src) || '',
         // Releasit guarda el precio en centavos: 5990 pesos = 599000.
         price: Math.round(precioPesos * 100),
+        // Lo que se cobra es el precio de la variante menos connDisc.
+        connDisc: Math.max(0, Math.round(Number(v0.price) * 100) - Math.round(precioPesos * 100)),
         isActive: body.activar === true,
       };
     }

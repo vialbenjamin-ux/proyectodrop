@@ -493,6 +493,17 @@ exports.handler = async (event) => {
     //    usan). Ademas se requieren campos de STYLE (bgC/c/bW/bC/bR/bSty/
     //    tC/plT/descC) para que el widget renderice el "modo tarjeta" con
     //    foto. Sin esos, muestra el modo minimalista sin foto.
+    // Releasit cobra el precio de la variante conectada MENOS connDisc; `price`
+    // solo es lo que se muestra. Sin connDisc el upsell entra a precio completo
+    // (#32117, 17 oct 2026). Se calcula con el precio real de la variante.
+    let upsellConnDisc = 0;
+    if (upsell) {
+      try {
+        const vr = await fetchShopify(API + '/variants/' + encodeURIComponent(upsell.variant_id) + '.json', { headers: H });
+        const vp = vr.ok ? Number(((await vr.json()).variant || {}).price) : NaN;
+        if (vp > 0) upsellConnDisc = Math.max(0, Math.round(vp * 100) - upsell.price_cents);
+      } catch (_) { /* sin precio de variante: queda en 0 y se ve en la verificacion */ }
+    }
     const upsellNuevo = upsell ? {
       id: Date.now() + 1,
       name: 'UPSELL: ' + upsell.name,
@@ -501,7 +512,7 @@ exports.handler = async (event) => {
       connP: upsell.product_id,
       connV: upsell.variant_id,
       price: upsell.price_cents,
-      connDisc: 0,
+      connDisc: upsellConnDisc,
       text: 'Agrega {title} por solo {price}',
       desc: '',
       descC: 'rgba(89,89,89,1)',
