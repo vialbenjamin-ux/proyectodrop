@@ -500,9 +500,29 @@ exports.handler = async (event) => {
     if (upsell) {
       try {
         const vr = await fetchShopify(API + '/variants/' + encodeURIComponent(upsell.variant_id) + '.json', { headers: H });
-        const vp = vr.ok ? Number(((await vr.json()).variant || {}).price) : NaN;
-        if (vp > 0) upsellConnDisc = Math.max(0, Math.round(vp * 100) - upsell.price_cents);
-      } catch (_) { /* sin precio de variante: queda en 0 y se ve en la verificacion */ }
+        const vj = vr.ok ? ((await vr.json()).variant || {}) : {};
+        const vp = Number(vj.price);
+        if (vp * 100 >= upsell.price_cents) {
+          upsellConnDisc = Math.round(vp * 100) - upsell.price_cents;
+        } else if (vp > 0) {
+          // La variante vale MENOS que lo ofrecido (borrador con precio de
+          // relleno, $1 o 999): Releasit cobraria ese relleno. Si el producto
+          // es borrador se le sube el precio al del upsell (no es visible en
+          // la tienda); si esta activo no se pone upsell.
+          const pr = await fetchShopify(API + '/products/' + encodeURIComponent(upsell.product_id) + '.json?fields=id,status', { headers: H });
+          const st = pr.ok ? ((await pr.json()).product || {}).status : '';
+          if (st === 'draft' && !dryRun) {
+            const up = await fetchShopify(API + '/variants/' + encodeURIComponent(upsell.variant_id) + '.json', { method: 'PUT', headers: H,
+              body: JSON.stringify({ variant: { id: Number(upsell.variant_id), price: String(upsell.price_cents / 100) } }) });
+            if (!up.ok) { upsellReason = 'sin upsell: no pude fijar el precio del borrador conectado (' + up.status + ')'; upsell = null; }
+          } else if (st !== 'draft') {
+            upsellReason = 'sin upsell: el producto conectado vale ' + vp + ' (menos que lo ofrecido) y esta ' + (st || '?') + '; se cobraria ese precio';
+            upsell = null;
+          }
+        } else {
+          upsellReason = 'sin upsell: no pude leer el precio de la variante conectada'; upsell = null;
+        }
+      } catch (e) { upsellReason = 'sin upsell: ' + (e.message || 'error leyendo la variante'); upsell = null; }
     }
     const upsellNuevo = upsell ? {
       id: Date.now() + 1,

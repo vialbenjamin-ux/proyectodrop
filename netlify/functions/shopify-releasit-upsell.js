@@ -118,6 +118,9 @@ exports.handler = async (event) => {
       const v0 = (prod.variants || [])[0];
       if (!v0) return respond(400, { error: 'El producto a ofrecer no tiene variantes' });
       if (String(prod.status) !== 'active') return respond(400, { error: 'El producto a ofrecer no esta activo (' + prod.status + ')' });
+      if (Number(v0.price) * 100 < Math.round(precioPesos * 100)) {
+        return respond(400, { error: 'El producto a ofrecer vale ' + v0.price + ' en Shopify, menos que ' + precioPesos + ': Releasit cobraria ' + v0.price + '. Subí su precio primero.' });
+      }
       cambios = {
         name: 'UPSELL: ' + prod.title,
         title: prod.title,
