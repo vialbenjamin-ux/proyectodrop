@@ -44,15 +44,29 @@ async function crearDescuentosReleasit(API, H, product, grupo, viejo) {
     if (!r.ok || j.errors) throw new Error('GraphQL ' + r.status + ' ' + JSON.stringify(j.errors || j).slice(0, 200));
     return j.data;
   };
-  // Los codigos del grupo anterior de este producto quedarian huerfanos.
-  for (const o of ((viejo && viejo.offers) || [])) {
-    if (!o.ds || !o.ds.d || !o.ds.d.id) continue;
-    try {
-      await gql('mutation($id: ID!){ discountCodeDelete(id: $id){ userErrors{ message } } }', { id: o.ds.d.id });
-    } catch (_) {}
-  }
+  // Republicar un producto que ya esta en pauta no debe cambiarle los codigos:
+  // quien tiene la pagina abierta conserva los viejos, y si se borraron ve el
+  // pack sin descuento hasta recargar (le paso a Benjamin con el descansabrazos,
+  // 26 oct 2026). Si el tramo es el mismo (unidades y % iguales) y el codigo
+  // sigue existiendo en Shopify, se reutiliza; solo se borran los que sobran.
+  const pct = v => Math.round(Number(v) || 0);
+  const viejos = ((viejo && viejo.offers) || []).filter(o => o.ds && o.ds.d && o.ds.d.id);
+  const usados = new Set();
   for (const o of grupo.offers) {
     if (o.qty < 2 || !o.ds || !(o.ds.v > 0)) continue;
+    const igual = viejos.find(v => v.qty === o.qty && pct(v.ds.v) === pct(o.ds.v) && !usados.has(v.ds.d.id));
+    if (igual) {
+      let vivo = false;
+      try {
+        const q = await gql('query($id: ID!){ codeDiscountNode(id: $id){ id } }', { id: igual.ds.d.id });
+        vivo = !!(q && q.codeDiscountNode);
+      } catch (_) {}
+      if (vivo) {
+        usados.add(igual.ds.d.id);
+        o.ds = Object.assign({}, o.ds, { d: igual.ds.d });
+        continue;
+      }
+    }
     const code = 'RSI_QUANTITY_' + String(Math.floor(Math.random() * 1e9)).padStart(9, '0');
     const d = await gql(`mutation($d: DiscountCodeBasicInput!){ discountCodeBasicCreate(basicCodeDiscount: $d){
       codeDiscountNode{ id } userErrors{ field message } } }`, { d: {
@@ -71,6 +85,13 @@ async function crearDescuentosReleasit(API, H, product, grupo, viejo) {
     const res = d.discountCodeBasicCreate;
     if (res.userErrors && res.userErrors.length) throw new Error(res.userErrors.map(e => e.message).join('; '));
     o.ds = Object.assign({}, o.ds, { d: { id: res.codeDiscountNode.id, code } });
+  }
+  // Los codigos del grupo anterior que no se reutilizaron quedarian huerfanos.
+  for (const v of viejos) {
+    if (usados.has(v.ds.d.id)) continue;
+    try {
+      await gql('mutation($id: ID!){ discountCodeDelete(id: $id){ userErrors{ message } } }', { id: v.ds.d.id });
+    } catch (_) {}
   }
 }
 
