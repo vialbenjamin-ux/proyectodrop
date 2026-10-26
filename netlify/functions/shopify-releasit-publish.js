@@ -30,6 +30,50 @@
 // Antes cualquier 429 abortaba con "Fetch metafields tienda: 429" y habia que
 // reintentar a mano. Reintenta respetando Retry-After; tambien ante 5xx.
 const { pais } = require('./_tenant');
+// Releasit en plan Free (BENKOMX) no descuenta el pack por su cuenta: cada
+// tramo de 2 o 3 unidades necesita un codigo de descuento de Shopify y el
+// grupo lo guarda en ds.d = { id, code }. Sin eso el formulario muestra
+// "Producto no disponible" y los tramos vacios, y habia que apretar "Create
+// missing discounts" en Sales Booster despues de cada publicacion. Esto hace
+// lo mismo que ese boton, con el mismo formato que deja Releasit (26 oct 2026).
+// Necesita el scope write_discounts.
+async function crearDescuentosReleasit(API, H, product, grupo, viejo) {
+  const gql = async (query, variables) => {
+    const r = await fetchShopify(API + '/graphql.json', { method: 'POST', headers: H, body: JSON.stringify({ query, variables }) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || j.errors) throw new Error('GraphQL ' + r.status + ' ' + JSON.stringify(j.errors || j).slice(0, 200));
+    return j.data;
+  };
+  // Los codigos del grupo anterior de este producto quedarian huerfanos.
+  for (const o of ((viejo && viejo.offers) || [])) {
+    if (!o.ds || !o.ds.d || !o.ds.d.id) continue;
+    try {
+      await gql('mutation($id: ID!){ discountCodeDelete(id: $id){ userErrors{ message } } }', { id: o.ds.d.id });
+    } catch (_) {}
+  }
+  for (const o of grupo.offers) {
+    if (o.qty < 2 || !o.ds || !(o.ds.v > 0)) continue;
+    const code = 'RSI_QUANTITY_' + String(Math.floor(Math.random() * 1e9)).padStart(9, '0');
+    const d = await gql(`mutation($d: DiscountCodeBasicInput!){ discountCodeBasicCreate(basicCodeDiscount: $d){
+      codeDiscountNode{ id } userErrors{ field message } } }`, { d: {
+      title: "QUANTITY DISCOUNT (don't delete) " + product.title + ' / ' + o.title,
+      code,
+      startsAt: new Date().toISOString(),
+      customerSelection: { all: true },
+      customerGets: {
+        // Releasit guarda el % con dos decimales (ds.v 1996.997 -> 19,97%).
+        value: { percentage: Math.round(o.ds.v) / 10000 },
+        items: { products: { productsToAdd: ['gid://shopify/Product/' + product.id] } },
+      },
+      minimumRequirement: { quantity: { greaterThanOrEqualToQuantity: String(o.qty) } },
+      appliesOncePerCustomer: false,
+    } });
+    const res = d.discountCodeBasicCreate;
+    if (res.userErrors && res.userErrors.length) throw new Error(res.userErrors.map(e => e.message).join('; '));
+    o.ds = Object.assign({}, o.ds, { d: { id: res.codeDiscountNode.id, code } });
+  }
+}
+
 async function fetchShopify(url, opts, intentos) {
   const max = intentos || 3;
   let ultima = null;
@@ -565,8 +609,17 @@ exports.handler = async (event) => {
       catch { listaUP = []; }
     }
 
+    const grupoViejo = listaQO.find(g => (g.pIds || []).map(String).includes(String(productId)));
     const listaQOLimpia = listaQO.filter(g => !((g.pIds || []).map(String).includes(String(productId))));
     listaQOLimpia.push(grupoNuevo);
+
+    // Codigos de descuento de Releasit Free (Mexico). Si falla, la oferta se
+    // publica igual y queda el boton "Create missing discounts" como antes.
+    let descuentosError = null;
+    if (!dryRun && T.releasitConCodigos) {
+      try { await crearDescuentosReleasit(API, H, product, grupoNuevo, grupoViejo); }
+      catch (e) { descuentosError = String(e.message || e).slice(0, 300); }
+    }
 
     const listaUPLimpia = listaUP.filter(u => !((u.prods || []).map(String).includes(String(productId))));
     if (upsellNuevo) listaUPLimpia.push(upsellNuevo);
@@ -650,6 +703,7 @@ exports.handler = async (event) => {
       metafieldsAfter: { quantity_offers_count: listaQOLimpia.length, tick_upsells_count: listaUPLimpia.length },
       dryRun,
       applied,
+      descuentosError,
       tagAdded,
       writeErrors: writeErrors.length ? writeErrors : undefined,
     });

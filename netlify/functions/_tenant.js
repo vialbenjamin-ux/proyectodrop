@@ -46,6 +46,10 @@ const PAISES = {
     // importador pasa a ser 1, que el piso frena solo.
     pisoPrecio: 479, preciosProhibidos: [],
     precioRelleno: 1,
+    // Releasit en plan Free: el descuento de cada pack necesita un codigo de
+    // Shopify propio (ver shopify-releasit-publish). En Chile el plan pago lo
+    // aplica solo y los grupos no llevan codigo.
+    releasitConCodigos: true,
     prefijoTelefono: '52',
     // Mientras el tema BENKOMX no este publicado, las plantillas van a ESE tema
     // y no al publicado (el de Fauno). Sin la variable, se usa el publicado.
