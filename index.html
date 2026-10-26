@@ -12466,7 +12466,45 @@ function bkShrineAElixir(cl, maestro){
       dest.block_order.push('f' + (i + 1));
     });
   }
+  bkMexicanizar(mx);
   return mx;
+}
+
+// La plantilla base es de Chile: antes de escribirla en BENKOMX se cambian
+// las palabras que en Mexico suenan de otro pais. Benjamin pidio lenguaje
+// mexicano "NO EXAGERADO" (26 oct 2026): solo el vocabulario cotidiano que
+// cambia (auto -> carro, polera -> playera), nada de modismos (wey, chido).
+// Se aplica solo a los campos de texto: custom_liquid lleva CSS y ahi "auto"
+// es un valor ("margin: 0 auto").
+const BK_MX_PALABRAS = [
+  ['autos', 'carros'], ['auto', 'carro'],
+  ['poleras', 'playeras'], ['polera', 'playera'],
+  ['zapatillas', 'tenis'], ['chaquetas', 'chamarras'], ['chaqueta', 'chamarra'],
+  ['bencina', 'gasolina'], ['computador', 'computadora'],
+  ['frutillas', 'fresas'], ['frutilla', 'fresa'], ['paltas', 'aguacates'], ['palta', 'aguacate'],
+  ['porotos', 'frijoles'], ['poroto', 'frijol'], ['guaguas', 'bebés'], ['guagua', 'bebé'],
+  ['despachos', 'envíos'], ['despacho', 'envío'], ['comunas', 'colonias'], ['comuna', 'colonia'],
+  ['al tiro', 'de inmediato'], ['calzar', 'quedar'],
+];
+const BK_MX_CAMPOS = /^(heading_text|paragraph_text|benefit_\d|review_text|question|answer|text|title_text|accent_text|description_text|heading|rating_text_content)$/;
+function bkMexicanizarTexto(s){
+  let out = String(s);
+  for (const [cl, mx] of BK_MX_PALABRAS) {
+    out = out.replace(new RegExp('(^|[^\\wáéíóúñü])(' + cl + ')(?![\\wáéíóúñü])', 'gi'), (m, pre, w) => {
+      const r = w === w.toUpperCase() ? mx.toUpperCase()
+        : w[0] === w[0].toUpperCase() ? mx[0].toUpperCase() + mx.slice(1) : mx;
+      return pre + r;
+    });
+  }
+  return out;
+}
+function bkMexicanizar(nodo){
+  if (!nodo || typeof nodo !== 'object') return;
+  for (const k of Object.keys(nodo)) {
+    const v = nodo[k];
+    if (typeof v === 'string' && BK_MX_CAMPOS.test(k)) nodo[k] = bkMexicanizarTexto(v);
+    else if (v && typeof v === 'object') bkMexicanizar(v);
+  }
 }
 
 async function ejecutarAutoShrine(){
