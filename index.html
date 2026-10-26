@@ -3104,6 +3104,15 @@
       .bs-tabla tr.bs-fila{cursor:pointer}
       .bs-tabla tr.bs-fila:hover td{background:var(--surface2)}
       .bs-tag{display:inline-block;font-size:9px;font-family:'DM Mono',monospace;border:1px solid var(--border2);color:var(--muted);border-radius:8px;padding:1px 6px;margin-left:4px}
+      /* Pasar un producto del catalogo a Landing Auto sin copiar el ID a mano. */
+      .bs-la-btn{margin-top:5px;background:var(--surface2);border:1px solid #2B5FB3;color:#2B5FB3;border-radius:7px;padding:3px 9px;font-size:10px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer;line-height:1.5}
+      .bs-la-btn:hover{background:#2B5FB3;color:#fff}
+      html[data-theme="dark"] .bs-la-btn{border-color:#7FB0F0;color:#7FB0F0}
+      html[data-theme="dark"] .bs-la-btn:hover{background:#7FB0F0;color:#111}
+      .bs-la-menu{position:absolute;z-index:9999;background:var(--surface);border:1.5px solid var(--border);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.18);padding:8px;display:flex;flex-direction:column;gap:5px;min-width:186px}
+      .bs-la-menu .tit{font-size:10px;font-family:'DM Mono',monospace;color:var(--muted);padding:1px 4px 3px}
+      .bs-la-menu button{background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:7px;padding:8px 10px;font-size:12px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer;text-align:left}
+      .bs-la-menu button:hover{background:#2B5FB3;border-color:#2B5FB3;color:#fff}
       .bs-hbar{display:grid;grid-template-columns:minmax(70px,34%) 1fr 52px;gap:8px;align-items:center;font-size:11px;font-family:'DM Mono',monospace;color:var(--text);margin:5px 0}
       .bs-hbar i{display:block;height:10px;border-radius:0 4px 4px 0;background:var(--bs-serie);min-width:2px}
       .bs-hbar span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted)}
@@ -21595,6 +21604,76 @@ function bsIr(id){
 function bsAbrir(id){ _bs.abierto = (_bs.abierto === id) ? null : id; _bsTabla(); }
 function bsMas(){ _bs.limite += 50; _bsTabla(); }
 
+// ── De BENSTOCKY a Landing Auto ──────────────────────────────────────────────
+// El catalogo es donde se ve que producto empieza a moverse, y hasta ahora
+// para pedirlo habia que copiar el ID a mano en Landing Auto. Este boton lo
+// hace de una: elige el sello y crea el pedido, con el pais de la vista.
+// El sello se pregunta SIEMPRE porque define el nx1 de Releasit y la chapa de
+// la hero, y no se puede deducir del costo.
+function _bsCerrarMenuLA(){
+  const m = document.getElementById('bs-la-menu');
+  if (m) m.remove();
+  document.removeEventListener('click', _bsCerrarMenuLA, true);
+}
+
+function bsALanding(ev, dropiId){
+  ev.stopPropagation();
+  ev.preventDefault();
+  _bsCerrarMenuLA();
+  const r = ev.currentTarget.getBoundingClientRect();
+  const m = document.createElement('div');
+  m.id = 'bs-la-menu';
+  m.className = 'bs-la-menu';
+  m.innerHTML = '<div class="tit">Sello de la oferta</div>'
+    + [['45', '45% OFF'], ['2x1', '2x1'], ['3x1', '3x1'], ['', 'Sin sello']]
+        .map(function(o){ return '<button type="button" data-sello="' + o[0] + '">' + o[1] + '</button>'; }).join('');
+  m.style.left = Math.min(r.left + window.scrollX, window.scrollX + document.documentElement.clientWidth - 200) + 'px';
+  m.style.top = (r.bottom + window.scrollY + 5) + 'px';
+  m.addEventListener('click', function(e){
+    const b = e.target.closest('button[data-sello]');
+    if (!b) return;
+    e.stopPropagation();
+    const sello = b.dataset.sello;
+    _bsCerrarMenuLA();
+    bsCrearPedidoLA(dropiId, sello);
+  });
+  document.body.appendChild(m);
+  // En captura, para que cerrar no dependa de que el click llegue al body.
+  setTimeout(function(){ document.addEventListener('click', _bsCerrarMenuLA, true); }, 0);
+}
+
+// Deja el panel de Landing Auto cargado con este producto y crea el pedido.
+// No es silencioso a proposito: cambia de seccion para que se vea el estado y
+// el pedido recien creado en la lista, igual que si lo hubiera escrito a mano.
+async function bsCrearPedidoLA(dropiId, sello){
+  const pais = (_bs.pais === 'gt') ? 'gt' : 'chile';
+  switchSection('landing-auto');
+  if (typeof laSetPais === 'function') laSetPais(pais);
+  const inId = document.getElementById('la-dropi');
+  const inSe = document.getElementById('la-sello');
+  if (!inId) { showToast('No encontré el panel de Landing Auto', '⚠️', 'error'); return; }
+  inId.value = String(dropiId);
+  if (inSe) inSe.value = sello || '';
+  // Limpia el producto anterior: sin esto laBuscarProducto se salta la
+  // consulta cuando el ID o el pais coinciden con la busqueda de antes.
+  if (typeof laIdCambio === 'function') laIdCambio();
+  try {
+    await laBuscarProducto();
+  } catch (e) {
+    _laEstado('⚠ ' + (e.message || 'no pude buscar el producto'), 'var(--danger,#E74C3C)');
+    return;
+  }
+  // Si no lo encontro, el panel pide nombre y foto a mano: ahi se para y lo
+  // termina el. Crear el pedido igual dejaria un pedido sin foto de referencia.
+  if (!_laProducto) { _laEstado('No pude leer el producto. Revisá el ID.', 'var(--danger,#E74C3C)'); return; }
+  if (!_laProducto.encontrado) {
+    showToast('Ese ID no está en ' + (pais === 'gt' ? 'Guatemala' : 'Chile') + ': completá nombre y foto', '⚠️', 'error');
+    return;
+  }
+  if (inSe) inSe.value = sello || '';
+  await laCrearPedido();
+}
+
 function _bsTabla(){
   const el = document.getElementById('bs-lista'); if (!el) return;
   const filas = _bs.filas;
@@ -21611,7 +21690,8 @@ function _bsTabla(){
     h += '<tr class="bs-fila" id="bs-fila-' + x.p.i + '" onclick="bsAbrir(' + x.p.i + ')"><td class="izq" style="color:var(--muted)">' + (i + 1) + '</td><td class="izq" style="width:46px">' + img + '</td>'
       + '<td class="izq" style="max-width:320px"><div style="font-family:\'DM Sans\',sans-serif;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(x.p.n) + '</div>'
       + (_bs.vista === 'test' ? '<div style="font-size:10px;color:var(--text)">De ' + _bsN(x.vAnt, 1) + ' a ' + _bsN(x.vRec, 1) + ' por día · vendió en ' + x.rec.con + ' de ' + x.rec.med + ' días</div>' : '')
-      + '<div style="font-size:10px;color:var(--muted)">' + x.p.i + ' · ' + esc(x.p.pr || '') + (x.masivo ? '<span class="bs-tag">masivo</span>' : '') + (x.rec.repuso ? '<span class="bs-tag">repuso</span>' : '') + ((x.rec.u > 0 && x.rec.res / x.rec.u >= 0.5) ? '<span class="bs-tag" data-tip="' + esc('La mayor parte de lo vendido salió de stock reservado para un vendedor') + '">reservado</span>' : '') + (x.rec.reajuste ? '<span class="bs-tag">reajuste</span>' : '') + '</div></td>'
+      + '<div style="font-size:10px;color:var(--muted)">' + x.p.i + ' · ' + esc(x.p.pr || '') + (x.masivo ? '<span class="bs-tag">masivo</span>' : '') + (x.rec.repuso ? '<span class="bs-tag">repuso</span>' : '') + ((x.rec.u > 0 && x.rec.res / x.rec.u >= 0.5) ? '<span class="bs-tag" data-tip="' + esc('La mayor parte de lo vendido salió de stock reservado para un vendedor') + '">reservado</span>' : '') + (x.rec.reajuste ? '<span class="bs-tag">reajuste</span>' : '') + '</div>'
+      + '<button type="button" class="bs-la-btn" onclick="bsALanding(event,' + x.p.i + ')" data-tip="' + esc('Crea el pedido en Landing Auto con este producto') + '">🛰️ Landing Auto</button></td>'
       + '<td>' + _bsN(x.p.p) + '</td><td' + (x.reservado ? ' data-tip="' + esc('Total ' + _bsN(x.stockTotal) + ' · reservado para otros ' + _bsN(x.reservado)) + '"' : '') + '>' + _bsN(x.stock) + '</td><td>' + _bsN(x.rec.u) + '</td><td>' + _bsN(x.vRec, 1) + '</td><td>' + (x.vAnt == null ? '–' : _bsN(x.vAnt, 1)) + '</td>'
       + '<td>' + (x.acel == null ? '–' : '×' + _bsN(x.acel, 1)) + '</td><td>' + (x.rec.mias ? _bsN(x.rec.mias) : '–') + '</td>' + (mias ? '<td>' + parte + '</td>' : '') + '<td class="izq">' + spark + '</td></tr>';
     if (_bs.abierto === x.p.i) h += '<tr><td colspan="' + (mias ? 12 : 11) + '" style="background:var(--surface2)">' + _bsDetalle(x) + '</td></tr>';
