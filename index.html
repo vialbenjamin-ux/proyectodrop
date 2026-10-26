@@ -3109,6 +3109,8 @@
       .bs-la-btn:hover{background:#2B5FB3;color:#fff}
       html[data-theme="dark"] .bs-la-btn{border-color:#7FB0F0;color:#7FB0F0}
       html[data-theme="dark"] .bs-la-btn:hover{background:#7FB0F0;color:#111}
+      .bs-la-btn:disabled{cursor:default;opacity:.95}
+      .bs-la-btn.listo,.bs-la-btn.listo:hover{background:transparent;border-color:var(--accent,#1baf7a);color:var(--accent,#1baf7a)}
       .bs-la-menu{position:absolute;z-index:9999;background:var(--surface);border:1.5px solid var(--border);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.18);padding:8px;display:flex;flex-direction:column;gap:5px;min-width:186px}
       .bs-la-menu .tit{font-size:10px;font-family:'DM Mono',monospace;color:var(--muted);padding:1px 4px 3px}
       .bs-la-menu button{background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:7px;padding:8px 10px;font-size:12px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer;text-align:left}
@@ -21642,36 +21644,68 @@ function bsALanding(ev, dropiId){
   setTimeout(function(){ document.addEventListener('click', _bsCerrarMenuLA, true); }, 0);
 }
 
-// Deja el panel de Landing Auto cargado con este producto y crea el pedido.
-// No es silencioso a proposito: cambia de seccion para que se vea el estado y
-// el pedido recien creado en la lista, igual que si lo hubiera escrito a mano.
+// Crea el pedido SIN sacarlo de BENSTOCKY: la gracia es ir marcando varios
+// mientras se revisa el catalogo. Toda la confirmacion va por toast y por el
+// propio boton, que queda en "Pedido creado".
+//
+// Por debajo usa el mismo panel de Landing Auto (oculto) en vez de repetir el
+// armado del documento: asi no se desincroniza con laCrearPedido, que ademas
+// crea el producto en Shopify cuando todavia no existe.
+const _bsPedidos = new Set();
+
+function _bsBoton(dropiId){ return document.querySelector('.bs-la-btn[data-pid="' + dropiId + '"]'); }
+
 async function bsCrearPedidoLA(dropiId, sello){
   const pais = (_bs.pais === 'gt') ? 'gt' : 'chile';
-  switchSection('landing-auto');
-  if (typeof laSetPais === 'function') laSetPais(pais);
+  const btn = _bsBoton(dropiId);
   const inId = document.getElementById('la-dropi');
   const inSe = document.getElementById('la-sello');
   if (!inId) { showToast('No encontré el panel de Landing Auto', '⚠️', 'error'); return; }
+  const fallo = (msg) => {
+    showToast(msg, '⚠️', 'error');
+    if (btn) { btn.disabled = false; btn.textContent = '🛰️ Landing Auto'; }
+  };
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Creando…'; }
+
+  if (typeof laSetPais === 'function') laSetPais(pais);
   inId.value = String(dropiId);
-  if (inSe) inSe.value = sello || '';
   // Limpia el producto anterior: sin esto laBuscarProducto se salta la
   // consulta cuando el ID o el pais coinciden con la busqueda de antes.
   if (typeof laIdCambio === 'function') laIdCambio();
+  if (inSe) inSe.value = sello || '';
+
   try {
     await laBuscarProducto();
   } catch (e) {
-    _laEstado('⚠ ' + (e.message || 'no pude buscar el producto'), 'var(--danger,#E74C3C)');
+    fallo('No pude buscar el producto: ' + (e.message || 'error'));
     return;
   }
-  // Si no lo encontro, el panel pide nombre y foto a mano: ahi se para y lo
-  // termina el. Crear el pedido igual dejaria un pedido sin foto de referencia.
-  if (!_laProducto) { _laEstado('No pude leer el producto. Revisá el ID.', 'var(--danger,#E74C3C)'); return; }
+  // Si no lo encontro, el panel pide nombre y foto a mano. Ahi si hay que ir
+  // a la seccion: un pedido sin foto de referencia no sirve para buscar los
+  // videos, y la foto solo se puede cargar desde el formulario.
+  if (!_laProducto) { fallo('No pude leer el producto. Revisá el ID ' + dropiId + '.'); return; }
   if (!_laProducto.encontrado) {
-    showToast('Ese ID no está en ' + (pais === 'gt' ? 'Guatemala' : 'Chile') + ': completá nombre y foto', '⚠️', 'error');
+    fallo('El ID ' + dropiId + ' no está en ' + (pais === 'gt' ? 'Guatemala' : 'Chile') + '. Te abro el panel para cargarlo a mano.');
+    switchSection('landing-auto');
     return;
   }
+
   if (inSe) inSe.value = sello || '';
-  await laCrearPedido();
+  try {
+    await laCrearPedido();
+  } catch (e) {
+    fallo('No pude crear el pedido: ' + (e.message || 'error'));
+    return;
+  }
+  // laCrearPedido vacia el ID solo cuando el documento quedo escrito; si sigue
+  // ahi es que se cayo y el error ya esta en el estado del panel.
+  if (String(inId.value || '').trim()) {
+    fallo('No se creó el pedido de ' + dropiId + '. Abrí Landing Auto para ver por qué.');
+    return;
+  }
+  _bsPedidos.add(dropiId);
+  if (btn) { btn.disabled = true; btn.textContent = '✅ Pedido creado'; btn.classList.add('listo'); }
+  showToast('Pedido creado' + (sello ? ' con sello ' + sello : ' sin sello') + ' · seguí marcando', '🛰️', 'success');
 }
 
 function _bsTabla(){
@@ -21691,7 +21725,9 @@ function _bsTabla(){
       + '<td class="izq" style="max-width:320px"><div style="font-family:\'DM Sans\',sans-serif;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(x.p.n) + '</div>'
       + (_bs.vista === 'test' ? '<div style="font-size:10px;color:var(--text)">De ' + _bsN(x.vAnt, 1) + ' a ' + _bsN(x.vRec, 1) + ' por día · vendió en ' + x.rec.con + ' de ' + x.rec.med + ' días</div>' : '')
       + '<div style="font-size:10px;color:var(--muted)">' + x.p.i + ' · ' + esc(x.p.pr || '') + (x.masivo ? '<span class="bs-tag">masivo</span>' : '') + (x.rec.repuso ? '<span class="bs-tag">repuso</span>' : '') + ((x.rec.u > 0 && x.rec.res / x.rec.u >= 0.5) ? '<span class="bs-tag" data-tip="' + esc('La mayor parte de lo vendido salió de stock reservado para un vendedor') + '">reservado</span>' : '') + (x.rec.reajuste ? '<span class="bs-tag">reajuste</span>' : '') + '</div>'
-      + '<button type="button" class="bs-la-btn" onclick="bsALanding(event,' + x.p.i + ')" data-tip="' + esc('Crea el pedido en Landing Auto con este producto') + '">🛰️ Landing Auto</button></td>'
+      + (_bsPedidos.has(x.p.i)
+          ? '<button type="button" class="bs-la-btn listo" data-pid="' + x.p.i + '" disabled>✅ Pedido creado</button>'
+          : '<button type="button" class="bs-la-btn" data-pid="' + x.p.i + '" onclick="bsALanding(event,' + x.p.i + ')" data-tip="' + esc('Crea el pedido en Landing Auto sin salir de acá') + '">🛰️ Landing Auto</button>') + '</td>'
       + '<td>' + _bsN(x.p.p) + '</td><td' + (x.reservado ? ' data-tip="' + esc('Total ' + _bsN(x.stockTotal) + ' · reservado para otros ' + _bsN(x.reservado)) + '"' : '') + '>' + _bsN(x.stock) + '</td><td>' + _bsN(x.rec.u) + '</td><td>' + _bsN(x.vRec, 1) + '</td><td>' + (x.vAnt == null ? '–' : _bsN(x.vAnt, 1)) + '</td>'
       + '<td>' + (x.acel == null ? '–' : '×' + _bsN(x.acel, 1)) + '</td><td>' + (x.rec.mias ? _bsN(x.rec.mias) : '–') + '</td>' + (mias ? '<td>' + parte + '</td>' : '') + '<td class="izq">' + spark + '</td></tr>';
     if (_bs.abierto === x.p.i) h += '<tr><td colspan="' + (mias ? 12 : 11) + '" style="background:var(--surface2)">' + _bsDetalle(x) + '</td></tr>';
