@@ -10793,20 +10793,22 @@ async function _bkPrecioSinDefinir(productId, tenant){
 const BK_ESCALA_PRECIO = {
   chile: [24990, 25990, 27990, 29990, 34990, 39990, 44990, 49990, 59990],
   gt:    [169, 179, 189, 199, 219, 229, 249, 259, 279, 299, 319, 349, 399, 459, 499, 549],
+  // Mexico (26 oct 2026): sin historial propio, Benjamin pidio inflar "a la
+  // chilena" asumiendo los mismos costos. La escala, el margen y el piso son
+  // los de Chile pasados a MXN (1 MXN = 52,8 CLP) y llevados a precios que
+  // terminan en 9. Sin 999: es el precio de relleno del importador.
+  mx:    [479, 499, 529, 569, 599, 649, 749, 849, 949, 1149],
 };
-const BK_MARGEN_TIPICO = { chile: 23000, gt: 150 };
+const BK_MARGEN_TIPICO = { chile: 23000, gt: 150, mx: 440 };
 // Piso: por barato que salga el producto, no se vende bajo esto. En GT hay
 // productos de Q22 de costo vendidos a Q189, o sea que la regla del margen
 // sola los dejaria demasiado abajo.
-const BK_PRECIO_MINIMO = { chile: 24990, gt: 189 };
+const BK_PRECIO_MINIMO = { chile: 24990, gt: 189, mx: 479 };
 // Debajo de esto el producto no paga el trabajo: se avisa.
-const BK_MARGEN_MINIMO = { chile: 19000, gt: 120 };
+const BK_MARGEN_MINIMO = { chile: 19000, gt: 120, mx: 360 };
 
 function _bkPrecioSugerido(costo, tenant){
-  // Mexico no tiene escala, margen ni piso definidos: sin sugerencia. El
-  // servidor ademas frena cualquier precio en MX hasta que exista el piso.
-  if (tenant === 'mx') return null;
-  const t = (tenant === 'gt') ? 'gt' : 'chile';
+  const t = (tenant === 'gt' || tenant === 'mx') ? tenant : 'chile';
   const c = Number(costo);
   if (!c || c <= 0) return null;
   const escala = BK_ESCALA_PRECIO[t];
@@ -10816,7 +10818,7 @@ function _bkPrecioSugerido(costo, tenant){
   // antes que vender con margen flaco.
   if (precio - c < BK_MARGEN_MINIMO[t]) {
     const arriba = escala.filter(p => p - c >= BK_MARGEN_TIPICO[t]);
-    precio = arriba.length ? arriba[0] : Math.round((c + BK_MARGEN_TIPICO[t]) / 10) * 10 - (t === 'gt' ? 1 : 10);
+    precio = arriba.length ? arriba[0] : Math.round((c + BK_MARGEN_TIPICO[t]) / 10) * 10 - (t === 'chile' ? 10 : 1);
   }
   if (precio < BK_PRECIO_MINIMO[t]) precio = BK_PRECIO_MINIMO[t];
   return { precio, antes: _bkPrecioAntes(precio, t), margen: precio - c,
@@ -10838,6 +10840,8 @@ function _bkPrecioAntes(precio, tenant){
   const p = Number(precio);
   if (!p || p <= 0) return null;
   if (tenant === 'gt') return Math.round(p * 1.6 / 10) * 10 - 1;
+  // Mexico: el x1.5 de Chile, terminado en 9 (499 -> 749).
+  if (tenant === 'mx') return Math.round(p * 1.5 / 50) * 50 - 1;
   return Math.round(p * 1.5 / 5000) * 5000 - 10;
 }
 
@@ -12729,7 +12733,7 @@ async function ejecutarAutoShrine(){
     // del de Chile, que esta forzado a tenant=chile y calcula en CLP.
     const bloquePrecios = landingEsMX()
       ? '<div style="margin-top:12px;padding:10px 12px;background:#ECFDF5;border:1.5px solid #0F7B3F;border-radius:8px;font-size:11px;font-family:\'DM Mono\',monospace;color:#065F46;line-height:1.5">'
-        + '🇲🇽 Precio y packs de Releasit de México se cargan a mano por ahora: el servidor no deja publicar precios en MX hasta que esté definido el piso.</div>'
+        + '🇲🇽 El precio ya quedó puesto al importar (fórmula de Chile en MXN, piso $479). Los packs de Releasit de México se cargan a mano por ahora.</div>'
       : landingEsGT()
       ? '<div style="margin-top:12px">' + _bkPanelReleasitGT(_autoShrineProduct.id, _autoShrineProduct.handle, _autoShrineProduct.title) + '</div>'
       : (

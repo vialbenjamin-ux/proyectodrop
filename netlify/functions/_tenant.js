@@ -37,9 +37,9 @@ const PAISES = {
     envMetaToken: 'META_ACCESS_TOKEN_MX', envDropiToken: 'DROPI_TOKEN_MX',
     dropiBase: 'https://api.dropi.mx', dropiApp: 'https://app.dropi.mx',
     moneda: 'MXN', simbolo: '$', locale: 'es-MX', tz: 'America/Mexico_City',
-    // Sin definir todavía: mientras sea null no se publica ni se activa nada
-    // con precio en México (ver precioInvalido).
-    pisoPrecio: null, preciosProhibidos: [],
+    // El piso de Chile (24.990 CLP) en pesos mexicanos, como pidió Benjamín
+    // el 26 oct 2026 "hasta nuevo aviso". 999 es el relleno del importador.
+    pisoPrecio: 479, preciosProhibidos: [999],
     prefijoTelefono: '52',
     // Mientras el tema BENKOMX no este publicado, las plantillas van a ESE tema
     // y no al publicado (el de Fauno). Sin la variable, se usa el publicado.
