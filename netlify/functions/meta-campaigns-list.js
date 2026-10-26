@@ -9,6 +9,7 @@
 //
 // Anti-ban: 2 llamadas secuenciales con >=3s entre cada una.
 
+const { pais } = require('./_tenant');
 const meta = require('./_meta-api');
 const utm = require('./_shopify-utm');
 
@@ -26,6 +27,7 @@ exports.handler = async (event) => {
   const tenant = String(params.tenant || 'chile').toLowerCase();
   const tokenByTenant = {
     gt:    process.env.META_ACCESS_TOKEN_GT,
+    mx:    process.env.META_ACCESS_TOKEN_MX,
     cp:    process.env.META_ACCESS_TOKEN_CP,
     chile: process.env.META_ACCESS_TOKEN,
   };
@@ -54,9 +56,11 @@ exports.handler = async (event) => {
   const acctUrl = `https://graph.facebook.com/${V}/${adAccountId}?fields=id,name,currency,account_status&access_token=${encodeURIComponent(token)}`;
 
   // Shopify credentials para el cruce (mismo pattern que tiktok-report)
-  const isGT = tenant === 'gt';
-  const shopifyDomain = isGT ? process.env.SHOPIFY_DOMAIN_GT : process.env.SHOPIFY_DOMAIN;
-  const shopifyToken  = isGT ? process.env.SHOPIFY_TOKEN_GT  : process.env.SHOPIFY_TOKEN;
+  const T = pais(tenant);
+  if (T.error) return respond(400, { error: T.error });
+  const isGT = T.isGT;
+  const shopifyDomain = T.shopifyDomain;
+  const shopifyToken  = T.shopifyToken;
   const canCross = !!(shopifyDomain && shopifyToken);
   const range = utm.computeDateRange(datePreset);
 

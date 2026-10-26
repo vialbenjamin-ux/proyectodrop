@@ -1,20 +1,23 @@
+const { pais } = require('./_tenant');
 exports.handler = async function (event) {
   const tenant = String(((event.queryStringParameters || {}).tenant || 'chile')).toLowerCase();
-  const isGT = (tenant === 'gt');
-  const token  = isGT ? process.env.SHOPIFY_TOKEN_GT  : process.env.SHOPIFY_TOKEN;
-  const domain = isGT ? process.env.SHOPIFY_DOMAIN_GT : process.env.SHOPIFY_DOMAIN;
+  const T = pais(tenant);
+  if (T.error) return { statusCode: 400, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify({ error: T.error }) };
+  const isGT = T.isGT;
+  const token  = T.shopifyToken;
+  const domain = T.shopifyDomain;
 
   if (!token || !domain) {
     return {
       statusCode: 500,
       headers: { 'Access-Control-Allow-Origin': '*' },
-      body: JSON.stringify({ error: 'Faltan credenciales de Shopify' + (isGT ? ' GT' : '') })
+      body: JSON.stringify({ error: 'Faltan credenciales de Shopify' + T.etiqueta })
     };
   }
 
   // Timezone por tenant: Chile usa Santiago, GT usa Guatemala City (UTC-6).
   // Sin esto, contamos dias distintos y los totales no coinciden con Shopify admin.
-  const TZ = isGT ? 'America/Guatemala' : 'America/Santiago';
+  const TZ = T.tz;
 
   function getSantiagoOffsetHours(date) {
     const utcStr = date.toLocaleString('en-US', { timeZone: 'UTC' });

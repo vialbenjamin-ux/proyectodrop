@@ -25,6 +25,7 @@
 // Ese data-attr solo se setea (por Liquid en theme.liquid) si el producto
 // tiene el tag 'bk-releasit-colors'. Asi los productos viejos (sin tag) NO
 // se ven afectados — solo los que publiquemos de aca en adelante.
+const { pais } = require('./_tenant');
 const CSS_CONTENT = `/* BKDROP — colores de precios Releasit por tramo. Solo aplica a productos con tag 'bk-releasit-colors'. NO editar a mano. */
 [data-bk-releasit-colors="on"] ._rsi-quantity-offers-offer[data-offer-pos="0"] ._rsi-quantity-offers-new-price {
   color: rgba(34, 197, 94, 1) !important;
@@ -114,12 +115,14 @@ exports.handler = async (event) => {
   let tenant = 'chile';
   try {
     const b = JSON.parse(event.body || '{}');
-    if (b && (b.tenant === 'gt' || b.tenant === 'chile')) tenant = b.tenant;
+    if (b && b.tenant) tenant = b.tenant;
   } catch (_) {}
-  const isGT = tenant === 'gt';
-  const token = isGT ? process.env.SHOPIFY_TOKEN_GT : process.env.SHOPIFY_TOKEN;
-  const domain = isGT ? process.env.SHOPIFY_DOMAIN_GT : process.env.SHOPIFY_DOMAIN;
-  if (!token || !domain) return respond(500, { error: 'Faltan credenciales Shopify' + (isGT ? ' GT' : '') });
+  const T = pais(tenant);
+  if (T.error) return respond(400, { error: T.error });
+  const isGT = T.isGT;
+  const token = T.shopifyToken;
+  const domain = T.shopifyDomain;
+  if (!token || !domain) return respond(500, { error: 'Faltan credenciales Shopify' + T.etiqueta });
   const H = { 'X-Shopify-Access-Token': token, 'Content-Type': 'application/json', 'Accept': 'application/json' };
   const API = 'https://' + domain + '/admin/api/2024-10';
 

@@ -11,6 +11,7 @@
 //
 // Requiere read_themes (+ write_themes para PUT, write_files para upload).
 
+const { pais } = require('./_tenant');
 exports.handler = async function (event) {
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 204, headers: cors(), body: '' };
@@ -18,12 +19,14 @@ exports.handler = async function (event) {
 
   const qs = event.queryStringParameters || {};
   const tenant = String((qs.tenant || 'chile')).toLowerCase();
-  const isGT = (tenant === 'gt');
-  const token  = isGT ? process.env.SHOPIFY_TOKEN_GT  : process.env.SHOPIFY_TOKEN;
-  const domain = isGT ? process.env.SHOPIFY_DOMAIN_GT : process.env.SHOPIFY_DOMAIN;
+  const T = pais(tenant);
+  if (T.error) return respond(400, { error: T.error });
+  const isGT = T.isGT;
+  const token  = T.shopifyToken;
+  const domain = T.shopifyDomain;
 
   if (!token || !domain) {
-    return respond(500, { error: 'Faltan credenciales Shopify' + (isGT ? ' GT' : '') });
+    return respond(500, { error: 'Faltan credenciales Shopify' + T.etiqueta });
   }
 
   const headers = {

@@ -4,14 +4,17 @@
 // GET /.netlify/functions/shopify-product-metafields?handle=mopa-titanio
 // o    ?product_id=1234567890
 
+const { pais } = require('./_tenant');
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: cors(), body: '' };
   if (event.httpMethod !== 'GET') return respond(405, { error: 'Method not allowed' });
   const params = event.queryStringParameters || {};
   const tenant = String(params.tenant || 'chile').toLowerCase();
-  const isGT = tenant === 'gt';
-  const token  = isGT ? process.env.SHOPIFY_TOKEN_GT  : process.env.SHOPIFY_TOKEN;
-  const domain = isGT ? process.env.SHOPIFY_DOMAIN_GT : process.env.SHOPIFY_DOMAIN;
+  const T = pais(tenant);
+  if (T.error) return respond(400, { error: T.error });
+  const isGT = T.isGT;
+  const token  = T.shopifyToken;
+  const domain = T.shopifyDomain;
   if (!token || !domain) return respond(500, { error: 'Faltan credenciales Shopify' });
 
   const handle = (params.handle || '').trim();

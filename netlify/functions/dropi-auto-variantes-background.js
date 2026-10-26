@@ -7,8 +7,12 @@
 
 const MAX_PEDIDOS = 18;
 
+const { pais } = require('./_tenant');
+
 exports.handler = async (event) => {
-  const tenant = (event.queryStringParameters || {}).tenant === 'gt' ? 'gt' : 'chile';
+  const P = pais((event.queryStringParameters || {}).tenant);
+  if (P.error) return { statusCode: 400, body: P.error };
+  const tenant = P.codigo;
   const origin = process.env.URL || 'https://bkdrop.netlify.app';
   for (let i = 0; i < MAX_PEDIDOS; i++) {
     let res = {};

@@ -1,3 +1,4 @@
+const { pais } = require('./_tenant');
 const { cuentaDelToken } = require('./_dropi-tenant');
 
 // Importa un producto Dropi a Shopify (Chile) como DRAFT con la estructura
@@ -60,10 +61,12 @@ exports.handler = async (event) => {
   }
 
   // Multi-tenant. Sin `tenant` en el body va a Chile, como siempre.
-  const isGT = String(body.tenant || 'chile').toLowerCase() === 'gt';
-  const token  = isGT ? process.env.SHOPIFY_TOKEN_GT  : process.env.SHOPIFY_TOKEN;
-  const domain = isGT ? process.env.SHOPIFY_DOMAIN_GT : process.env.SHOPIFY_DOMAIN;
-  if (!token || !domain) return respond(500, { error: 'Faltan credenciales Shopify' + (isGT ? ' GT' : '') });
+  const T = pais(body.tenant);
+  if (T.error) return respond(400, { error: T.error });
+  const isGT = T.isGT;
+  const token  = T.shopifyToken;
+  const domain = T.shopifyDomain;
+  if (!token || !domain) return respond(500, { error: 'Faltan credenciales Shopify' + T.etiqueta });
 
   const H = { 'X-Shopify-Access-Token': token, 'Content-Type': 'application/json', 'Accept': 'application/json' };
   const API = 'https://' + domain + '/admin/api/2024-10';
@@ -91,7 +94,7 @@ exports.handler = async (event) => {
       // El tenant DEBE viajar: sin el se escaneaban los proveedores de Chile y
       // despues se buscaba el metafield de esos productos en la tienda de GT,
       // donde no existen -> "No pude leer tokens Dropi de ningun producto".
-      const suppR = await fetch(proto + '://' + host + '/.netlify/functions/dropi-known-suppliers?tenant=' + (isGT ? 'gt' : 'chile'));
+      const suppR = await fetch(proto + '://' + host + '/.netlify/functions/dropi-known-suppliers?tenant=' + T.codigo);
       if (suppR.ok) {
         const suppJ = await suppR.json();
         suppliers = suppJ.suppliers || [];
@@ -213,7 +216,7 @@ exports.handler = async (event) => {
     })();
     const enLaTienda = (c) => !!c && candidatos.some((x) => x.cuenta === c);
     const porEnv = String(process.env.DROPI_CUENTA_ESPERADA || '').trim();
-    const porToken = cuentaDelToken(isGT) || '';
+    const porToken = cuentaDelToken(T.codigo) || '';
     const cuentaOk = porEnv || (enLaTienda(porToken) ? porToken : mayoritaria);
 
     const elegido = candidatos.find(c => c.cuenta && c.cuenta === cuentaOk);
@@ -278,7 +281,7 @@ exports.handler = async (event) => {
     // sincroniza el pedido, cae entero en DROPITEA.
     let metafieldDropi = null;
     let metafieldFuente = 'dropi';
-    const productoDropi = await pedirProductoDropi(isGT, dropiId);
+    const productoDropi = await pedirProductoDropi(T.codigo, dropiId);
     if (productoDropi && !productoDropi.bloqueado) {
       metafieldDropi = construirMetafield(productoDropi, null, {
         tokens: dropiTokens, shopName: dropiShopName,

@@ -13,6 +13,7 @@
 //
 // Respuesta: { ok, applied, afectados: [{id, name, isActive}], quedan }
 
+const { pais } = require('./_tenant');
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: cors(), body: '' };
   if (event.httpMethod !== 'POST') return respond(405, { error: 'Método no permitido' });
@@ -21,10 +22,12 @@ exports.handler = async (event) => {
   try { body = JSON.parse(event.body || '{}'); }
   catch { return respond(400, { error: 'JSON inválido' }); }
 
-  const isGT = String(body.tenant || 'chile').toLowerCase() === 'gt';
-  const token  = isGT ? process.env.SHOPIFY_TOKEN_GT  : process.env.SHOPIFY_TOKEN;
-  const domain = isGT ? process.env.SHOPIFY_DOMAIN_GT : process.env.SHOPIFY_DOMAIN;
-  if (!token || !domain) return respond(500, { error: 'Faltan credenciales Shopify' + (isGT ? ' GT' : '') });
+  const T = pais(body.tenant);
+  if (T.error) return respond(400, { error: T.error });
+  const isGT = T.isGT;
+  const token  = T.shopifyToken;
+  const domain = T.shopifyDomain;
+  if (!token || !domain) return respond(500, { error: 'Faltan credenciales Shopify' + T.etiqueta });
 
   const productId = String(body.product_id || '').trim();
   const upsellId  = String(body.upsell_id || '').trim();

@@ -8,6 +8,7 @@
 // TikTok (lowercase trim). Cada row incluye:
 //   realPurchases, realRevenue, cpaReal, roasReal (basado en órdenes Shopify).
 
+const { pais } = require('./_tenant');
 import { getStore } from '@netlify/blobs';
 
 // Lee el token de la cuenta TikTok ACTIVA (multi-account). Si no hay
@@ -47,7 +48,9 @@ export default async function handler(req) {
   const sinceParam = url.searchParams.get('since');
   const untilParam = url.searchParams.get('until');
   const tenant = (url.searchParams.get('tenant') || 'chile').toLowerCase();
-  const isGT = tenant === 'gt';
+  const T = pais(tenant);
+  if (T.error) return json(400, { error: T.error });
+  const isGT = T.isGT;
   if (!advertiserId) return json(400, { error: 'Falta advertiser_id' });
 
   // since/until override el date_preset si vienen ambos
@@ -98,8 +101,8 @@ export default async function handler(req) {
   const advUrl = 'https://business-api.tiktok.com/open_api/v1.3/advertiser/info/?advertiser_ids=' + encodeURIComponent(JSON.stringify([advertiserId]));
 
   // Shopify credentials para el cruce
-  const shopifyDomain = isGT ? process.env.SHOPIFY_DOMAIN_GT : process.env.SHOPIFY_DOMAIN;
-  const shopifyToken  = isGT ? process.env.SHOPIFY_TOKEN_GT  : process.env.SHOPIFY_TOKEN;
+  const shopifyDomain = T.shopifyDomain;
+  const shopifyToken  = T.shopifyToken;
   const canCross = !!(shopifyDomain && shopifyToken);
 
   try {

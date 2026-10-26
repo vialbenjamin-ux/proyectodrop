@@ -26,6 +26,7 @@
 //     variaciones, stock, shopifyId, handle, camposMetafield }
 
 // El host del CDN depende del pais y sale de la propia llave urlS3.
+const { pais } = require('./_tenant');
 const { urlFoto } = require('./_dropi-metafield');
 
 exports.handler = async (event) => {
@@ -34,9 +35,11 @@ exports.handler = async (event) => {
 
   const qs = event.queryStringParameters || {};
   const tenant = String(qs.tenant || 'chile').toLowerCase();
-  const isGT = tenant === 'gt';
-  const token  = isGT ? process.env.SHOPIFY_TOKEN_GT  : process.env.SHOPIFY_TOKEN;
-  const domain = isGT ? process.env.SHOPIFY_DOMAIN_GT : process.env.SHOPIFY_DOMAIN;
+  const T = pais(tenant);
+  if (T.error) return respond(400, { error: T.error });
+  const isGT = T.isGT;
+  const token  = T.shopifyToken;
+  const domain = T.shopifyDomain;
   if (!token || !domain) return respond(500, { error: 'Faltan credenciales Shopify de ' + tenant });
 
   const dropiId = String(qs.dropi_id || '').trim();
@@ -46,9 +49,9 @@ exports.handler = async (event) => {
   // esta funcion no expone todavia, como warehouse_product (la bodega), que es
   // lo que necesita dropi-create-order para no tener que adivinarla.
   if (qs.raw === '1') {
-    const key = String((isGT ? process.env.DROPI_TOKEN_GT : process.env.DROPI_TOKEN_CL) || '').trim();
-    if (!key) return respond(500, { error: 'Falta la llave de Dropi' });
-    const base = isGT ? 'https://api.dropi.gt' : 'https://api.dropi.cl';
+    const key = T.dropiToken;
+    if (!key) return respond(500, { error: 'Falta ' + T.envDropiToken });
+    const base = T.dropiBase;
     const rr = await fetch(base + '/integrations/products/v2/' + encodeURIComponent(dropiId),
       { headers: { 'dropi-integration-key': key, 'User-Agent': 'BKDROP-Sync/1.0' } });
     const txt = await rr.text();
@@ -57,7 +60,7 @@ exports.handler = async (event) => {
     return respond(200, { status: rr.status, claves: o ? Object.keys(o) : null, objeto: o || txt.slice(0, 600) });
   }
 
-  let desdeDropi = await pedirADropi(isGT, dropiId);
+  let desdeDropi = await pedirADropi(T, dropiId);
   // Si Dropi esta bloqueando, se sigue con lo de Shopify pero avisando: no es
   // lo mismo "no existe" que "no pude preguntar".
   const dropiBloqueado = !!(desdeDropi && desdeDropi.bloqueado);
@@ -118,14 +121,14 @@ exports.handler = async (event) => {
           stock: desdeDropi.stock,
           fotos: desdeDropi.fotos,
           fotoPrincipal: desdeDropi.fotos[0] || null,
-          nota: 'Esta en Dropi pero todavia no en Shopify ' + (isGT ? 'GT' : 'Chile') + '.',
+          nota: 'Esta en Dropi pero todavia no en Shopify ' + T.nombre + '.',
         });
       }
       return respond(200, {
         encontrado: false, enDropi: false, enShopify: false, dropiBloqueado, tenant, dropiId,
         motivo: dropiBloqueado
           ? 'Dropi esta bloqueando las consultas (Too Many Attempts). Espera un rato y reintenta.'
-          : 'Ni Dropi ni Shopify ' + (isGT ? 'GT' : 'Chile') + ' conocen el ID ' + dropiId
+          : 'Ni Dropi ni Shopify ' + T.nombre + ' conocen el ID ' + dropiId
               + '. Revisa que sea el ID del catalogo de ese pais.',
       });
     }
@@ -179,10 +182,10 @@ exports.handler = async (event) => {
 
 // Le pregunta el producto a Dropi. Devuelve null si la llave no esta, si Dropi
 // no lo conoce o si la llamada falla: la funcion sigue con lo de Shopify.
-async function pedirADropi(isGT, dropiId) {
-  const key = String((isGT ? process.env.DROPI_TOKEN_GT : process.env.DROPI_TOKEN_CL) || '').trim();
+async function pedirADropi(T, dropiId) {
+  const key = T.dropiToken;
   if (!key) return null;
-  const base = isGT ? 'https://api.dropi.gt' : 'https://api.dropi.cl';
+  const base = T.dropiBase;
   try {
     const r = await fetch(base + '/integrations/products/v2/' + encodeURIComponent(dropiId), {
       headers: { 'dropi-integration-key': key, 'User-Agent': 'BKDROP-Sync/1.0' },

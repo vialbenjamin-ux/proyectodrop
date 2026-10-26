@@ -9,6 +9,7 @@
 //
 // Requiere scope read_products + write_products en el SHOPIFY_TOKEN.
 
+const { pais } = require('./_tenant');
 exports.handler = async function (event) {
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 204, headers: cors(), body: '' };
@@ -16,12 +17,14 @@ exports.handler = async function (event) {
 
   const qs = event.queryStringParameters || {};
   const tenant = String((qs.tenant || 'chile')).toLowerCase();
-  const isGT = (tenant === 'gt');
-  const token  = isGT ? process.env.SHOPIFY_TOKEN_GT  : process.env.SHOPIFY_TOKEN;
-  const domain = isGT ? process.env.SHOPIFY_DOMAIN_GT : process.env.SHOPIFY_DOMAIN;
+  const T = pais(tenant);
+  if (T.error) return respond(400, { error: T.error });
+  const isGT = T.isGT;
+  const token  = T.shopifyToken;
+  const domain = T.shopifyDomain;
 
   if (!token || !domain) {
-    return respond(500, { error: 'Faltan credenciales Shopify' + (isGT ? ' GT' : '') });
+    return respond(500, { error: 'Faltan credenciales Shopify' + T.etiqueta });
   }
 
   const headers = {
@@ -46,7 +49,7 @@ exports.handler = async function (event) {
       try { body = JSON.parse(event.body || '{}'); }
       catch { return respond(400, { error: 'JSON inválido' }); }
       if (!body.id) return respond(400, { error: 'Falta id del producto' });
-      return await updateProduct(domain, headers, body, isGT);
+      return await updateProduct(domain, headers, body, T);
     }
 
     if (event.httpMethod === 'POST') {
@@ -237,22 +240,14 @@ async function addProductImage(domain, headers, body) {
 // un producto que tenga una variante bajo el piso. En Guatemala el relleno
 // (999) queda POR ENCIMA de cualquier precio real, asi que ahi se frena el 999
 // tal cual ademas del piso.
-const PISO_PRECIO = { chile: 24990, gt: 169 };
-function precioInvalido(precio, isGT) {
-  const n = Number(precio);
-  if (!isFinite(n)) return false;
-  if (isGT) return n < PISO_PRECIO.gt || n === 999;
-  return n < PISO_PRECIO.chile;
-}
-function msgPrecio(precio, isGT) {
-  return 'Precio ' + precio + ' no permitido: ' + (isGT
-    ? 'en Guatemala el minimo es Q' + PISO_PRECIO.gt + ' y 999 es el precio de relleno del importador.'
-    : 'en Chile nunca se publica bajo $24.990 (999 es el precio de relleno del importador).');
-}
+// El piso de cada pais vive en _tenant.js (Chile 24.990, GT Q169 y nunca 999).
+// Mexico no tiene piso definido todavia: mientras tanto no se publica ningun
+// precio ahi, para no salir con el 999 de relleno.
+const { precioInvalido, msgPrecio } = require('./_tenant');
 
-async function updateProduct(domain, headers, body, isGT) {
-  if (body.price !== undefined && body.price !== null && body.price !== '' && precioInvalido(body.price, isGT)) {
-    return respond(400, { error: msgPrecio(body.price, isGT), piso: true });
+async function updateProduct(domain, headers, body, T) {
+  if (body.price !== undefined && body.price !== null && body.price !== '' && precioInvalido(body.price, T)) {
+    return respond(400, { error: msgPrecio(body.price, T), piso: true });
   }
   const url = `https://${domain}/admin/api/2024-10/products/${encodeURIComponent(body.id)}.json`;
   const update = { id: body.id };
@@ -317,8 +312,8 @@ async function updateProduct(domain, headers, body, isGT) {
     // Activar con un precio bajo el piso (tipicamente el 999 de relleno) se
     // frena, salvo que en este mismo PUT venga un precio valido.
     if (wantsPublish && body.price === undefined) {
-      const mala = variants.find(v => precioInvalido(v.price, isGT));
-      if (mala) return respond(400, { error: 'No se activa: ' + msgPrecio(mala.price, isGT) + ' Defini el precio primero.', piso: true });
+      const mala = variants.find(v => precioInvalido(v.price, T));
+      if (mala) return respond(400, { error: 'No se activa: ' + msgPrecio(mala.price, T) + ' Defini el precio primero.', piso: true });
     }
     if (body.barcode !== undefined && variants.length !== 1) {
       return respond(400, {

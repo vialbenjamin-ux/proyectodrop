@@ -1,12 +1,17 @@
 // Devuelve el ID + nombre del System User que corresponde al token BKDROP.
 // Sirve para identificar cuál System User asignar activos.
+const { pais } = require('./_tenant');
+// Token de Meta del pais. 'cp' (cuentas de otro BM) sigue usando el token de
+// Chile, como antes de _tenant.js. Desconocido o 'mx' sin token: null y la funcion avisa.
+const metaTokenDe = t => { if (String(t).toLowerCase() === 'cp') return process.env.META_ACCESS_TOKEN; const P = pais(t); return P.error ? null : P.metaToken; };
+const metaEnvDe = t => { if (String(t).toLowerCase() === 'cp') return 'META_ACCESS_TOKEN'; const P = pais(t); return P.error ? P.error : P.envMetaToken; };
 const meta = require('./_meta-api');
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: cors(), body: '' };
   if (event.httpMethod !== 'GET') return respond(405, { error: 'Method not allowed' });
   const tenant = String((event.queryStringParameters || {}).tenant || 'chile').toLowerCase();
-  const token = tenant === 'gt' ? process.env.META_ACCESS_TOKEN_GT : process.env.META_ACCESS_TOKEN;
+  const token = metaTokenDe(tenant);
   if (!token) return respond(500, { error: 'META_ACCESS_TOKEN no configurada' });
   const V = meta.META_API_VERSION;
   try {

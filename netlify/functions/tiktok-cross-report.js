@@ -11,6 +11,7 @@
 // Tokens: TIKTOK access_token de Netlify Blobs ('bk-tokens'/'tiktok_auth'),
 // SHOPIFY_TOKEN/SHOPIFY_DOMAIN de env vars (o las _GT si tenant=gt).
 
+const { pais } = require('./_tenant');
 import { getStore } from '@netlify/blobs';
 
 // Lee el token de la cuenta TikTok ACTIVA (multi-account). Si no hay
@@ -51,7 +52,9 @@ export default async function handler(req) {
   const sinceParam = url.searchParams.get('since');
   const untilParam = url.searchParams.get('until');
   const tenant = (url.searchParams.get('tenant') || 'chile').toLowerCase();
-  const isGT = tenant === 'gt';
+  const T = pais(tenant);
+  if (T.error) return json(400, { error: T.error });
+  const isGT = T.isGT;
   if (!advertiserId) return json(400, { error: 'Falta advertiser_id' });
 
   // Rango (en hora Chile)
@@ -73,9 +76,9 @@ export default async function handler(req) {
   } catch (e) {
     return json(500, { error: 'Storage error: ' + (e.message || 'unknown') });
   }
-  const shopifyDomain = isGT ? process.env.SHOPIFY_DOMAIN_GT : process.env.SHOPIFY_DOMAIN;
-  const shopifyToken  = isGT ? process.env.SHOPIFY_TOKEN_GT  : process.env.SHOPIFY_TOKEN;
-  if (!shopifyDomain || !shopifyToken) return json(500, { error: 'Faltan credenciales Shopify' + (isGT ? ' GT' : '') });
+  const shopifyDomain = T.shopifyDomain;
+  const shopifyToken  = T.shopifyToken;
+  if (!shopifyDomain || !shopifyToken) return json(500, { error: 'Faltan credenciales Shopify' + T.etiqueta });
 
   // URLs TikTok
   const reportQs = new URLSearchParams({

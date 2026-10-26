@@ -26,6 +26,7 @@ exports.handler = async (event) => {
 
   const qs = event.queryStringParameters || {};
   const T = dropiTenant(qs);
+  if (T.error) return respond(400, { error: T.error });
   const token = T.token;
   if (!token) return respond(500, { error: 'Falta ' + T.envName + ' en env' });
   const start = parseInt(qs.start || '0', 10);

@@ -2,6 +2,11 @@
 // Solo lectura. Sirve para diagnosticar por qué una cuenta aparece o no en BKDROP.
 //
 // GET /.netlify/functions/meta-account-info?act_id=act_XXX&tenant=chile
+const { pais } = require('./_tenant');
+// Token de Meta del pais. 'cp' (cuentas de otro BM) sigue usando el token de
+// Chile, como antes de _tenant.js. Desconocido o 'mx' sin token: null y la funcion avisa.
+const metaTokenDe = t => { if (String(t).toLowerCase() === 'cp') return process.env.META_ACCESS_TOKEN; const P = pais(t); return P.error ? null : P.metaToken; };
+const metaEnvDe = t => { if (String(t).toLowerCase() === 'cp') return 'META_ACCESS_TOKEN'; const P = pais(t); return P.error ? P.error : P.envMetaToken; };
 const meta = require('./_meta-api');
 
 exports.handler = async (event) => {
@@ -11,7 +16,7 @@ exports.handler = async (event) => {
   const actId = String(params.act_id || '').trim();
   const tenant = String(params.tenant || 'chile').toLowerCase();
   if (!/^act_\d+$/.test(actId)) return respond(400, { error: 'act_id inválido (debe ser act_XXX)' });
-  const token = tenant === 'gt' ? process.env.META_ACCESS_TOKEN_GT : process.env.META_ACCESS_TOKEN;
+  const token = metaTokenDe(tenant);
   if (!token) return respond(500, { error: 'META_ACCESS_TOKEN no configurada' });
   const V = meta.META_API_VERSION;
   const fields = [

@@ -1,3 +1,4 @@
+const { pais } = require('./_tenant');
 const { cuentaDelToken } = require('./_dropi-tenant');
 
 // Cambia el PROVEEDOR / codigo Dropi de un producto ya existente en Shopify.
@@ -31,10 +32,12 @@ exports.handler = async function (event) {
   try { body = JSON.parse(event.body || '{}'); }
   catch { return respond(400, { error: 'JSON inválido' }); }
 
-  const isGT = String(body.tenant || 'chile').toLowerCase() === 'gt';
-  const token  = isGT ? process.env.SHOPIFY_TOKEN_GT  : process.env.SHOPIFY_TOKEN;
-  const domain = isGT ? process.env.SHOPIFY_DOMAIN_GT : process.env.SHOPIFY_DOMAIN;
-  if (!token || !domain) return respond(500, { error: 'Faltan credenciales Shopify' + (isGT ? ' GT' : '') });
+  const T = pais(body.tenant);
+  if (T.error) return respond(400, { error: T.error });
+  const isGT = T.isGT;
+  const token  = T.shopifyToken;
+  const domain = T.shopifyDomain;
+  if (!token || !domain) return respond(500, { error: 'Faltan credenciales Shopify' + T.etiqueta });
 
   const productId = String(body.product_id || '').trim();
   const dropiId   = String(body.dropi_id || '').trim();
@@ -63,7 +66,7 @@ exports.handler = async function (event) {
   const buscarTokenDeLaCuenta = async () => {
     const proto = event.headers['x-forwarded-proto'] || 'https';
     const host = event.headers.host || '';
-    const suppR = await fetch(proto + '://' + host + '/.netlify/functions/dropi-known-suppliers?tenant=' + (isGT ? 'gt' : 'chile'));
+    const suppR = await fetch(proto + '://' + host + '/.netlify/functions/dropi-known-suppliers?tenant=' + T.codigo);
     if (!suppR.ok) return { error: 'no pude cargar proveedores de la tienda' };
     const suppliers = ((await suppR.json()).suppliers || []).filter(x => x.sampleHasTokens && x.sampleProductId);
     const vistos = [];
@@ -85,7 +88,7 @@ exports.handler = async function (event) {
     // (escanea TODO el catalogo). La mayoria entre estas ~14 muestras NO es
     // confiable: una tienda con la mitad de los productos en una cuenta vieja
     // puede inclinar la muestra para el lado equivocado.
-    let esperada = String(body.expected_account || '').trim() || cuentaDelToken(isGT) || '';
+    let esperada = String(body.expected_account || '').trim() || cuentaDelToken(T.codigo) || '';
     if (!esperada) {
       const orden = Object.entries(conteo).sort((a, b) => b[1] - a[1]);
       const total = orden.reduce((n, e) => n + e[1], 0);

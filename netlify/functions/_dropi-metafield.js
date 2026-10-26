@@ -22,11 +22,16 @@
 // 29 sep 2026 se usaba el de Chile para los dos, y por eso TODA foto de
 // Guatemala daba 403 AccessDenied: la llave (urlS3) existe, pero en el otro
 // bucket. Con el host correcto la misma llave devuelve 200 image/jpeg.
+const { pais } = require('./_tenant');
+const { codigoDe } = require('./_dropi-tenant');
+
 const CDN_DROPI = 'https://d39ru7awumhhs2.cloudfront.net/';
 const CDN_DROPI_GT = 'https://d2ob47cxeawi8a.cloudfront.net/';
 
 // El pais sale de la propia llave ("guatemala/products/..."), asi que no hay
 // que arrastrar el tenant hasta aca: cualquier llamador acierta el host.
+// Mexico ("mexico/products/...") vive en el mismo CloudFront que Chile:
+// verificado el 26 oct 2026 (200 image/png en el de Chile, 403 en el de GT).
 function urlFoto(urlS3) {
   const k = String(urlS3 || '');
   const host = /^guatemala\//i.test(k) ? CDN_DROPI_GT : CDN_DROPI;
@@ -35,10 +40,12 @@ function urlFoto(urlS3) {
 
 // Pide el producto a Dropi. Devuelve el objeto, { bloqueado: true } si Dropi
 // esta cortando por exceso de consultas, o null si no lo conoce.
-async function pedirProductoDropi(isGT, dropiId) {
-  const key = String((isGT ? process.env.DROPI_TOKEN_GT : process.env.DROPI_TOKEN_CL) || '').trim();
+// `paisOIsGT`: 'chile' | 'gt' | 'mx', o el viejo booleano isGT.
+async function pedirProductoDropi(paisOIsGT, dropiId) {
+  const P = pais(codigoDe(paisOIsGT));
+  const key = P.error ? null : P.dropiToken;
   if (!key) return null;
-  const base = isGT ? 'https://api.dropi.gt' : 'https://api.dropi.cl';
+  const base = P.dropiBase;
   try {
     const r = await fetch(base + '/integrations/products/v2/' + encodeURIComponent(dropiId), {
       headers: { 'dropi-integration-key': key, 'User-Agent': 'BKDROP-Sync/1.0' },

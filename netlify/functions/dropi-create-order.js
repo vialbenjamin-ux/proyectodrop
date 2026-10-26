@@ -1,3 +1,4 @@
+const { pais } = require('./_tenant');
 const { dropiTenant } = require('./_dropi-tenant');
 
 // Crea ordenes en Dropi automaticamente para pedidos huerfanos de Shopify.
@@ -50,13 +51,17 @@ const REGIONES_DROPI = {
 // Compara sin tildes, sin apostrofos y sin espacios de mas: asi
 // "O'Higgins", "OHIGGINS" y "ohiggins" llegan todos a la misma entrada.
 //
-// El mapa es de REGIONES DE CHILE: en Guatemala son departamentos con otros
-// nombres, asi que alla se manda el valor tal cual en mayusculas y no se
-// traduce nada.
-function regionDropi(valor, isGT) {
+// El mapa es de REGIONES DE CHILE: en Guatemala (departamentos) y Mexico
+// (estados) los nombres son otros, asi que alla se manda el valor tal cual en
+// mayusculas y no se traduce nada.
+// Tienda (shop) de Dropi por defecto en cada pais, sacada de las ordenes ya
+// aceptadas. Mexico no tiene todavia: se completa con la primera orden real.
+const SHOP_POR_PAIS = { chile: 152458, gt: 2132 };
+
+function regionDropi(valor, paisCodigo) {
   const crudo = String(valor || '').trim();
   if (!crudo) return crudo;
-  if (isGT) return crudo.toUpperCase();
+  if (paisCodigo !== 'chile') return crudo.toUpperCase();
   const clave = crudo
     .toUpperCase()
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
@@ -81,6 +86,7 @@ exports.handler = async (event) => {
   // El tenant viaja en el body, asi que esto va DESPUES de parsearlo.
   // Sin `tenant` se comporta igual que siempre: Chile.
   const T = dropiTenant(event.queryStringParameters, body);
+  if (T.error) return respond(400, { error: T.error });
   const token = T.token;
   if (!token) return respond(500, { error: 'Falta ' + T.envName });
 
@@ -186,8 +192,8 @@ exports.handler = async (event) => {
         price: it.price || 0,
       });
     }
-    warehouseUsed = forcedWarehouseId || (T.isGT ? null : 79);  // default RVG en Chile
-    shopUsed = forcedShopId || (T.isGT ? 2132 : 152458);
+    warehouseUsed = forcedWarehouseId || (T.codigo === 'chile' ? 79 : null);  // default RVG en Chile
+    shopUsed = forcedShopId || SHOP_POR_PAIS[T.codigo] || null;
   } else {
     // Cache in-request de variantes por product_id (evitar consultas duplicadas en batch)
     const variantsCache = {};
@@ -329,7 +335,7 @@ exports.handler = async (event) => {
   const shopFromCache = !!shopUsed;
   if (!warehouseUsed) warehouseUsed = null;
   // shop por defecto de cada tienda, sacado de las ordenes ya aceptadas
-  if (!shopUsed) shopUsed = T.isGT ? 2132 : 152458;
+  if (!shopUsed) shopUsed = SHOP_POR_PAIS[T.codigo] || null;
 
   // FIX descuentos/combos: Shopify manda line_items[].price que puede estar
   // mal para varios casos:
@@ -381,11 +387,11 @@ exports.handler = async (event) => {
   const dropiBody = {
     name: String(body.name || '').split(' ')[0] || 'Cliente',
     surname: String(body.name || '').split(' ').slice(1).join(' ') || '',
-    phone: normalizePhone(body.phone, T.isGT),
+    phone: normalizePhone(body.phone, T.codigo),
     client_email: String(body.email || ''),
     dir: String(body.dir || '').slice(0, 200),
     city: String(body.city || '').toUpperCase(),
-    state: regionDropi(body.state, T.isGT),
+    state: regionDropi(body.state, T.codigo),
     zip_code: null,
     colonia: null,
     notes: String(body.notes || 'Creada via BKDROP desde huerfano Shopify').slice(0, 300),
@@ -433,8 +439,8 @@ exports.handler = async (event) => {
   //    tampoco funcionaba en Chile con la Rueda Abdominal, que tenia su
   //    bodega 264 con 299 unidades ahi adentro, sin que nadie la leyera.
   async function bodegasDesdeShopify(codigos) {
-    const dom = T.isGT ? process.env.SHOPIFY_DOMAIN_GT : process.env.SHOPIFY_DOMAIN;
-    const tok = T.isGT ? process.env.SHOPIFY_TOKEN_GT  : process.env.SHOPIFY_TOKEN;
+    const dom = T.shopifyDomain;
+    const tok = T.shopifyToken;
     if (!dom || !tok || !codigos.length) return [];
     const filtro = codigos.map(function (c) { return 'barcode:' + c; }).join(' OR ');
     const query = 'query($q: String!) { productVariants(first: 30, query: $q) { edges { node { barcode product { metafield(namespace: "dropi", key: "_dropi_product") { value } } } } } }';
@@ -632,12 +638,16 @@ function normalize(s) {
   return String(s || '').toLowerCase().trim().replace(/\s+/g, ' ').replace(/[^\w\s]/g, '');
 }
 
-function normalizePhone(p, isGT) {
+function normalizePhone(p, paisCodigo) {
   if (!p) return '';
   let s = String(p).replace(/\D/g, '');
   // Se saca el codigo de pais: Shopify lo guarda y Dropi lo quiere sin el.
-  if (isGT) {
+  if (paisCodigo === 'gt') {
     if (s.startsWith('502') && s.length >= 11) s = s.slice(3);
+  } else if (paisCodigo === 'mx') {
+    // Mexico: 10 digitos. Se ve +52 y tambien el viejo +521 de los celulares.
+    if (s.startsWith('521') && s.length === 13) s = s.slice(3);
+    else if (s.startsWith('52') && s.length === 12) s = s.slice(2);
   } else if (s.startsWith('56') && s.length >= 11) {
     s = s.slice(2);
   }

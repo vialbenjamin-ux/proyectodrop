@@ -1,3 +1,4 @@
+const { pais } = require('./_tenant');
 const { cuentaDelToken } = require('./_dropi-tenant');
 
 // Auditoria: detecta productos Shopify cuyo metafield dropi._dropi_product
@@ -22,9 +23,11 @@ exports.handler = async function (event) {
   if (event.httpMethod !== 'GET') return respond(405, { error: 'Método no permitido' });
 
   const qs = event.queryStringParameters || {};
-  const isGT = String(qs.tenant || 'chile').toLowerCase() === 'gt';
-  const token  = isGT ? process.env.SHOPIFY_TOKEN_GT  : process.env.SHOPIFY_TOKEN;
-  const domain = isGT ? process.env.SHOPIFY_DOMAIN_GT : process.env.SHOPIFY_DOMAIN;
+  const T = pais(qs.tenant);
+  if (T.error) return respond(400, { error: T.error });
+  const isGT = T.isGT;
+  const token  = T.shopifyToken;
+  const domain = T.shopifyDomain;
   if (!token || !domain) return respond(500, { error: 'Faltan credenciales Shopify' });
 
   const gql = 'https://' + domain + '/admin/api/2024-10/graphql.json';
@@ -118,7 +121,7 @@ exports.handler = async function (event) {
     const cuentas = {};
     for (const it of items) if (it.cuenta) cuentas[it.cuenta] = (cuentas[it.cuenta] || 0) + 1;
     const esperada = String(qs.expected || '').trim()
-      || cuentaDelToken(isGT)
+      || cuentaDelToken(T.codigo)
       || (Object.entries(cuentas).sort((a, b) => b[1] - a[1])[0] || [null])[0];
 
     const desalineados = items.filter(it => it.cuenta !== esperada || !it.userId);

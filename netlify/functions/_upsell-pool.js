@@ -144,6 +144,10 @@ async function escanearProveedor({ domain, token, supplierId, baseId, maxPages }
 function precioUpsell(costo, tenant) {
   const c = Number(costo);
   if (!c || c <= 0) return null;
+  if (tenant === 'mx') {
+    // Mexico todavia no tiene regla de precio de upsell: sin precio no se sugiere.
+    return null;
+  }
   if (tenant === 'gt') {
     // Equivalente en quetzales: Q20 a Q30, terminado en 9.
     const p = Math.round((c + 25) / 10) * 10 - 1;

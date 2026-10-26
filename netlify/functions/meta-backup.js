@@ -11,6 +11,11 @@
 // - Versión API v21.0.
 // - Cap de páginas reducido (5 = ~500 ads max) para no abusar.
 
+const { pais } = require('./_tenant');
+// Token de Meta del pais. 'cp' (cuentas de otro BM) sigue usando el token de
+// Chile, como antes de _tenant.js. Desconocido o 'mx' sin token: null y la funcion avisa.
+const metaTokenDe = t => { if (String(t).toLowerCase() === 'cp') return process.env.META_ACCESS_TOKEN; const P = pais(t); return P.error ? null : P.metaToken; };
+const metaEnvDe = t => { if (String(t).toLowerCase() === 'cp') return 'META_ACCESS_TOKEN'; const P = pais(t); return P.error ? P.error : P.envMetaToken; };
 const meta = require('./_meta-api');
 
 exports.handler = async (event) => {
@@ -23,10 +28,8 @@ exports.handler = async (event) => {
 
   const params = event.queryStringParameters || {};
   const tenant = String(params.tenant || 'chile').toLowerCase();
-  const token = (tenant === 'gt')
-    ? process.env.META_ACCESS_TOKEN_GT
-    : process.env.META_ACCESS_TOKEN;
-  if (!token) return respond(500, { error: 'META_ACCESS_TOKEN' + (tenant === 'gt' ? '_GT' : '') + ' no configurada' });
+  const token = metaTokenDe(tenant);
+  if (!token) return respond(500, { error: metaEnvDe(tenant) + ' no configurada' });
 
   const accountId = (params.account_id || '').trim();
   if (!/^act_\d+$/.test(accountId)) {

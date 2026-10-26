@@ -26,10 +26,14 @@
 const FS = 'https://firestore.googleapis.com/v1/projects/bkdrop-5c8df/databases/(default)/documents/';
 const MAX_INTENTOS = 3;
 
+const { pais } = require('./_tenant');
+
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: cors(), body: '' };
   const q = event.queryStringParameters || {};
-  const tenant = q.tenant === 'gt' ? 'gt' : 'chile';
+  const P = pais(q.tenant);
+  if (P.error) return respond(400, { ok: false, error: P.error });
+  const tenant = P.codigo;
   const dry = q.dry === '1';
   const hours = Math.min(Math.max(parseInt(q.hours, 10) || 48, 1), 168);
   const origin = process.env.URL || 'https://bkdrop.netlify.app';

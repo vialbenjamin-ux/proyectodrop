@@ -20,6 +20,7 @@
 //
 // Respuesta: { ok, revisados, reparados, detalle: [...] }
 
+const { pais } = require('./_tenant');
 const { pedirProductoDropi, construirMetafield } = require('./_dropi-metafield');
 
 // Debajo de esto el metafield es el corto del importador. Un metafield escrito
@@ -37,9 +38,11 @@ exports.handler = async (event) => {
   }
 
   const tenant = String(body.tenant || qs.tenant || 'chile').toLowerCase();
-  const isGT = tenant === 'gt';
-  const token = isGT ? process.env.SHOPIFY_TOKEN_GT : process.env.SHOPIFY_TOKEN;
-  const domain = isGT ? process.env.SHOPIFY_DOMAIN_GT : process.env.SHOPIFY_DOMAIN;
+  const T = pais(tenant);
+  if (T.error) return respond(400, { error: T.error });
+  const isGT = T.isGT;
+  const token = T.shopifyToken;
+  const domain = T.shopifyDomain;
   if (!token || !domain) return respond(500, { error: 'Faltan credenciales Shopify de ' + tenant });
 
   const API = 'https://' + domain + '/admin/api/2024-10';
@@ -70,7 +73,7 @@ exports.handler = async (event) => {
     let reparados = 0;
     let bloqueado = false;
     for (const o of objetivos) {
-      const r = await repararUno(API, H, isGT, String(o.id), dryRun, minimo);
+      const r = await repararUno(API, H, T.codigo, String(o.id), dryRun, minimo);
       detalle.push(r);
       if (r.reparado) reparados++;
       // Dropi aguanta unas siete consultas seguidas y despues corta con "Too
@@ -94,7 +97,7 @@ exports.handler = async (event) => {
 };
 
 // Un producto: lee su metafield, le pide el objeto a Dropi y lo reescribe.
-async function repararUno(API, H, isGT, productId, dryRun, minimo) {
+async function repararUno(API, H, paisCodigo, productId, dryRun, minimo) {
   const mfR = await fetch(API + '/products/' + encodeURIComponent(productId) + '/metafields.json?namespace=dropi', { headers: H });
   if (!mfR.ok) return { productId, error: 'no pude leer los metafields: ' + mfR.status };
   const mf = ((await mfR.json()).metafields || []).find((m) => m.key === '_dropi_product');
@@ -118,7 +121,7 @@ async function repararUno(API, H, isGT, productId, dryRun, minimo) {
 
   const campoAntes = previo ? Object.keys(previo).length : 0;
 
-  const producto = await pedirProductoDropi(isGT, dropiId);
+  const producto = await pedirProductoDropi(paisCodigo, dropiId);
   if (producto && producto.bloqueado) {
     return { productId, dropiId, campoAntes, error: 'Dropi esta bloqueando las consultas (Too Many Attempts): reintenta en un rato' };
   }

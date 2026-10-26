@@ -18,6 +18,7 @@
 //   { products: [ { id, title, handle, image, price, variantId, cost, status } ],
 //     scanned, matched, truncated }
 
+const { pais } = require('./_tenant');
 const { cuentaDelToken } = require('./_dropi-tenant');
 // El rubro vive aparte: lo usa tambien el upsell automatico de Releasit.
 const { rubrosDe, textoDe, esPack } = require('./_rubros');
@@ -45,10 +46,12 @@ exports.handler = async (event) => {
   const deProducto = String(qs.de_producto || '').trim();
   if (!supplierId && !deProducto) return respond(400, { error: 'Falta supplier_id o de_producto' });
 
-  const isGT = String(qs.tenant || 'chile').toLowerCase() === 'gt';
-  const token  = isGT ? process.env.SHOPIFY_TOKEN_GT  : process.env.SHOPIFY_TOKEN;
-  const domain = isGT ? process.env.SHOPIFY_DOMAIN_GT : process.env.SHOPIFY_DOMAIN;
-  if (!token || !domain) return respond(500, { error: 'Faltan credenciales Shopify' + (isGT ? ' GT' : '') });
+  const T = pais(qs.tenant);
+  if (T.error) return respond(400, { error: T.error });
+  const isGT = T.isGT;
+  const token  = T.shopifyToken;
+  const domain = T.shopifyDomain;
+  if (!token || !domain) return respond(500, { error: 'Faltan credenciales Shopify' + T.etiqueta });
 
   const H = { 'X-Shopify-Access-Token': token, 'Content-Type': 'application/json', 'Accept': 'application/json' };
   const GQL = 'https://' + domain + '/admin/api/2024-10/graphql.json';
@@ -165,7 +168,7 @@ exports.handler = async (event) => {
   }
 
   if (sugerir) {
-    return respond(200, sugerirUpsells(results, baseIdFinal, baseBodegas, baseInfo, cuentaDelToken(isGT), limit, scanned));
+    return respond(200, sugerirUpsells(results, baseIdFinal, baseBodegas, baseInfo, cuentaDelToken(T.codigo), limit, scanned));
   }
   for (const p of results) { delete p._cuenta; delete p._texto; }
 

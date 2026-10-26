@@ -20,6 +20,7 @@
 //   dry_run?
 // }
 
+const { pais, precioInvalido, msgPrecio } = require('./_tenant');
 const { pedirProductoDropi, construirMetafield } = require('./_dropi-metafield');
 
 exports.handler = async (event) => {
@@ -30,10 +31,12 @@ exports.handler = async (event) => {
   try { body = JSON.parse(event.body || '{}'); }
   catch { return respond(400, { error: 'JSON inválido' }); }
 
-  const isGT = String(body.tenant || 'chile').toLowerCase() === 'gt';
-  const token = isGT ? process.env.SHOPIFY_TOKEN_GT : process.env.SHOPIFY_TOKEN;
-  const domain = isGT ? process.env.SHOPIFY_DOMAIN_GT : process.env.SHOPIFY_DOMAIN;
-  if (!token || !domain) return respond(500, { error: 'Faltan credenciales Shopify' + (isGT ? ' GT' : '') });
+  const T = pais(body.tenant);
+  if (T.error) return respond(400, { error: T.error });
+  const isGT = T.isGT;
+  const token = T.shopifyToken;
+  const domain = T.shopifyDomain;
+  if (!token || !domain) return respond(500, { error: 'Faltan credenciales Shopify' + T.etiqueta });
 
   const productId = String(body.product_id || '').trim();
   const opcion = String(body.opcion || 'Color').trim() || 'Color';
@@ -86,7 +89,7 @@ exports.handler = async (event) => {
     // El producto tal como lo tiene Dropi: de ahi salen el SKU de cada
     // variacion y el metafield completo. Si Dropi no contesta se sigue con el
     // armado minimo de siempre (y despues hay que correr dropi-completar-metafield).
-    const enDropi = await pedirProductoDropi(isGT, parent);
+    const enDropi = await pedirProductoDropi(T.codigo, parent);
     const productoDropi = (enDropi && !enDropi.bloqueado) ? enDropi : null;
     const skuDropi = new Map(((productoDropi && productoDropi.variations) || [])
       .filter((v) => v.sku).map((v) => [String(v.id), String(v.sku)]));
@@ -107,11 +110,10 @@ exports.handler = async (event) => {
     // Piso de precio (regla del 16 oct 2026, ver shopify-products.js): en un
     // producto ya activo no se crean variantes bajo el piso o con el 999 de
     // relleno. En borrador se deja, porque activarlo despues ya lo frena.
-    const pisoMalo = (p) => { const n = Number(p); return isGT ? (n < 169 || n === 999) : n < 24990; };
+    const pisoMalo = (p) => precioInvalido(p, T);
     const conPrecioMalo = nuevasVariantes.find((v) => pisoMalo(v.price));
     if (product.status === 'active' && conPrecioMalo) {
-      return respond(400, { error: 'Precio ' + conPrecioMalo.price + ' no permitido en un producto activo: '
-        + (isGT ? 'mínimo Q169 y nunca el 999 de relleno.' : 'en Chile nunca bajo $24.990.'), piso: true });
+      return respond(400, { error: msgPrecio(conPrecioMalo.price, T) + ' (producto activo)', piso: true });
     }
 
     const plan = {

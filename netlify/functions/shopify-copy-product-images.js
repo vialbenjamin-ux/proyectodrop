@@ -22,6 +22,7 @@
 //     No hace falta base64 ni descarga previa.
 //   - Preservamos position y alt.
 
+const { pais } = require('./_tenant');
 exports.handler = async function (event) {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: cors(), body: '' };
   if (event.httpMethod !== 'POST') return respond(405, { error: 'Method not allowed' });
@@ -132,9 +133,11 @@ exports.handler = async function (event) {
 };
 
 function credsForTenant(t) {
-  const isGT = t === 'gt';
-  const token  = isGT ? process.env.SHOPIFY_TOKEN_GT  : process.env.SHOPIFY_TOKEN;
-  const domain = isGT ? process.env.SHOPIFY_DOMAIN_GT : process.env.SHOPIFY_DOMAIN;
+  const T = pais(t);
+  if (T.error) return respond(400, { error: T.error });
+  const isGT = T.isGT;
+  const token  = T.shopifyToken;
+  const domain = T.shopifyDomain;
   if (!token || !domain) return null;
   return { token, domain };
 }

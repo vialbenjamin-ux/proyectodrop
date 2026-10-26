@@ -24,6 +24,7 @@ exports.handler = async (event) => {
   const tokens = [
     { tenant: 'chile', source: 'principal', token: process.env.META_ACCESS_TOKEN },
     { tenant: 'gt',    source: 'principal', token: process.env.META_ACCESS_TOKEN_GT },
+    { tenant: 'mx',    source: 'principal', token: process.env.META_ACCESS_TOKEN_MX },
     { tenant: 'chile', source: 'adspower',  token: process.env.META_ACCESS_TOKEN_ADSPOWER },
     { tenant: 'cp',    source: 'principal', token: process.env.META_ACCESS_TOKEN_CP },
   ].filter(t => t.token);

@@ -4,7 +4,7 @@
 // Responde: presencia (bool) y longitud (para detectar copia truncada).
 
 exports.handler = async () => {
-  const wanted = ['CHATEA_PRO_TOKEN', 'DROPI_TOKEN_CL', 'SHOPIFY_TOKEN', 'SHOPIFY_TOKEN_GT'];
+  const wanted = ['CHATEA_PRO_TOKEN', 'DROPI_TOKEN_CL', 'SHOPIFY_TOKEN', 'SHOPIFY_TOKEN_GT', 'SHOPIFY_TOKEN_MX', 'SHOPIFY_DOMAIN_MX'];
   const report = {};
   for (const k of wanted) {
     const v = process.env[k];
@@ -24,7 +24,7 @@ exports.handler = async () => {
   // Claims de los JWT de Dropi (solo el payload; ni el secreto ni la firma).
   // Sirve para ver de que cuenta y de que tipo de integracion es cada token.
   const jwt = {};
-  for (const k of ['DROPI_TOKEN_CL', 'DROPI_TOKEN_GT']) {
+  for (const k of ['DROPI_TOKEN_CL', 'DROPI_TOKEN_GT', 'DROPI_TOKEN_MX']) {
     const v = String(process.env[k] || '').trim();
     if (!v) { jwt[k] = 'sin valor'; continue; }
     try {

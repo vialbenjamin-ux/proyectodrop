@@ -24,6 +24,7 @@ exports.handler = async (event) => {
   catch { return respond(400, { error: 'JSON invalido' }); }
 
   const T = dropiTenant(event.queryStringParameters, body);
+  if (T.error) return respond(400, { error: T.error });
   const token = T.token;
   if (!token) return respond(500, { error: 'Falta ' + T.envName });
 

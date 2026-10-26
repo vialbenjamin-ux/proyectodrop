@@ -29,6 +29,7 @@
 // justo despues de replicar, porque la replicacion ya subio varias imagenes.
 // Antes cualquier 429 abortaba con "Fetch metafields tienda: 429" y habia que
 // reintentar a mano. Reintenta respetando Retry-After; tambien ante 5xx.
+const { pais } = require('./_tenant');
 async function fetchShopify(url, opts, intentos) {
   const max = intentos || 3;
   let ultima = null;
@@ -96,10 +97,12 @@ exports.handler = async (event) => {
   }
   if (tenant !== 'chile' && tenant !== 'gt') return respond(400, { error: 'Tenant invalido (solo chile o gt)' });
 
-  const isGT = tenant === 'gt';
-  const token = isGT ? process.env.SHOPIFY_TOKEN_GT : process.env.SHOPIFY_TOKEN;
-  const domain = isGT ? process.env.SHOPIFY_DOMAIN_GT : process.env.SHOPIFY_DOMAIN;
-  if (!token || !domain) return respond(500, { error: 'Faltan credenciales Shopify' + (isGT ? ' GT' : '') });
+  const T = pais(tenant);
+  if (T.error) return respond(400, { error: T.error });
+  const isGT = T.isGT;
+  const token = T.shopifyToken;
+  const domain = T.shopifyDomain;
+  if (!token || !domain) return respond(500, { error: 'Faltan credenciales Shopify' + T.etiqueta });
 
   const H = { 'X-Shopify-Access-Token': token, 'Content-Type': 'application/json', 'Accept': 'application/json' };
   const API = 'https://' + domain + '/admin/api/2024-10';
@@ -146,15 +149,15 @@ exports.handler = async (event) => {
     //    Precio por unidad = precioTotal / (nx1 * k)  (unidades reales que recibe)
     // Redondeo por tenant:
     // - Chile: precios terminan en .990 (convención CLP: $27.990, $47.990, etc.)
-    // - GT: enteros GTQ (Q233, Q396, etc.). El user ingresa el precio manual
-    //   y los tramos 2/3 se calculan sin regla especial.
+    // - GT y Mexico: enteros (Q233, $599, etc.). El user ingresa el precio
+    //   manual y los tramos 2/3 se calculan sin regla especial.
     const round990 = n => {
-      if (isGT) return Math.max(0, Math.round(n));
+      if (T.codigo !== 'chile') return Math.max(0, Math.round(n));
       const r = Math.round(n / 1000) * 1000 - 10;
       return r > 0 ? r : Math.max(0, Math.round(n));
     };
-    const currencySymbol = isGT ? 'Q' : '$';
-    const currencyLocale = isGT ? 'es-GT' : 'es-CL';
+    const currencySymbol = T.simbolo;
+    const currencyLocale = T.locale;
     const fmt = n => currencySymbol + Math.round(n).toLocaleString(currencyLocale);
     const fmtPerUnit = n => 'SÓLO ' + fmt(n) + ' POR UNIDAD!';
     const unitLabel = qty => qty === 1 ? 'unidad' : 'unidades';

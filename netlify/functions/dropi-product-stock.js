@@ -20,6 +20,7 @@ exports.handler = async (event) => {
   if (!/^\d+$/.test(id)) return respond(400, { error: 'Falta id numerico del producto Dropi' });
 
   const T = dropiTenant(qs);
+  if (T.error) return respond(400, { error: T.error });
   if (!T.token) return respond(500, { error: 'Falta ' + T.envName });
   const headers = {
     'dropi-integration-key': T.token,

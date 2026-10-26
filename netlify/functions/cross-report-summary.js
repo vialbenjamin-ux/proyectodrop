@@ -7,6 +7,7 @@
 //
 // Anti-ban Meta: Shopify en background, 2 llamadas a Meta secuenciales con ≥3s.
 
+const { pais } = require('./_tenant');
 const meta = require('./_meta-api');
 
 exports.handler = async (event) => {
@@ -15,12 +16,14 @@ exports.handler = async (event) => {
 
   const params = event.queryStringParameters || {};
   const tenant = String(params.tenant || 'chile').toLowerCase();
-  const isGT = (tenant === 'gt');
-  const shopifyDomain = isGT ? process.env.SHOPIFY_DOMAIN_GT : process.env.SHOPIFY_DOMAIN;
-  const shopifyToken  = isGT ? process.env.SHOPIFY_TOKEN_GT  : process.env.SHOPIFY_TOKEN;
-  const metaToken     = isGT ? process.env.META_ACCESS_TOKEN_GT : process.env.META_ACCESS_TOKEN;
-  if (!shopifyDomain || !shopifyToken) return respond(500, { error: 'Faltan credenciales de Shopify' + (isGT ? ' GT' : '') });
-  if (!metaToken) return respond(500, { error: 'Falta META_ACCESS_TOKEN' + (isGT ? '_GT' : '') });
+  const T = pais(tenant);
+  if (T.error) return respond(400, { error: T.error });
+  const isGT = T.isGT;
+  const shopifyDomain = T.shopifyDomain;
+  const shopifyToken  = T.shopifyToken;
+  const metaToken     = T.metaToken;
+  if (!shopifyDomain || !shopifyToken) return respond(500, { error: 'Faltan credenciales de Shopify' + T.etiqueta });
+  if (!metaToken) return respond(500, { error: 'Falta ' + T.envMetaToken });
 
   const accountId = (params.account_id || '').trim();
   if (!/^act_\d+$/.test(accountId)) return respond(400, { error: 'account_id inválido' });

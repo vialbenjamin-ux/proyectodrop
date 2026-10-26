@@ -34,6 +34,7 @@ exports.handler = async (event) => {
 
   const tokenByTenant = {
     gt:    process.env.META_ACCESS_TOKEN_GT,
+    mx:    process.env.META_ACCESS_TOKEN_MX,
     cp:    process.env.META_ACCESS_TOKEN_CP,
     chile: process.env.META_ACCESS_TOKEN,
   };

@@ -4,12 +4,15 @@
 // Uso: GET /.netlify/functions/shopify-debug-orders?date=YYYY-MM-DD&tenant=chile
 // TODO: borrar este archivo cuando terminemos el diagnóstico.
 
+const { pais } = require('./_tenant');
 exports.handler = async function (event) {
   const qs = event.queryStringParameters || {};
   const tenant = String((qs.tenant || 'chile')).toLowerCase();
-  const isGT = (tenant === 'gt');
-  const token  = isGT ? process.env.SHOPIFY_TOKEN_GT  : process.env.SHOPIFY_TOKEN;
-  const domain = isGT ? process.env.SHOPIFY_DOMAIN_GT : process.env.SHOPIFY_DOMAIN;
+  const T = pais(tenant);
+  if (T.error) return respond(400, { error: T.error });
+  const isGT = T.isGT;
+  const token  = T.shopifyToken;
+  const domain = T.shopifyDomain;
   const date = qs.date;
 
   if (!token || !domain) {
