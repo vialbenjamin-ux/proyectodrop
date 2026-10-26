@@ -2296,6 +2296,7 @@
         <span style="font-size:10px;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;font-family:'DM Mono',monospace">Reporte:</span>
         <button id="tenant-btn-chile" class="tenant-btn active" onclick="switchTenant('chile')">🇨🇱 Chile</button>
         <button id="tenant-btn-gt" class="tenant-btn" onclick="switchTenant('gt')">🇬🇹 Reporte GT</button>
+        <button id="tenant-btn-mx" class="tenant-btn" onclick="switchTenant('mx')">🇲🇽 Reporte MX</button>
         <button id="tenant-btn-total" class="tenant-btn" onclick="switchTenant('total')">🌎 Total (CL + GT)</button>
         <span id="tenant-current-label" style="font-size:11px;color:var(--muted2);font-family:'DM Mono',monospace;margin-left:8px"></span>
       </div>
@@ -3034,6 +3035,7 @@
           <div style="display:flex;gap:8px">
             <button type="button" id="la-pais-chile" onclick="laSetPais('chile')" style="flex:1;padding:11px;border-radius:8px;border:2px solid #2B5FB3;background:#2B5FB3;color:#fff;font-size:13px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">🇨🇱 Chile</button>
             <button type="button" id="la-pais-gt" onclick="laSetPais('gt')" style="flex:1;padding:11px;border-radius:8px;border:2px solid var(--border);background:var(--surface2);color:var(--muted);font-size:13px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">🇬🇹 Guatemala</button>
+            <button type="button" id="la-pais-mx" onclick="laSetPais('mx')" style="flex:1;padding:11px;border-radius:8px;border:2px solid var(--border);background:var(--surface2);color:var(--muted);font-size:13px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">🇲🇽 México</button>
           </div>
         </div>
         <div style="display:flex;gap:10px;flex-wrap:wrap">
@@ -3127,6 +3129,7 @@
         <div class="bs-seg" id="bs-pais">
           <button type="button" data-v="cl" onclick="bsSetPais('cl')">🇨🇱 Chile</button>
           <button type="button" data-v="gt" onclick="bsSetPais('gt')">🇬🇹 Guatemala</button>
+          <button type="button" data-v="mx" onclick="bsSetPais('mx')">🇲🇽 México</button>
         </div>
         <button onclick="bsCargar(true)" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:7px 13px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer">🔄 Actualizar</button>
       </div>
@@ -10800,6 +10803,9 @@ const BK_PRECIO_MINIMO = { chile: 24990, gt: 189 };
 const BK_MARGEN_MINIMO = { chile: 19000, gt: 120 };
 
 function _bkPrecioSugerido(costo, tenant){
+  // Mexico no tiene escala, margen ni piso definidos: sin sugerencia. El
+  // servidor ademas frena cualquier precio en MX hasta que exista el piso.
+  if (tenant === 'mx') return null;
   const t = (tenant === 'gt') ? 'gt' : 'chile';
   const c = Number(costo);
   if (!c || c <= 0) return null;
@@ -11786,44 +11792,60 @@ let _landingTenant = null;
 function landingTenant(){ return _landingTenant || (typeof getCurrentTenant === 'function' ? getCurrentTenant() : 'chile'); }
 function landingParam(){ return '&tenant=' + landingTenant(); }
 function landingEsGT(){ return landingTenant() === 'gt'; }
-function landingTienda(){ return landingEsGT() ? 'benkogt.com' : 'benkotienda.com'; }
-function landingAdminSlug(){ return landingEsGT() ? '85yz4u-q5' : 'benkotienda'; }
+function landingEsMX(){ return landingTenant() === 'mx'; }
+function landingTienda(){ return bkPaisInfo(landingTenant()).tienda; }
+function landingAdminSlug(){ return bkPaisInfo(landingTenant()).admin; }
 
 function setLandingTenant(t){
-  _landingTenant = (t === 'gt') ? 'gt' : 'chile';
+  _landingTenant = bkPaisInfo(t).codigo;
   const badge = document.getElementById('bk-landing-tienda-badge');
   if (badge) {
     const gt = landingEsGT();
-    badge.innerHTML = '<span style="background:' + (gt ? '#0284C7' : '#8A5A2A') + ';color:#fff;border-radius:6px;padding:4px 12px;font-size:11px;font-family:\'DM Mono\',monospace;font-weight:700">'
-      + (gt ? '🇬🇹 GUATEMALA' : '🇨🇱 CHILE') + '</span>'
+    const mx = landingEsMX();
+    badge.innerHTML = '<span style="background:' + (mx ? '#0F7B3F' : gt ? '#0284C7' : '#8A5A2A') + ';color:#fff;border-radius:6px;padding:4px 12px;font-size:11px;font-family:\'DM Mono\',monospace;font-weight:700">'
+      + (mx ? '🇲🇽 MÉXICO' : gt ? '🇬🇹 GUATEMALA' : '🇨🇱 CHILE') + '</span>'
       + '<span style="font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace">el producto, la plantilla y las imágenes van a ' + landingTienda() + '</span>';
   }
   const gtOn = landingEsGT();
+  const mxOn = landingEsMX();
   const banner = document.getElementById('bk-landing-gt-banner');
-  if (banner) banner.style.display = gtOn ? 'flex' : 'none';
+  if (banner) {
+    // El mismo aviso sirve para los dos paises que no son Chile.
+    banner.style.display = (gtOn || mxOn) ? 'flex' : 'none';
+    banner.style.background = mxOn ? 'linear-gradient(135deg,#34D399 0%,#047857 100%)' : '';
+    const ban = banner.children;
+    if (ban[0]) ban[0].textContent = mxOn ? '🇲🇽' : '🇬🇹';
+    const txt = ban[1] ? ban[1].children : [];
+    if (txt[0]) txt[0].textContent = mxOn ? 'ESTÁS CREANDO PARA MÉXICO' : 'ESTÁS CREANDO PARA GUATEMALA';
+    if (txt[1]) txt[1].innerHTML = 'El producto, la plantilla y las imágenes van a <b>' + landingTienda() + '</b> — no a Chile.'
+      + (mxOn ? ' La plantilla se arma con la estructura de Chile y se pasa al tema Elixir de BENKOMX.' : '');
+  }
   // La card de auto-generar pasa de rojo (Chile) a verde (Guatemala), para que
   // el color del bloque donde se aprieta el boton tambien delate el pais.
+  const colorPais = mxOn ? '#0F7B3F' : gtOn ? '#0284C7' : '#dc2626';
   const card = document.getElementById('bk-auto-shrine');
-  if (card) card.style.borderColor = gtOn ? '#0284C7' : '#dc2626';
+  if (card) card.style.borderColor = colorPais;
   const cardTitle = card ? card.querySelector('.bk-shopify-push-title') : null;
   if (cardTitle) {
-    cardTitle.style.color = gtOn ? '#0284C7' : '#dc2626';
-    cardTitle.textContent = gtOn
-      ? '🇬🇹 Auto-generar plantilla Shrine — GUATEMALA'
+    cardTitle.style.color = colorPais;
+    cardTitle.textContent = mxOn
+      ? '🇲🇽 Auto-generar plantilla — MÉXICO (Elixir)'
+      : gtOn ? '🇬🇹 Auto-generar plantilla Shrine — GUATEMALA'
       : '🚀 Auto-generar plantilla Shrine completa';
   }
   const abrirBtn = document.getElementById('bk-btn-auto-shrine');
   if (abrirBtn) {
-    abrirBtn.style.background = gtOn ? '#0284C7' : '#dc2626';
-    abrirBtn.textContent = gtOn ? '🇬🇹 (2) Auto-generar plantilla — GT' : '🚀 (2) Auto-generar plantilla Shrine';
+    abrirBtn.style.background = colorPais;
+    abrirBtn.textContent = mxOn ? '🇲🇽 (2) Auto-generar plantilla — MX'
+      : gtOn ? '🇬🇹 (2) Auto-generar plantilla — GT' : '🚀 (2) Auto-generar plantilla Shrine';
   }
   // El importador de Dropi comparte pantalla: sus etiquetas siguen al pais.
-  const moneda = gtOn ? 'GTQ' : 'CLP';
+  const moneda = mxOn ? 'MXN' : gtOn ? 'GTQ' : 'CLP';
   const lblCost = document.getElementById('bk-dropi-imp-cost-lbl');
   if (lblCost) lblCost.innerHTML = 'Costo Dropi ' + moneda + ' <span style="color:#C0392B">*</span>';
   const lblPrice = document.getElementById('bk-dropi-imp-price-lbl');
   if (lblPrice) lblPrice.innerHTML = 'Precio Shopify inicial ' + moneda
-    + ' <span style="color:var(--muted);text-transform:none">(' + (gtOn ? 'a mano' : 'auto') + ')</span>';
+    + ' <span style="color:var(--muted);text-transform:none">(' + ((gtOn || mxOn) ? 'a mano' : 'auto') + ')</span>';
   const repT = document.getElementById('bk-replicar-gt-title');
   if (repT) repT.textContent = '🔄 Replicar landing existente: ' + (gtOn ? 'Guatemala → Chile' : 'Chile → Guatemala');
   const repD = document.getElementById('bk-replicar-gt-desc');
@@ -12347,6 +12369,95 @@ function autoFilesDrop(e){
 // Devuelve true solo si la plantilla quedo aplicada al producto. Cancelar o
 // fallar devuelve false: laAplicarLanding lo usa para no marcar el pedido
 // como aplicado cuando no paso nada.
+// ── Mexico: plantilla Shrine (Chile) -> product.json Elixir (BENKOMX) ────────
+// Toma el maestro de BENKOMX (templates/product.json, con la estructura de
+// benkotienda hecha en Elixir) y le pone los textos, GIFs, fotos y resenas de
+// la plantilla Shrine. Es la misma logica que Desktop\benkomx-tema\landing-mx.js,
+// probada con la lona y el anillo masajeador el 23 oct 2026.
+function bkShrineAElixir(cl, maestro){
+  const mx = JSON.parse(JSON.stringify(maestro));
+  const sinHtml = s => String(s || '').replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').trim();
+  const parrafo = s => '<p>' + sinHtml(s).replace(/\n+/g, ' ').trim() + '</p>';
+  const main = (cl.sections || {}).main || { blocks: {} };
+  const bloqueCL = t => Object.values(main.blocks || {}).find(b => b.type === t);
+  const seccionesCL = t => (cl.order || []).map(id => cl.sections[id]).filter(x => x && x.type === t && !x.disabled);
+  const det = mx.sections.shop_product_details_YnRKdn;
+  if (!det) throw new Error('El maestro de México no tiene el bloque de producto esperado');
+  const B = det.blocks;
+
+  const urg = bloqueCL('urgency');
+  if (urg && B.urgencia) B.urgencia.settings.custom_liquid = B.urgencia.settings.custom_liquid
+    .replace('NUEVO STOCK | UNIDADES LIMITADAS!', sinHtml(urg.settings.urgency));
+  const est = bloqueCL('rating_stars');
+  if (est && B.estrellas) B.estrellas.settings.rating_text_content = '<p><strong>' + est.settings.rating + '</strong> ' + sinHtml(est.settings.label) + '</p>';
+  const emo = bloqueCL('emoji_benefits');
+  if (emo && B.beneficios) {
+    const lineas = sinHtml(emo.settings.benefits).split('\n').map(l => l.trim()).filter(Boolean);
+    for (let i = 1; i <= 6; i++) {
+      const l = lineas[i - 1] || '';
+      const m = l.match(/^(\p{Extended_Pictographic}[\u{FE0F}\u{200D}\p{Extended_Pictographic}]*)\s*(.*)$/u);
+      B.beneficios.settings['emoji_' + i] = m ? m[1] : (l ? '✅' : '');
+      B.beneficios.settings['benefit_' + i] = m ? m[2] : l;
+    }
+  }
+  const rev = bloqueCL('reviews');
+  if (rev && B.resena) {
+    const st = rev.settings;
+    const items = [1, 2, 3, 4, 5].filter(n => st['author_' + n]).map(n => ({
+      reviewer_name: sinHtml(st['author_' + n]), review_text: sinHtml(st['text_' + n]),
+      rating: 5, avatar_url: st['image_' + n] || '', show_avatar: !!st['image_' + n] }));
+    if (items.length) {
+      Object.assign(B.resena.settings, items[0], { enable_carousel: items.length > 1 });
+      const pos = det.block_order.indexOf('resena');
+      items.slice(1).forEach((it, i) => {
+        const id = 'resena_' + (i + 2);
+        B[id] = { type: 'customer_review_item', settings: it };
+        det.block_order.splice(pos + 1 + i, 0, id);
+      });
+    }
+  }
+  seccionesCL('image-with-text').slice(0, 3).forEach((x, i) => {
+    const dest = mx.sections['bk_gif_' + (i + 1)];
+    if (!dest) return;
+    const bl = Object.values(x.blocks || {});
+    const h = bl.find(b => b.type === 'heading');
+    const t = bl.find(b => b.type === 'text');
+    if (x.settings.image) dest.settings.image = x.settings.image;
+    if (h) dest.blocks.h.settings.heading_text = sinHtml(h.settings.heading);
+    if (t) dest.blocks.p.settings.paragraph_text = parrafo(t.settings.text);
+  });
+  const tick = seccionesCL('horizontal-ticker')[0];
+  if (tick && mx.sections.bk_cinta_stock) {
+    const txt = Object.values(tick.blocks || {}).map(b => b.settings.title).filter(Boolean)[0];
+    if (txt) mx.sections.bk_cinta_stock.blocks.t.settings.text = txt;
+  }
+  const tes = seccionesCL('testimonials')[0];
+  if (tes && mx.sections.bk_resenas) {
+    const cols = (tes.block_order || Object.keys(tes.blocks)).map(k => tes.blocks[k]).filter(b => b && !b.disabled);
+    const dest = mx.sections.bk_resenas;
+    dest.blocks = {}; dest.block_order = [];
+    cols.forEach((c, i) => {
+      dest.blocks['r' + i] = { type: 'review', settings: {
+        review_image: c.settings.image || '', image_position: 'center center', wrap_image: true, rating: 5,
+        review_text: (c.settings.title ? c.settings.title + '. ' : '') + sinHtml(c.settings.text).replace(/\n+/g, ' '),
+        reviewer_name: sinHtml(c.settings.author), reviewer_age: '', show_verified_badge: true,
+        show_purchased_product: false, show_purchase_date: false } };
+      dest.block_order.push('r' + i);
+    });
+  }
+  const faq = seccionesCL('collapsible-content')[0];
+  if (faq && mx.sections.bk_faq) {
+    const rows = (faq.block_order || Object.keys(faq.blocks)).map(k => faq.blocks[k]).filter(b => b && !b.disabled);
+    const dest = mx.sections.bk_faq;
+    dest.blocks = {}; dest.block_order = [];
+    rows.forEach((r, i) => {
+      dest.blocks['f' + (i + 1)] = { type: 'faq_item', settings: { question: sinHtml(r.settings.heading), answer: parrafo(r.settings.row_content) } };
+      dest.block_order.push('f' + (i + 1));
+    });
+  }
+  return mx;
+}
+
 async function ejecutarAutoShrine(){
   if (!_autoShrineProduct) return false;
   const status = document.getElementById('bk-auto-shrine-status');
@@ -12406,22 +12517,34 @@ async function ejecutarAutoShrine(){
       fotosRefs.push(r);
     }
 
-    // 2. Leer el último template como base
+    // 2. Leer el último template como base. Mexico no usa Shrine: la landing se
+    //    arma igual que en Chile, sobre una plantilla de Chile, y despues se
+    //    traduce al tema Elixir de BENKOMX (paso 3.1).
     setStatus('⏳ Leyendo plantilla base de tu theme…');
-    const listResp = await fetch('/.netlify/functions/shopify-themes?op=list-templates' + landingParam());
+    const baseParam = landingEsMX() ? '&tenant=chile' : landingParam();
+    const listResp = await fetch('/.netlify/functions/shopify-themes?op=list-templates' + baseParam);
     const listData = await listResp.json();
     if (!listResp.ok) throw new Error(listData.error || 'list-templates fail');
     const baseTemplate = (listData.templates || [])[0];
     if (!baseTemplate) throw new Error('No hay templates de productos en el theme');
 
-    const tmplResp = await fetch('/.netlify/functions/shopify-themes?op=template&assetKey=' + encodeURIComponent(baseTemplate.key) + landingParam());
+    const tmplResp = await fetch('/.netlify/functions/shopify-themes?op=template&assetKey=' + encodeURIComponent(baseTemplate.key) + baseParam);
     const tmplData = await tmplResp.json();
     if (!tmplResp.ok) throw new Error(tmplData.error || 'template read fail');
     const baseJson = JSON.parse(tmplData.value);
 
     // 3. Construir el nuevo template con substituciones
     setStatus('⏳ Generando plantilla nueva con tu contenido…');
-    const newJson = buildAutoShrineTemplate(baseJson, masterText, gifsRefs, fotosRefs);
+    let newJson = buildAutoShrineTemplate(baseJson, masterText, gifsRefs, fotosRefs);
+
+    // 3.1 Mexico: la plantilla de Chile se pasa al product.json Elixir de BENKOMX
+    if (landingEsMX()) {
+      setStatus('⏳ Pasando la plantilla al tema de México…');
+      const mxResp = await fetch('/.netlify/functions/shopify-themes?op=template&assetKey=' + encodeURIComponent('templates/product.json') + landingParam());
+      const mxData = await mxResp.json();
+      if (!mxResp.ok) throw new Error(mxData.error || 'No pude leer la plantilla maestra de México');
+      newJson = bkShrineAElixir(newJson, JSON.parse(String(mxData.value).replace(/^\/\*[\s\S]*?\*\/\s*/, '')));
+    }
 
     // 3.5 VALIDACIÓN PRE-PUSH: contar elementos críticos y mostrar confirmación
     const checkChunks = parseMasterToChunks(masterText);
@@ -12604,7 +12727,10 @@ async function ejecutarAutoShrine(){
     };
     // En GT los precios van en QUETZALES: se usa el panel de Guatemala en vez
     // del de Chile, que esta forzado a tenant=chile y calcula en CLP.
-    const bloquePrecios = landingEsGT()
+    const bloquePrecios = landingEsMX()
+      ? '<div style="margin-top:12px;padding:10px 12px;background:#ECFDF5;border:1.5px solid #0F7B3F;border-radius:8px;font-size:11px;font-family:\'DM Mono\',monospace;color:#065F46;line-height:1.5">'
+        + '🇲🇽 Precio y packs de Releasit de México se cargan a mano por ahora: el servidor no deja publicar precios en MX hasta que esté definido el piso.</div>'
+      : landingEsGT()
       ? '<div style="margin-top:12px">' + _bkPanelReleasitGT(_autoShrineProduct.id, _autoShrineProduct.handle, _autoShrineProduct.title) + '</div>'
       : (
       '<div style="margin-top:12px;padding:10px 12px;background:linear-gradient(135deg,#D9A82E 0%,#8A5A2A 100%);border-radius:8px;color:#fff">' +
@@ -12618,17 +12744,19 @@ async function ejecutarAutoShrine(){
       '<a href="' + adminUrl + '" target="_blank" style="color:var(--accent);font-weight:600">Admin</a>' +
       bloquePrecios +
       // Replicar SIEMPRE al otro pais: desde Chile va a GT y desde GT a Chile.
+      // Mexico no se replica: su tema es otro (Elixir).
+      (landingEsMX() ? '' :
       '<div style="margin-top:8px;padding:10px 12px;background:linear-gradient(135deg,#4ECDC4 0%,#111111 100%);border-radius:8px;color:#fff">' +
       '<button onclick="replicarTemplateAGT()" id="bk-replicar-gt-btn" style="background:#fff;color:#111111;border:none;border-radius:6px;padding:8px 14px;font-size:12px;font-family:\'DM Mono\',monospace;cursor:pointer;font-weight:700">🔄 Replicar este landing a ' + repDestinoNombre() + '</button>' +
       '<div style="font-size:10px;margin-top:6px;opacity:0.9;line-height:1.4">El producto debe existir en ' + repDestinoNombre() + ' con el mismo handle: <b>' + esc(_autoShrineProduct.handle) + '</b>. Si el handle no coincide, lo busca por título.</div>' +
       '<div id="bk-replicar-gt-status" style="font-size:11px;margin-top:8px;font-family:\'DM Mono\',monospace"></div>' +
-      '</div>';
+      '</div>');
     showToast('🚀 Plantilla generada y aplicada', '✨', 'success');
 
     // Auto-navegar a Precios+Releasit despues de 800ms (deja que el status se vea).
     // Solo en Chile: ese panel esta forzado a tenant=chile y en GT mostraria
     // precios en CLP sobre un producto de Guatemala.
-    if (!landingEsGT()) {
+    if (landingTenant() === 'chile') {
       setTimeout(() => {
         _bkContinuarAPreciosReleasit(_autoShrineProduct.id, _autoShrineProduct.title, _autoShrineProduct.handle);
       }, 1200);
@@ -20742,6 +20870,18 @@ function _laEstado(msg, color){
   if (el) { el.textContent = msg || ''; el.style.color = color || 'var(--muted)'; }
 }
 
+// Paises del panel: lo mismo que netlify/functions/_tenant.js del lado del
+// servidor. `tienda` y `admin` de Mexico son los de GETFAUNO mientras no este
+// comprado benkomx.com.
+function bkPaisInfo(t){
+  const P = {
+    chile: { codigo: 'chile', nombre: 'Chile', corto: 'CHILE', bandera: '🇨🇱', simbolo: '$', tienda: 'benkotienda.com', admin: 'benkotienda', bs: 'cl' },
+    gt:    { codigo: 'gt', nombre: 'Guatemala', corto: 'GT', bandera: '🇬🇹', simbolo: 'Q', tienda: 'benkogt.com', admin: '85yz4u-q5', bs: 'gt' },
+    mx:    { codigo: 'mx', nombre: 'México', corto: 'MX', bandera: '🇲🇽', simbolo: '$', tienda: 'getfauno.com', admin: 'wisp-9525', bs: 'mx' },
+  };
+  return P[t] || P.chile;
+}
+
 // El pais se elige a mano y de entrada. NO se hereda del creador de landing:
 // heredarlo fue lo que mando un producto chileno a la tienda de Guatemala.
 let _laPais = 'chile';
@@ -20749,10 +20889,10 @@ let _laPais = 'chile';
 let _laProducto = null;
 
 function laSetPais(p){
-  _laPais = (p === 'gt') ? 'gt' : 'chile';
+  _laPais = bkPaisInfo(p).codigo;
   const activo = { border: '2px solid #2B5FB3', background: '#2B5FB3', color: '#fff' };
   const apagado = { border: '2px solid var(--border)', background: 'var(--surface2)', color: 'var(--muted)' };
-  [['la-pais-chile', 'chile'], ['la-pais-gt', 'gt']].forEach(function(par){
+  [['la-pais-chile', 'chile'], ['la-pais-gt', 'gt'], ['la-pais-mx', 'mx']].forEach(function(par){
     const el = document.getElementById(par[0]);
     if (!el) return;
     const est = (_laPais === par[1]) ? activo : apagado;
@@ -20789,7 +20929,7 @@ async function laBuscarProducto(){
   const pv = document.getElementById('la-preview');
   if (!/^\d{3,}$/.test(id)) { if (pv) pv.innerHTML = ''; return; }
   if (_laProducto && _laProducto.dropiId === id && _laProducto.tenant === _laPais) return;
-  _laEstado('Buscando el producto en ' + (_laPais === 'gt' ? 'Guatemala' : 'Chile') + '…');
+  _laEstado('Buscando el producto en ' + bkPaisInfo(_laPais).nombre + '…');
   if (pv) pv.innerHTML = '';
   try {
     const r = await fetch('/.netlify/functions/dropi-producto-por-id?tenant=' + _laPais + '&dropi_id=' + encodeURIComponent(id));
@@ -20803,7 +20943,7 @@ async function laBuscarProducto(){
       _laMostrarManual(true);
       if (pv) pv.innerHTML = '<div style="background:var(--surface2);border:1.5px solid #C0392B;border-radius:10px;padding:12px;font-size:11px;font-family:\'DM Mono\',monospace;color:var(--text);line-height:1.6">'
         + '⚠ ' + esc(j.motivo || 'No lo encontré') + '<br>'
-        + '<span style="color:var(--muted)">Ojo: el ID de Dropi es por catálogo, así que el mismo producto tiene número distinto en Chile y en Guatemala.</span></div>';
+        + '<span style="color:var(--muted)">Ojo: el ID de Dropi es por catálogo, así que el mismo producto tiene número distinto en cada país.</span></div>';
       _laEstado('');
       return;
     }
@@ -20813,7 +20953,7 @@ async function laBuscarProducto(){
     _laEstado('');
     if (pv) {
       const corto = j.enShopify && j.camposMetafield && j.camposMetafield < 20;
-      const moneda = (_laPais === 'gt') ? 'Q' : '$';
+      const moneda = bkPaisInfo(_laPais).simbolo;
       pv.innerHTML = '<div style="background:var(--surface2);border:1.5px solid #2B5FB3;border-radius:10px;padding:12px;display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap">'
         + (j.fotoPrincipal ? '<img src="' + esc(j.fotoPrincipal) + '" style="width:72px;height:72px;object-fit:cover;border-radius:8px;flex:none">' : '')
         + '<div style="flex:1;min-width:200px">'
@@ -20906,7 +21046,7 @@ async function laCrearPedido(){
       dropiId: String(_laProducto.dropiId),
       sello: sello.trim() || null,
       // El pais es el que se eligio a mano arriba, no el del creador.
-      pais: _laProducto.tenant === 'gt' ? 'gt' : 'chile',
+      pais: bkPaisInfo(_laProducto.tenant).codigo,
       shopifyId: _laProducto.shopifyId || null,
       handle: _laProducto.handle || null,
       proveedor: _laProducto.proveedor || null,
@@ -20922,7 +21062,7 @@ async function laCrearPedido(){
     const el = document.getElementById('la-dropi'); if (el) el.value = '';
     const se = document.getElementById('la-sello'); if (se) se.value = '';
     laIdCambio();
-    _laEstado('Pedido creado en ' + (_laPais === 'gt' ? 'Guatemala' : 'Chile') + '.', 'var(--accent)');
+    _laEstado('Pedido creado en ' + bkPaisInfo(_laPais).nombre + '.', 'var(--accent)');
     showToast('Pedido de landing creado', '🛰️', 'success');
     renderLandingAuto();
 
@@ -20993,7 +21133,7 @@ async function renderLandingAuto(){
         + '<div style="flex:1;min-width:200px">'
         +   '<div style="font-family:\'Montserrat\',sans-serif;font-weight:800;font-size:14px;color:var(--text)">' + esc(p.nombre || '(sin nombre)') + '</div>'
         +   '<div style="font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace;margin-top:3px">Dropi ' + esc(p.dropiId || '?')
-        +     (p.sello ? ' · sello ' + esc(p.sello) : '') + ' · ' + (p.pais === 'gt' ? '🇬🇹 GT' : '🇨🇱 CHILE') + (cuando ? ' · ' + cuando : '') + '</div>'
+        +     (p.sello ? ' · sello ' + esc(p.sello) : '') + ' · ' + (bkPaisInfo(p.pais).bandera + ' ' + bkPaisInfo(p.pais).corto) + (cuando ? ' · ' + cuando : '') + '</div>'
         +   '<div style="font-size:11px;font-family:\'DM Mono\',monospace;margin-top:6px;color:' + est.color + '">● ' + esc(est.txt) + '</div>'
         // "sinShopify" se pone al CREAR el pedido y solo quiere decir que el
         // producto todavia no existe: se crea al aplicar la landing. Pintarlo
@@ -21010,8 +21150,8 @@ async function renderLandingAuto(){
                   : ''))
         +   (p.sinFoto ? '<div style="font-size:10px;color:#B7791F;font-family:\'DM Mono\',monospace;margin-top:4px">📷 Creado sin foto: Dropi no deja bajar las suyas (pasa con TODO Guatemala). Subile una desde Shopify.</div>' : '')
         +   (p.precio ? '<div style="font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace;margin-top:4px">💲 '
-              + ((p.pais === 'gt') ? 'Q' : '$') + Number(p.precio).toLocaleString('es-CL')
-              + (p.margen ? ' · margen ' + ((p.pais === 'gt') ? 'Q' : '$') + Number(p.margen).toLocaleString('es-CL') : '')
+              + bkPaisInfo(p.pais).simbolo + Number(p.precio).toLocaleString('es-CL')
+              + (p.margen ? ' · margen ' + bkPaisInfo(p.pais).simbolo + Number(p.margen).toLocaleString('es-CL') : '')
               + ' · propuesto, cambialo en Shopify si no te cuadra</div>' : '')
         +   (p.videosCarpeta ? '<div style="font-size:10px;color:var(--muted);font-family:\'DM Mono\',monospace;margin-top:4px">📁 ' + esc(p.videosCarpeta) + '</div>' : '')
         +   (p.angulo ? '<div style="font-size:11px;color:var(--text);margin-top:6px"><b>Ángulo:</b> ' + esc(p.angulo) + '</div>' : '')
@@ -21071,7 +21211,7 @@ function _laCargarEnCreador(p){
   // Los adjuntos manuales de una corrida anterior no deben pisar estos.
   _autoShrineMainImgs = []; _autoShrineGifs = []; _autoShrineFotos = [];
   switchSection('prompts');
-  setLandingTenant(p.pais === 'gt' ? 'gt' : 'chile');
+  setLandingTenant(bkPaisInfo(p.pais).codigo);
   const ta = document.getElementById('bkv-respuesta');
   if (ta) ta.value = p.master || '';
   const panel = document.getElementById('bk-auto-shrine');
@@ -21130,7 +21270,7 @@ async function laAplicarLanding(id){
 // define Benjamin despues, y los botones de activar avisan si sigue en 999.
 async function laCrearEnShopify(pedidoId, p){
   try {
-    const tenant = (p.pais === 'gt') ? 'gt' : 'chile';
+    const tenant = bkPaisInfo(p.pais).codigo;
     const sello = String(p.sello || '').trim();
     const prefijo = /^\d+$/.test(sello) ? (sello + '% OFF ') : (sello ? sello + ' ' : '');
     const nombre = p.nombreDropi || p.nombre || '';
@@ -21186,7 +21326,7 @@ async function laCrearEnShopify(pedidoId, p){
       sinShopify: false,
       updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
     });
-    const simbolo = (tenant === 'gt') ? 'Q' : '$';
+    const simbolo = bkPaisInfo(tenant).simbolo;
     showToast('Producto creado' + (sug ? ' a ' + simbolo + sug.precio.toLocaleString('es-CL') : ''),
               '📦', sug && sug.bajo ? 'warn' : 'success');
     return { shopifyId: String(j.product_id), handle: j.handle || '' };
@@ -21248,7 +21388,8 @@ async function laBorrarPedido(id){
 //   m:[mis unidades por tramo] }
 
 const BS_DIA = 86400000;
-const BS_CDN = { cl: 'https://d39ru7awumhhs2.cloudfront.net/', gt: 'https://d2ob47cxeawi8a.cloudfront.net/' };
+// Mexico ("mexico/products/...") vive en el mismo CloudFront que Chile.
+const BS_CDN = { cl: 'https://d39ru7awumhhs2.cloudfront.net/', gt: 'https://d2ob47cxeawi8a.cloudfront.net/', mx: 'https://d39ru7awumhhs2.cloudfront.net/' };
 const BS_DROPI = { cl: 'https://app.dropi.cl', gt: 'https://app.dropi.gt' };
 // Mismos umbrales que analizar.mjs.
 const BS_MIN_VENTA = 3, BS_MIN_ACEL = 1.5;
@@ -21656,7 +21797,7 @@ const _bsPedidos = new Set();
 function _bsBoton(dropiId){ return document.querySelector('.bs-la-btn[data-pid="' + dropiId + '"]'); }
 
 async function bsCrearPedidoLA(dropiId, sello){
-  const pais = (_bs.pais === 'gt') ? 'gt' : 'chile';
+  const pais = { gt: 'gt', mx: 'mx' }[_bs.pais] || 'chile';
   const btn = _bsBoton(dropiId);
   const inId = document.getElementById('la-dropi');
   const inSe = document.getElementById('la-sello');
@@ -21685,7 +21826,7 @@ async function bsCrearPedidoLA(dropiId, sello){
   // videos, y la foto solo se puede cargar desde el formulario.
   if (!_laProducto) { fallo('No pude leer el producto. Revisá el ID ' + dropiId + '.'); return; }
   if (!_laProducto.encontrado) {
-    fallo('El ID ' + dropiId + ' no está en ' + (pais === 'gt' ? 'Guatemala' : 'Chile') + '. Te abro el panel para cargarlo a mano.');
+    fallo('El ID ' + dropiId + ' no está en ' + bkPaisInfo(pais).nombre + '. Te abro el panel para cargarlo a mano.');
     switchSection('landing-auto');
     return;
   }
@@ -23651,7 +23792,7 @@ function pipelineRenderDashboard(){
 // ── REPORTES — sub-tabs Shopify / Meta Ads ────────────────────────────────────
 
 function switchTenant(t){
-  if (t !== 'chile' && t !== 'gt' && t !== 'total') return;
+  if (t !== 'chile' && t !== 'gt' && t !== 'mx' && t !== 'total') return;
   setCurrentTenant(t);
   // Toggle visual de los botones
   const btnC = document.getElementById('tenant-btn-chile');
@@ -23659,6 +23800,8 @@ function switchTenant(t){
   const btnT = document.getElementById('tenant-btn-total');
   if (btnC) btnC.classList.toggle('active', t === 'chile');
   if (btnG) btnG.classList.toggle('active', t === 'gt');
+  const btnM = document.getElementById('tenant-btn-mx');
+  if (btnM) btnM.classList.toggle('active', t === 'mx');
   if (btnT) btnT.classList.toggle('active', t === 'total');
   const lbl = document.getElementById('tenant-current-label');
   if (lbl) lbl.textContent = '· ' + tenantLabel(t);
@@ -23676,6 +23819,7 @@ function switchTenant(t){
 
 function tenantLabel(t) {
   if (t === 'gt') return 'Guatemala · CLP (× 120) · sin UTM en ads → todo cae en "directo"';
+  if (t === 'mx') return 'México · pesos mexicanos (MXN) · sin cuenta de Meta todavía';
   if (t === 'total') return 'Chile + Guatemala consolidado · todo en CLP';
   return 'datos de Chile';
 }
@@ -23688,6 +23832,8 @@ function refreshTenantUI(){
   const btnT = document.getElementById('tenant-btn-total');
   if (btnC) btnC.classList.toggle('active', t === 'chile');
   if (btnG) btnG.classList.toggle('active', t === 'gt');
+  const btnM = document.getElementById('tenant-btn-mx');
+  if (btnM) btnM.classList.toggle('active', t === 'mx');
   if (btnT) btnT.classList.toggle('active', t === 'total');
   const lbl = document.getElementById('tenant-current-label');
   if (lbl) lbl.textContent = '· ' + tenantLabel(t);

@@ -41,6 +41,9 @@ const PAISES = {
     // con precio en México (ver precioInvalido).
     pisoPrecio: null, preciosProhibidos: [],
     prefijoTelefono: '52',
+    // Mientras el tema BENKOMX no este publicado, las plantillas van a ESE tema
+    // y no al publicado (el de Fauno). Sin la variable, se usa el publicado.
+    envThemeId: 'SHOPIFY_THEME_ID_MX',
   },
 };
 
@@ -64,6 +67,7 @@ function pais(codigo) {
     shopifyDomain: leer(p.envShopifyDomain),
     metaToken: leer(p.envMetaToken),
     dropiToken: leer(p.envDropiToken),
+    themeId: p.envThemeId ? leer(p.envThemeId) : null,
   };
 }
 

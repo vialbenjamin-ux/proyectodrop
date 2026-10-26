@@ -22,6 +22,7 @@ exports.handler = async function (event) {
   const T = pais(tenant);
   if (T.error) return respond(400, { error: T.error });
   const isGT = T.isGT;
+  temaForzado = T.themeId || null;
   const token  = T.shopifyToken;
   const domain = T.shopifyDomain;
 
@@ -109,7 +110,11 @@ async function listThemes(domain, headers) {
   return respond(200, { themes });
 }
 
+// Tema forzado por pais (SHOPIFY_THEME_ID_MX): se fija al entrar al handler.
+let temaForzado = null;
+
 async function getMainThemeId(domain, headers) {
+  if (temaForzado) return temaForzado;
   const url = `https://${domain}/admin/api/2024-10/themes.json?role=main`;
   const resp = await fetch(url, { headers });
   if (!resp.ok) {
