@@ -56,7 +56,7 @@ const REGIONES_DROPI = {
 // mayusculas y no se traduce nada.
 // Tienda (shop) de Dropi por defecto en cada pais, sacada de las ordenes ya
 // aceptadas. Mexico no tiene todavia: se completa con la primera orden real.
-const SHOP_POR_PAIS = { chile: 152458, gt: 2132 };
+const SHOP_POR_PAIS = { chile: 152458, gt: 2132, mx: 151366 };
 
 function regionDropi(valor, paisCodigo) {
   const crudo = String(valor || '').trim();
