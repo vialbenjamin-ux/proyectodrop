@@ -17,7 +17,7 @@ const { cuentaDelToken } = require('./_dropi-tenant');
 // POST body:
 //   {
 //     dropi_id, name, image_url, cost, user_id,
-//     user_name (opt), price (opt, default 999),
+//     user_name (opt), price (opt, default: precio de relleno del pais),
 //     description (opt), gallery_urls (opt, array)
 //   }
 //
@@ -44,7 +44,6 @@ exports.handler = async (event) => {
   // Shopify (proveedor nuevo). El metafield queda con user.id = null y user.name
   // = userName. El fulfillment Dropi requerira reasignacion despues.
   const allowUnknownSupplier = body.allow_unknown_supplier === true;
-  const price = Number(body.price) > 0 ? Number(body.price) : 999;
   const description = String(body.description || '').trim();
   const extraGallery = Array.isArray(body.gallery_urls) ? body.gallery_urls.filter(u => typeof u === 'string' && u).slice(0, 8) : [];
   // Tipo de oferta destacada ('2x1'|'3x1'|'4x1'|'45off'|null). Se agrega como
@@ -67,6 +66,9 @@ exports.handler = async (event) => {
   const token  = T.shopifyToken;
   const domain = T.shopifyDomain;
   if (!token || !domain) return respond(500, { error: 'Faltan credenciales Shopify' + T.etiqueta });
+  // Sin precio se crea con el relleno del pais (999 en Chile y GT, 1 en
+  // Mexico, donde 999 es un precio real). El piso impide activarlo asi.
+  const price = Number(body.price) > 0 ? Number(body.price) : T.precioRelleno;
 
   const H = { 'X-Shopify-Access-Token': token, 'Content-Type': 'application/json', 'Accept': 'application/json' };
   const API = 'https://' + domain + '/admin/api/2024-10';

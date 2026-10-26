@@ -20,6 +20,8 @@ const PAISES = {
     moneda: 'CLP', simbolo: '$', locale: 'es-CL', tz: 'America/Santiago',
     // Piso de precio publicado y precios de relleno que nunca se publican.
     pisoPrecio: 24990, preciosProhibidos: [],
+    // Precio con que el importador crea el producto mientras no hay uno real.
+    precioRelleno: 999,
     prefijoTelefono: '56',
   },
   gt: {
@@ -29,6 +31,7 @@ const PAISES = {
     dropiBase: 'https://api.dropi.gt', dropiApp: 'https://app.dropi.gt',
     moneda: 'GTQ', simbolo: 'Q', locale: 'es-GT', tz: 'America/Guatemala',
     pisoPrecio: 169, preciosProhibidos: [999],
+    precioRelleno: 999,
     prefijoTelefono: '502',
   },
   mx: {
@@ -38,8 +41,11 @@ const PAISES = {
     dropiBase: 'https://api.dropi.mx', dropiApp: 'https://app.dropi.mx',
     moneda: 'MXN', simbolo: '$', locale: 'es-MX', tz: 'America/Mexico_City',
     // El piso de Chile (24.990 CLP) en pesos mexicanos, como pidió Benjamín
-    // el 26 oct 2026 "hasta nuevo aviso". 999 es el relleno del importador.
-    pisoPrecio: 479, preciosProhibidos: [999],
+    // el 26 oct 2026 "hasta nuevo aviso". En México 999 es EL precio típico
+    // de la competencia contra entrega, así que se permite: el relleno del
+    // importador pasa a ser 1, que el piso frena solo.
+    pisoPrecio: 479, preciosProhibidos: [],
+    precioRelleno: 1,
     prefijoTelefono: '52',
     // Mientras el tema BENKOMX no este publicado, las plantillas van a ESE tema
     // y no al publicado (el de Fauno). Sin la variable, se usa el publicado.

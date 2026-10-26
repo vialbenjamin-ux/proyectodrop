@@ -10770,10 +10770,12 @@ async function _bkPrecioSinDefinir(productId, tenant){
     if (!r.ok) return false;                       // ante la duda, no estorbar
     const vs = ((d.product || {}).variants) || [];
     if (!vs.length) return false;
-    const relleno = vs.every(function(v){ return Number(v.price) === 999; });
+    // En Mexico el relleno es 1: alla 999 es un precio real.
+    const pr = (tenant === 'mx') ? 1 : 999;
+    const relleno = vs.every(function(v){ return Number(v.price) === pr; });
     if (!relleno) return false;
-    return !confirm('⚠️ Este producto todavía tiene el precio de relleno (999).\n\n'
-      + 'Si lo activás ahora, la tienda lo va a mostrar a 999.\n\n'
+    return !confirm('⚠️ Este producto todavía tiene el precio de relleno (' + pr + ').\n\n'
+      + 'Si lo activás ahora, la tienda lo va a mostrar a ' + pr + '.\n\n'
       + '¿Activar igual?');
   } catch(_) { return false; }
 }
@@ -10793,19 +10795,21 @@ async function _bkPrecioSinDefinir(productId, tenant){
 const BK_ESCALA_PRECIO = {
   chile: [24990, 25990, 27990, 29990, 34990, 39990, 44990, 49990, 59990],
   gt:    [169, 179, 189, 199, 219, 229, 249, 259, 279, 299, 319, 349, 399, 459, 499, 549],
-  // Mexico (26 oct 2026): sin historial propio, Benjamin pidio inflar "a la
-  // chilena" asumiendo los mismos costos. La escala, el margen y el piso son
-  // los de Chile pasados a MXN (1 MXN = 52,8 CLP) y llevados a precios que
-  // terminan en 9. Sin 999: es el precio de relleno del importador.
-  mx:    [479, 499, 529, 569, 599, 649, 749, 849, 949, 1149],
+  // Mexico (26 oct 2026): medido sobre 100 productos de 7 tiendas contra
+  // entrega de alla cruzados con su costo exacto en Dropi MX (el SKU de
+  // Dropify trae el nombre de Dropi). Igual que en Chile, lo constante es el
+  // margen absoluto (~$600, mediana 619) y el precio cae en centenas menos 1:
+  // 799, 999, 699 y 899 son los mas usados. Con costo + 600 a la centena mas
+  // cercana acierta exacto 47 de 100 y a $100 o menos 79 de 100.
+  mx:    [599, 699, 799, 899, 999, 1099, 1199, 1299, 1399, 1499],
 };
-const BK_MARGEN_TIPICO = { chile: 23000, gt: 150, mx: 440 };
+const BK_MARGEN_TIPICO = { chile: 23000, gt: 150, mx: 600 };
 // Piso: por barato que salga el producto, no se vende bajo esto. En GT hay
 // productos de Q22 de costo vendidos a Q189, o sea que la regla del margen
 // sola los dejaria demasiado abajo.
-const BK_PRECIO_MINIMO = { chile: 24990, gt: 189, mx: 479 };
+const BK_PRECIO_MINIMO = { chile: 24990, gt: 189, mx: 599 };
 // Debajo de esto el producto no paga el trabajo: se avisa.
-const BK_MARGEN_MINIMO = { chile: 19000, gt: 120, mx: 360 };
+const BK_MARGEN_MINIMO = { chile: 19000, gt: 120, mx: 480 };
 
 function _bkPrecioSugerido(costo, tenant){
   const t = (tenant === 'gt' || tenant === 'mx') ? tenant : 'chile';
@@ -10818,7 +10822,9 @@ function _bkPrecioSugerido(costo, tenant){
   // antes que vender con margen flaco.
   if (precio - c < BK_MARGEN_MINIMO[t]) {
     const arriba = escala.filter(p => p - c >= BK_MARGEN_TIPICO[t]);
-    precio = arriba.length ? arriba[0] : Math.round((c + BK_MARGEN_TIPICO[t]) / 10) * 10 - (t === 'chile' ? 10 : 1);
+    precio = arriba.length ? arriba[0]
+      : t === 'mx' ? Math.round((c + BK_MARGEN_TIPICO[t]) / 100) * 100 - 1
+      : Math.round((c + BK_MARGEN_TIPICO[t]) / 10) * 10 - (t === 'chile' ? 10 : 1);
   }
   if (precio < BK_PRECIO_MINIMO[t]) precio = BK_PRECIO_MINIMO[t];
   return { precio, antes: _bkPrecioAntes(precio, t), margen: precio - c,
@@ -10840,8 +10846,9 @@ function _bkPrecioAntes(precio, tenant){
   const p = Number(precio);
   if (!p || p <= 0) return null;
   if (tenant === 'gt') return Math.round(p * 1.6 / 10) * 10 - 1;
-  // Mexico: el x1.5 de Chile, terminado en 9 (499 -> 749).
-  if (tenant === 'mx') return Math.round(p * 1.5 / 50) * 50 - 1;
+  // Mexico: x1.7 a la centena menos 1 (799 -> 1399, 999 -> 1699), la mediana
+  // de 88 productos de la competencia.
+  if (tenant === 'mx') return Math.round(p * 1.7 / 100) * 100 - 1;
   return Math.round(p * 1.5 / 5000) * 5000 - 10;
 }
 
