@@ -15,7 +15,7 @@
 //     pack2_disc: 15,                // % descuento pack 2u (editable UI)
 //     pack3_disc: 20,                // % descuento pack 3u (editable UI)
 //     dry_run: true|false,           // true = no PUT, solo devuelve preview
-//     tenant: 'chile'                // solo chile por ahora
+//     tenant: 'chile' | 'gt' | 'mx'
 //   }
 //
 // Response:
@@ -95,7 +95,6 @@ exports.handler = async (event) => {
   if (!Number.isFinite(pack3Disc) || pack3Disc < 0 || pack3Disc > 90) {
     return respond(400, { error: 'pack3_disc debe ser 0-90' });
   }
-  if (tenant !== 'chile' && tenant !== 'gt') return respond(400, { error: 'Tenant invalido (solo chile o gt)' });
 
   const T = pais(tenant);
   if (T.error) return respond(400, { error: T.error });
@@ -149,9 +148,12 @@ exports.handler = async (event) => {
     //    Precio por unidad = precioTotal / (nx1 * k)  (unidades reales que recibe)
     // Redondeo por tenant:
     // - Chile: precios terminan en .990 (convención CLP: $27.990, $47.990, etc.)
-    // - GT y Mexico: enteros (Q233, $599, etc.). El user ingresa el precio
-    //   manual y los tramos 2/3 se calculan sin regla especial.
+    // - GT: enteros (Q233, etc.). El user ingresa el precio manual y los
+    //   tramos 2/3 se calculan sin regla especial.
+    // - Mexico: centena menos 1, como la competencia (999 -> 2u 1.599 y
+    //   3u 2.099 con 20/30%, igual que NeruShopu con el mismo producto).
     const round990 = n => {
+      if (T.isMX) return Math.max(0, Math.round(n / 100) * 100 - 1);
       if (T.codigo !== 'chile') return Math.max(0, Math.round(n));
       const r = Math.round(n / 1000) * 1000 - 10;
       return r > 0 ? r : Math.max(0, Math.round(n));
