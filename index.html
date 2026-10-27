@@ -12882,7 +12882,11 @@ async function crearCarpetasDriveDelProducto(handle, title, nombreDropi){
     const mm = String(d.getMonth() + 1).padStart(2, '0');
     const dd = String(d.getDate()).padStart(2, '0');
     const datePrefix = mm + dd;
-    const pais = (typeof landingEsGT === 'function' && landingEsGT()) ? 'GT' : 'CH';
+    // El pais sale del tenant, no de landingEsGT(): con esa pregunta Mexico
+    // caia en el "else" y la carpeta quedaba "(CH)", que despues le pone
+    // nombre chileno a la campana (26 oct 2026, bolsas al vacio MX).
+    const _tenantCarpeta = (typeof landingTenant === 'function') ? landingTenant() : 'chile';
+    const pais = _tenantCarpeta === 'gt' ? 'GT' : _tenantCarpeta === 'mx' ? 'MX' : 'CH';
     const baseTitle = String(nombreDropi || title || handle).trim()
       .replace(/[\/:*?"<>|]/g, ' ')   // Drive no acepta estos caracteres
       .replace(/\s+/g, ' ')
