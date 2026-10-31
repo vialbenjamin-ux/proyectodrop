@@ -1,6 +1,7 @@
 // Endpoint multi-uso para productos Shopify (multi-tenant chile/gt).
 // - GET  ?q=texto      → busca productos por título (devuelve {id,title,handle,image})
 // - GET  ?id=123       → trae 1 producto completo
+// - GET  ?dropi_ids=1  → IDs de Dropi de los productos con landing (BENSTOCKY)
 // - GET  ?scopes=1     → diagnostico: lista los scopes del token (no expone el token)
 // - PUT  body { id, body_html, title?, handle?, tags?, status? } → actualiza producto
 //        status:'active' publica ademas en el canal "Tienda online"
@@ -37,6 +38,9 @@ exports.handler = async function (event) {
     if (event.httpMethod === 'GET') {
       if (qs.scopes) {
         return await getAccessScopes(domain, headers);
+      }
+      if (qs.dropi_ids) {
+        return await getDropiIds(domain, headers);
       }
       if (qs.id) {
         return await getProduct(domain, headers, qs.id);
@@ -136,6 +140,32 @@ async function getAccessScopes(domain, headers) {
       ? 'Faltan scopes en el TOKEN. Si ya los aprobaste en la app, hay que reinstalarla / regenerar el token y actualizarlo en Netlify.'
       : 'El token trae todos los scopes necesarios.',
   });
+}
+
+// El barcode de la variante es el ID de Dropi (`<producto>-<variacion>` si tiene
+// variantes). Un producto tiene landing si esta activo o si tiene plantilla
+// propia: un borrador recien importado no tiene ninguna de las dos.
+async function getDropiIds(domain, headers) {
+  const ids = new Set();
+  let pageUrl = `https://${domain}/admin/api/2024-10/products.json?limit=250&fields=status,template_suffix,variants`;
+  while (pageUrl) {
+    const resp = await fetch(pageUrl, { headers });
+    if (!resp.ok) {
+      const txt = await resp.text();
+      return respond(resp.status, { error: 'Shopify ' + resp.status + ': ' + txt.slice(0, 200) });
+    }
+    const data = await resp.json();
+    for (const p of data.products || []) {
+      if (p.status !== 'active' && !p.template_suffix) continue;
+      for (const v of p.variants || []) {
+        const id = String(v.barcode || '').trim().split('-')[0];
+        if (/^\d+$/.test(id)) ids.add(id);
+      }
+    }
+    const next = (resp.headers.get('Link') || '').match(/<([^>]+)>;\s*rel="next"/);
+    pageUrl = next ? next[1] : null;
+  }
+  return respond(200, { ids: [...ids] });
 }
 
 async function searchProducts(domain, headers, q) {

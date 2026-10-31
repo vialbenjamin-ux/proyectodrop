@@ -21908,6 +21908,28 @@ async function bsCrearPedidoLA(dropiId, sello){
 // es el producto, que videos van) lo corre despues la sesion local.
 const _bsReplicas = new Set();
 
+// Los IDs de Dropi que ya tienen landing en la tienda de cada pais: esos
+// muestran los botones R y no Landing Auto, para no pedir dos veces lo mismo.
+const _bsConLanding = {};
+
+function _bsTieneLanding(dropiId){
+  const pais = _bs.pais;
+  if (!_bsConLanding[pais]) {
+    _bsConLanding[pais] = new Set();
+    fetch('/.netlify/functions/shopify-products?dropi_ids=1&tenant=' + bkPaisInfo(pais).codigo)
+      .then(function(r){ return r.json().then(function(j){ if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status)); return j; }); })
+      .then(function(j){
+        _bsConLanding[pais] = new Set(j.ids);
+        if (_bs.pais === pais) _bsTabla();
+      })
+      .catch(function(e){
+        delete _bsConLanding[pais];
+        showToast('No pude saber qué productos ya tienen landing: ' + (e.message || 'error'), '⚠️', 'error');
+      });
+  }
+  return _bsConLanding[pais].has(String(dropiId));
+}
+
 function _bsBotonesR(p){
   return [['nuevos', 'R-Nuevos', 'Busca 3 videos nuevos para testear y los deja en la sección Videos'],
           ['ganadores', 'R-Ganadores', 'Deja en la sección Videos los 3 videos que más vendieron']].map(function(o){
@@ -21966,9 +21988,9 @@ function _bsTabla(){
       + '<td class="izq" style="max-width:320px"><div style="font-family:\'DM Sans\',sans-serif;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(x.p.n) + '</div>'
       + (_bs.vista === 'test' ? '<div style="font-size:10px;color:var(--text)">De ' + _bsN(x.vAnt, 1) + ' a ' + _bsN(x.vRec, 1) + ' por día · vendió en ' + x.rec.con + ' de ' + x.rec.med + ' días</div>' : '')
       + '<div style="font-size:10px;color:var(--muted)">' + x.p.i + ' · ' + esc(x.p.pr || '') + (x.masivo ? '<span class="bs-tag">masivo</span>' : '') + (x.rec.repuso ? '<span class="bs-tag">repuso</span>' : '') + ((x.rec.u > 0 && x.rec.res / x.rec.u >= 0.5) ? '<span class="bs-tag" data-tip="' + esc('La mayor parte de lo vendido salió de stock reservado para un vendedor') + '">reservado</span>' : '') + (x.rec.reajuste ? '<span class="bs-tag">reajuste</span>' : '') + '</div>'
-      + (_bsPedidos.has(x.p.i)
+      + (_bsTieneLanding(x.p.i) ? _bsBotonesR(x.p) : _bsPedidos.has(x.p.i)
           ? '<button type="button" class="bs-la-btn listo" data-pid="' + x.p.i + '" disabled>✅ Pedido creado</button>'
-          : '<button type="button" class="bs-la-btn" data-pid="' + x.p.i + '" onclick="bsALanding(event,' + x.p.i + ')" data-tip="' + esc('Crea el pedido en Landing Auto sin salir de acá') + '">🛰️ Landing Auto</button>') + _bsBotonesR(x.p) + '</td>'
+          : '<button type="button" class="bs-la-btn" data-pid="' + x.p.i + '" onclick="bsALanding(event,' + x.p.i + ')" data-tip="' + esc('Crea el pedido en Landing Auto sin salir de acá') + '">🛰️ Landing Auto</button>') + '</td>'
       + '<td>' + _bsN(x.p.p) + '</td><td' + (x.reservado ? ' data-tip="' + esc('Total ' + _bsN(x.stockTotal) + ' · reservado para otros ' + _bsN(x.reservado)) + '"' : '') + '>' + _bsN(x.stock) + '</td><td>' + _bsN(x.rec.u) + '</td><td>' + _bsN(x.vRec, 1) + '</td><td>' + (x.vAnt == null ? '–' : _bsN(x.vAnt, 1)) + '</td>'
       + '<td>' + (x.acel == null ? '–' : '×' + _bsN(x.acel, 1)) + '</td><td>' + (x.rec.mias ? _bsN(x.rec.mias) : '–') + '</td>' + (mias ? '<td>' + parte + '</td>' : '') + '<td class="izq">' + spark + '</td></tr>';
     if (_bs.abierto === x.p.i) h += '<tr><td colspan="' + (mias ? 12 : 11) + '" style="background:var(--surface2)">' + _bsDetalle(x) + '</td></tr>';
