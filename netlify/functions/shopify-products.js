@@ -1,7 +1,7 @@
 // Endpoint multi-uso para productos Shopify (multi-tenant chile/gt).
 // - GET  ?q=texto      → busca productos por título (devuelve {id,title,handle,image})
 // - GET  ?id=123       → trae 1 producto completo
-// - GET  ?dropi_ids=1  → IDs de Dropi de los productos con landing (BENSTOCKY)
+// - GET  ?dropi_ids=1  → IDs de Dropi y nombres de los productos con landing (BENSTOCKY)
 // - GET  ?scopes=1     → diagnostico: lista los scopes del token (no expone el token)
 // - PUT  body { id, body_html, title?, handle?, tags?, status? } → actualiza producto
 //        status:'active' publica ademas en el canal "Tienda online"
@@ -147,7 +147,8 @@ async function getAccessScopes(domain, headers) {
 // propia: un borrador recien importado no tiene ninguna de las dos.
 async function getDropiIds(domain, headers) {
   const ids = new Set();
-  let pageUrl = `https://${domain}/admin/api/2024-10/products.json?limit=250&fields=status,template_suffix,variants`;
+  const nombres = new Set();
+  let pageUrl = `https://${domain}/admin/api/2024-10/products.json?limit=250&fields=title,status,template_suffix,variants`;
   while (pageUrl) {
     const resp = await fetch(pageUrl, { headers });
     if (!resp.ok) {
@@ -157,6 +158,9 @@ async function getDropiIds(domain, headers) {
     const data = await resp.json();
     for (const p of data.products || []) {
       if (p.status !== 'active' && !p.template_suffix) continue;
+      // El SKU es el nombre de Dropi; el titulo cubre los que no lo traen.
+      nombres.add(p.title);
+      if (p.variants && p.variants[0] && p.variants[0].sku) nombres.add(p.variants[0].sku);
       for (const v of p.variants || []) {
         const id = String(v.barcode || '').trim().split('-')[0];
         if (/^\d+$/.test(id)) ids.add(id);
@@ -165,7 +169,7 @@ async function getDropiIds(domain, headers) {
     const next = (resp.headers.get('Link') || '').match(/<([^>]+)>;\s*rel="next"/);
     pageUrl = next ? next[1] : null;
   }
-  return respond(200, { ids: [...ids] });
+  return respond(200, { ids: [...ids], nombres: [...nombres] });
 }
 
 async function searchProducts(domain, headers, q) {

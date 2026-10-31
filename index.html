@@ -3111,6 +3111,8 @@
       .bs-la-btn:hover{background:#2B5FB3;color:#fff}
       html[data-theme="dark"] .bs-la-btn{border-color:#7FB0F0;color:#7FB0F0}
       html[data-theme="dark"] .bs-la-btn:hover{background:#7FB0F0;color:#111}
+      .bs-la-btn.vendido{border-color:var(--bs-mia);color:var(--bs-mia)}
+      .bs-la-btn.vendido:hover{background:var(--bs-mia);color:#fff}
       .bs-la-btn:disabled{cursor:default;opacity:.95}
       .bs-la-btn.listo,.bs-la-btn.listo:hover{background:transparent;border-color:var(--accent,#1baf7a);color:var(--accent,#1baf7a)}
       .bs-la-menu{position:absolute;z-index:9999;background:var(--surface);border:1.5px solid var(--border);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.18);padding:8px;display:flex;flex-direction:column;gap:5px;min-width:186px}
@@ -21912,22 +21914,51 @@ const _bsReplicas = new Set();
 // muestran los botones R y no Landing Auto, para no pedir dos veces lo mismo.
 const _bsConLanding = {};
 
+// Nombres de lo que ya tengo publicado en las 3 tiendas, para reconocer el mismo
+// producto con otro ID: otro proveedor u otro pais.
+const _bsNombresMios = {};
+
+function _bsPalabras(txt){
+  const fuera = new Set(['con', 'para', 'por', 'los', 'las', 'del', 'una', 'uno', 'off', 'unidades', 'unidad', 'pack', 'kit', 'set']);
+  const pal = String(txt || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().split(/[^a-z0-9]+/)
+    .filter(function(w){ return w.length >= 3 && !/\d/.test(w) && !fuera.has(w); })
+    .map(function(w){ return w.replace(/s$/, ''); });
+  return new Set(pal);
+}
+
+function _bsCargarLanding(pais){
+  _bsConLanding[pais] = new Set();
+  fetch('/.netlify/functions/shopify-products?dropi_ids=1&tenant=' + bkPaisInfo(pais).codigo)
+    .then(function(r){ return r.json().then(function(j){ if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status)); return j; }); })
+    .then(function(j){
+      _bsConLanding[pais] = new Set(j.ids);
+      _bsNombresMios[pais] = (j.nombres || []).map(_bsPalabras).filter(function(p){ return p.size >= 2; });
+      _bsTabla();
+    })
+    .catch(function(e){
+      delete _bsConLanding[pais];
+      showToast('No pude saber qué productos ya tienen landing: ' + (e.message || 'error'), '⚠️', 'error');
+    });
+}
+
 function _bsTieneLanding(dropiId){
-  const pais = _bs.pais;
-  if (!_bsConLanding[pais]) {
-    _bsConLanding[pais] = new Set();
-    fetch('/.netlify/functions/shopify-products?dropi_ids=1&tenant=' + bkPaisInfo(pais).codigo)
-      .then(function(r){ return r.json().then(function(j){ if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status)); return j; }); })
-      .then(function(j){
-        _bsConLanding[pais] = new Set(j.ids);
-        if (_bs.pais === pais) _bsTabla();
-      })
-      .catch(function(e){
-        delete _bsConLanding[pais];
-        showToast('No pude saber qué productos ya tienen landing: ' + (e.message || 'error'), '⚠️', 'error');
-      });
-  }
-  return _bsConLanding[pais].has(String(dropiId));
+  ['cl', 'gt', 'mx'].forEach(function(pais){ if (!_bsConLanding[pais]) _bsCargarLanding(pais); });
+  return _bsConLanding[_bs.pais].has(String(dropiId));
+}
+
+// Sin landing en este ID, pero ya vendido: tiene ventas mias, o su nombre calza
+// con algo que ya publique (al menos 60% de las palabras en comun).
+function _bsYaVendido(x){
+  if (x.miasTotal > 0) return true;
+  const yo = _bsPalabras(x.p.n);
+  if (yo.size < 2) return false;
+  return Object.keys(_bsNombresMios).some(function(pais){
+    return _bsNombresMios[pais].some(function(otro){
+      let comun = 0;
+      yo.forEach(function(w){ if (otro.has(w)) comun++; });
+      return comun >= 2 && comun / (yo.size + otro.size - comun) >= 0.6;
+    });
+  });
 }
 
 function _bsBotonesR(p){
@@ -21990,7 +22021,7 @@ function _bsTabla(){
       + '<div style="font-size:10px;color:var(--muted)">' + x.p.i + ' · ' + esc(x.p.pr || '') + (x.masivo ? '<span class="bs-tag">masivo</span>' : '') + (x.rec.repuso ? '<span class="bs-tag">repuso</span>' : '') + ((x.rec.u > 0 && x.rec.res / x.rec.u >= 0.5) ? '<span class="bs-tag" data-tip="' + esc('La mayor parte de lo vendido salió de stock reservado para un vendedor') + '">reservado</span>' : '') + (x.rec.reajuste ? '<span class="bs-tag">reajuste</span>' : '') + '</div>'
       + (_bsTieneLanding(x.p.i) ? _bsBotonesR(x.p) : _bsPedidos.has(x.p.i)
           ? '<button type="button" class="bs-la-btn listo" data-pid="' + x.p.i + '" disabled>✅ Pedido creado</button>'
-          : '<button type="button" class="bs-la-btn" data-pid="' + x.p.i + '" onclick="bsALanding(event,' + x.p.i + ')" data-tip="' + esc('Crea el pedido en Landing Auto sin salir de acá') + '">🛰️ Landing Auto</button>') + '</td>'
+          : '<button type="button" class="bs-la-btn' + (_bsYaVendido(x) ? ' vendido' : '') + '" data-pid="' + x.p.i + '" onclick="bsALanding(event,' + x.p.i + ')" data-tip="' + esc('Crea el pedido en Landing Auto sin salir de acá') + '">🛰️ Landing Auto</button>') + (!_bsTieneLanding(x.p.i) && _bsYaVendido(x) ? _bsBotonesR(x.p) : '') + '</td>'
       + '<td>' + _bsN(x.p.p) + '</td><td' + (x.reservado ? ' data-tip="' + esc('Total ' + _bsN(x.stockTotal) + ' · reservado para otros ' + _bsN(x.reservado)) + '"' : '') + '>' + _bsN(x.stock) + '</td><td>' + _bsN(x.rec.u) + '</td><td>' + _bsN(x.vRec, 1) + '</td><td>' + (x.vAnt == null ? '–' : _bsN(x.vAnt, 1)) + '</td>'
       + '<td>' + (x.acel == null ? '–' : '×' + _bsN(x.acel, 1)) + '</td><td>' + (x.rec.mias ? _bsN(x.rec.mias) : '–') + '</td>' + (mias ? '<td>' + parte + '</td>' : '') + '<td class="izq">' + spark + '</td></tr>';
     if (_bs.abierto === x.p.i) h += '<tr><td colspan="' + (mias ? 12 : 11) + '" style="background:var(--surface2)">' + _bsDetalle(x) + '</td></tr>';
