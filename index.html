@@ -21902,6 +21902,53 @@ async function bsCrearPedidoLA(dropiId, sello){
   showToast('Pedido creado' + (sello ? ' con sello ' + sello : ' sin sello') + ' · seguí marcando', '🛰️', 'success');
 }
 
+// ── R-Nuevos / R-Ganadores ───────────────────────────────────────────────────
+// Productos que ya tienen landing: en vez de hacerlos de cero se reusan sus
+// videos. El boton deja el encargo en bkdrop_replicas; lo ejecuta la sesion local (cual
+// es el producto, que videos van) lo corre despues la sesion local.
+const _bsReplicas = new Set();
+
+function _bsBotonesR(p){
+  return [['nuevos', 'R-Nuevos', 'Busca 3 videos nuevos para testear y los deja en la sección Videos'],
+          ['ganadores', 'R-Ganadores', 'Deja en la sección Videos los 3 videos que más vendieron']].map(function(o){
+    return _bsReplicas.has(_bs.pais + ':' + o[0] + ':' + p.i)
+      ? ' <button type="button" class="bs-la-btn listo" disabled>✅ ' + o[1] + '</button>'
+      : ' <button type="button" class="bs-la-btn" onclick="bsPedirReplica(event,' + p.i + ',\'' + o[0] + '\')" data-tip="' + esc(o[2]) + '">' + o[1] + '</button>';
+  }).join('');
+}
+
+async function bsPedirReplica(ev, dropiId, tipo){
+  ev.stopPropagation();
+  ev.preventDefault();
+  const btn = ev.currentTarget;
+  const texto = btn.textContent;
+  const fila = _bs.filas.find(function(x){ return x.p.i === dropiId; });
+  const prod = fila ? fila.p : {};
+  btn.disabled = true;
+  btn.textContent = '⏳';
+  try {
+    await firebase.firestore().collection('bkdrop_replicas').add({
+      tipo: tipo,
+      pais: bkPaisInfo(_bs.pais).codigo,
+      dropiId: dropiId,
+      nombre: prod.n || '',
+      proveedor: prod.pr || '',
+      foto: prod.im ? BS_CDN[_bs.pais] + prod.im : '',
+      estado: 'pedido',
+      creadoPor: (typeof currentUser !== 'undefined' ? currentUser : '') || '',
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    _bsReplicas.add(_bs.pais + ':' + tipo + ':' + dropiId);
+    btn.textContent = '✅ ' + texto;
+    btn.classList.add('listo');
+    showToast(texto + ' pedido', '🎞️', 'success');
+  } catch (e) {
+    btn.disabled = false;
+    btn.textContent = texto;
+    showToast('No pude crear ' + texto + ': ' + (e.message || 'error'), '⚠️', 'error');
+  }
+}
+
 function _bsTabla(){
   const el = document.getElementById('bs-lista'); if (!el) return;
   const filas = _bs.filas;
@@ -21921,7 +21968,7 @@ function _bsTabla(){
       + '<div style="font-size:10px;color:var(--muted)">' + x.p.i + ' · ' + esc(x.p.pr || '') + (x.masivo ? '<span class="bs-tag">masivo</span>' : '') + (x.rec.repuso ? '<span class="bs-tag">repuso</span>' : '') + ((x.rec.u > 0 && x.rec.res / x.rec.u >= 0.5) ? '<span class="bs-tag" data-tip="' + esc('La mayor parte de lo vendido salió de stock reservado para un vendedor') + '">reservado</span>' : '') + (x.rec.reajuste ? '<span class="bs-tag">reajuste</span>' : '') + '</div>'
       + (_bsPedidos.has(x.p.i)
           ? '<button type="button" class="bs-la-btn listo" data-pid="' + x.p.i + '" disabled>✅ Pedido creado</button>'
-          : '<button type="button" class="bs-la-btn" data-pid="' + x.p.i + '" onclick="bsALanding(event,' + x.p.i + ')" data-tip="' + esc('Crea el pedido en Landing Auto sin salir de acá') + '">🛰️ Landing Auto</button>') + '</td>'
+          : '<button type="button" class="bs-la-btn" data-pid="' + x.p.i + '" onclick="bsALanding(event,' + x.p.i + ')" data-tip="' + esc('Crea el pedido en Landing Auto sin salir de acá') + '">🛰️ Landing Auto</button>') + _bsBotonesR(x.p) + '</td>'
       + '<td>' + _bsN(x.p.p) + '</td><td' + (x.reservado ? ' data-tip="' + esc('Total ' + _bsN(x.stockTotal) + ' · reservado para otros ' + _bsN(x.reservado)) + '"' : '') + '>' + _bsN(x.stock) + '</td><td>' + _bsN(x.rec.u) + '</td><td>' + _bsN(x.vRec, 1) + '</td><td>' + (x.vAnt == null ? '–' : _bsN(x.vAnt, 1)) + '</td>'
       + '<td>' + (x.acel == null ? '–' : '×' + _bsN(x.acel, 1)) + '</td><td>' + (x.rec.mias ? _bsN(x.rec.mias) : '–') + '</td>' + (mias ? '<td>' + parte + '</td>' : '') + '<td class="izq">' + spark + '</td></tr>';
     if (_bs.abierto === x.p.i) h += '<tr><td colspan="' + (mias ? 12 : 11) + '" style="background:var(--surface2)">' + _bsDetalle(x) + '</td></tr>';
