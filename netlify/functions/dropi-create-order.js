@@ -148,6 +148,57 @@ exports.handler = async (event) => {
     return respond(500, { error: 'No se pudo cargar cache Dropi (0 ordenes)' });
   }
 
+  // 1b. CANDADO ANTI-DUPLICADO (1 nov 2026).
+  //     El 1 nov aparecieron 21 pedidos con DOS ordenes en Dropi: una ya en
+  //     transito o entregada y otra recien creada, mismo "Shopify #N", mismo
+  //     producto y mismo monto. Hubo que cancelar 18 a mano. La causa es que
+  //     este endpoint creaba sin mirar si el pedido ya existia: cada script
+  //     que lo llama tenia que acordarse de cruzar por su cuenta, y uno no lo
+  //     hizo. El candado vive aca para que no dependa de quien llame.
+  //     Se salta con allowDuplicate: true.
+  const notaNum = String(body.notes || '').match(/#?(\d{4,8})/);
+  if (notaNum && body.allowDuplicate !== true) {
+    let paraChequeo = dropiOrders;
+    if (paraChequeo.length === 0) {
+      // Se salto el fetch de las 500 (ver arriba: es critico para batch por
+      // el rate limit). Para el candado alcanza con las 200 mas recientes.
+      try {
+        for (let start = 0; start < 200; start += 100) {
+          const resp = await fetch(
+            T.base + '/integrations/orders/myorders?start=' + start + '&result_number=100',
+            { method: 'GET', headers }
+          );
+          if (!resp.ok) break;
+          const data = await resp.json();
+          const objs = data.objects || [];
+          if (objs.length === 0) break;
+          paraChequeo = paraChequeo.concat(objs);
+          await new Promise(r => setTimeout(r, 250));
+        }
+      } catch (err) {
+        // Si Dropi no contesta no se bloquea la creacion: se avisa y sigue.
+        paraChequeo = [];
+      }
+    }
+    const yaExiste = paraChequeo.filter((o) => {
+      const m = String(o.notes || '').match(/#?(\d{4,8})/);
+      return m && m[1] === notaNum[1] && !/CANCELAD/i.test(String(o.status || ''));
+    });
+    if (yaExiste.length > 0) {
+      return respond(409, {
+        ok: false,
+        error: 'duplicado',
+        message: 'Ya existe una orden en Dropi con la nota Shopify #' + notaNum[1] +
+                 '. No se creo nada. Para crearla igual, mandar allowDuplicate: true.',
+        shopifyOrder: notaNum[1],
+        existing: yaExiste.map((o) => ({
+          id: o.id, status: o.status, producto: o.producto,
+          total: o.total, created: o.created,
+        })),
+      });
+    }
+  }
+
   // 2. Construir mapa de productos: { sku_o_nombre_normalizado: {product_id, warehouse_id, shop_id} }
   //    Ademas mapa por productId numerico (para match directo via 'barcode' Shopify).
   //    Ademas set de warehouse_ids únicos vistos, para retry en cascada.
