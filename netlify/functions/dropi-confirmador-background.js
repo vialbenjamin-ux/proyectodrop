@@ -93,7 +93,7 @@ export default async function handler(req) {
         fila.motivo = 'lleva menos de 2 horas';
         continue;
       }
-      const dir = reglas.direccionOk(o.dir);
+      const dir = reglas.direccionOk(o.dir, o.city);
       if (!dir.ok && dir.motivo === 'no trae calle') {
         fila.decision = 'no toca';
         fila.motivo = 'direccion: ' + dir.motivo;

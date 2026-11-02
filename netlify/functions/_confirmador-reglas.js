@@ -13,16 +13,31 @@ const HORAS_MINIMAS = 2;
 
 // Sin numero no se puede llegar. "Sin numero" pasa aunque traiga otro digito
 // (un depto, un km), porque el cliente esta diciendo que la calle no tiene.
-function direccionOk(dir) {
-  const d = String(dir || '')
-    .normalize('NFD').replace(/[̀-ͯ]/g, '')
-    .toLowerCase();
+function direccionOk(dir, ciudad) {
+  const d = normalizar(dir);
+  if (!traeCalle(d, normalizar(ciudad))) return { ok: false, motivo: 'no trae calle' };
   if (/\bsin\s*(n|num|numero|nro|no|#)\b|\bs\s*\/\s*n\b|\bsn\b/.test(d) || /sin\s*n°/.test(d)) {
     return { ok: false, motivo: 'dice sin numero' };
   }
-  if (!/[a-zñ]{3,}/.test(d)) return { ok: false, motivo: 'no trae calle' };
   if (!/\d/.test(d)) return { ok: false, motivo: 'no trae numero' };
   return { ok: true };
+}
+
+function normalizar(texto) {
+  return String(texto || '')
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .toLowerCase();
+}
+
+// "Casa", "Depto 34" o el nombre de la comuna no dicen donde entregar. Con numero
+// basta una palabra ("Antofagasta 35"); sin numero hacen falta dos, sin contar la
+// comuna.
+const NO_ES_CALLE = new Set(['casa', 'depto', 'dpto', 'departamento', 'direccion', 'domicilio', 'sin', 'num', 'numero', 'nro']);
+function traeCalle(d, ciudad) {
+  const palabras = (d.match(/[a-zñ]{3,}/g) || []).filter((p) => !NO_ES_CALLE.has(p));
+  if (/\d/.test(d)) return palabras.length >= 1;
+  const deCiudad = new Set(ciudad.match(/[a-zñ]{3,}/g) || []);
+  return palabras.filter((p) => !deCiudad.has(p)).length >= 2;
 }
 
 // Dropi manda created_at sin zona y en hora de Chile. Se lee como UTC-3, que en
