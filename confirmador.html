@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Confirmador Dropi</title>
+<style>
+  :root { --bg:#f6f4f0; --card:#fff; --tx:#22201c; --mut:#6f6a61; --ln:#e2ddd3; --ac:#b4551d; --ok:#2c7a4b; --mal:#b3261e; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--tx); font:15px/1.4 system-ui,sans-serif; padding:16px 16px 96px; }
+  main { max-width:880px; margin:0 auto; }
+  h1 { font-size:22px; margin:0 0 4px; }
+  h2 { font-size:15px; margin:24px 0 8px; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .sub { color:var(--mut); font-size:13px; }
+  .fila { display:flex; gap:12px; background:var(--card); border:1px solid var(--ln); border-radius:8px; padding:12px; margin-bottom:8px; cursor:pointer; }
+  .fila input { width:20px; height:20px; flex:none; margin-top:2px; }
+  .fila.hecho { opacity:.55; cursor:default; }
+  .dir { font-weight:600; overflow-wrap:anywhere; }
+  .det { color:var(--mut); font-size:13px; overflow-wrap:anywhere; }
+  .res { font-size:13px; font-weight:600; }
+  .res.ok { color:var(--ok); } .res.mal { color:var(--mal); }
+  button { font:inherit; border-radius:8px; border:1px solid var(--ln); background:var(--card); padding:6px 10px; cursor:pointer; }
+  button.prim { background:var(--ac); border-color:var(--ac); color:#fff; font-weight:600; padding:10px 16px; }
+  button:disabled { opacity:.5; cursor:default; }
+  #barra { position:fixed; left:0; right:0; bottom:0; background:var(--card); border-top:1px solid var(--ln); padding:12px 16px; display:flex; justify-content:center; gap:12px; align-items:center; flex-wrap:wrap; }
+  #entrada { display:flex; gap:8px; margin-top:16px; flex-wrap:wrap; }
+  #entrada input { font:inherit; padding:8px 10px; border:1px solid var(--ln); border-radius:8px; flex:1; min-width:200px; }
+  #msg { margin-top:12px; color:var(--mal); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Confirmador Dropi: indecisos</h1>
+  <div class="sub" id="info">Pedidos de Chile que el confirmador dejó sin tocar. Los que marques se confirman.</div>
+  <div id="entrada">
+    <input id="clave" type="password" placeholder="Clave" autocomplete="current-password">
+    <button id="entrar">Entrar</button>
+  </div>
+  <div id="msg"></div>
+  <div id="lista"></div>
+</main>
+<div id="barra" hidden>
+  <span id="cuenta">0 marcados</span>
+  <button class="prim" id="confirmar" disabled>Confirmar marcados</button>
+</div>
+<script>
+const $ = (id) => document.getElementById(id);
+const FN = '/.netlify/functions/';
+const CLAVE = 'confirmador-clave';
+let clave = '';
+try { clave = localStorage.getItem(CLAVE) || ''; } catch (_) {}
+
+function el(tag, clase, texto) {
+  const n = document.createElement(tag);
+  if (clase) n.className = clase;
+  if (texto != null) n.textContent = texto;
+  return n;
+}
+
+async function cargar() {
+  $('msg').textContent = '';
+  let r;
+  try {
+    r = await fetch(FN + 'dropi-confirmador-ver?clave=' + encodeURIComponent(clave));
+  } catch (_) {
+    $('msg').textContent = 'No se pudo cargar. Revisa tu conexión.';
+    return;
+  }
+  if (r.status === 403) {
+    $('entrada').hidden = false;
+    $('msg').textContent = clave ? 'Clave incorrecta.' : '';
+    return;
+  }
+  const j = await r.json();
+  try { localStorage.setItem(CLAVE, clave); } catch (_) {}
+  $('entrada').hidden = true;
+  $('barra').hidden = false;
+  dibujar(j);
+}
+
+function historial(p) {
+  if (p.pedidos == null) return 'Historial sin consultar';
+  const pct = p.pct == null ? 'sin %' : p.pct + '%';
+  return `${p.pedidos} pedidos · ${p.entregados || 0} entregados · ${p.devueltos || 0} devueltos · ${p.enTransito || 0} en tránsito · ${pct}`;
+}
+
+function dibujar(j) {
+  const fecha = j.fin ? new Date(j.fin).toLocaleString('es-CL') : 'en curso';
+  $('info').textContent = `Última pasada: ${fecha}${j.apagado ? ' · confirmador APAGADO' : ''}. Los que marques se confirman; el resto queda igual.`;
+  const indecisos = (j.pedidos || []).filter((p) => p.decision === 'no toca' && !/^tope/.test(p.motivo));
+  const grupos = {};
+  for (const p of indecisos) (grupos[p.motivo] = grupos[p.motivo] || []).push(p);
+
+  const lista = $('lista');
+  lista.replaceChildren();
+  if (!indecisos.length) lista.append(el('p', 'sub', 'No hay indecisos.'));
+  for (const motivo of Object.keys(grupos).sort()) {
+    const h = el('h2', '', `${motivo} (${grupos[motivo].length})`);
+    const todos = el('button', '', 'Marcar todos');
+    h.append(todos);
+    lista.append(h);
+    const cajas = [];
+    for (const p of grupos[motivo]) {
+      const f = el('label', 'fila');
+      f.id = 'f' + p.id;
+      const c = el('input');
+      c.type = 'checkbox';
+      c.value = p.id;
+      c.onchange = contar;
+      cajas.push(c);
+      const d = el('div');
+      d.append(
+        el('div', 'dir', p.direccion || '(sin dirección)'),
+        el('div', 'det', `${p.ciudad} · ${p.cliente} · ${p.telefono}`),
+        el('div', 'det', `#${p.id} · ${p.horas} h · ${p.producto}`),
+        el('div', 'det', historial(p)),
+      );
+      f.append(c, d);
+      lista.append(f);
+    }
+    todos.onclick = () => {
+      const marcar = cajas.some((c) => !c.checked && !c.disabled);
+      cajas.forEach((c) => { if (!c.disabled) c.checked = marcar; });
+      contar();
+    };
+  }
+  contar();
+}
+
+function marcados() {
+  return [...document.querySelectorAll('.fila input:checked:not(:disabled)')].map((c) => Number(c.value));
+}
+
+function contar() {
+  const n = marcados().length;
+  $('cuenta').textContent = n + (n === 1 ? ' marcado' : ' marcados');
+  $('confirmar').disabled = n === 0;
+}
+
+async function confirmar() {
+  const ids = marcados();
+  if (!ids.length || !window.confirm(`¿Confirmar ${ids.length} pedidos en Dropi? Quedan listos para despacho.`)) return;
+  $('confirmar').disabled = true;
+  $('msg').textContent = '';
+  let pendientes = ids.slice();
+  while (pendientes.length) {
+    const lote = pendientes.splice(0, 20);
+    try {
+      const r = await fetch(FN + 'dropi-confirmador-marcar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clave, ids: lote }),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || 'HTTP ' + r.status);
+      marcar(j.confirmados || [], 'Confirmado', 'ok');
+      marcar(j.saltados || [], 'No se confirmó: ya no está pendiente', 'mal');
+    } catch (e) {
+      marcar(lote, '', '');
+      $('msg').textContent = 'Se detuvo: ' + e.message + '. Revisa en Dropi antes de reintentar.';
+      break;
+    }
+  }
+  contar();
+}
+
+function marcar(ids, texto, tipo) {
+  for (const id of ids) {
+    const f = $('f' + id);
+    if (!f) continue;
+    const c = f.querySelector('input');
+    if (!texto) continue;
+    c.checked = false;
+    c.disabled = true;
+    f.classList.add('hecho');
+    f.lastChild.append(el('div', 'res ' + tipo, texto));
+  }
+}
+
+$('entrar').onclick = () => { clave = $('clave').value.trim(); cargar(); };
+$('clave').onkeydown = (e) => { if (e.key === 'Enter') $('entrar').click(); };
+$('confirmar').onclick = confirmar;
+if (clave) cargar();
+</script>
+</body>
+</html>
