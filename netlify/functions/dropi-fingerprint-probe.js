@@ -22,7 +22,7 @@ exports.handler = async (event) => {
 
   try {
     const r = await fetch(url, {
-      headers: { 'dropi-integration-key': T.token, 'User-Agent': 'BKDROP-Sync/1.0' },
+      headers: { Authorization: 'Bearer ' + T.token, 'User-Agent': 'BKDROP-Sync/1.0' },
     });
     const txt = await r.text();
     let j = null;
