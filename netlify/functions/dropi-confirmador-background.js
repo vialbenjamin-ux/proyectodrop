@@ -131,7 +131,7 @@ export default async function handler(req) {
         if (historial) await store.setJSON('hist_' + tel, { t: Date.now(), data: historial });
         if (consultas % 10 === 0) await store.setJSON('ultima', res);
       }
-      const d = reglas.decidirHistorial(historial);
+      const d = reglas.decidirHistorial(historial, o.state);
       Object.assign(fila, d);
       fila.decision = d.confirma ? 'confirmaria' : 'no toca';
     }

@@ -3,7 +3,8 @@
 //   - 2 horas o mas en PENDIENTE CONFIRMACION y direccion con calle y numero.
 //   - Sin historial o de 1 a 4 pedidos: se confirma.
 //   - De 5 a 10 pedidos: mas de 30% de entregados.
-//   - Mas de 10 pedidos: 65% o mas de entregados.
+//   - Mas de 10 pedidos: 65% o mas de entregados. En la Region Metropolitana,
+//     mas de 50%, porque el envio es mas barato.
 //   - % = entregados / (entregados + devueltos), sin contar los en transito.
 //   - Lo que no cumple no se toca.
 
@@ -35,7 +36,7 @@ function horasDesde(createdAt, ahora) {
 // `historial` es el `data` de bff/customers/fingerprint/v2. Si no es una
 // respuesta valida NO se asume "sin historial": un error de lectura no puede
 // terminar confirmando un pedido.
-function decidirHistorial(historial) {
+function decidirHistorial(historial, region) {
   if (!historial || typeof historial !== 'object' || typeof historial.found !== 'boolean') {
     return { confirma: false, motivo: 'no pude leer el historial' };
   }
@@ -60,9 +61,19 @@ function decidirHistorial(historial) {
       ? { confirma: true, motivo: '5 a 10 pedidos con mas de 30%', ...datos }
       : { confirma: false, motivo: '5 a 10 pedidos con 30% o menos', ...datos };
   }
+  if (esRM(region)) {
+    return pct > 50
+      ? { confirma: true, motivo: 'mas de 10 pedidos en la RM con mas de 50%', ...datos }
+      : { confirma: false, motivo: 'mas de 10 pedidos en la RM con 50% o menos', ...datos };
+  }
   return pct >= 65
     ? { confirma: true, motivo: 'mas de 10 pedidos con 65% o mas', ...datos }
     : { confirma: false, motivo: 'mas de 10 pedidos con menos de 65%', ...datos };
+}
+
+// Dropi la escribe METROPOLITANA DE SANTIAGO.
+function esRM(region) {
+  return /METROPOLITANA/i.test(String(region || ''));
 }
 
 // El numero de Shopify de la nota. Una orden repetida se despacharia dos veces.
