@@ -6,7 +6,7 @@
 //   - Mas de 10 pedidos: 65% o mas de entregados. En la Region Metropolitana,
 //     mas de 50%, porque el envio es mas barato.
 //   - % = entregados / (entregados + devueltos), sin contar los en transito.
-//   - Sin numero en la direccion: solo con mas de 80% de entregados.
+//   - Sin numero en la direccion: solo con probabilidad de entrega Segura.
 //   - Lo que no cumple no se toca.
 
 const HORAS_MINIMAS = 2;
@@ -72,14 +72,14 @@ function decidirHistorial(historial, region) {
     : { confirma: false, motivo: 'mas de 10 pedidos con menos de 65%', ...datos };
 }
 
-// Direccion sin numero: solo pasa con mas de 80% de entregados. Sin % no hay como
-// saberlo, asi que un comprador sin historial no pasa.
+// Direccion sin numero: solo pasa si Dropi da la entrega por "Segura", la etiqueta
+// del panel. Un comprador sin historial no la tiene, asi que no pasa.
 function decidirSinNumero(historial, motivoDireccion) {
   const d = decidirHistorial(historial, null);
   if (d.motivo === 'no pude leer el historial') return d;
   const { confirma, motivo, ...datos } = d;
-  return datos.pct > 80
-    ? { confirma: true, motivo: 'sin numero con mas de 80%', ...datos }
+  return ((historial.global_profile || {}).risk_label) === 'Segura'
+    ? { confirma: true, motivo: 'sin numero con entrega Segura', ...datos }
     : { confirma: false, motivo: 'direccion: ' + motivoDireccion, ...datos };
 }
 

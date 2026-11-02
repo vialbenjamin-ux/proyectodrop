@@ -94,7 +94,7 @@ export default async function handler(req) {
         continue;
       }
       const dir = reglas.direccionOk(o.dir);
-      if (!dir.ok) {
+      if (!dir.ok && dir.motivo === 'no trae calle') {
         fila.decision = 'no toca';
         fila.motivo = 'direccion: ' + dir.motivo;
         continue;
@@ -131,8 +131,9 @@ export default async function handler(req) {
         if (historial) await store.setJSON('hist_' + tel, { t: Date.now(), data: historial });
         if (consultas % 10 === 0) await store.setJSON('ultima', res);
       }
-      fila.pistaEntrega = pistaEntrega(historial);
-      const d = reglas.decidirHistorial(historial, o.state);
+      const d = dir.ok
+        ? reglas.decidirHistorial(historial, o.state)
+        : reglas.decidirSinNumero(historial, dir.motivo);
       Object.assign(fila, d);
       fila.decision = d.confirma ? 'confirmaria' : 'no toca';
     }
@@ -192,18 +193,6 @@ async function confirmar(token, res) {
     await esperar(2000);
   }
   res.confirmados = res.pedidos.filter((p) => p.decision === 'confirmado').length;
-}
-
-// Temporal: para ubicar en la respuesta de Dropi la "Probabilidad de entrega" que
-// muestra el panel. Junta los campos que parecen serlo, sin datos del comprador.
-function pistaEntrega(valor, ruta = '', salida = {}) {
-  if (!valor || typeof valor !== 'object') return salida;
-  for (const [k, v] of Object.entries(valor)) {
-    const r = ruta ? ruta + '.' + k : k;
-    if (v && typeof v === 'object') pistaEntrega(v, r, salida);
-    else if (/prob|risk|riesgo|score|level|segur/i.test(k) || /^(segura|incierta|riesgosa)/i.test(String(v))) salida[r] = v;
-  }
-  return salida;
 }
 
 function claveCompra(o) {
