@@ -131,6 +131,7 @@ export default async function handler(req) {
         if (historial) await store.setJSON('hist_' + tel, { t: Date.now(), data: historial });
         if (consultas % 10 === 0) await store.setJSON('ultima', res);
       }
+      fila.pistaEntrega = pistaEntrega(historial);
       const d = reglas.decidirHistorial(historial, o.state);
       Object.assign(fila, d);
       fila.decision = d.confirma ? 'confirmaria' : 'no toca';
@@ -193,6 +194,18 @@ async function confirmar(token, res) {
   res.confirmados = res.pedidos.filter((p) => p.decision === 'confirmado').length;
 }
 
+// Temporal: para ubicar en la respuesta de Dropi la "Probabilidad de entrega" que
+// muestra el panel. Junta los campos que parecen serlo, sin datos del comprador.
+function pistaEntrega(valor, ruta = '', salida = {}) {
+  if (!valor || typeof valor !== 'object') return salida;
+  for (const [k, v] of Object.entries(valor)) {
+    const r = ruta ? ruta + '.' + k : k;
+    if (v && typeof v === 'object') pistaEntrega(v, r, salida);
+    else if (/prob|risk|riesgo|score|level|segur/i.test(k) || /^(segura|incierta|riesgosa)/i.test(String(v))) salida[r] = v;
+  }
+  return salida;
+}
+
 function claveCompra(o) {
   const producto = (((o.orderdetails || [])[0] || {}).product || {}).id || '';
   return reglas.telefonoLocal(o.phone) + '|' + producto;
@@ -238,6 +251,8 @@ async function leerHistorial(token, tel, res) {
       `https://api-v2.dropi.cl/bff/customers/fingerprint/v2?country_code=CL&user_id=357617&phone=${tel}&months=0`,
       { headers: { Authorization: 'Bearer ' + token, 'User-Agent': 'BKDROP-Sync/1.0' } },
     );
+    // 404 es un comprador sin registro: el panel de Dropi muestra "Sin registro".
+    if (r.status === 404) return { found: false };
     if (!r.ok) {
       res.errores.push(`historial: HTTP ${r.status}`);
       return null;
