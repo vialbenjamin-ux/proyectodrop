@@ -4,10 +4,14 @@
 // producto esta en otra bodega de Dropi la orden no se puede crear: una orden
 // de Dropi tiene UNA bodega. Sacar el upsell era entrar a Releasit a mano.
 //
-// POST { tenant?, product_id, upsell_id?, action: "off" | "on" | "delete" | "set",
+// POST { tenant?, product_id, upsell_id?, action: "off" | "on" | "delete" | "set" | "add",
 //        connect_product_id?, price?, activar?, dry_run? }
 //   set: conecta otro producto (connect_product_id) a price pesos. Queda
 //        apagado salvo activar: true.
+//   add: igual que set, pero en vez de reemplazar AGREGA un upsell mas al
+//        producto, copiando el diseño del que ya tiene (4 nov 2026: Olla
+//        Freidora con Rociador + Tabla de cortar). Necesita que el producto ya
+//        tenga al menos un upsell que sirva de molde.
 //   product_id: producto de Shopify donde vive el upsell (campo `prods`).
 //   upsell_id : cual, si el producto tiene mas de uno. Si hay uno solo, opcional.
 //
@@ -34,15 +38,15 @@ exports.handler = async (event) => {
   const action    = String(body.action || '').toLowerCase();
   const dryRun    = body.dry_run === true;
   if (!productId && action !== 'fix_disc') return respond(400, { error: 'Falta product_id' });
-  if (['off', 'on', 'delete', 'set', 'fix_disc'].indexOf(action) === -1) {
-    return respond(400, { error: 'action debe ser "off", "on", "delete", "set" o "fix_disc"' });
+  if (['off', 'on', 'delete', 'set', 'add', 'fix_disc'].indexOf(action) === -1) {
+    return respond(400, { error: 'action debe ser "off", "on", "delete", "set", "add" o "fix_disc"' });
   }
   // set: cambia QUE producto ofrece el upsell, conservando su diseño (colores,
   // borde, texto "Agrega {title} por solo {price}"). Titulo, variante e imagen
   // se leen del producto conectado para no escribirlos a mano.
   const connectId = String(body.connect_product_id || '').trim();
   const precioPesos = body.price != null && String(body.price) !== '' ? Number(body.price) : null;
-  if (action === 'set') {
+  if (action === 'set' || action === 'add') {
     if (!connectId) return respond(400, { error: 'Falta connect_product_id (producto que se ofrece)' });
     if (precioPesos == null || !(precioPesos > 0)) return respond(400, { error: 'Falta price en pesos (ej. 5990)' });
   }
@@ -105,7 +109,10 @@ exports.handler = async (event) => {
         delProducto: lista.filter(esDelProducto).map(u => ({ id: u.id, name: u.name })),
       });
     }
-    if (encontrados.length > 1 && !upsellId) {
+    if (action === 'add' && lista.some(u => esDelProducto(u) && String(u.connP) === connectId)) {
+      return respond(400, { error: 'Ese producto ya ofrece ' + connectId + ' como upsell' });
+    }
+    if (encontrados.length > 1 && !upsellId && action !== 'add') {
       return respond(400, {
         error: 'Ese producto tiene ' + encontrados.length + ' upsells. Indicá cuál con upsell_id.',
         opciones: encontrados.map(u => ({ id: u.id, name: u.name, isActive: u.isActive })),
@@ -114,7 +121,7 @@ exports.handler = async (event) => {
 
     const afectados = encontrados.map(u => ({ id: u.id, name: u.name, isActive: u.isActive }));
     let cambios = null;
-    if (action === 'set') {
+    if (action === 'set' || action === 'add') {
       const pr = await fetch(API + '/products/' + encodeURIComponent(connectId) + '.json', { headers: H });
       if (!pr.ok) return respond(pr.status, { error: 'No pude leer el producto a ofrecer: ' + (await pr.text()).slice(0, 160) });
       const prod = (await pr.json()).product || {};
@@ -140,6 +147,15 @@ exports.handler = async (event) => {
     let nueva;
     if (action === 'set') {
       nueva = lista.map(u => (objetivo(u) ? Object.assign({}, u, cambios) : u));
+    } else if (action === 'add') {
+      // Molde: el upsell elegido (upsell_id) o el primero del producto.
+      const nuevo = Object.assign({}, encontrados[0], cambios, {
+        id: Date.now(),
+        prods: [productId],
+        ticked: false,
+      });
+      nueva = lista.concat([nuevo]);
+      cambios = Object.assign({ id: nuevo.id }, cambios);
     } else if (action === 'delete') {
       nueva = lista.filter(u => !objetivo(u));
     } else {
