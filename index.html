@@ -12576,13 +12576,34 @@ async function ejecutarAutoShrine(){
     const listResp = await fetch('/.netlify/functions/shopify-themes?op=list-templates' + baseParam);
     const listData = await listResp.json();
     if (!listResp.ok) throw new Error(listData.error || 'list-templates fail');
-    const baseTemplate = (listData.templates || [])[0];
-    if (!baseTemplate) throw new Error('No hay templates de productos en el theme');
+    const candidatas = (listData.templates || []);
+    if (!candidatas.length) throw new Error('No hay templates de productos en el theme');
 
-    const tmplResp = await fetch('/.netlify/functions/shopify-themes?op=template&assetKey=' + encodeURIComponent(baseTemplate.key) + baseParam);
-    const tmplData = await tmplResp.json();
-    if (!tmplResp.ok) throw new Error(tmplData.error || 'template read fail');
-    const baseJson = JSON.parse(tmplData.value);
+    // La base NO puede ser simplemente la mas reciente. list-templates viene
+    // ordenada por fecha, y arriba puede quedar una plantilla hecha a mano a
+    // la que le falta una seccion -- "tablet-ninos" no tiene el bloque de
+    // preguntas. Cuando toco de base, la landing salio sin FAQ, y como la
+    // recien creada pasa a ser la mas reciente, el hueco se heredaba al
+    // siguiente producto y al siguiente (cinturon invisible, 9 nov 2026).
+    //
+    // Por eso se busca la primera que tenga la estructura completa: FAQ, los
+    // 3 bloques de imagen+texto de los bullets y los testimonios.
+    const baseCompleta = (j) => {
+      const tipos = Object.values(j.sections || {}).filter(x => x && !x.disabled).map(x => x.type);
+      return tipos.includes('collapsible-content')
+          && tipos.filter(x => x === 'image-with-text').length >= 3
+          && tipos.includes('testimonials');
+    };
+    let baseTemplate = null, baseJson = null;
+    for (const cand of candidatas.slice(0, 12)) {
+      setStatus('⏳ Buscando una plantilla base completa… (' + cand.key.replace('templates/product.','') + ')');
+      const r = await fetch('/.netlify/functions/shopify-themes?op=template&assetKey=' + encodeURIComponent(cand.key) + baseParam);
+      const d = await r.json();
+      if (!r.ok) continue;
+      let j; try { j = JSON.parse(d.value); } catch (_) { continue; }
+      if (baseCompleta(j)) { baseTemplate = cand; baseJson = j; break; }
+    }
+    if (!baseJson) throw new Error('Ninguna de las ultimas 12 plantillas del theme tiene la estructura completa (FAQ + 3 imagen/texto + testimonios). Revisa el theme antes de aplicar.');
 
     // 3. Construir el nuevo template con substituciones
     setStatus('⏳ Generando plantilla nueva con tu contenido…');
@@ -12595,6 +12616,15 @@ async function ejecutarAutoShrine(){
       const mxData = await mxResp.json();
       if (!mxResp.ok) throw new Error(mxData.error || 'No pude leer la plantilla maestra de México');
       newJson = bkShrineAElixir(newJson, JSON.parse(String(mxData.value).replace(/^\/\*[\s\S]*?\*\/\s*/, '')));
+    }
+
+    // 3.4 La plantilla recien armada tiene que conservar la estructura. Si la
+    //     base venia coja, aca se corta antes de escribir nada en el theme.
+    if (!landingEsMX() && !baseCompleta(newJson)) {
+      setStatus('⚠️ No se aplicó: la plantilla generada quedó sin FAQ o sin los bloques de bullets. Base usada: ' + baseTemplate.key);
+      goBtn.disabled = false;
+      goBtn.textContent = '🚀 Generar plantilla y aplicar al producto';
+      return false;
     }
 
     // 3.5 VALIDACIÓN PRE-PUSH: contar elementos críticos y mostrar confirmación
