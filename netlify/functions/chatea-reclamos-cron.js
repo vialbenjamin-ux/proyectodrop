@@ -101,7 +101,7 @@ async function chatea(method, path, token, body) {
 
 const lista = (d) => (Array.isArray(d) ? d : d?.data || d?.subscribers || d?.messages || []);
 
-export async function pasada({ token, dry, ahora = new Date() }) {
+export async function pasada({ token, dry, ahora = new Date(), store = null }) {
   const t0 = Date.now();
   const candidatos = [];
   // Páginas de a 6 en paralelo para caber en los 30 s de una scheduled function.
@@ -133,12 +133,19 @@ export async function pasada({ token, dry, ahora = new Date() }) {
     if (!pendientes.length || yaDerivado(mensajes)) continue;
     const motivo = esReclamo(pendientes);
     if (!motivo) continue;
+    // Registro propio: no repetir aunque Chatea tarde en mostrar el mensaje en el historial.
+    if (store) {
+      const prev = await store.get('enviado_' + user_ns, { type: 'json' }).catch(() => null);
+      if (prev && Date.now() - prev.t < 7 * 24 * 3600e3) continue;
+    }
 
     const nombre = (s.first_name || '').trim().split(/\s+/)[0] || '';
     const item = { user_ns, nombre, last_interaction: s.last_interaction, min: Math.round(min), motivo, cliente: pendientes.join(' / ').slice(0, 300), yaTag: tags.includes(TAG) };
     if (!dry) {
       try {
-        await chatea('POST', '/subscriber/send-text', token, { user_ns, text: MENSAJE(nombre) });
+        // Chatea pide el texto en `content` (con `text` responde 422 "The content field is required").
+        await chatea('POST', '/subscriber/send-text', token, { user_ns, content: MENSAJE(nombre) });
+        if (store) await store.setJSON('enviado_' + user_ns, { t: Date.now() }).catch(() => {});
         item.enviado = true;
         try {
           await chatea('POST', '/flow/create-tag', token, { name: TAG }).catch(() => {});
@@ -161,7 +168,13 @@ export default async function handler() {
   if (!token) return json({ error: 'Falta CHATEA_PRO_TOKEN' }, 500);
   const dry = process.env.RECLAMOS_DRY === '1';
   try {
-    const r = await pasada({ token, dry });
+    // Netlify a veces dispara dos pasadas casi juntas (11 nov, 15:45 UTC): candado de 60 s.
+    const { getStore } = await import('@netlify/blobs');
+    const store = getStore({ name: 'chatea-reclamos', consistency: 'strong' });
+    const lock = await store.get('lock', { type: 'json' }).catch(() => null);
+    if (lock && Date.now() - lock.t < 60000) return json({ skip: 'otra pasada en curso' });
+    await store.setJSON('lock', { t: Date.now() });
+    const r = await pasada({ token, dry, store });
     console.log('chatea-reclamos', JSON.stringify({ dry: r.dry, candidatos: r.candidatos, revisados: r.revisados, errores: r.errores, respondidos: r.respondidos }));
     return json(r);
   } catch (e) {
