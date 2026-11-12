@@ -136,6 +136,12 @@ export default async function handler(req) {
         : reglas.decidirSinNumero(historial, dir.motivo);
       Object.assign(fila, d);
       fila.decision = d.confirma ? 'confirmaria' : 'no toca';
+      // El piloto se mide con pedidos frescos: los que llevan dias pendientes son
+      // otra poblacion y ensuciarian la medicion.
+      if (d.confirma && String(d.motivo).startsWith('PILOTO') && horas >= 50) {
+        fila.decision = 'no toca';
+        fila.motivo = d.motivo + ' (50 h o mas, fuera del piloto)';
+      }
     }
     res.consultasHistorial = consultas;
 

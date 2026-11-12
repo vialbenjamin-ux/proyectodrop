@@ -82,10 +82,16 @@ function decidirHistorial(historial, region) {
       ? { confirma: true, motivo: 'mas de 10 pedidos en la RM con mas de 50%', ...datos }
       : { confirma: false, motivo: 'mas de 10 pedidos en la RM con 50% o menos', ...datos };
   }
-  return pct >= 65
-    ? { confirma: true, motivo: 'mas de 10 pedidos con 65% o mas', ...datos }
-    : { confirma: false, motivo: 'mas de 10 pedidos con menos de 65%', ...datos };
+  if (pct >= 65) return { confirma: true, motivo: 'mas de 10 pedidos con 65% o mas', ...datos };
+  // PILOTO 12 nov 2026: con el cobro real de devolucion (~$5.900) el equilibrio
+  // es ~27% entregado. Estos clientes, cuando confirmaron solos, entregaron 50%
+  // (14 de 28). El motivo lleva "PILOTO" para medirlos aparte.
+  if (PILOTO && pct >= 50) return { confirma: true, motivo: 'PILOTO: mas de 10 pedidos con 50 a 65%', ...datos };
+  return { confirma: false, motivo: 'mas de 10 pedidos con menos de 65%', ...datos };
 }
+
+// Apagar el piloto = false. Sus confirmaciones se reconocen por el motivo.
+const PILOTO = true;
 
 // Direccion sin numero: solo pasa si Dropi da la entrega por "Segura", la etiqueta
 // del panel. Un comprador sin historial no la tiene, asi que no pasa.
@@ -93,9 +99,22 @@ function decidirSinNumero(historial, motivoDireccion) {
   const d = decidirHistorial(historial, null);
   if (d.motivo === 'no pude leer el historial') return d;
   const { confirma, motivo, ...datos } = d;
-  return ((historial.global_profile || {}).risk_label) === 'Segura'
-    ? { confirma: true, motivo: 'sin numero con entrega Segura', ...datos }
-    : { confirma: false, motivo: 'direccion: ' + motivoDireccion, ...datos };
+  if (((historial.global_profile || {}).risk_label) === 'Segura') {
+    return { confirma: true, motivo: 'sin numero con entrega Segura', ...datos };
+  }
+  // PILOTO 12 nov 2026: calle sin numero (no "dice sin numero") y cliente que ya
+  // recibio sin devolver, o mas de 5 pedidos con 50% o mas. Confirmados por el
+  // cliente entregaron 8 de 10.
+  if (PILOTO && motivoDireccion === 'no trae numero' && historialBueno(datos)) {
+    return { confirma: true, motivo: 'PILOTO: sin numero con historial bueno', ...datos };
+  }
+  return { confirma: false, motivo: 'direccion: ' + motivoDireccion, ...datos };
+}
+
+function historialBueno({ pedidos, entregados, devueltos, pct }) {
+  if (!pedidos) return false;
+  if (pedidos < 5) return entregados >= 1 && !devueltos;
+  return pct !== null && pct >= 50;
 }
 
 // Dropi la escribe METROPOLITANA DE SANTIAGO.
