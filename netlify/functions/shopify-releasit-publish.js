@@ -231,6 +231,14 @@ exports.handler = async (event) => {
     // Lo que se ESCRIBE en el tramo: las unidades reales que recibe el
     // cliente. Con uds_por_unidad = 1 (lo normal) es identico a antes.
     const udsTexto = qty => qty * udsPorUnidad;
+    // Texto del tramo. Cuando el producto de Dropi YA es un pack
+    // (uds_por_unidad > 1) decir "4 unidades" confunde: el cliente compra
+    // 2 PACKS de 2. Se nombra el pack y se aclara el total entre parentesis
+    // (Benjamin, Cinturon Invisible 2x1). Con uds_por_unidad = 1 el texto
+    // queda exactamente como antes.
+    const tramoTexto = qty => udsPorUnidad > 1
+      ? qty + (qty === 1 ? ' pack' : ' packs') + ' (' + udsTexto(qty) + ' ' + unitLabel(udsTexto(qty)) + ')'
+      : udsTexto(qty) + ' ' + unitLabel(udsTexto(qty));
 
     // Releasit SOLO soporta ds.t='percentage' o 'none' (confirmado leyendo
     // los items manuales de la tienda). El intento con 'amount' fallo:
@@ -315,19 +323,19 @@ exports.handler = async (event) => {
 
     const ofertas = [
       {
-        pos: 1, title: '¡Llevo ' + udsTexto(uds1) + ' ' + unitLabel(udsTexto(uds1)) + '! (' + OFF_BASE + '% OFF)', qty: uds1,
+        pos: 1, title: '¡Llevo ' + tramoTexto(uds1) + '! (' + OFF_BASE + '% OFF)', qty: uds1,
         ds: { t: 'percentage', v: dsV1 },
         priceTotal: p1Real, perUnit: Math.round(p1Real / udsTexto(uds1)),
         plaque: plaque1, plaqueBgC: COLOR_1,
       },
       {
-        pos: 2, title: '¡Llevo ' + udsTexto(uds2) + ' ' + unitLabel(udsTexto(uds2)) + '! (' + combinedOff(pack2Disc) + '% OFF)', qty: uds2,
+        pos: 2, title: '¡Llevo ' + tramoTexto(uds2) + '! (' + combinedOff(pack2Disc) + '% OFF)', qty: uds2,
         ds: { t: 'percentage', v: dsV2 },
         priceTotal: p2Real, perUnit: Math.round(p2Real / udsTexto(uds2)),
         plaque: fmtPerUnit(p2Real / udsTexto(uds2)), plaqueBgC: COLOR_2,
       },
       {
-        pos: 3, title: '¡Llevo ' + udsTexto(uds3) + ' ' + unitLabel(udsTexto(uds3)) + '! · PRECIO MAYORISTA', qty: uds3,
+        pos: 3, title: '¡Llevo ' + tramoTexto(uds3) + '! · PRECIO MAYORISTA', qty: uds3,
         ds: { t: 'percentage', v: dsV3 },
         priceTotal: p3Real, perUnit: Math.round(p3Real / udsTexto(uds3)),
         plaque: fmtPerUnit(p3Real / udsTexto(uds3)), plaqueBgC: COLOR_3,
