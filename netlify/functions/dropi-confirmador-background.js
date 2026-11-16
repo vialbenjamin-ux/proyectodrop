@@ -242,10 +242,17 @@ async function leerOrdenes(token, res) {
 
 // PARCHE 16 nov 2026: los tokens de integracion emitidos el 16 nov dan 401 "Invalid
 // token" en este endpoint (pedidos y productos andan bien). Si el principal da 401 se
-// reintenta con DROPI_TOKEN_CL_HISTORIAL, el token viejo, que Dropi corta el 17 nov.
-// Cuando Dropi arregle los tokens nuevos, borrar la variable y este reintento.
+// reintenta con el token viejo, que Dropi corta el 17 nov. Vive en el blob
+// `token_historial` de este store: como variable de entorno pasaba el limite de 4 KB
+// de las funciones y el deploy fallaba. Cuando Dropi arregle los tokens nuevos,
+// borrar el blob y este reintento.
+let respaldoHistorial;
 async function leerHistorial(token, tel, res) {
-  const respaldo = String(process.env.DROPI_TOKEN_CL_HISTORIAL || '').trim();
+  if (respaldoHistorial === undefined) {
+    const b = await getStore({ name: 'bk-confirmador', consistency: 'strong' }).get('token_historial');
+    respaldoHistorial = String(b || '').trim();
+  }
+  const respaldo = respaldoHistorial;
   const tokens = respaldo && respaldo !== token ? [token, respaldo] : [token];
   for (let i = 0; i < tokens.length; i++) {
     try {
