@@ -240,21 +240,32 @@ async function leerOrdenes(token, res) {
   return todas;
 }
 
+// PARCHE 16 nov 2026: los tokens de integracion emitidos el 16 nov dan 401 "Invalid
+// token" en este endpoint (pedidos y productos andan bien). Si el principal da 401 se
+// reintenta con DROPI_TOKEN_CL_HISTORIAL, el token viejo, que Dropi corta el 17 nov.
+// Cuando Dropi arregle los tokens nuevos, borrar la variable y este reintento.
 async function leerHistorial(token, tel, res) {
-  try {
-    const r = await fetch(
-      `https://api-v2.dropi.cl/bff/customers/fingerprint/v2?country_code=CL&user_id=357617&phone=${tel}&months=0`,
-      { headers: { Authorization: 'Bearer ' + token, 'User-Agent': 'BKDROP-Sync/1.0' } },
-    );
-    // 404 es un comprador sin registro: el panel de Dropi muestra "Sin registro".
-    if (r.status === 404) return { found: false };
-    if (!r.ok) {
-      res.errores.push(`historial: HTTP ${r.status}`);
+  const respaldo = String(process.env.DROPI_TOKEN_CL_HISTORIAL || '').trim();
+  const tokens = respaldo && respaldo !== token ? [token, respaldo] : [token];
+  for (let i = 0; i < tokens.length; i++) {
+    try {
+      const r = await fetch(
+        `https://api-v2.dropi.cl/bff/customers/fingerprint/v2?country_code=CL&user_id=357617&phone=${tel}&months=0`,
+        { headers: { Authorization: 'Bearer ' + tokens[i], 'User-Agent': 'BKDROP-Sync/1.0' } },
+      );
+      // 404 es un comprador sin registro: el panel de Dropi muestra "Sin registro".
+      if (r.status === 404) return { found: false };
+      if (r.status === 401 && i < tokens.length - 1) continue;
+      if (!r.ok) {
+        res.errores.push(`historial: HTTP ${r.status}` + (i ? ' (token de respaldo)' : ''));
+        return null;
+      }
+      if (i) res.historialConRespaldo = (res.historialConRespaldo || 0) + 1;
+      return (await r.json()).data || null;
+    } catch (e) {
+      res.errores.push('historial: ' + (e.message || 'error'));
       return null;
     }
-    return (await r.json()).data || null;
-  } catch (e) {
-    res.errores.push('historial: ' + (e.message || 'error'));
-    return null;
   }
+  return null;
 }
