@@ -127,6 +127,7 @@ export default async function handler(req) {
         if (consultas > 0) await esperar(PAUSA_HISTORIAL_MS);
         consultas++;
         historial = await leerHistorial(token, tel, res);
+        if (!historial) historial = await historialDeChatea(tel, o.id, res);
         // Un error no se guarda: se vuelve a preguntar en la proxima pasada.
         if (historial) await store.setJSON('hist_' + tel, { t: Date.now(), data: historial });
         if (consultas % 10 === 0) await store.setJSON('ultima', res);
@@ -135,6 +136,7 @@ export default async function handler(req) {
         ? reglas.decidirHistorial(historial, o.state)
         : reglas.decidirSinNumero(historial, dir.motivo);
       Object.assign(fila, d);
+      if (historial && historial.fuente) fila.fuenteHistorial = historial.fuente;
       fila.decision = d.confirma ? 'confirmaria' : 'no toca';
       // El piloto se mide con pedidos frescos: los que llevan dias pendientes son
       // otra poblacion y ensuciarian la medicion.
@@ -199,6 +201,72 @@ async function confirmar(token, res) {
     await esperar(2000);
   }
   res.confirmados = res.pedidos.filter((p) => p.decision === 'confirmado').length;
+}
+
+// PLAN B 16 nov 2026, para cuando Dropi no entrega el historial. Chatea Pro guarda en
+// cada contacto el campo "% de Entrega", que lee de Dropi al entrar el pedido: dice
+// "(69% de entrega - 42 Pedidos)" o "Sin pedidos en Dropi". El 16 nov coincidio exacto
+// con Dropi en 14 de 14 pedidos. Solo se usa si el contacto tiene ESTE pedido en
+// "[Dropi] Datos de la orden", porque asi el % es de ahora y no de una compra vieja.
+// No trae la etiqueta "Segura" ni separa entregados de devueltos: se reconstruyen
+// con el % sobre el total de pedidos, lo que da el mismo %.
+async function historialDeChatea(tel, ordenId, res) {
+  const tk = String(process.env.CHATEA_PRO_TOKEN || '').trim();
+  if (!tk) return null;
+  const H = { Authorization: 'Bearer ' + tk, 'User-Agent': 'BKDROP-Sync/1.0 curl/8.9.0', Accept: 'application/json' };
+  try {
+    let contacto = null;
+    for (const t of ['56' + tel, tel]) {
+      const r = await fetch(`https://chateapro.app/api/subscribers?limit=5&page=1&phone=${t}`, { headers: H });
+      if (!r.ok) {
+        res.errores.push(`chatea: HTTP ${r.status}`);
+        return null;
+      }
+      const b = await r.json();
+      if (b && b.message === 'Too Many Attempts.') {
+        res.errores.push('chatea: limite de consultas');
+        return null;
+      }
+      const lista = Array.isArray(b) ? b : b.data || [];
+      contacto = lista.find((s) => String(s.phone || '').replace(/\D/g, '').endsWith(tel));
+      if (contacto) break;
+    }
+    if (!contacto) return null;
+    const campo = (n) => ((contacto.user_fields || []).find((f) => f.name === n) || {}).value;
+
+    let orden = campo('[Dropi] Datos de la orden');
+    try {
+      orden = typeof orden === 'string' ? JSON.parse(orden) : orden;
+    } catch {
+      orden = null;
+    }
+    if (!orden || String(orden.id) !== String(ordenId)) return null;
+
+    const texto = String(campo('% de Entrega') || '');
+    if (/sin pedidos/i.test(texto)) return { found: false, fuente: 'chatea' };
+    const m = texto.match(/(\d+(?:[.,]\d+)?)\s*%[^\d]*?(\d+)\s*pedido/i);
+    if (!m) return null;
+    const pct = Number(m[1].replace(',', '.'));
+    const pedidos = Number(m[2]);
+    const entregados = Math.round((pct / 100) * pedidos);
+    res.historialDeChatea = (res.historialDeChatea || 0) + 1;
+    return {
+      found: true,
+      fuente: 'chatea',
+      context_analysis: {
+        all_shops: {
+          period_orders: pedidos,
+          period_delivered: entregados,
+          period_returned: pedidos - entregados,
+          period_transit: 0,
+        },
+      },
+      global_profile: {},
+    };
+  } catch (e) {
+    res.errores.push('chatea: ' + (e.message || 'error'));
+    return null;
+  }
 }
 
 function claveCompra(o) {
