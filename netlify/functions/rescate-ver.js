@@ -56,6 +56,24 @@ export default async function handler(req) {
     const r = regs.find((x) => String(x.id) === qs.get('id'));
     if (!r) return json({ error: 'no esta' }, 404);
     r.pendienteSolmelys = false; r.resueltoSolmelys = Date.now();
+    r.resueltoPor = qs.get('por') || 'Solmelys';
+    if (qs.get('detalle')) r.detalleResuelto = String(qs.get('detalle')).slice(0, 300);
+    await store.setJSON('o_' + r.id, r);
+    return json({ ok: true });
+  }
+
+  // Para la extension BENSTOCKY: lo que se puede aplicar solo en Dropi.
+  if (op === 'pendientes') {
+    return json(regs.filter((r) => r.pendienteSolmelys && !r.autoIntentado).map((r) => ({
+      id: r.id, solucion: r.solucion, comuna: r.comuna, nuevaDireccion: (r.respuestas || []).filter((x) => x.sol === 'Nueva dirección').map((x) => x.texto).pop() || null,
+    })));
+  }
+
+  // La extension no pudo aplicarlo: queda para Solmelys con el motivo.
+  if (op === 'no-auto' && req.method === 'POST') {
+    const r = regs.find((x) => String(x.id) === qs.get('id'));
+    if (!r) return json({ error: 'no esta' }, 404);
+    r.autoIntentado = Date.now(); r.motivoNoAuto = String(qs.get('motivo') || '').slice(0, 200);
     await store.setJSON('o_' + r.id, r);
     return json({ ok: true });
   }
@@ -72,7 +90,7 @@ export default async function handler(req) {
   const fmt = (t) => new Date(t).toLocaleString('es-CL', { timeZone: 'America/Santiago', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
   const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const QUE = { Reintentar: 'Volver a ofrecer (Sacar a reparto)', 'Nueva dirección': 'Cambio de dirección con la dirección que escribió', 'Cambiar dirección': 'Espera la dirección nueva (aún no la escribe)', 'Otra respuesta': 'Leer el chat y decidir' };
-  const fila = (r) => `<tr><td><b>${esc(r.id)}</b><br><small>guía ${esc(r.guia)}</small></td><td>${esc(r.comuna)}<br><small>${esc(r.mov)}</small></td><td>${esc(r.producto)}</td><td><b>${esc(r.solucion)}</b><br><small>${esc(QUE[r.solucion] || '')}</small></td><td>${(r.respuestas || []).map((x) => esc(x.texto)).join('<br>')}</td><td>${fmt(r.respuestas?.[r.respuestas.length - 1]?.t || r.t_envio)}</td>`;
+  const fila = (r) => `<tr><td><b>${esc(r.id)}</b><br><small>guía ${esc(r.guia)}</small></td><td>${esc(r.comuna)}<br><small>${esc(r.mov)}</small></td><td>${esc(r.producto)}</td><td><b>${esc(r.solucion)}</b><br><small>${esc(QUE[r.solucion] || '')}</small></td><td>${(r.respuestas || []).map((x) => esc(x.texto)).join('<br>')}</td><td>${fmt(r.respuestas?.[r.respuestas.length - 1]?.t || r.t_envio)}${r.motivoNoAuto ? '<br><small>auto: ' + esc(r.motivoNoAuto) + '</small>' : ''}${r.resueltoPor ? '<br><small>por ' + esc(r.resueltoPor) + '</small>' : ''}</td>`;
   const html = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Rescate de novedades</title>
 <style>body{font:14px system-ui,sans-serif;margin:16px;color:#111;background:#fafafa}table{border-collapse:collapse;width:100%;background:#fff}td,th{border:1px solid #ddd;padding:8px;vertical-align:top;text-align:left}th{background:#f1f1f1}button{padding:6px 10px;cursor:pointer}small{color:#666}</style>
 <h2>Rescate de novedades: por resolver en Dropi (${pend.length})</h2>
