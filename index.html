@@ -2296,7 +2296,9 @@
         <span style="font-size:10px;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;font-family:'DM Mono',monospace">Reporte:</span>
         <button id="tenant-btn-chile" class="tenant-btn active" onclick="switchTenant('chile')">🇨🇱 Chile</button>
         <button id="tenant-btn-gt" class="tenant-btn" onclick="switchTenant('gt')">🇬🇹 Reporte GT</button>
-        <button id="tenant-btn-mx" class="tenant-btn" onclick="switchTenant('mx')">🇲🇽 Reporte MX</button>
+        <!-- 27 nov 2026: Benjamin saco Mexico del radar ("ya no lo necesito"). El
+             boton vuelve descomentando esta linea; la logica de mx sigue intacta.
+        <button id="tenant-btn-mx" class="tenant-btn" onclick="switchTenant('mx')">🇲🇽 Reporte MX</button> -->
         <button id="tenant-btn-total" class="tenant-btn" onclick="switchTenant('total')">🌎 Total (CL + GT)</button>
         <span id="tenant-current-label" style="font-size:11px;color:var(--muted2);font-family:'DM Mono',monospace;margin-left:8px"></span>
       </div>
@@ -3035,7 +3037,8 @@
           <div style="display:flex;gap:8px">
             <button type="button" id="la-pais-chile" onclick="laSetPais('chile')" style="flex:1;padding:11px;border-radius:8px;border:2px solid #2B5FB3;background:#2B5FB3;color:#fff;font-size:13px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">🇨🇱 Chile</button>
             <button type="button" id="la-pais-gt" onclick="laSetPais('gt')" style="flex:1;padding:11px;border-radius:8px;border:2px solid var(--border);background:var(--surface2);color:var(--muted);font-size:13px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">🇬🇹 Guatemala</button>
-            <button type="button" id="la-pais-mx" onclick="laSetPais('mx')" style="flex:1;padding:11px;border-radius:8px;border:2px solid var(--border);background:var(--surface2);color:var(--muted);font-size:13px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">🇲🇽 México</button>
+            <!-- 27 nov 2026: Mexico fuera del radar.
+            <button type="button" id="la-pais-mx" onclick="laSetPais('mx')" style="flex:1;padding:11px;border-radius:8px;border:2px solid var(--border);background:var(--surface2);color:var(--muted);font-size:13px;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer">🇲🇽 México</button> -->
           </div>
         </div>
         <div style="display:flex;gap:10px;flex-wrap:wrap">
@@ -3131,7 +3134,8 @@
         <div class="bs-seg" id="bs-pais">
           <button type="button" data-v="cl" onclick="bsSetPais('cl')">🇨🇱 Chile</button>
           <button type="button" data-v="gt" onclick="bsSetPais('gt')">🇬🇹 Guatemala</button>
-          <button type="button" data-v="mx" onclick="bsSetPais('mx')">🇲🇽 México</button>
+          <!-- 27 nov 2026: Mexico fuera del radar.
+          <button type="button" data-v="mx" onclick="bsSetPais('mx')">🇲🇽 México</button> -->
         </div>
         <button onclick="bsCargar(true)" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:7px 13px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer">🔄 Actualizar</button>
       </div>
@@ -26865,7 +26869,11 @@ async function initMetaTab(){
 // entre recargas. Cuando es 'gt' las funciones del backend usan las
 // credenciales GT (Shopify GT + Meta GT).
 function getCurrentTenant(){
-  return localStorage.getItem('bkdrop_tenant') || 'chile';
+  const t = localStorage.getItem('bkdrop_tenant') || 'chile';
+  // 27 nov 2026: Mexico salio del radar y su boton esta comentado. Si alguien
+  // tenia 'mx' guardado del uso anterior, se devuelve a Chile para que no
+  // quede atrapado en un tenant sin boton.
+  return t === 'mx' ? 'chile' : t;
 }
 function setCurrentTenant(t){
   localStorage.setItem('bkdrop_tenant', t);
